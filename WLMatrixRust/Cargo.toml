@@ -1,0 +1,11 @@
+[package]
+name = "wlmatrix_rust"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+tokio = { version = "1.17.0", features = ["full"] }
+regex = "1.5.5"
+lazy_static = "1.4.0"
+substring = "1.4.5"
