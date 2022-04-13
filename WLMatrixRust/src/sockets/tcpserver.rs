@@ -1,5 +1,5 @@
 use tokio::{net::TcpListener, io::{AsyncBufReadExt, AsyncWriteExt, BufReader}};
-use super::msnp_command::{MSNPCommandParser};
+use super::msnp_command::{MSNPCommandParser, MSNPCommand};
 
 pub struct TCPServer {
     url: String,
@@ -21,6 +21,8 @@ impl TCPServer {
         
                 let mut reader = BufReader::new(read);
                 let mut line = String::new();
+                let mut empty_payload : Option<MSNPCommand> = None;
+
                 loop {
         
                     let bytes_read = reader.read_line(&mut line).await.unwrap();
@@ -28,9 +30,25 @@ impl TCPServer {
                         break;
                     }
 
-                    let messages = MSNPCommandParser::parse_message(line.clone());
+                    let mut messages;
+
+                    match empty_payload {
+                        Some(p) => {
+                            messages = MSNPCommandParser::parse_payload_message(line.clone(), p);
+                            empty_payload = None;
+                        },
+                        None => {
+                            messages = MSNPCommandParser::parse_message(line.clone());
+                            if !messages.is_empty() && !messages.last().unwrap().is_complete() {
+                                empty_payload = Some(messages.pop().unwrap());
+                            }
+                        }
+                    }
+
+                   for message in messages {
+                        println!("message: {}", message);
+                   }
                     
-                    println!("bytes read: {}, line: {}", bytes_read, line);
                     write.write_all(line.as_bytes()).await.unwrap();
                     line.clear();
                 }
