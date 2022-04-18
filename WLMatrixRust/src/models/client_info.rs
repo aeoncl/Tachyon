@@ -1,5 +1,3 @@
-
-
-struct clientInfo{
+struct clientInfo {
     msn_login: String
 }

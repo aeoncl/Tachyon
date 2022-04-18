@@ -27,6 +27,8 @@ impl MSNPCommandParser {
     pub fn parse_payload_message(message: String, empty_payload_command: MSNPCommand) -> Vec<MSNPCommand> {
         let payload_size = empty_payload_command.get_payload_size();
         let (payload, other_stuff) = message.split_at(payload_size.try_into().unwrap());
+
+
         let mut payload_command = empty_payload_command;
         
         payload_command.payload = payload.to_string();
