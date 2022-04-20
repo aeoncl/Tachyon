@@ -475,17 +475,21 @@ pub mod types {
     pub type FindMembership = FindMembershipRequestType;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "FindMembershipRequestType")]
+    #[yaserde(rename = "FindMembership",
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+    prefix = "nsi1",
+    default_namespace="nsi1"
+    )]
     pub struct FindMembershipRequestType {
-        #[yaserde(rename = "serviceFilter", default)]
+        #[yaserde(rename = "serviceFilter", prefix="nsi1")]
         pub service_filter: Option<ServiceFilter>,
-        #[yaserde(rename = "view", default)]
+        #[yaserde(rename = "view", prefix="nsi1")]
         pub view: String,
-        #[yaserde(rename = "expandMembership", default)]
+        #[yaserde(rename = "expandMembership", prefix="nsi1")]
         pub expand_membership: bool,
-        #[yaserde(rename = "deltasOnly", default)]
+        #[yaserde(rename = "deltasOnly", prefix="nsi1")]
         pub deltas_only: bool,
-        #[yaserde(rename = "lastChange", default)]
+        #[yaserde(rename = "lastChange", prefix="nsi1")]
         pub last_change: String,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
@@ -1515,7 +1519,7 @@ pub mod bindings {
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapFindMembershipMessage {
-        #[yaserde(rename = "FindMembership", default)]
+        #[yaserde(rename = "FindMembership", prefix="soap")]
         pub body: ports::FindMembershipMessage,
         #[yaserde(attribute)]
         pub xmlns: Option<String>,
@@ -4754,7 +4758,7 @@ mod tests {
 
     use crate::generated::msnab_datatypes::types::{OwnerNamespaceType, OwnerNamespaceInfoType, Handle, CircleAttributesType, ArrayOfServiceType, ServiceType, Memberships, Membership, RoleId, Members, BaseMember, MemberState, InfoType, HandleType, ServiceName};
 
-    use super::{bindings::{FindMembershipResponseMessageSoapEnvelope, SoapFindMembershipResponseMessage}, messages::FindMembershipResponseMessage, types::{FindMembershipResponse, MembershipResult}};
+    use super::{bindings::{FindMembershipResponseMessageSoapEnvelope, SoapFindMembershipResponseMessage, FindMembershipMessageSoapEnvelope}, messages::FindMembershipResponseMessage, types::{FindMembershipResponse, MembershipResult}};
 
     #[test]
     fn test_find_membership() {
@@ -4811,5 +4815,15 @@ mod tests {
         let r: FindMembershipResponseMessageSoapEnvelope = from_str(&test_string).unwrap();
         let test = r.body.body.find_membership_response.find_membership_result.services;
         let test2 = 0;
+    }
+
+
+    #[test]
+    fn test_find_membership_request() {
+
+        let request_body = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>Initial</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=0bfus4t3d_t0k3s</TicketToken></ABAuthHeader></soap:Header><soap:Body><FindMembership xmlns=\"http://www.msn.com/webservices/AddressBook\"><serviceFilter><Types><ServiceType>Messenger</ServiceType><ServiceType>SocialNetwork</ServiceType><ServiceType>Space</ServiceType><ServiceType>Profile</ServiceType></Types></serviceFilter><View>Full</View><deltasOnly>true</deltasOnly><lastChange>2022-04-20T13:03:28Z</lastChange></FindMembership></soap:Body></soap:Envelope>";
+        let r: FindMembershipMessageSoapEnvelope = from_str(&request_body).unwrap();
+        
+        assert_eq!(r.body.body.find_membership_request.deltas_only, true);
     }
 }

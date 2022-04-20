@@ -180,7 +180,7 @@ pub struct PassportProperties {
 
 impl PassportProperties {
 
-    pub fn new(puid: String, server_info: ServerInfo) -> PassportProperties {
+    pub fn new(puid: String, hex_cid: String, msn_addr: String, server_info: ServerInfo) -> PassportProperties {
 
         let mut browser_cookies : Vec<BrowserCookie> = Vec::new();
         browser_cookies.push(BrowserCookie { name: String::from("MH"), url: String::from("http://www.msn.com"), body: String::from("MSFT; path=/; domain=.msn.com; expires=Wed, 30-Dec-2037 16:00:00 GMT") });
@@ -192,12 +192,12 @@ impl PassportProperties {
         cred_properties.push(CredProperty{ name: String::from("MainBrandID"), body: String::from("MSFT") });
         cred_properties.push(CredProperty{ name: String::from("BrandIDList"), body: String::new() });
         cred_properties.push(CredProperty{ name: String::from("IsWinLiveUser"), body: String::from("true") });
-        cred_properties.push(CredProperty{ name: String::from("CID"), body: String::from("CID") });
-        cred_properties.push(CredProperty{ name: String::from("AuthMembername"), body: String::from("%auth_member_name%") });
+        cred_properties.push(CredProperty{ name: String::from("CID"), body: hex_cid });
+        cred_properties.push(CredProperty{ name: String::from("AuthMembername"), body: msn_addr });
         cred_properties.push(CredProperty{ name: String::from("Country"), body: String::from("US") });
         cred_properties.push(CredProperty{ name: String::from("Language"), body: String::from("1033") });
-        cred_properties.push(CredProperty{ name: String::from("FirstName"), body: String::from("%firstname%") });
-        cred_properties.push(CredProperty{ name: String::from("LastName"), body: String::from("%lastname%") });
+        cred_properties.push(CredProperty{ name: String::from("FirstName"), body: String::from("John") });
+        cred_properties.push(CredProperty{ name: String::from("LastName"), body: String::from("Doe") });
         cred_properties.push(CredProperty{ name: String::from("ChildFlags"), body: String::from("00000001") });
         cred_properties.push(CredProperty{ name: String::from("Flags"), body: String::from("40100643") });
         cred_properties.push(CredProperty{ name: String::from("FlagsV2"), body: String::from("00000000") });
@@ -472,9 +472,11 @@ pub struct BinarySecurityToken {
 #[derive(Debug, Default, YaSerialize, YaDeserialize)]
 pub struct RequestedTokenReference{
 
+    #[yaserde(rename = "KeyIdentifier", prefix = "wsse")]
     key_identifier: KeyIdentifier,
 
-    refernece: Reference
+    #[yaserde(rename = "Reference", prefix = "wsse")]
+    reference: Reference
 
 }
 
@@ -589,15 +591,110 @@ pub struct RequestSecurityToken {
 
 }
 
+pub mod factories {
+    use std::ops::Add;
+
+    use crate::models::uuid::UUID;
+    use chrono::{DateTime, Utc, Local, Duration};
+    use super::*;
+
+
+    pub struct RST2ResponseFactory;
+
+    impl RST2ResponseFactory {
+
+        pub fn get_rst2_success_response(matrix_token:String, msn_addr: String, uuid: UUID) -> RST2ResponseMessageSoapEnvelope{
+
+            let action = ActionHeader::new(String::from("Action"), 1, String::from("http://schemas.xmlsoap.org/ws/2005/02/trust/RSTR/Issue"));
+            let to = ActionHeader::new(String::from("To"), 1, String::from("http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous"));
+    
+            let now = Local::now();            
+            let tomorrow = now.add(Duration::days(1));
+
+            let timestamp = Timestamp::new(String::from("TS"),  now.format("%Y-%m-%dT%H:%M:%SZ").to_string(),  tomorrow.format("%Y-%m-%dT%H:%M:%SZ").to_string());
+            let security = SecurityHeader{must_understand: Some(1), timestamp: timestamp, username_token: None};
+    
+    
+            let server_info = ServerInfo { path: String::from("Live1"), rolling_upgrade_state: String::from("ExclusiveNew"), loc_version: 0, server_time: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), body: String::from("XYZPPLOGN1A23 2017.09.28.12.44.07")};
+           
+    
+            let pp = PassportProperties::new(uuid.get_puid().to_string(), uuid.to_hex_cid(), msn_addr, server_info);
+            let header = RST2ResponseMessageHeader {action, to, security, passport_properties: pp };
+
+            let body = RST2ResponseMessageBody { request_security_token_response_collection:  RST2ResponseFactory::get_tokens(matrix_token) };
+            return RST2ResponseMessageSoapEnvelope {header, body};
+        }
+
+        fn get_tokens(matrix_token: String) -> RequestSecurityTokenResponseCollection {
+
+            let mut request_security_token_response = Vec::new();
+            request_security_token_response.push(RST2ResponseFactory::get_legacy_token());
+
+            let mut tokens = RST2ResponseFactory::get_relevant_tokens(matrix_token);
+            request_security_token_response.append(&mut tokens);
+         
+            return RequestSecurityTokenResponseCollection { request_security_token_response};
+        }
+
+        fn get_legacy_token() -> RequestSecurityTokenResponse {
+
+            let applies_to = AppliesTo { endpoint_reference: EndpointReference { address: String::from("http://Passport.NET/tb") } };
+            let now = Local::now();            
+            let tomorrow = now.add(Duration::days(1));
+            let lifetime = Lifetime{created: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), expires: tomorrow.format("%Y-%m-%dT%H:%M:%SZ").to_string()};
+            let requested_security_token= RequestedSecurityToken{ binary_security_token: None, encrypted_data: Some(EncryptedData{ id: String::from("BinaryDAToken0"), data_type: String::from("http://www.w3.org/2001/04/xmlenc#Element"), encryption_method: EncryptionMethod{ algorithm: String::from("http://www.w3.org/2001/04/xmlenc#tripledes-cbc") }, key_info: KeyInfo{ key_name: String::from("http://Passport.NET/STS") }, cipher_data: CipherData{ cipher_value: String::from("Cap26AQZrSyMm2SwwTyJKyqLR9/S+vQWQsaBc5Mv7PwtQDMzup/udOOMMvSu99R284pmiD3IepBXrEMLK5rLrXAf2A6vrP6vYuGA45GCqQdoxusHZcjt9P2B8WyCTVT2cM8jtGqGIfRlU/4WzOLxNrDJwDfOsmilduGAGZfvRPW7/jyXXrnGK7/PWkymX4YDD+ygJfMrPAfvAprvw/HVE6tutKVc9cViTVYy8oHjosQlb8MKn3vKDW1O2ZWQUc47JPl7DkjQaanfNBGe6CL7K1nr6Z/jy7Ay7MjV+KQehmvphSEmCzLrpB4WWn2PdpdTrOcDj+aJfWHeGL4sIPwEKgrKnTQg9QD8CCsm5wew9P/br39OuIfsC6/PFBEHmVThqj0aMxYLRD4K2GoRay6Ab7NftoIP5dnFnclfRxETAoNpTPE2F5Q669QySrdXxBpBSk8GLmdCDMlhiyzSiByrhFQaZRcH8n9i+i289otYuJQ7xPyP19KwT4CRyOiIlh3DSdlBfurMwihQGxN2spU7P4MwckrDKeOyYQhvNm/XWId/oXBqpHbo2yRPiOwL9p1J4AxA4RaJuh77vyhn2lFQaxPDqZd5A8RJjpb2NE2N3UncKLW7GAangdoLbRDMqt51VMZ0la+b/moL61fKvFXinKRHc7PybrG3MWzgXxO/VMKAuXOsB9XnOgl2A524cgiwyg==") } })};
+            let requested_attached_reference= RequestedAttachedReference { security_token_reference: SecurityTokenReference{ reference: Reference{ uri: String::from("2jmj7l5rSw0yVb/vlWAYkK/YBwk=") } } };
+            let requested_unattached_reference= RequestedAttachedReference { security_token_reference: SecurityTokenReference{ reference: Reference{ uri: String::from("2jmj7l5rSw0yVb/vlWAYkK/YBwk=") } } };
+
+            let requested_proof_token = RequestedProofToken{ binary_secret: String::from("tgoPVK67sU36fQKlGLMgWgTXp7oiaQgE") };
+
+            return RequestSecurityTokenResponse {token_type: String::from("urn:passport:legacy"), applies_to, lifetime, requested_security_token, requested_token_reference: None, requested_attached_reference, requested_unattached_reference, requested_proof_token };
+        }
+
+        fn get_relevant_tokens(matrix_token: String) -> Vec<RequestSecurityTokenResponse> {
+            let mut out : Vec<RequestSecurityTokenResponse> = Vec::new();
+            let addresses = ["messengerclear.live.com", "messenger.msn.com", "messengersecure.live.com", "contacts.msn.com", "storage.msn.com","sup.live.com"];
+            let now = Local::now();            
+            let tomorrow = now.add(Duration::days(1));
+
+            for i in 0..6 {
+                out.push(RST2ResponseFactory::get_relevant_token(matrix_token.clone(), addresses[i].to_string(), i.try_into().unwrap(), &now, &tomorrow));
+            }
+
+            return out;
+        }
+
+        fn get_relevant_token(matrix_token: String, address: String, count : i32, created: &DateTime<Local>, expires: &DateTime<Local>) -> RequestSecurityTokenResponse {
+            let applies_to = AppliesTo { endpoint_reference: EndpointReference { address: address } };
+            let lifetime = Lifetime{created: created.format("%Y-%m-%dT%H:%M:%SZ").to_string(), expires: expires.format("%Y-%m-%dT%H:%M:%SZ").to_string()};
+            
+            let token_id = format!("Compact{}", count+1);
+            let token_uri = format!("#{}", token_id);
+            let token = format!("t={}", matrix_token);
+            
+            let binary_security_token = BinarySecurityToken { id: token_id.clone(), token };
+            let requested_security_token= RequestedSecurityToken{ binary_security_token: Some(binary_security_token), encrypted_data: None};
+            let requested_attached_reference= RequestedAttachedReference { security_token_reference: SecurityTokenReference{ reference: Reference{ uri: String::from("/DaESnwwMVTTpRTZEoNqUW/Md0k=")} } };
+            let requested_unattached_reference= RequestedAttachedReference { security_token_reference: SecurityTokenReference{ reference: Reference{ uri: String::from("/DaESnwwMVTTpRTZEoNqUW/Md0k=") } } };
+            let requested_token_reference = RequestedTokenReference { key_identifier: KeyIdentifier{ value_type: String::from("urn:passport:compact") }, reference: Reference{ uri: token_uri.clone() } };
+            let requested_proof_token = RequestedProofToken{ binary_secret: String::from("tgoPVK67sU36fQKlGLMgWgTXp7oiaQgE") };
+
+            return RequestSecurityTokenResponse {token_type: String::from("urn:passport:compact"), applies_to, lifetime, requested_security_token, requested_token_reference: Some(requested_token_reference), requested_attached_reference, requested_unattached_reference, requested_proof_token };
+        }
+
+    }
+
+}
+
 #[cfg(test)]
 mod tests {
     use log::{warn, debug};
     use yaserde::de::from_str;
     use yaserde::ser::to_string;
 
-    use crate::generated::ppcrl_webservice::{RST2ResponseMessageHeader, RST2ResponseMessageSoapEnvelope, ActionHeader, Timestamp, SecurityHeader, PassportProperties, ServerInfo, RST2ResponseMessageBody, RequestSecurityTokenResponseCollection, RequestSecurityTokenResponse, AppliesTo, EndpointReference, Lifetime, RequestedSecurityToken, RequestedAttachedReference, SecurityTokenReference, Reference, RequestedProofToken};
+    use crate::{generated::ppcrl_webservice::{RST2ResponseMessageHeader, RST2ResponseMessageSoapEnvelope, ActionHeader, Timestamp, SecurityHeader, PassportProperties, ServerInfo, RST2ResponseMessageBody, RequestSecurityTokenResponseCollection, RequestSecurityTokenResponse, AppliesTo, EndpointReference, Lifetime, RequestedSecurityToken, RequestedAttachedReference, SecurityTokenReference, Reference, RequestedProofToken}, models::uuid::UUID};
 
-    use super::{EncryptedData, EncryptionMethod, KeyInfo, CipherData, RST2RequestMessageSoapEnvelope};
+    use super::{EncryptedData, EncryptionMethod, KeyInfo, CipherData, RST2RequestMessageSoapEnvelope, factories::RST2ResponseFactory};
 
     #[test]
     fn test_rst2_request() {
@@ -624,7 +721,7 @@ mod tests {
         let server_info = ServerInfo { path: String::from("Live1"), rolling_upgrade_state: String::from("ExclusiveNew"), loc_version: 0, server_time: String::from("servertime"), body: String::from("XYZPPLOGN1A23 2017.09.28.12.44.07")};
        
 
-        let pp = PassportProperties::new(String::from("puid"), server_info);
+        let pp = PassportProperties::new(String::from("puid"), String::from("hex_cid") , String::from("msn_addr"),server_info);
         let header = RST2ResponseMessageHeader {action, to, security, passport_properties: pp };
 
 
@@ -645,6 +742,13 @@ mod tests {
         let env = RST2ResponseMessageSoapEnvelope {header, body};
 
         println!("{}", to_string(&env).unwrap());
+    }
+
+    #[test]
+    fn test_factory() {
+      let test =  RST2ResponseFactory::get_rst2_success_response("t0k3n".to_string(),"aeon@test.com".to_string(), UUID::new());
+
+        println!("{}", to_string(&test).unwrap());
     }
 
 }

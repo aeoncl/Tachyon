@@ -18,4 +18,12 @@ reqwest = { version = "0.11.10", features =["blocking"]}
 log = "0.4.6"
 log4rs = "1.0.0"
 actix-web = "4.0.1"
+env_logger = "0.9.0"
 http = "0.2.6"
+chashmap = "2.2.2"
+matrix-sdk = "0.4.1"
+uuid = { version = "0.8", features = ["v3", "v4", "v5"] }
+byteorder = "1.4.3"
+chrono = "0.4.19"
+mime = "0.3.16"
+lazy-static-include = "3.1.2"
