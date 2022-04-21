@@ -608,7 +608,7 @@ pub mod factories {
             let action = ActionHeader::new(String::from("Action"), 1, String::from("http://schemas.xmlsoap.org/ws/2005/02/trust/RSTR/Issue"));
             let to = ActionHeader::new(String::from("To"), 1, String::from("http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous"));
     
-            let now = Local::now();            
+            let now = Local::now();
             let tomorrow = now.add(Duration::days(1));
 
             let timestamp = Timestamp::new(String::from("TS"),  now.format("%Y-%m-%dT%H:%M:%SZ").to_string(),  tomorrow.format("%Y-%m-%dT%H:%M:%SZ").to_string());

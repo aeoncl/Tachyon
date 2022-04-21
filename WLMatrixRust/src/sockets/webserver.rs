@@ -1,10 +1,13 @@
 use std::io::Error;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use actix_web::http::header;
 use actix_web::{get, web, Responder, HttpResponse, post, HttpRequest, HttpResponseBuilder};
 use http::header::HeaderName;
+use log::{trace, info};
 use matrix_sdk::Client;
+use substring::Substring;
 use std::{str::from_utf8};
 
 use matrix_sdk::ruma::UserId;
@@ -15,8 +18,11 @@ use http::StatusCode;
 use regex::Regex;
 use lazy_static::lazy_static;
 
-use crate::MATRIX_CLIENT_REPO;
-use crate::generated::msnab_sharingservice::bindings::FindMembershipMessageSoapEnvelope;
+use crate::models::client_data::ClientData;
+use crate::repositories::client_data_repository::{ClientDataRepository, Repository};
+use crate::{MATRIX_CLIENT_REPO, CLIENT_DATA_REPO};
+use crate::generated::msnab_sharingservice::bindings::{FindMembershipMessageSoapEnvelope, FindMembershipResponseMessageSoapEnvelope};
+use crate::generated::msnab_sharingservice::factories::FindMembershipResponseFactory;
 use crate::generated::ppcrl_webservice::*;
 use crate::generated::ppcrl_webservice::factories::RST2ResponseFactory;
 use crate::models::uuid::UUID;
@@ -47,7 +53,10 @@ async fn rst2(body: web::Bytes, request: HttpRequest) -> HttpResponse {
     let result = client.login(matrix_user.localpart(), username_token.password.as_str(), Some("WLMatrix"), None).await.unwrap(); //Todo handle login failure
 
     {
-        MATRIX_CLIENT_REPO.lock().unwrap().insert(username_token.username.clone(), client);
+        MATRIX_CLIENT_REPO.lock().unwrap().insert(result.access_token.clone(), client);
+        let client_date_repo : Arc<ClientDataRepository> = CLIENT_DATA_REPO.clone();
+        client_date_repo.add(result.access_token.clone(), ClientData::new(username_token.username.to_string(), -1));
+
     }
 
     let response = RST2ResponseFactory::get_rst2_success_response(result.access_token, username_token.username, UUID::from_string(&matrix_id));
@@ -106,12 +115,29 @@ async fn soap_sharing_service(body: web::Bytes, request: HttpRequest) -> HttpRes
 async fn ab_sharing_find_membership(body: web::Bytes, request: HttpRequest) -> HttpResponse {
     let body = from_utf8(&body).unwrap();
 
-    if let Ok(request) = from_str::<FindMembershipMessageSoapEnvelope>(body){
-        //do stuff
-        return HttpResponseBuilder::new(StatusCode::OK).append_header(("Content-Type", "application/soap+xml")).finish();
-    }
+    let mut out : HttpResponse = HttpResponseBuilder::new(StatusCode::BAD_REQUEST).append_header(("Content-Type", "application/soap+xml")).finish();
 
-    return HttpResponseBuilder::new(StatusCode::BAD_REQUEST).append_header(("Content-Type", "application/soap+xml")).finish();
+    if let Ok(request) = from_str::<FindMembershipMessageSoapEnvelope>(body){
+        if let Some(header) = request.header {
+            let ticket_token = &header.ab_auth_header.ticket_token;
+            let matrix_token = header.ab_auth_header.ticket_token.substring(2, ticket_token.len()).to_string();
+
+            let cache_key = &header.application_header.cache_key.unwrap_or_default();
+
+            let client_data_repo : Arc<ClientDataRepository> = CLIENT_DATA_REPO.clone();
+            
+            if let Some(found) = client_data_repo.find(&matrix_token) {
+
+             let response = FindMembershipResponseFactory::get_empty_response(UUID::from_string(&msn_addr_to_matrix_id(&found.msn_login)), found.msn_login.clone(), cache_key.clone());
+             
+             if let Ok(response_serialized) = to_string(&response){
+                out = HttpResponseBuilder::new(StatusCode::OK).append_header(("Content-Type", "application/soap+xml")).body(response_serialized);
+             }
+
+            };
+        }
+    }
+    return out;
 
 }
 

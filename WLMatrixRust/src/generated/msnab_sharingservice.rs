@@ -45,6 +45,7 @@ pub type SoapResponse = Result<(reqwest::StatusCode, String), reqwest::Error>;
 
 pub mod messages {
     use super::*;
+    use super::types::{AbapplicationHeader, AbauthHeader};
     use async_trait::async_trait;
     use yaserde::de::from_str;
     use yaserde::ser::to_string;
@@ -145,6 +146,29 @@ pub mod messages {
         #[yaserde(flatten, default)]
         pub add_service_request: types::AddService,
     }
+
+    
+    #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
+    #[yaserde(rename = "Header")]
+    pub struct ServiceHeaderContainer {
+
+        #[yaserde(rename="ServiceHeader")]
+        pub service_header: messages::ServiceHeader
+    }
+
+    #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
+    #[yaserde(rename = "Header")]
+    pub struct RequestHeaderContainer{
+
+        #[yaserde(rename="ABApplicationHeader")]
+        pub application_header: AbapplicationHeader,
+
+        #[yaserde(rename="ABAuthHeader")]
+        pub ab_auth_header: AbauthHeader,
+
+
+    }
+
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(rename = "ServiceHeader")]
     pub struct ServiceHeader {
@@ -414,52 +438,52 @@ pub mod types {
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
         rename = "ABApplicationHeader",
-        namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
-        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
-        prefix = "nsi1"
+        namespace = "soap: http://www.msn.com/webservices/AddressBook",
+        prefix = "soap"
+        default_namespace="soap"
     )]
     pub struct AbapplicationHeader {
-        #[yaserde(rename = "ApplicationId", default)]
-        pub application_id: Guid,
-        #[yaserde(rename = "IsMigration", default)]
+        #[yaserde(rename = "ApplicationId", prefix="soap")]
+        pub application_id: String,
+        #[yaserde(rename = "IsMigration", prefix="soap")]
         pub is_migration: bool,
-        #[yaserde(rename = "PartnerScenario", default)]
+        #[yaserde(rename = "PartnerScenario", prefix="soap")]
         pub partner_scenario: String,
-        #[yaserde(rename = "CacheKey", default)]
+        #[yaserde(rename = "CacheKey", prefix="soap")]
         pub cache_key: Option<String>,
-        #[yaserde(rename = "BrandId", default)]
+        #[yaserde(rename = "BrandId", prefix="soap")]
         pub brand_id: Option<String>,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
         rename = "ABAuthHeader",
-        namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
-        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
-        prefix = "nsi1"
+        namespace = "soap: http://www.msn.com/webservices/AddressBook",
+        prefix = "soap"
+        default_namespace="soap"
     )]
     pub struct AbauthHeader {
-        #[yaserde(rename = "ManagedGroupRequest", default)]
+        #[yaserde(rename = "ManagedGroupRequest", prefix="soap")]
         pub managed_group_request: bool,
-        #[yaserde(rename = "TicketToken", default)]
+        #[yaserde(rename = "TicketToken", prefix="soap")]
         pub ticket_token: String,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
         rename = "ServiceHeader",
-        namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
-        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
-        prefix = "nsi1"
+        namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        prefix = "soap",
+        default_namespace="soap"
     )]
     pub struct ServiceHeader {
-        #[yaserde(rename = "Version", default)]
+        #[yaserde(rename = "Version", prefix="soap")]
         pub version: String,
-        #[yaserde(rename = "CacheKey", default)]
+        #[yaserde(rename = "CacheKey", prefix="soap")]
         pub cache_key: Option<String>,
-        #[yaserde(rename = "CacheKeyChanged", default)]
+        #[yaserde(rename = "CacheKeyChanged", prefix="soap")]
         pub cache_key_changed: Option<bool>,
-        #[yaserde(rename = "PreferredHostName", default)]
+        #[yaserde(rename = "PreferredHostName", prefix="soap")]
         pub preferred_host_name: Option<String>,
-        #[yaserde(rename = "SessionId", default)]
+        #[yaserde(rename = "SessionId", prefix="soap")]
         pub session_id: Option<Guid>,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
@@ -496,7 +520,6 @@ pub mod types {
     #[yaserde(
         rename = "FindMembershipResponse",
         namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
-        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
         prefix = "nsi1",
         default_namespace="nsi1"
     )]
@@ -1484,6 +1507,7 @@ pub mod ports {
 
 pub mod bindings {
     use super::*;
+    use super::messages::{ServiceHeaderContainer, RequestHeaderContainer};
     use async_trait::async_trait;
     use yaserde::de::from_str;
     use yaserde::ser::to_string;
@@ -1540,7 +1564,7 @@ pub mod bindings {
         #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
         pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<Header>,
+        pub header: Option<RequestHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapFindMembershipMessage,
     }
@@ -1581,7 +1605,7 @@ pub mod bindings {
         #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
         pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<Header>,
+        pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapFindMembershipResponseMessage,
     }
@@ -4750,6 +4774,98 @@ pub mod services {
     }
 }
 
+pub mod factories {
+    use crate::{generated::msnab_datatypes::types::*, models::uuid::UUID};
+
+    use chrono::{Local, DateTime, NaiveDateTime};
+    use lazy_static::lazy_static;
+
+    use super::{bindings::{FindMembershipResponseMessageSoapEnvelope, SoapFindMembershipResponseMessage}, types::{MembershipResult, FindMembershipResponse}, messages::{FindMembershipResponseMessage, ServiceHeaderContainer}};
+
+
+    pub struct FindMembershipResponseFactory;
+
+    impl FindMembershipResponseFactory {
+
+        pub fn get_empty_response(uuid: UUID, msn_addr: String, cache_key: String, ) -> FindMembershipResponseMessageSoapEnvelope {
+
+            let circle_attributes = CircleAttributesType{ is_presence_enabled: false, is_event: None, domain: String::from("WindowsLive") };
+            let handle = Handle { id: UUID::nil().to_string(), is_passport_name_hidden: false, cid: 0 };
+            let owner_namespace_info = OwnerNamespaceInfoType{ handle: handle, creator_puid: uuid.get_puid().to_string(), creator_cid: uuid.to_decimal_cid(), creator_passport_name: msn_addr, circle_attributes: circle_attributes, messenger_application_service_created: Some(false) };
+            
+            let now = Local::now();
+
+            let owner_namespace = OwnerNamespaceType{ info: owner_namespace_info, changes: String::new(), create_date: String::from("2014-10-31T00:00:00Z"), last_change: now.format("%Y-%m-%dT%H:%M:%SZ").to_string() };
+            
+            let mut services = Vec::new();
+            services.push(FindMembershipResponseFactory::get_messenger_service());
+    
+            let array_of_services = ArrayOfServiceType{ service: services };
+            
+            let result = MembershipResult{ services: Some(array_of_services), owner_namespace: Some(owner_namespace) };
+            let fmr = FindMembershipResponse{ find_membership_result: result };
+            let body = FindMembershipResponseMessage { find_membership_response: fmr };
+            let message = SoapFindMembershipResponseMessage {body:body, fault: None };
+
+            let mut response = FindMembershipResponseMessageSoapEnvelope::new(message);
+
+
+
+
+            let service_header_1 = super::types::ServiceHeader{ version: String::from("15.01.1408.0000"), cache_key: Some(cache_key), cache_key_changed: Some(true), preferred_host_name: Some(String::from("localhost")), session_id: None };
+            let service_header = super::messages::ServiceHeader { service_header: service_header_1 };
+            let service_header_container = ServiceHeaderContainer{ service_header };
+
+            response.header = Some(service_header_container);
+            return response;
+        }
+
+        pub fn get_messenger_service() -> ServiceType {
+
+            let mut memberships = Vec::new();
+
+            lazy_static! {
+                static ref ROLE_IDS: Vec<String> = Vec::from([String::from("Allow"), String::from("Block"), String::from("Reverse"), String::from("Pending")]);
+            }
+
+            let role_ids : &Vec<String> = &ROLE_IDS;
+            for current_role_id in role_ids {
+                let role_id = RoleId { body: current_role_id.to_string() };
+                let members_array = Members{ member: Vec::new() };
+                let membership = Membership{ member_role: role_id, members: members_array, membership_is_complete: Some(true) };
+                memberships.push(membership);
+            }
+            
+            let handle = HandleType{ id: 1, rs_type: ServiceName{ body: "Messenger".to_string() }, foreign_id: None };
+            let info_type = InfoType{ handle: handle, display_name: None, inverse_required: false, authorization_criteria: Some(String::from("Everyone")), rss_url: None, is_bot: false };
+            let array_of_membership = Memberships{ membership: memberships };
+            let now = Local::now();
+            return ServiceType{ memberships: Some(array_of_membership), info: info_type, changes: String::new(), last_change: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), deleted: false };
+        }
+
+    }
+
+
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use yaserde::de::from_str;
+        use yaserde::ser::to_string;
+
+        #[test]
+        fn test_get_empty_find_membership_response() {
+
+            let response = FindMembershipResponseFactory::get_empty_response(UUID::from_string(&String::from("TEST")), String::from("test@matrix.org"), String::from("c4che_key"));
+            let serialized = to_string(&response).unwrap();
+        }
+
+
+    }
+
+
+}
+
 #[cfg(test)]
 mod tests {
     use log::{warn, debug};
@@ -4775,7 +4891,7 @@ mod tests {
 
         let circle_attributes = CircleAttributesType{ is_presence_enabled: false, is_event: None, domain: String::from("WindowsLive") };
         let handle = Handle { id: String::from("00000000-0000-0000-0000-000000000000"), is_passport_name_hidden: false, cid: 0 };
-        let owner_namespace_info = OwnerNamespaceInfoType{ handle: handle, creator_puid: 0, creator_cid: -863314, creator_passport_name: String::from("aeon@test.fr"), circle_attributes: circle_attributes, messenger_application_service_created: Some(false) };
+        let owner_namespace_info = OwnerNamespaceInfoType{ handle: handle, creator_puid: String::from("0"), creator_cid: String::from("-863314"), creator_passport_name: String::from("aeon@test.fr"), circle_attributes: circle_attributes, messenger_application_service_created: Some(false) };
         let owner_namespace = OwnerNamespaceType{ info: owner_namespace_info, changes: "Hi".to_string(), create_date: "date".to_string(), last_change: "date".to_string() };
         
         let mut members = Vec::new();
@@ -4824,6 +4940,10 @@ mod tests {
         let request_body = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>Initial</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=0bfus4t3d_t0k3s</TicketToken></ABAuthHeader></soap:Header><soap:Body><FindMembership xmlns=\"http://www.msn.com/webservices/AddressBook\"><serviceFilter><Types><ServiceType>Messenger</ServiceType><ServiceType>SocialNetwork</ServiceType><ServiceType>Space</ServiceType><ServiceType>Profile</ServiceType></Types></serviceFilter><View>Full</View><deltasOnly>true</deltasOnly><lastChange>2022-04-20T13:03:28Z</lastChange></FindMembership></soap:Body></soap:Envelope>";
         let r: FindMembershipMessageSoapEnvelope = from_str(&request_body).unwrap();
         
+        let header = &r.header.unwrap();
         assert_eq!(r.body.body.find_membership_request.deltas_only, true);
+        assert_eq!(header.ab_auth_header.ticket_token, String::from("t=0bfus4t3d_t0k3s"));
+        assert_eq!(header.application_header.partner_scenario, String::from("Initial"));
+
     }
 }

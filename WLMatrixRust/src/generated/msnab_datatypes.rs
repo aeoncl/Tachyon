@@ -1711,9 +1711,9 @@ pub struct OwnerNamespaceInfoType {
 	#[yaserde(rename = "Handle", prefix = "nsi1")]
 	pub handle: Handle, 
 	#[yaserde(rename = "CreatorPuid", prefix = "nsi1")]
-	pub creator_puid: i32, 
+	pub creator_puid: String, 
 	#[yaserde(rename = "CreatorCID", prefix = "nsi1")]
-	pub creator_cid: i32, 
+	pub creator_cid: String, 
 	#[yaserde(rename = "CreatorPassportName", prefix = "nsi1")]
 	pub creator_passport_name: String, 
 	#[yaserde(rename = "CircleAttributes", prefix = "nsi1")]

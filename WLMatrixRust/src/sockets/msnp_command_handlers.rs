@@ -1,10 +1,12 @@
+use std::sync::Arc;
+
 use substring::Substring;
 use tokio::sync::broadcast::Sender;
 
 use crate::CLIENT_DATA_REPO;
 use crate::models::client_data::ClientData;
 use crate::models::uuid::UUID;
-use crate::repositories::client_data_repository::{Repository};
+use crate::repositories::client_data_repository::{ClientDataRepository, Repository};
 use crate::models::msg_payload::factories::{MsgPayloadFactory};
 use super::msnp_command::MSNPCommand;
 
@@ -90,13 +92,20 @@ impl CommandHandler for NotificationCommandHandler {
                 } else if auth_type == "SSO" {
                     if phase == "I" {
                         let login = split[4];
-                        let test = CLIENT_DATA_REPO.clone();
                         self.msn_addr = login.to_string();
-                        test.add(login.to_string(), ClientData::new(login.to_string(), self.protocol_version));
                         return format!("USR {tr_id} SSO S MBI_KEY_OLD LAhAAUzdC+JvuB33nooLSa6Oh0oDFCbKrN57EVTY0Dmca8Reb3C1S1czlP12N8VU\r\nGCF 0 1233\r\n<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"9999\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"200\"><r id= \"pushstorage\" threshold= \"180000\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"86400000\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"86400000\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"1800000\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"900000\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>", tr_id = tr_id);
                     } else if phase == "S" {
                         self.matrix_token = split[4][2..split[4].chars().count()].to_string();
-                        
+
+                        let client_data_repo : Arc<ClientDataRepository>= CLIENT_DATA_REPO.clone();
+                        if let Some(mut found) = client_data_repo.find_mut(&self.matrix_token) {
+                            found.msn_login = self.msn_addr.clone();
+                            found.msnp_version = self.protocol_version.clone();
+                        } else {
+                            client_data_repo.add(self.matrix_token.clone(), ClientData::new(self.msn_addr.clone(), self.protocol_version.clone()));
+                        }
+
+
                         let msmsgs_profile_msg = MsgPayloadFactory::get_msmsgs_profile(UUID::from_string(&self.msn_addr).get_puid(), self.msn_addr.clone(), self.matrix_token.clone()).serialize();
                         return format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\nMSG HOTMAIL HOTMAIL {msmsgs_profile_payload_size}\r\n{payload}UBX 1:{email} 0\r\n", tr_id = tr_id, email=&self.msn_addr, msmsgs_profile_payload_size= msmsgs_profile_msg.len(), payload=msmsgs_profile_msg);
                     }
