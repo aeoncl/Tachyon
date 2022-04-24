@@ -1,17 +1,10 @@
 use chashmap::{CHashMap, ReadGuard, WriteGuard};
 use crate::models::client_data::ClientData;
 
+use super::repository::Repository;
+
 pub struct ClientDataRepository {
     data : CHashMap<String, ClientData>
-}
-
-pub trait Repository<K, V> {
-
-    fn find(&self, id: &K) -> Option<ReadGuard<K,V>>;
-    fn find_mut(&self, id: &K) -> Option<WriteGuard<K,V>>;
-    fn add(&self, id: K, data: V);
-    fn remove(&self, id: &K);
-    fn new() -> Self;
 }
 
 impl Repository<String, ClientData> for ClientDataRepository {

@@ -1,5 +1,5 @@
 
-use std::{str::FromStr, io::Cursor, error::Error};
+use std::{str::FromStr};
 
 use byteorder::{ReadBytesExt, LittleEndian, ByteOrder};
 use uuid::{Uuid};
@@ -91,8 +91,12 @@ impl UUID {
         return format!("{:x}", self.uuid.as_u128());
     }
 
-    pub fn to_decimal_cid(&self) -> String {
+    pub fn to_decimal_cid_string(&self) -> String {
         return format!("{}", self.get_most_significant_bytes());
+    }
+
+    pub fn to_decimal_cid(&self) -> i64 {
+        return self.get_most_significant_bytes() as i64;
     }
 
     pub fn to_hex_cid(&self) -> String {

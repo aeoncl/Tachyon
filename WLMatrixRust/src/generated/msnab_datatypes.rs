@@ -176,7 +176,7 @@ pub struct ArrayOfRoleId {
 )]
 pub struct AbInfoType {
 	#[yaserde(rename = "MigratedTo", prefix = "nsi1")]
-	pub migrated_to: i16, 
+	pub migrated_to: Option<i16>, 
 	#[yaserde(rename = "BetaStatus", prefix = "nsi1")]
 	pub beta_status: Option<String>, 
 	#[yaserde(rename = "name", prefix = "nsi1")]
@@ -208,11 +208,11 @@ pub struct AbInfoType {
 	#[yaserde(rename = "AddressBookType", prefix = "nsi1")]
 	pub address_book_type: String, 
 	#[yaserde(rename = "MessengerApplicationServiceCreated", prefix = "nsi1")]
-	pub messenger_application_service_created: bool, 
+	pub messenger_application_service_created: Option<bool>, 
 	#[yaserde(rename = "IsBetaMigrated", prefix = "nsi1")]
-	pub is_beta_migrated: bool, 
+	pub is_beta_migrated: Option<bool>, 
 	#[yaserde(rename = "LastRelevanceUpdate", prefix = "nsi1")]
-	pub last_relevance_update: String, 
+	pub last_relevance_update: Option<String>, 
 }
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
@@ -588,7 +588,7 @@ pub struct Annotation {
 )]
 pub struct ContactType {
 	#[yaserde(rename = "contactId", prefix = "nsi1")]
-	pub contact_id: Option<Guid>, 
+	pub contact_id: Option<String>, 
 	#[yaserde(rename = "contactInfo", prefix = "nsi1")]
 	pub contact_info: Option<ContactInfoType>, 
 	#[yaserde(rename = "propertiesChanged", prefix = "nsi1")]
@@ -872,7 +872,7 @@ pub struct GroupInfoType {
 	#[yaserde(rename = "annotations", prefix = "nsi1")]
 	pub annotations: Option<ArrayOfAnnotation>, 
 	#[yaserde(rename = "groupType", prefix = "nsi1")]
-	pub group_type: Option<Guid>, 
+	pub group_type: Option<String>, 
 	#[yaserde(rename = "name", prefix = "nsi1")]
 	pub name: Option<String>, 
 	#[yaserde(rename = "IsNotMobileVisible", prefix = "nsi1")]
@@ -1713,7 +1713,7 @@ pub struct OwnerNamespaceInfoType {
 	#[yaserde(rename = "CreatorPuid", prefix = "nsi1")]
 	pub creator_puid: String, 
 	#[yaserde(rename = "CreatorCID", prefix = "nsi1")]
-	pub creator_cid: String, 
+	pub creator_cid: i64, 
 	#[yaserde(rename = "CreatorPassportName", prefix = "nsi1")]
 	pub creator_passport_name: String, 
 	#[yaserde(rename = "CircleAttributes", prefix = "nsi1")]

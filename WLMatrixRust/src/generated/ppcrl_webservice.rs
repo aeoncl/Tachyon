@@ -595,7 +595,7 @@ pub mod factories {
     use std::ops::Add;
 
     use crate::models::uuid::UUID;
-    use chrono::{DateTime, Utc, Local, Duration};
+    use chrono::{DateTime, Local, Duration};
     use super::*;
 
 

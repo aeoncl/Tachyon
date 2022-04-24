@@ -1,15 +1,13 @@
-use std::{sync::Arc, str::from_utf8};
+use std::{str::from_utf8};
 
-use crate::{MATRIX_CLIENT_REPO};
-use async_trait::async_trait;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, AsyncReadExt},
+    io::{AsyncWriteExt, BufReader, AsyncReadExt},
     net::TcpListener,
     sync::broadcast::{self, Sender},
 };
 
 use super::{
-    msnp_command::{MSNPCommand, MSNPCommandParser},
+    msnp_command::{MSNPCommandParser},
     msnp_command_handlers::{
         CommandHandler, NotificationCommandHandler, SwitchboardCommandHandler,
     },
@@ -53,7 +51,6 @@ impl TCPServer {
             .unwrap();
 
         let (tx, _rx) = broadcast::channel::<String>(10);
-        let test = MATRIX_CLIENT_REPO.lock().unwrap().get_mut("test");
         loop {
             let (mut socket, _addr) = listener.accept().await.unwrap();
 
@@ -78,7 +75,7 @@ impl TCPServer {
 
                             for command in commands {
                                 println!("NS <= {}", &command);
-                                let response = command_handler.handle_command(&command);
+                                let response = command_handler.handle_command(&command).await;
                                 if !response.is_empty() {
                                     write.write_all(response.as_bytes()).await.unwrap();
                                     println!("NS => {}", &response);

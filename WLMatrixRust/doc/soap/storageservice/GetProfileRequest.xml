@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+    <soap:Header>
+        <AffinityCacheHeader xmlns="http://www.msn.com/webservices/storage/2008">
+            <CacheKey>KaFdoq7oNpMgw0Te5UxLIJkz6Vd09Z4RpNGVWKm7hEqokd7UK7kw5IUTxuXWLeK3f_7_nFrcH2JT13ThgLDVkL-xBFIACtZWE19ZR4G74VGggxyvefbPLO8wKo5i8ljqgQRti15GZMB4FgCH7Q0MoE6TA46esQws4VxVGYAph8LTzT2b53Ma6T3JnUtl1rc9XsgfatXXvYO0zFLQOamoGtetUqGtmxfQxDOUhg</CacheKey>
+        </AffinityCacheHeader>
+        <StorageApplicationHeader xmlns="http://www.msn.com/webservices/storage/2008">
+            <ApplicationID>Messenger Client 9.0</ApplicationID>
+            <Scenario>Initial</Scenario>
+        </StorageApplicationHeader>
+        <StorageUserHeader xmlns="http://www.msn.com/webservices/storage/2008">
+            <Puid>0</Puid>
+            <TicketToken>t=0bfusc4tedT0k3n</TicketToken>
+        </StorageUserHeader>
+    </soap:Header>
+    <soap:Body>
+        <GetProfile xmlns="http://www.msn.com/webservices/storage/2008">
+            <profileHandle>
+                <Alias>
+                    <Name>-9187808514398587066</Name>
+                    <NameSpace>MyCidStuff</NameSpace>
+                </Alias>
+                <RelationshipName>MyProfile</RelationshipName>
+            </profileHandle>
+            <profileAttributes>
+                <ResourceID>true</ResourceID>
+                <DateModified>true</DateModified>
+                <ExpressionProfileAttributes>
+                    <ResourceID>true</ResourceID>
+                    <DateModified>true</DateModified>
+                    <DisplayName>true</DisplayName>
+                    <DisplayNameLastModified>true</DisplayNameLastModified>
+                    <PersonalStatus>true</PersonalStatus>
+                    <PersonalStatusLastModified>true</PersonalStatusLastModified>
+                    <StaticUserTilePublicURL>true</StaticUserTilePublicURL>
+                    <Photo>true</Photo>
+                    <Attachments>true</Attachments>
+                    <Flags>true</Flags>
+                </ExpressionProfileAttributes>
+            </profileAttributes>
+        </GetProfile>
+    </soap:Body>
+</soap:Envelope>

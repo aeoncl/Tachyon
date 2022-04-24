@@ -2,6 +2,9 @@ mod sockets;
 mod generated;
 mod repositories;
 mod models;
+mod web;
+mod utils;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -11,16 +14,16 @@ use actix_web::HttpServer;
 use actix_web::middleware::Logger;
 use matrix_sdk::Client;
 use sockets::tcpserver::*;
-use sockets::webserver::*;
+use web::webserver::*;
 use tokio::join;
 use lazy_static::lazy_static;
 #[macro_use] extern crate lazy_static_include;
 use crate::repositories::client_data_repository::ClientDataRepository;
-use crate::repositories::client_data_repository::Repository;
-
+use crate::repositories::matrix_client_repository::MatrixClientRepository;
+use crate::repositories::repository::Repository;
 
 lazy_static! {
-    static ref MATRIX_CLIENT_REPO: Arc<Mutex<HashMap<String, Client>>> = Arc::new(Mutex::new(HashMap::new()));
+    static ref MATRIX_CLIENT_REPO: Arc<MatrixClientRepository> = Arc::new(MatrixClientRepository::new());
     static ref CLIENT_DATA_REPO : Arc<ClientDataRepository> = Arc::new(ClientDataRepository::new());
 }
 

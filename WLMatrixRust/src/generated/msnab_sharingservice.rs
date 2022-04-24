@@ -218,7 +218,7 @@ pub mod messages {
         pub ab_group_contact_add_response: types::AbgroupContactAddResponse,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "ABGroupAddResponseMessage")]
+    #[yaserde(rename = "ABGroupAddResponse")]
     pub struct AbgroupAddResponseMessage {
         #[yaserde(flatten, default)]
         pub ab_group_add_response: types::AbgroupAddResponse,
@@ -302,7 +302,7 @@ pub mod messages {
         pub ab_find_contacts_paged_request: types::AbfindContactsPaged,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "ABFindContactsPagedResponseMessage")]
+    #[yaserde(rename = "ABFindContactsPagedResponse")]
     pub struct AbfindContactsPagedResponseMessage {
         #[yaserde(flatten, default)]
         pub ab_find_contacts_paged_response: types::AbfindContactsPagedResponse,
@@ -470,20 +470,20 @@ pub mod types {
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
         rename = "ServiceHeader",
-        namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
-        prefix = "soap",
-        default_namespace="soap"
+        namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+        prefix = "nsi1",
+        default_namespace="nsi1"
     )]
     pub struct ServiceHeader {
-        #[yaserde(rename = "Version", prefix="soap")]
+        #[yaserde(rename = "Version", prefix="nsi1")]
         pub version: String,
-        #[yaserde(rename = "CacheKey", prefix="soap")]
+        #[yaserde(rename = "CacheKey", prefix="nsi1")]
         pub cache_key: Option<String>,
-        #[yaserde(rename = "CacheKeyChanged", prefix="soap")]
+        #[yaserde(rename = "CacheKeyChanged", prefix="nsi1")]
         pub cache_key_changed: Option<bool>,
-        #[yaserde(rename = "PreferredHostName", prefix="soap")]
+        #[yaserde(rename = "PreferredHostName", prefix="nsi1")]
         pub preferred_host_name: Option<String>,
-        #[yaserde(rename = "SessionId", prefix="soap")]
+        #[yaserde(rename = "SessionId", prefix="nsi1")]
         pub session_id: Option<Guid>,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
@@ -581,7 +581,7 @@ pub mod types {
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(rename = "groups")]
     pub struct Groups {
-        #[yaserde(rename = "Group", default)]
+        #[yaserde(rename = "Group", prefix="nsi1")]
         pub group: Vec<GroupType>,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
@@ -600,7 +600,7 @@ pub mod types {
     #[yaserde(rename = "ab")]
     pub struct Ab {
         #[yaserde(rename = "abId", default)]
-        pub ab_id: Guid,
+        pub ab_id: String,
         #[yaserde(rename = "abInfo", default)]
         pub ab_info: AbInfoType,
         #[yaserde(rename = "lastChange", default)]
@@ -608,7 +608,7 @@ pub mod types {
         #[yaserde(rename = "DynamicItemLastChanged", default)]
         pub dynamic_item_last_changed: String,
         #[yaserde(rename = "RecentActivityItemLastChanged", default)]
-        pub recent_activity_item_last_changed: String,
+        pub recent_activity_item_last_changed: Option<String>,
         #[yaserde(rename = "createDate", default)]
         pub create_date: String,
         #[yaserde(rename = "propertiesChanged", default)]
@@ -761,42 +761,54 @@ pub mod types {
     pub type AbgroupAdd = AbgroupAddRequestType;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "groupAddOptions")]
+    #[yaserde(rename = "groupAddOptions",
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+    prefix = "nsi1",
+    default_namespace="nsi1")]
     pub struct GroupAddOptions {
-        #[yaserde(rename = "fRenameOnMsgrConflict", default)]
+        #[yaserde(rename = "fRenameOnMsgrConflict", prefix="nsi1")]
         pub f_rename_on_msgr_conflict: Option<bool>,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "groupInfo")]
+    #[yaserde(rename = "groupInfo",
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+    prefix = "nsi1",
+    default_namespace="nsi1")]
     pub struct GroupInfo {
-        #[yaserde(rename = "GroupInfo", default)]
+        #[yaserde(rename = "GroupInfo", prefix="nsi1")]
         pub group_info: GroupInfoType,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "ABGroupAddRequestType")]
+    #[yaserde(rename = "ABGroupAddRequest",
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+    prefix = "nsi1",
+    default_namespace="nsi1")]
     pub struct AbgroupAddRequestType {
-        #[yaserde(rename = "abId", default)]
-        pub ab_id: Guid,
-        #[yaserde(rename = "groupAddOptions", default)]
+        #[yaserde(rename = "abId", prefix="nsi1")]
+        pub ab_id: String,
+        #[yaserde(rename = "groupAddOptions",  prefix="nsi1")]
         pub group_add_options: GroupAddOptions,
-        #[yaserde(rename = "groupInfo", default)]
+        #[yaserde(rename = "groupInfo",  prefix="nsi1")]
         pub group_info: GroupInfo,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "ABGroupAddResultType")]
+    #[yaserde(rename = "ABGroupAddResultType",
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+    prefix = "nsi1",
+    default_namespace="nsi1")]
     pub struct AbgroupAddResultType {
-        #[yaserde(rename = "guid", default)]
-        pub guid: Guid,
+        #[yaserde(rename = "guid", prefix="nsi1")]
+        pub guid: String,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
         rename = "ABGroupAddResponse",
         namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
-        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
-        prefix = "nsi1"
+        prefix = "nsi1",
+        default_namespace="nsi1"
     )]
     pub struct AbgroupAddResponse {
-        #[yaserde(rename = "ABGroupAddResult", default)]
+        #[yaserde(rename = "ABGroupAddResult", prefix="nsi1")]
         pub ab_group_add_result: Option<AbgroupAddResultType>,
     }
     pub type AbgroupUpdate = AbgroupUpdateRequestType;
@@ -948,40 +960,46 @@ pub mod types {
     pub type AbfindContactsPaged = AbfindContactsPagedRequestType;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "ABFindContactsPagedRequestType")]
+    #[yaserde(rename = "ABFindContactsPagedRequestType",
+        namespace = "soap: http://www.msn.com/webservices/AddressBook",
+        prefix = "soap",
+        default_namespace="soap"
+    )]
     pub struct AbfindContactsPagedRequestType {
-        #[yaserde(rename = "filterOptions", default)]
+        #[yaserde(rename = "filterOptions", prefix="soap")]
         pub filter_options: FilterOptionsType,
-        #[yaserde(rename = "abView", default)]
+        #[yaserde(rename = "abView", prefix="soap")]
         pub ab_view: String,
-        #[yaserde(rename = "extendedContent", default)]
+        #[yaserde(rename = "extendedContent", prefix="soap")]
         pub extended_content: String,
-        #[yaserde(rename = "abHandle", default)]
+        #[yaserde(rename = "abHandle", prefix="soap")]
         pub ab_handle: Option<AbHandleType>,
-        #[yaserde(rename = "pageContext", default)]
+        #[yaserde(rename = "pageContext", prefix="soap")]
         pub page_context: Option<PageContextType>,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "ABFindContactsPagedResultType")]
+    #[yaserde(rename = "ABFindContactsPagedResult", namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+	prefix = "nsi1",
+	default_namespace="nsi1")]
     pub struct AbfindContactsPagedResultType {
-        #[yaserde(rename = "Groups", default)]
+        #[yaserde(rename = "Groups", prefix="nsi1")]
         pub groups: Option<Groups>,
-        #[yaserde(rename = "Contacts", default)]
+        #[yaserde(rename = "Contacts", prefix="nsi1")]
         pub contacts: Option<ArrayOfContactType>,
-        #[yaserde(rename = "CircleResult", default)]
+        #[yaserde(rename = "CircleResult", prefix="nsi1")]
         pub circle_result: CircleResultType,
-        #[yaserde(rename = "Ab", default)]
+        #[yaserde(rename = "Ab", prefix="nsi1")]
         pub ab: Ab,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
         rename = "ABFindContactsPagedResponse",
         namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
-        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
         prefix = "nsi1"
+        default_namespace="nsi1"
     )]
     pub struct AbfindContactsPagedResponse {
-        #[yaserde(rename = "ABFindContactsPagedResult", default)]
+        #[yaserde(rename = "ABFindContactsPagedResult", prefix="nsi1")]
         pub ab_find_contacts_paged_result: AbfindContactsPagedResultType,
     }
     pub type FindFriendsInCommon = FindFriendsInCommonRequestType;
@@ -1377,7 +1395,7 @@ pub mod ports {
 
     pub type AbfindContactsPagedMessage = messages::AbfindContactsPagedMessage;
 
-    pub type AbfindContactsPagedResponseMessage = messages::AbfindContactsPagedResponseMessage;
+    pub type AbfindContactsPagedResponseMessage = types::AbfindContactsPagedResponse;
 
     pub type FindFriendsInCommonMessage = messages::FindFriendsInCommonMessage;
 
@@ -2684,29 +2702,29 @@ pub mod bindings {
     }
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
+    #[yaserde(
+        namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+        prefix = "nsi1",
+        default_namespace="nsi1"
+    )]
     pub struct SoapAbgroupAddMessage {
-        #[yaserde(rename = "ABGroupAdd", default)]
+        #[yaserde(rename = "ABGroupAdd", prefix="nsi1")]
         pub body: ports::AbgroupAddMessage,
         #[yaserde(attribute)]
-        pub xmlns: Option<String>,
+        pub xmlns: Option<String>
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     #[yaserde(
         rename = "Envelope",
         namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+        namespace = "xsd: http://www.w3.org/2001/XMLSchema",
+        namespace = "soapenc: http://schemas.xmlsoap.org/soap/encoding/"
         prefix = "soap"
     )]
     pub struct AbgroupAddMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<Header>,
+        pub header: Option<RequestHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapAbgroupAddMessage,
     }
@@ -2714,11 +2732,7 @@ pub mod bindings {
     impl AbgroupAddMessageSoapEnvelope {
         pub fn new(body: SoapAbgroupAddMessage) -> Self {
             AbgroupAddMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
                 header: None,
             }
         }
@@ -2726,7 +2740,7 @@ pub mod bindings {
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAbgroupAddResponseMessage {
-        #[yaserde(rename = "AbgroupAddResponseMessage", default)]
+        #[yaserde(rename = "ABGroupAddResponse", default)]
         pub body: ports::AbgroupAddResponseMessage,
         #[yaserde(rename = "Fault", default)]
         pub fault: Option<SoapFault>,
@@ -2735,19 +2749,13 @@ pub mod bindings {
     #[yaserde(
         rename = "Envelope",
         namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+        namespace = "xsd: http://www.w3.org/2001/XMLSchema",
         prefix = "soap"
     )]
     pub struct AbgroupAddResponseMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<Header>,
+        pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapAbgroupAddResponseMessage,
     }
@@ -2755,11 +2763,7 @@ pub mod bindings {
     impl AbgroupAddResponseMessageSoapEnvelope {
         pub fn new(body: SoapAbgroupAddResponseMessage) -> Self {
             AbgroupAddResponseMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
                 header: None,
             }
         }
@@ -3257,12 +3261,18 @@ pub mod bindings {
         }
     }
 
+
+
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
+    #[yaserde(
+        rename = "Envelope",
+        namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        prefix = "soap",
+        default_namespace="soap"
+    )]
     pub struct SoapAbfindContactsPagedMessage {
         #[yaserde(rename = "ABFindContactsPaged", default)]
         pub body: ports::AbfindContactsPagedMessage,
-        #[yaserde(attribute)]
-        pub xmlns: Option<String>,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     #[yaserde(
@@ -3280,7 +3290,7 @@ pub mod bindings {
         #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
         pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<Header>,
+        pub header: Option<RequestHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapAbfindContactsPagedMessage,
     }
@@ -3300,7 +3310,7 @@ pub mod bindings {
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAbfindContactsPagedResponseMessage {
-        #[yaserde(rename = "AbfindContactsPagedResponseMessage", default)]
+        #[yaserde(rename = "ABFindContactsPagedResponse", default)]
         pub body: ports::AbfindContactsPagedResponseMessage,
         #[yaserde(rename = "Fault", default)]
         pub fault: Option<SoapFault>,
@@ -3309,19 +3319,13 @@ pub mod bindings {
     #[yaserde(
         rename = "Envelope",
         namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+        namespace = "xsd: http://www.w3.org/2001/XMLSchema",
         prefix = "soap"
     )]
     pub struct AbfindContactsPagedResponseMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<Header>,
+        pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapAbfindContactsPagedResponseMessage,
     }
@@ -3329,11 +3333,7 @@ pub mod bindings {
     impl AbfindContactsPagedResponseMessageSoapEnvelope {
         pub fn new(body: SoapAbfindContactsPagedResponseMessage) -> Self {
             AbfindContactsPagedResponseMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
                 header: None,
             }
         }
@@ -4235,7 +4235,6 @@ pub mod bindings {
             let __request =
                 AbfindContactsPagedMessageSoapEnvelope::new(SoapAbfindContactsPagedMessage {
                     body: abfind_contacts_paged_message,
-                    xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 });
 
             let (status, response) = self
@@ -4780,14 +4779,14 @@ pub mod factories {
     use chrono::{Local, DateTime, NaiveDateTime};
     use lazy_static::lazy_static;
 
-    use super::{bindings::{FindMembershipResponseMessageSoapEnvelope, SoapFindMembershipResponseMessage}, types::{MembershipResult, FindMembershipResponse}, messages::{FindMembershipResponseMessage, ServiceHeaderContainer}};
+    use super::{bindings::{FindMembershipResponseMessageSoapEnvelope, SoapFindMembershipResponseMessage, AbfindContactsPagedResponseMessageSoapEnvelope, SoapAbfindContactsPagedResponseMessage, AbgroupAddResponseMessageSoapEnvelope, SoapAbgroupAddResponseMessage}, types::{MembershipResult, FindMembershipResponse, Ab, Groups, AbfindContactsPagedResultType, AbgroupAddResponse, AbgroupAddResultType}, messages::{FindMembershipResponseMessage, ServiceHeaderContainer, AbgroupAddResponseMessage}, ports};
 
 
     pub struct FindMembershipResponseFactory;
 
     impl FindMembershipResponseFactory {
 
-        pub fn get_empty_response(uuid: UUID, msn_addr: String, cache_key: String, ) -> FindMembershipResponseMessageSoapEnvelope {
+        pub fn get_empty_response(uuid: UUID, msn_addr: String, cache_key: String ) -> FindMembershipResponseMessageSoapEnvelope {
 
             let circle_attributes = CircleAttributesType{ is_presence_enabled: false, is_event: None, domain: String::from("WindowsLive") };
             let handle = Handle { id: UUID::nil().to_string(), is_passport_name_hidden: false, cid: 0 };
@@ -4809,14 +4808,7 @@ pub mod factories {
 
             let mut response = FindMembershipResponseMessageSoapEnvelope::new(message);
 
-
-
-
-            let service_header_1 = super::types::ServiceHeader{ version: String::from("15.01.1408.0000"), cache_key: Some(cache_key), cache_key_changed: Some(true), preferred_host_name: Some(String::from("localhost")), session_id: None };
-            let service_header = super::messages::ServiceHeader { service_header: service_header_1 };
-            let service_header_container = ServiceHeaderContainer{ service_header };
-
-            response.header = Some(service_header_container);
+            response.header = Some(HeaderFactory::get_service_header(cache_key));
             return response;
         }
 
@@ -4845,6 +4837,109 @@ pub mod factories {
 
     }
 
+    pub struct FindContactsPagedResponseFactory;
+
+    impl FindContactsPagedResponseFactory {
+
+        pub fn get_empty_response(uuid: UUID, cache_key: String, msn_addr: String) -> AbfindContactsPagedResponseMessageSoapEnvelope {
+
+            let now = Local::now();
+    
+            let ab_info_type = AbInfoType{ migrated_to: None, beta_status: None, name: None, owner_puid: 0, owner_cid: 0, owner_email:Some(format!("{}@live.com", uuid.to_string())), f_default: true, joined_namespace: false, is_bot: false, is_parent_managed: false, account_tier: None, account_tier_last_changed: String::from("0001-01-01T00:00:00"), profile_version: 0, subscribe_external_partner: false, notify_external_partner: false, address_book_type: String::from("Individual"), messenger_application_service_created: None, is_beta_migrated: None, last_relevance_update: None };
+            let ab = Ab{ ab_id: UUID::nil().to_string(), ab_info: ab_info_type, last_change: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), dynamic_item_last_changed: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), recent_activity_item_last_changed: None, create_date: String::from("2014-10-31T00:00:00Z"), properties_changed: String::new() };
+    
+
+            let mut annotation_array : Vec<Annotation> = Vec::new();
+            annotation_array.push(AnnotationFactory::get_roam_live_properties(Some(true)));
+            annotation_array.push(AnnotationFactory::get_mbea(Some(false)));
+            annotation_array.push(AnnotationFactory::get_gtc(Some(true)));
+            annotation_array.push(AnnotationFactory::get_blp(Some(true)));
+
+            let array_of_annotations = ArrayOfAnnotation{ annotation: annotation_array };
+
+            let me_contact_info = ContactInfoType{ emails: None, phones: None, locations: None, web_sites: None, annotations: Some(array_of_annotations), group_ids: None, group_ids_deleted: None, contact_type: Some(String::from("Me")), quick_name: None, first_name: None, middle_name: None, last_name: None, suffix: None, name_title: None, passport_name: Some(msn_addr.clone()), display_name: None, puid: None, cid: Some(uuid.to_decimal_cid()), brand_id_list: None, comment: None, is_mobile_im_enabled: Some(false), is_messenger_user: Some(true), is_favorite: Some(false), is_smtp: Some(false), has_space: Some(true), spot_watch_state: Some(String::from("NoDevice")), birthdate: Some(String::from("0001-01-01T00:00:00")), primary_email_type: Some(ContactEmailTypeType{ body: String::from("Passport") }), primary_location: Some(ContactLocationTypeType{ body: String::from("ContactLocationPersonal") }), primary_phone: Some(String::from("ContactPhonePersonal")), is_private: Some(false), anniversary: None, gender: Some(String::from("Unspecified") ), time_zone: Some(String::from("None")), trust_level: None, network_info_list: None, public_display_name: None, is_auto_update_disabled: None, is_hidden: Some(false), is_passport_name_hidden: Some(false), is_not_mobile_visible: Some(false), is_shell_contact: None, messenger_member_info: None, properties_changed: None, client_error_data: None, link_info: None, source_handle: None, file_as: None, ur_ls: None };
+            let me_contact = ContactType{ contact_id: Some(uuid.to_string()), contact_info: Some(me_contact_info), properties_changed: Some(String::new()), f_deleted: Some(false), last_change: Some(now.format("%Y-%m-%dT%H:%M:%SZ").to_string()), create_date: None, last_modified_by: None, created_by: None };
+
+            let mut contact_array : Vec<ContactType> = Vec::new();
+            contact_array.push(me_contact);
+
+            let group_array : Vec<GroupType> = Vec::new();
+    
+            let array_of_contact = ArrayOfContactType{ contact: contact_array };
+            let groups = Groups{ group: group_array };
+    
+            let circle_result = CircleResultType{ circles: None, circle_ticket: String::from("&lt;?xml version=\"1.0\" encoding=\"utf-16\"?&gt;&lt;SignedTicket xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" ver=\"1\" keyVer=\"1\"&gt;&lt;Data&gt;PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTE2Ij8+DQo8VGlja2V0IHhtbG5zOnhzaT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEtaW5zdGFuY2UiIHhtbG5zOnhzZD0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiPg0KICA8VFM+MDAwMC0wMS0wMVQwMDowMDowMDwvVFM+DQogIDxDSUQ+LTc3NzY5ODI1NzkyNzI5Mzc1NzI8L0NJRD4NCjwvVGlja2V0Pg==&lt;/Data&gt;&lt;Sig&gt;SLE8LXFmBW/2nMY9t+lG/7w4APZt3Z5U4nsu3G7KSWSdTEvTt9mt2kdssQaxxjEhy8udrLlC2dFSQXtHI/6mmbHhtaf7wx2WvRb4F1ayv5kZmrp5lJPkEXhdSwzJHlYPZM530Gsr7Md9MW4w67F7ct7i2MhsQyBLXr5nEDLlILHjTNUkbIa31IZJ5Qpwnr7Cj4XLPYOl8Phl6mHSjWdLo/CvohxRnAb/akABRyIhdd4rIvZREYsYhjSyZ/RLc6j0eLF7zkn8jjLKVGkIIFNvcGGnv/9ZtQ4zO5a/OkNB18Pvj6excNHt8zeCXiPomIikZrUOEZ4sshYRAJ7/5k/PAA==&lt;/Sig&gt;&lt;/SignedTicket&gt;") };
+    
+            let result = AbfindContactsPagedResultType{ groups: Some(groups), contacts: Some(array_of_contact), circle_result: circle_result, ab: ab };
+            let body_body = ports::AbfindContactsPagedResponseMessage{ ab_find_contacts_paged_result: result };
+            let body = SoapAbfindContactsPagedResponseMessage{ body: body_body, fault: None };
+
+            return AbfindContactsPagedResponseMessageSoapEnvelope{header: Some(HeaderFactory::get_service_header(cache_key)), body: body };
+            }
+    }
+
+    pub struct AnnotationFactory;
+        
+    impl AnnotationFactory {
+
+        fn parse_boolean_value(value: &bool) -> String {
+            if *value {
+                return String::from("1");
+            } else {
+                return String::from("0");
+            }
+        }
+
+        pub fn get_roam_live_properties(value : Option<bool>) -> Annotation {
+            let value = value.unwrap_or(false);
+            return Annotation { name: String::from("MSN.IM.RoamLiveProperties"), value: Some(AnnotationFactory::parse_boolean_value(&value)) };
+        }
+
+        pub fn get_mbea(value : Option<bool>) -> Annotation {
+            let value = value.unwrap_or(false);
+            return Annotation { name: String::from("MSN.IM.MBEA"), value: Some(AnnotationFactory::parse_boolean_value(&value)) };
+        }
+
+        pub fn get_gtc(value : Option<bool>) -> Annotation {
+            let value = value.unwrap_or(false);
+            return Annotation { name: String::from("MSN.IM.GTC"), value: Some(AnnotationFactory::parse_boolean_value(&value)) };
+        }
+
+        pub fn get_blp(value : Option<bool>) -> Annotation {
+            let value = value.unwrap_or(false);
+            return Annotation { name: String::from("MSN.IM.GTC"), value: Some(AnnotationFactory::parse_boolean_value(&value)) };
+        }
+
+    }
+
+    pub struct ABGroupAddResponseFactory;
+    impl ABGroupAddResponseFactory {
+
+        pub fn get_favorite_group_added_response(guid: String, cache_key: String) -> AbgroupAddResponseMessageSoapEnvelope {
+            let result = AbgroupAddResultType { guid };
+            let group_add_response = AbgroupAddResponse{ ab_group_add_result: Some(result) };
+    
+           let body_content = AbgroupAddResponseMessage{ ab_group_add_response: group_add_response };
+    
+           let body = SoapAbgroupAddResponseMessage{ body: body_content, fault: None };
+           return AbgroupAddResponseMessageSoapEnvelope{ header: Some(HeaderFactory::get_service_header(cache_key)), body: body  };
+        }
+
+    }
+
+    pub struct HeaderFactory;
+
+    impl HeaderFactory {
+
+        pub fn get_service_header(cache_key: String) -> ServiceHeaderContainer {
+            let service_header_1 = super::types::ServiceHeader{ version: String::from("15.01.1408.0000"), cache_key: Some(cache_key), cache_key_changed: Some(true), preferred_host_name: Some(String::from("localhost")), session_id: None };
+            let service_header = super::messages::ServiceHeader { service_header: service_header_1 };
+            return ServiceHeaderContainer{ service_header };
+        }
+    }
+
+
+
 
 
     #[cfg(test)]
@@ -4868,13 +4963,13 @@ pub mod factories {
 
 #[cfg(test)]
 mod tests {
-    use log::{warn, debug};
+    use log::{warn, debug, info};
     use yaserde::de::from_str;
     use yaserde::ser::to_string;
 
-    use crate::generated::msnab_datatypes::types::{OwnerNamespaceType, OwnerNamespaceInfoType, Handle, CircleAttributesType, ArrayOfServiceType, ServiceType, Memberships, Membership, RoleId, Members, BaseMember, MemberState, InfoType, HandleType, ServiceName};
+    use crate::{generated::msnab_datatypes::types::{OwnerNamespaceType, OwnerNamespaceInfoType, Handle, CircleAttributesType, ArrayOfServiceType, ServiceType, Memberships, Membership, RoleId, Members, BaseMember, MemberState, InfoType, HandleType, ServiceName, ArrayOfContactType, GroupType, ContactType, CircleResultType, AbInfoType}, models::uuid::UUID};
 
-    use super::{bindings::{FindMembershipResponseMessageSoapEnvelope, SoapFindMembershipResponseMessage, FindMembershipMessageSoapEnvelope}, messages::FindMembershipResponseMessage, types::{FindMembershipResponse, MembershipResult}};
+    use super::{bindings::{FindMembershipResponseMessageSoapEnvelope, SoapFindMembershipResponseMessage, FindMembershipMessageSoapEnvelope, AbfindContactsPagedMessageSoapEnvelope, AbfindContactsPagedResponseMessageSoapEnvelope, SoapAbfindContactsPagedResponseMessage, AbgroupAddResponseMessageSoapEnvelope, SoapAbgroupAddResponseMessage, AbgroupAddMessageSoapEnvelope}, messages::{FindMembershipResponseMessage, ServiceHeaderContainer, AbgroupAddResponseMessage}, types::{FindMembershipResponse, MembershipResult, AbfindContactsPagedResultType, Groups, Ab, AbgroupAddResponse, AbgroupAddResultType}, ports};
 
     #[test]
     fn test_find_membership() {
@@ -4891,7 +4986,7 @@ mod tests {
 
         let circle_attributes = CircleAttributesType{ is_presence_enabled: false, is_event: None, domain: String::from("WindowsLive") };
         let handle = Handle { id: String::from("00000000-0000-0000-0000-000000000000"), is_passport_name_hidden: false, cid: 0 };
-        let owner_namespace_info = OwnerNamespaceInfoType{ handle: handle, creator_puid: String::from("0"), creator_cid: String::from("-863314"), creator_passport_name: String::from("aeon@test.fr"), circle_attributes: circle_attributes, messenger_application_service_created: Some(false) };
+        let owner_namespace_info = OwnerNamespaceInfoType{ handle: handle, creator_puid: String::from("0"), creator_cid: -863314, creator_passport_name: String::from("aeon@test.fr"), circle_attributes: circle_attributes, messenger_application_service_created: Some(false) };
         let owner_namespace = OwnerNamespaceType{ info: owner_namespace_info, changes: "Hi".to_string(), create_date: "date".to_string(), last_change: "date".to_string() };
         
         let mut members = Vec::new();
@@ -4937,13 +5032,85 @@ mod tests {
     #[test]
     fn test_find_membership_request() {
 
-        let request_body = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>Initial</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=0bfus4t3d_t0k3s</TicketToken></ABAuthHeader></soap:Header><soap:Body><FindMembership xmlns=\"http://www.msn.com/webservices/AddressBook\"><serviceFilter><Types><ServiceType>Messenger</ServiceType><ServiceType>SocialNetwork</ServiceType><ServiceType>Space</ServiceType><ServiceType>Profile</ServiceType></Types></serviceFilter><View>Full</View><deltasOnly>true</deltasOnly><lastChange>2022-04-20T13:03:28Z</lastChange></FindMembership></soap:Body></soap:Envelope>";
+        let request_body = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>Initial</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=0bfus4t3d_t0k3n</TicketToken></ABAuthHeader></soap:Header><soap:Body><FindMembership xmlns=\"http://www.msn.com/webservices/AddressBook\"><serviceFilter><Types><ServiceType>Messenger</ServiceType><ServiceType>SocialNetwork</ServiceType><ServiceType>Space</ServiceType><ServiceType>Profile</ServiceType></Types></serviceFilter><View>Full</View><deltasOnly>true</deltasOnly><lastChange>2022-04-20T13:03:28Z</lastChange></FindMembership></soap:Body></soap:Envelope>";
         let r: FindMembershipMessageSoapEnvelope = from_str(&request_body).unwrap();
         
         let header = &r.header.unwrap();
         assert_eq!(r.body.body.find_membership_request.deltas_only, true);
-        assert_eq!(header.ab_auth_header.ticket_token, String::from("t=0bfus4t3d_t0k3s"));
+        assert_eq!(header.ab_auth_header.ticket_token, String::from("t=0bfus4t3d_t0k3n"));
         assert_eq!(header.application_header.partner_scenario, String::from("Initial"));
 
     }
+
+    #[test]
+    fn test_find_contacts_paged_request() {
+        let request_body = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>Initial</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=0bfus4t3d_t0k3n</TicketToken></ABAuthHeader></soap:Header><soap:Body><ABFindContactsPaged xmlns=\"http://www.msn.com/webservices/AddressBook\"><filterOptions><DeltasOnly>true</DeltasOnly><LastChanged>2022-04-21T19:49:28Z</LastChanged><ContactFilter><IncludeHiddenContacts>true</IncludeHiddenContacts></ContactFilter></filterOptions><abView>MessengerClient8</abView><extendedContent>AB AllGroups CircleResult</extendedContent></ABFindContactsPaged></soap:Body></soap:Envelope>";
+        let r : AbfindContactsPagedMessageSoapEnvelope = from_str(&request_body).unwrap();
+
+        let header = &r.header.unwrap();
+        assert_eq!(header.ab_auth_header.ticket_token, String::from("t=0bfus4t3d_t0k3n"));
+        assert_eq!(header.application_header.partner_scenario, String::from("Initial"));
+    }
+
+    #[test]
+    fn test_find_contacts_paged_response() {
+        let service_header_1 = super::types::ServiceHeader{ version: String::from("15.01.1408.0000"), cache_key: Some(String::from("cache_key")), cache_key_changed: Some(true), preferred_host_name: Some(String::from("localhost")), session_id: None };
+        let service_header = super::messages::ServiceHeader { service_header: service_header_1 };
+        let service_header_container = ServiceHeaderContainer{ service_header };
+
+        let ab_info_type = AbInfoType{ migrated_to: None, beta_status: None, name: None, owner_puid: 0, owner_cid: 0, owner_email:None, f_default: false, joined_namespace: false, is_bot: false, is_parent_managed: false, account_tier: None, account_tier_last_changed: String::new(), profile_version: 0, subscribe_external_partner: false, notify_external_partner: false, address_book_type: String::new(), messenger_application_service_created: None, is_beta_migrated: None, last_relevance_update: None};
+        let ab = Ab{ ab_id: String::from("new_ab_id"), ab_info: ab_info_type, last_change: String::new(), dynamic_item_last_changed: String::new(), recent_activity_item_last_changed: None, create_date: String::new(), properties_changed: String::new() };
+
+        let contact_array : Vec<ContactType> = Vec::new();
+        let group_array : Vec<GroupType> = Vec::new();
+
+        let array_of_contact = ArrayOfContactType{ contact: contact_array };
+        let groups = Groups{ group: group_array };
+
+        let circle_result = CircleResultType{ circles: None, circle_ticket: String::from("&lt;?xml version=\"1.0\" encoding=\"utf-16\"?&gt;&lt;SignedTicket xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" ver=\"1\" keyVer=\"1\"&gt;&lt;Data&gt;PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTE2Ij8+DQo8VGlja2V0IHhtbG5zOnhzaT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEtaW5zdGFuY2UiIHhtbG5zOnhzZD0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiPg0KICA8VFM+MDAwMC0wMS0wMVQwMDowMDowMDwvVFM+DQogIDxDSUQ+LTc3NzY5ODI1NzkyNzI5Mzc1NzI8L0NJRD4NCjwvVGlja2V0Pg==&lt;/Data&gt;&lt;Sig&gt;SLE8LXFmBW/2nMY9t+lG/7w4APZt3Z5U4nsu3G7KSWSdTEvTt9mt2kdssQaxxjEhy8udrLlC2dFSQXtHI/6mmbHhtaf7wx2WvRb4F1ayv5kZmrp5lJPkEXhdSwzJHlYPZM530Gsr7Md9MW4w67F7ct7i2MhsQyBLXr5nEDLlILHjTNUkbIa31IZJ5Qpwnr7Cj4XLPYOl8Phl6mHSjWdLo/CvohxRnAb/akABRyIhdd4rIvZREYsYhjSyZ/RLc6j0eLF7zkn8jjLKVGkIIFNvcGGnv/9ZtQ4zO5a/OkNB18Pvj6excNHt8zeCXiPomIikZrUOEZ4sshYRAJ7/5k/PAA==&lt;/Sig&gt;&lt;/SignedTicket&gt;") };
+
+        let result = AbfindContactsPagedResultType{ groups: Some(groups), contacts: Some(array_of_contact), circle_result: circle_result, ab: ab };
+        let body_body = ports::AbfindContactsPagedResponseMessage{ ab_find_contacts_paged_result: result };
+        let body = SoapAbfindContactsPagedResponseMessage{ body: body_body, fault: None };
+        let r = AbfindContactsPagedResponseMessageSoapEnvelope{header: Some(service_header_container), body: body };
+
+        let serialized = to_string(&r).unwrap();
+        println!("{}", serialized);
+    }
+
+    #[test]
+    fn test_ab_group_add_request() {
+        let request = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>Initial</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=0bfusc4t3dT0k3n</TicketToken></ABAuthHeader></soap:Header><soap:Body><ABGroupAdd xmlns=\"http://www.msn.com/webservices/AddressBook\"><abId>00000000-0000-0000-0000-000000000000</abId><groupAddOptions><fRenameOnMsgrConflict>false</fRenameOnMsgrConflict></groupAddOptions><groupInfo><GroupInfo><name>Favorites</name><groupType>C8529CE2-6EAD-434d-881F-341E17DB3FF8</groupType><fMessenger>false</fMessenger><IsFavorite>true</IsFavorite><annotations><Annotation><Name>MSN.IM.Display</Name><Value>1</Value></Annotation></annotations></GroupInfo></groupInfo></ABGroupAdd></soap:Body></soap:Envelope>";
+        
+        let request_deserialized : AbgroupAddMessageSoapEnvelope = from_str(request).unwrap();
+
+        let header = &request_deserialized.header.unwrap();
+        assert_eq!(request_deserialized.body.body.ab_group_add_request.ab_id, String::from("00000000-0000-0000-0000-000000000000"));
+        assert_eq!(request_deserialized.body.body.ab_group_add_request.group_add_options.f_rename_on_msgr_conflict, Some(false));
+        assert_eq!(request_deserialized.body.body.ab_group_add_request.group_info.group_info.group_type, Some(String::from("C8529CE2-6EAD-434d-881F-341E17DB3FF8")));
+
+        assert_eq!(header.ab_auth_header.ticket_token, String::from("t=0bfusc4t3dT0k3n"));
+        assert_eq!(header.application_header.partner_scenario, String::from("Initial"));
+    
+
+    }
+
+    #[test]
+    fn test_ab_group_add_response() {
+
+        let result = AbgroupAddResultType { guid: String::from("MY_GUID") };
+        let group_add_response = AbgroupAddResponse{ ab_group_add_result: Some(result) };
+
+       let body_content = AbgroupAddResponseMessage{ ab_group_add_response: group_add_response };
+
+       let body = SoapAbgroupAddResponseMessage{ body: body_content, fault: None };
+       let response = AbgroupAddResponseMessageSoapEnvelope{ header: None, body: body  };
+
+       let response_serialized = to_string(&response).unwrap();
+       assert!(response_serialized.contains("MY_GUID"));
+       assert!(response_serialized.contains("ABGroupAddResponse"));
+       assert!(response_serialized.contains("ABGroupAddResult"));
+       assert!(response_serialized.contains("guid"));
+    }
+
 }

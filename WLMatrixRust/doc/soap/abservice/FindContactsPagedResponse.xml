@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <soap:Header>
+        <ServiceHeader xmlns="http://www.msn.com/webservices/AddressBook">
+            <Version>15.01.1408.0000</Version>
+            <CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey>
+            <CacheKeyChanged>true</CacheKeyChanged>
+            <PreferredHostName>localhost</PreferredHostName>
+            <SessionId>6ea4db40-0f74-4b7b-a067-97264428f0f9</SessionId>
+        </ServiceHeader>
+    </soap:Header>
+    <soap:Body>
+        <ABFindContactsPagedResponse xmlns="http://www.msn.com/webservices/AddressBook">
+            <ABFindContactsPagedResult>
+                <Groups>
+                    <Group>
+                        <groupId>1ae28c79-c963-4fe6-8339-d72a0f7c8bd2</groupId>
+                        <groupInfo>
+                            <annotations>
+                                <Annotation>
+                                    <Name>MSN.IM.Display</Name>
+                                    <Value>1</Value>
+                                </Annotation>
+                            </annotations>
+                            <groupType>c8529ce2-6ead-434d-881f-341e17db3ff8</groupType>
+                            <name>Favorites</name>
+                            <IsNotMobileVisible>false</IsNotMobileVisible>
+                            <IsPrivate>false</IsPrivate>
+                            <IsFavorite>true</IsFavorite>
+                        </groupInfo>
+                        <propertiesChanged />
+                        <fDeleted>false</fDeleted>
+                        <lastChange>2021-10-25T14:54:56Z</lastChange>
+                    </Group>
+                </Groups>
+                <Contacts></Contacts>
+                <CircleResult>
+                    <CircleTicket>&lt;?xml version="1.0" encoding="utf-16"?&gt;&lt;SignedTicket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ver="1" keyVer="1"&gt;&lt;Data&gt;PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTE2Ij8+DQo8VGlja2V0IHhtbG5zOnhzaT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEtaW5zdGFuY2UiIHhtbG5zOnhzZD0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiPg0KICA8VFM+MDAwMC0wMS0wMVQwMDowMDowMDwvVFM+DQogIDxDSUQ+LTc3NzY5ODI1NzkyNzI5Mzc1NzI8L0NJRD4NCjwvVGlja2V0Pg==&lt;/Data&gt;&lt;Sig&gt;SLE8LXFmBW/2nMY9t+lG/7w4APZt3Z5U4nsu3G7KSWSdTEvTt9mt2kdssQaxxjEhy8udrLlC2dFSQXtHI/6mmbHhtaf7wx2WvRb4F1ayv5kZmrp5lJPkEXhdSwzJHlYPZM530Gsr7Md9MW4w67F7ct7i2MhsQyBLXr5nEDLlILHjTNUkbIa31IZJ5Qpwnr7Cj4XLPYOl8Phl6mHSjWdLo/CvohxRnAb/akABRyIhdd4rIvZREYsYhjSyZ/RLc6j0eLF7zkn8jjLKVGkIIFNvcGGnv/9ZtQ4zO5a/OkNB18Pvj6excNHt8zeCXiPomIikZrUOEZ4sshYRAJ7/5k/PAA==&lt;/Sig&gt;&lt;/SignedTicket&gt;</CircleTicket>
+                </CircleResult>
+                <Ab>
+                    <abId>00000000-0000-0000-0000-000000000000</abId>
+                    <abInfo>
+                        <ownerPuid>0</ownerPuid>
+                        <OwnerCID>0</OwnerCID>
+                        <ownerEmail>ea7bac01-c8e8-54b4-807e-58d5d2f67746@live.com</ownerEmail>
+                        <fDefault>true</fDefault>
+                        <joinedNamespace>false</joinedNamespace>
+                        <IsBot>false</IsBot>
+                        <IsParentManaged>false</IsParentManaged>
+                        <AccountTierLastChanged>2022-04-22T08:15:23Z</AccountTierLastChanged>
+                        <ProfileVersion>0</ProfileVersion>
+                        <SubscribeExternalPartner>false</SubscribeExternalPartner>
+                        <NotifyExternalPartner>false</NotifyExternalPartner>
+                        <AddressBookType>Individual</AddressBookType>
+                    </abInfo>
+                    <lastChange>2022-04-22T08:15:23Z</lastChange>
+                    <DynamicItemLastChanged>0001-01-01T00:00:00</DynamicItemLastChanged>
+                    <createDate>2020-11-14T14:18:52Z</createDate>
+                    <propertiesChanged />
+                </Ab>
+            </ABFindContactsPagedResult>
+        </ABFindContactsPagedResponse>
+    </soap:Body>
+</soap:Envelope>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <soap:Header>
+        <AffinityCacheHeader xmlns="http://www.msn.com/webservices/storage/2008">
+            <CacheKey>KaFdoq7oNpMgw0Te5UxLIJkz6Vd09Z4RpNGVWKm7hEqokd7UK7kw5IUTxuXWLeK3f_7_nFrcH2JT13ThgLDVkL-xBFIACtZWE19ZR4G74VGggxyvefbPLO8wKo5i8ljqgQRti15GZMB4FgCH7Q0MoE6TA46esQws4VxVGYAph8LTzT2b53Ma6T3JnUtl1rc9XsgfatXXvYO0zFLQOamoGtetUqGtmxfQxDOUhg</CacheKey>
+        </AffinityCacheHeader>
+        <StorageUserHeader xmlns="http://www.msn.com/webservices/storage/2008">
+            <Puid>0</Puid>
+            <Cid>-9187808514398587066</Cid>
+            <ApplicationId>0</ApplicationId>
+            <DeviceId>0</DeviceId>
+            <IsTrustedDevice>false</IsTrustedDevice>
+            <IsStrongAuth>false</IsStrongAuth>
+            <TicketToken>t=0bfusc4tedT0k3n</TicketToken>
+            <IsAdmin>false</IsAdmin>
+            <LanguagePreference>0</LanguagePreference>
+            <Claims />
+        </StorageUserHeader>
+    </soap:Header>
+    <soap:Body>
+        <GetProfileResponse xmlns="http://www.msn.com/webservices/storage/2008">
+            <GetProfileResult>
+                <ResourceID>-9187808514398587066!106</ResourceID>
+                <DateModified>2022-04-22T08:15:28Z</DateModified>
+                <ExpressionProfile>
+                    <ResourceID>-9187808514398587066!118</ResourceID>
+                    <Version>205</Version>
+                    <DateModified>2022-04-22T08:15:28Z</DateModified>
+                    <Photo>
+                        <ResourceID>-9187808514398587066!205</ResourceID>
+                        <DocumentStreams>
+                            <DocumentStream>
+                                <DocumentStreamName>UserTileSmall</DocumentStreamName>
+                                <DataSize>0</DataSize>
+                                <PreAuthURL>http://127.0.0.1/storage/usertile/689f6a4e-d8bb-568d-a1c9-da0398db7d8a/small</PreAuthURL>
+                                <WriteMode>Overwrite</WriteMode>
+                                <StreamDataStatus>None</StreamDataStatus>
+                                <StreamStatus>None</StreamStatus>
+                                <Genie>false</Genie>
+                                <StreamVersion>0</StreamVersion>
+                                <DocumentStreamType>Named</DocumentStreamType>
+                                <IsAliasForDefault>false</IsAliasForDefault>
+                                <ExpirationDateTime>0001-01-01T00:00:00</ExpirationDateTime>
+                            </DocumentStream>
+                        </DocumentStreams>
+                    </Photo>
+                    <PersonalStatus>Hi my dude</PersonalStatus>
+                    <PersonalStatusLastModified>2022-04-22T08:15:28Z</PersonalStatusLastModified>
+                    <StaticUserTilePublicURL>http://127.0.0.1/storage/usertile/689f6a4e-d8bb-568d-a1c9-da0398db7d8a/static</StaticUserTilePublicURL>
+                </ExpressionProfile>
+            </GetProfileResult>
+        </GetProfileResponse>
+    </soap:Body>
+</soap:Envelope>

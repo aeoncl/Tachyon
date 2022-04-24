@@ -114,6 +114,8 @@
             <domain name="messengermakeover.com" />
             <domain name="microsoft.com" />
             <domain name="windowslive.se" />
+			<domain name="matrix.org" />
+			<domain name="cern.ch" />
 		</TrustedDomains>
 		<ErrorResponseTable>
 			<Feature type="0" name="Login">
@@ -654,7 +656,7 @@
 		<MsnTodayConfig>
 			<MsnTodaySiteID>6528</MsnTodaySiteID>
 			<!--<MsnTodayURL>http://t.msn.com/en-us/home.aspx</MsnTodayURL>-->
-			-<MsnTodayURL>http://127.0.0.1/winks/index.html</MsnTodayURL>
+			<MsnTodayURL>http://127.0.0.1/msntoday</MsnTodayURL>
 			<Flags>2</Flags>
 		</MsnTodayConfig>
 

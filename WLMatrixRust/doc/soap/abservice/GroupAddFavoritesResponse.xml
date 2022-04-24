@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema">
+    <soap:Body>
+        <ABGroupAddResponse xmlns="http://www.msn.com/webservices/AddressBook">
+            <ABGroupAddResult>
+                <guid>a38feaa0-b6b5-4496-906a-df7f0079c993</guid>
+            </ABGroupAddResult>
+        </ABGroupAddResponse>
+    </soap:Body>
+</soap:Envelope>

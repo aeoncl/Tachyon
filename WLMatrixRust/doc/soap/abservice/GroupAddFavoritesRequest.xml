@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+    <soap:Header>
+        <ABApplicationHeader xmlns="http://www.msn.com/webservices/AddressBook">
+            <ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId>
+            <IsMigration>false</IsMigration>
+            <PartnerScenario>Initial</PartnerScenario>
+            <CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey>
+        </ABApplicationHeader>
+        <ABAuthHeader xmlns="http://www.msn.com/webservices/AddressBook">
+            <ManagedGroupRequest>false</ManagedGroupRequest>
+            <TicketToken>t=0bfusc4t3dT0k3n</TicketToken>
+        </ABAuthHeader>
+    </soap:Header>
+    <soap:Body>
+        <ABGroupAdd xmlns="http://www.msn.com/webservices/AddressBook">
+            <abId>00000000-0000-0000-0000-000000000000</abId>
+            <groupAddOptions>
+                <fRenameOnMsgrConflict>false</fRenameOnMsgrConflict>
+            </groupAddOptions>
+            <groupInfo>
+                <GroupInfo>
+                    <name>Favorites</name>
+                    <groupType>C8529CE2-6EAD-434d-881F-341E17DB3FF8</groupType>
+                    <fMessenger>false</fMessenger>
+                    <IsFavorite>true</IsFavorite>
+                    <annotations>
+                        <Annotation>
+                            <Name>MSN.IM.Display</Name>
+                            <Value>1</Value>
+                        </Annotation>
+                    </annotations>
+                </GroupInfo>
+            </groupInfo>
+        </ABGroupAdd>
+    </soap:Body>
+</soap:Envelope>
