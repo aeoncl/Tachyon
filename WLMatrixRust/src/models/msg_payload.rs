@@ -30,7 +30,7 @@ impl MsgPayload {
     pub fn serialize(&self) -> String {
         let mut headers = String::new();
         for (key, value) in &self.headers {
-            headers.push_str(format!("{}:{}\r\n", &key, &value).as_str());
+            headers.push_str(format!("{}: {}\r\n", &key, &value).as_str());
         }
         return format!("{template}{content_type}{charset}\r\n{headers}\r\n{body}", template=TEMPLATE.as_str(), content_type=&self.content_type, charset=CHARSET.as_str(), headers=headers, body=&self.body);
     }
@@ -67,10 +67,16 @@ pub mod factories {
             out.add_header(String::from("sid"), String::from("507"));
             out.add_header(String::from("MSPAuth"), matrix_token);
             out.add_header(String::from("ClientIP"), String::new());
-            out.add_header(String::from("ClientPort"), String::new());
+            out.add_header(String::from("ClientPort"), String::from("0"));
             out.add_header(String::from("ABCHMigrated"), String::from("1"));
             out.add_header(String::from("MPOPEnabled"), String::from("1"));
 
+            return out;
+        }
+
+        pub fn get_initial_mail_data_notification() -> MsgPayload {
+            let mut out = MsgPayload::new("text/x-msmsgsinitialmdatanotification");
+            out.set_body(String::from("Mail-Data: <MD><E><I>0</I><IU>0</IU><O>0</O><OU>0</OU></E><Q><QTM>409600</QTM><QNM>204800</QNM></Q></MD>\r\nInbox-Unread: 1\r\nFolders-Unread: 0\r\nInbox-URL: /cgi-bin/HoTMaiL\r\nFolders-URL: /cgi-bin/folders\r\nPost-URL: http://127.0.0.1:8080/email\r\n"));
             return out;
         }
     }

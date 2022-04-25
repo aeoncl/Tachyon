@@ -103,7 +103,7 @@ impl CommandHandler for NotificationCommandHandler {
                         self.matrix_token = split[4][2..split[4].chars().count()].to_string();
                         let matrix_id = msn_addr_to_matrix_id(&self.msn_addr);
 
-                        if let Ok(client) = matrix::login(matrix_id, self.matrix_token.clone()).await {
+                        if let Ok(client) = matrix::login(matrix_id.clone(), self.matrix_token.clone()).await {
                             //Token valid, client authenticated.
                             let client_data_repo : Arc<ClientDataRepository> = CLIENT_DATA_REPO.clone();
                             client_data_repo.add(self.matrix_token.clone(), ClientData::new(self.msn_addr.clone(), self.protocol_version.clone(), split[5].to_string()));
@@ -111,8 +111,12 @@ impl CommandHandler for NotificationCommandHandler {
                             let matrix_client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
                             matrix_client_repo.add(self.matrix_token.clone(), client);
     
-                            let msmsgs_profile_msg = MsgPayloadFactory::get_msmsgs_profile(UUID::from_string(&self.msn_addr).get_puid(), self.msn_addr.clone(), self.matrix_token.clone()).serialize();
-                            return format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\nMSG HOTMAIL HOTMAIL {msmsgs_profile_payload_size}\r\n{payload}UBX 1:{email} 0\r\n", tr_id = tr_id, email=&self.msn_addr, msmsgs_profile_payload_size= msmsgs_profile_msg.len(), payload=msmsgs_profile_msg);
+                            let msmsgs_profile_msg = MsgPayloadFactory::get_msmsgs_profile(UUID::from_string(&matrix_id).get_puid(), self.msn_addr.clone(), self.matrix_token.clone()).serialize();
+    
+                            let oim_payload = MsgPayloadFactory::get_initial_mail_data_notification().serialize();
+                            let oim_payload_size = oim_payload.len();
+    
+                            return format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\nMSG Hotmail Hotmail {msmsgs_profile_payload_size}\r\n{payload}MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}UBX 1:{email} 0\r\n", tr_id = tr_id, email=&self.msn_addr, msmsgs_profile_payload_size= msmsgs_profile_msg.len(), payload=msmsgs_profile_msg, oim_payload = oim_payload, oim_payload_size = oim_payload_size);
                         } else {
                             //Invalid token. Auth failure.
                             return format!("911 {tr_id}\r\n", tr_id= tr_id);

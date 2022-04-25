@@ -136,7 +136,9 @@ pub struct DocumentStream {
 	#[yaserde(rename = "StreamStatus", prefix="nsi1")]
 	pub stream_status: Option<String>,
 	#[yaserde(rename = "IsAliasForDefault", prefix="nsi1")]
-	pub is_alias_for_default: Option<bool>
+	pub is_alias_for_default: Option<bool>,
+	#[yaserde(rename = "ExpirationDateTime", prefix="nsi1")]
+	pub expiration_date_time: Option<String>, 
 }
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(

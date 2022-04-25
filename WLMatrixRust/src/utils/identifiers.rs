@@ -5,6 +5,8 @@ use crate::models::uuid::UUID;
 
 lazy_static! {
     static ref MSN_ADDRESS_REGEX: Regex = Regex::new(r"(.+)@(.+)").unwrap();
+    static ref MXC_REGEX: Regex = Regex::new(r"mxc://(.+)/(.+)").unwrap();
+
 }
 
 
@@ -26,6 +28,13 @@ pub fn get_matrix_device_id() -> String {
 
 pub fn get_hostname() -> String {
     return String::from(hostname::get().unwrap().to_str().unwrap());
+}
+
+pub fn parse_mxc(mxc : &String) -> (String, String) {
+
+    let captures = MXC_REGEX.captures(mxc).unwrap();
+    return (captures[1].to_string(), captures[2].to_string());
+
 }
 
 

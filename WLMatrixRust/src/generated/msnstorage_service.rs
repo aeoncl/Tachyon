@@ -234,7 +234,7 @@ pub struct StorageUserHeader {
 	#[yaserde(rename = "Puid", prefix="nsi1")]
 	pub puid: i32, 
 	#[yaserde(rename = "Cid", prefix="nsi1")]
-	pub cid: Option<i64>,
+	pub cid: Option<String>,
     #[yaserde(rename = "ApplicationId", prefix="nsi1")]
     pub application_id: Option<i32>, 
     #[yaserde(rename = "DeviceId", prefix="nsi1")]
@@ -248,7 +248,9 @@ pub struct StorageUserHeader {
 	#[yaserde(rename = "IsAdmin", prefix="nsi1")]
 	pub is_admin: Option<bool>, 
     #[yaserde(rename = "LanguagePreference", prefix="nsi1")]
-    pub language_preference: Option<i32>
+    pub language_preference: Option<i32>,
+    #[yaserde(rename = "Claims", prefix="nsi1")]
+    pub claims : Vec<String>
 }
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
@@ -1647,29 +1649,33 @@ pub mod factories {
 
     impl GetProfileResponseFactory {
 
-        pub fn get_empty_response(uuid: UUID, cache_key: String, matrix_token: String, display_name: String, psm: String) -> GetProfileResponseMessageSoapEnvelope {
+        pub fn get_empty_response(uuid: UUID, cache_key: String, matrix_token: String, display_name: String, psm: String, image_mxid: String) -> GetProfileResponseMessageSoapEnvelope {
 
 
             let now = Local::now();
 
             let affinity_cache_header = AffinityCacheHeader{ cache_key: Some(cache_key)};
-            let storage_user_header = StorageUserHeader{ puid: 0, cid: Some(uuid.to_decimal_cid()), ticket_token: format!("t={}", matrix_token), is_admin: Some(true), application_id: Some(0), device_id: Some(0), is_trusted_device: Some(false), is_strong_auth: Some(false), language_preference: Some(0) };
+            let storage_user_header = StorageUserHeader{ puid: 0, cid: Some(uuid.to_hex_cid()), ticket_token: format!("t={}", matrix_token), is_admin: Some(false), application_id: Some(0), device_id: Some(0), is_trusted_device: Some(false), is_strong_auth: Some(false), language_preference: Some(0), claims: Vec::new() };
     
             let headers = RequestHeaderContainer{ affinity_cache_header: Some(affinity_cache_header), storage_application_header: None, storage_user_header: Some(storage_user_header) };
     
-            let profile_pic_stream = DocumentStream{ document_stream_name: Some(String::from("UserTileSmall")), mime_type: None, data: None, data_size: 0, pre_auth_url: Some(String::from("http://127.0.0.1/storage/usertile/689f6a4e-d8bb-568d-a1c9-da0398db7d8a/small")), pre_auth_url_partner: None, document_stream_type: String::from("Named"), write_mode: Some(String::from("Overwrite")), stream_version: Some(0), sha1_hash: None, genie: Some(false), stream_data_status: Some(String::from("None")), stream_status: Some(String::from("None")), is_alias_for_default:Some(false)};
+            let user_tile_small = DocumentStream{ document_stream_name: Some(String::from("UserTileSmall")), mime_type: None, data: None, data_size: 0, pre_auth_url: Some(format!("http://127.0.0.1/storage/usertile/{}/small", &image_mxid)), pre_auth_url_partner: None, document_stream_type: String::from("Named"), write_mode: Some(String::from("Overwrite")), stream_version: Some(0), sha1_hash: None, genie: Some(false), stream_data_status: Some(String::from("None")), stream_status: Some(String::from("None")), is_alias_for_default:Some(false), expiration_date_time: Some(String::from("0001-01-01T00:00:00")) };
+
+            let user_tile_static = DocumentStream{ document_stream_name: Some(String::from("UserTileStatic")), mime_type: Some(String::from("image/jpeg")), data: None, data_size: 0, pre_auth_url: Some(format!("http://127.0.0.1/storage/usertile/{}/static", &image_mxid)), pre_auth_url_partner: None, document_stream_type: String::from("UserTileStatic"), write_mode: Some(String::from("Overwrite")), stream_version: Some(0), sha1_hash: None, genie: Some(false), stream_data_status: Some(String::from("None")), stream_status: Some(String::from("None")), is_alias_for_default:Some(false), expiration_date_time: Some(String::from("0001-01-01T00:00:00")) };
+
 
             let mut document_stream_array : Vec<DocumentStream> = Vec::new();
         
-            document_stream_array.push(profile_pic_stream);
+            document_stream_array.push(user_tile_small);
+            document_stream_array.push(user_tile_static);
 
             let document_streams = DocumentStreams{ document_stream: document_stream_array };
     
-            let photo = DocumentBaseType{ resource_id: Some(format!("{}!205", uuid.to_decimal_cid())), name: None, item_type: None, date_modified: None, document_streams: document_streams };
+            let photo = DocumentBaseType{ resource_id: Some(format!("{}!205", uuid.to_hex_cid())), name: None, item_type: None, date_modified: None, document_streams: document_streams };
     
-            let expression_profile = ExpressionProfile{ resource_id: format!("{}!118", uuid.to_decimal_cid()), date_modified: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), version: Some(205), flags: None, photo: photo, attachments: None, personal_status: psm, personal_status_last_modified:  now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), display_name: display_name, display_name_last_modified: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), static_user_tile_public_url:  format!("http://127.0.0.1/storage/usertile/{}/static", uuid.to_string()) };
+            let expression_profile = ExpressionProfile{ resource_id: format!("{}!118", uuid.to_hex_cid()), date_modified: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), version: Some(205), flags: None, photo: photo, attachments: None, personal_status: psm, personal_status_last_modified:  now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), display_name: display_name, display_name_last_modified: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), static_user_tile_public_url:  format!("http://127.0.0.1/storage/usertile/{}/static", &image_mxid) };
     
-            let get_profile_result = GetProfileResultType { resource_id: format!("{}!106", uuid.to_decimal_cid()), date_modified: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), expression_profile: expression_profile };
+            let get_profile_result = GetProfileResultType { resource_id: format!("{}!106", uuid.to_hex_cid()), date_modified: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), expression_profile: expression_profile };
     
             let get_profile_response = GetProfileResponse{ get_profile_result: get_profile_result };
     
@@ -1716,7 +1722,7 @@ mod tests {
 
         let headers = RequestHeaderContainer{ affinity_cache_header: Some(affinity_cache_header), storage_application_header: None, storage_user_header: Some(storage_user_header) };
 
-        let document = DocumentStream{ document_stream_name: Some(String::from("Name")), mime_type: None, data: Some(String::from("data")), data_size: 123, pre_auth_url: Some(String::from("pre_auth_url")), pre_auth_url_partner: Some(String::from("pre_auth_url_partner")), document_stream_type: String::from("stream type"), write_mode: None, stream_version: None, sha1_hash: None, genie: Some(false), stream_data_status: None, stream_status: None, is_alias_for_default: None};
+        let document = DocumentStream{ document_stream_name: Some(String::from("Name")), mime_type: None, data: Some(String::from("data")), data_size: 123, pre_auth_url: Some(String::from("pre_auth_url")), pre_auth_url_partner: Some(String::from("pre_auth_url_partner")), document_stream_type: String::from("stream type"), write_mode: None, stream_version: None, sha1_hash: None, genie: Some(false), stream_data_status: None, stream_status: None, is_alias_for_default: None, expiration_date_time: Some(String::from("0001-01-01T00:00:00")) };
 
         let mut document_stream_array : Vec<DocumentStream> = Vec::new();
 

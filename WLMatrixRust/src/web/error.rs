@@ -1,6 +1,7 @@
-use std::str::Utf8Error;
+use std::{str::Utf8Error, string::FromUtf8Error};
 
 use actix_web::{HttpResponse, ResponseError, body::BoxBody};
+use base64::DecodeError;
 use http::StatusCode;
 use url::ParseError;
 
@@ -94,6 +95,24 @@ impl From<ParseError> for WebError {
             status_code: StatusCode::INTERNAL_SERVER_ERROR
         }
     }
+}
+
+impl From<DecodeError> for WebError {
+    fn from(err: DecodeError) -> WebError {
+        WebError {
+            message: None,
+            status_code: StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
+}
+
+impl From<FromUtf8Error> for WebError {
+    fn from(err: FromUtf8Error) -> WebError {
+        WebError {
+            message: None,
+            status_code: StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }  
 }
 
 impl From<Result<(), StatusCode>> for WebError {

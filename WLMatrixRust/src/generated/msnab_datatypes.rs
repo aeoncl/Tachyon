@@ -184,7 +184,7 @@ pub struct AbInfoType {
 	#[yaserde(rename = "ownerPuid", prefix = "nsi1")]
 	pub owner_puid: i64, 
 	#[yaserde(rename = "OwnerCID", prefix = "nsi1")]
-	pub owner_cid: i64, 
+	pub owner_cid: u64, 
 	#[yaserde(rename = "ownerEmail", prefix = "nsi1")]
 	pub owner_email: Option<String>, 
 	#[yaserde(rename = "fDefault", prefix = "nsi1")]
@@ -676,7 +676,7 @@ pub struct ContactInfoType {
 	#[yaserde(rename = "puid", prefix = "nsi1")]
 	pub puid: Option<i64>, 
 	#[yaserde(rename = "CID", prefix = "nsi1")]
-	pub cid: Option<i64>, 
+	pub cid: Option<u64>, 
 	#[yaserde(rename = "BrandIdList", prefix = "nsi1")]
 	pub brand_id_list: Option<String>, 
 	#[yaserde(rename = "comment", prefix = "nsi1")]
@@ -852,7 +852,7 @@ pub struct ContactWebSiteTypeType {
 )]
 pub struct GroupType {
 	#[yaserde(rename = "groupId", prefix = "nsi1")]
-	pub group_id: Guid, 
+	pub group_id: String, 
 	#[yaserde(rename = "groupInfo", prefix = "nsi1")]
 	pub group_info: GroupInfoType, 
 	#[yaserde(rename = "propertiesChanged", prefix = "nsi1")]
@@ -1133,7 +1133,7 @@ pub struct NetworkInfoType {
 	#[yaserde(rename = "InviterMessage", prefix = "nsi1")]
 	pub inviter_message: Option<String>, 
 	#[yaserde(rename = "InviterCID", prefix = "nsi1")]
-	pub inviter_cid: i64, 
+	pub inviter_cid: u64, 
 	#[yaserde(rename = "InviterName", prefix = "nsi1")]
 	pub inviter_name: Option<String>, 
 	#[yaserde(rename = "InviterEmail", prefix = "nsi1")]
@@ -1185,7 +1185,7 @@ pub struct FilterOptionsType {
 )]
 pub struct EntityHandle {
 	#[yaserde(rename = "Cid", prefix = "nsi1")]
-	pub cid: i64, 
+	pub cid: String, 
 }
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
@@ -1531,7 +1531,7 @@ pub struct AbHandleType {
 	#[yaserde(rename = "Puid", prefix = "nsi1")]
 	pub puid: i64, 
 	#[yaserde(rename = "Cid", prefix = "nsi1")]
-	pub cid: i64, 
+	pub cid: String, 
 }
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
@@ -1545,7 +1545,7 @@ pub struct ContactHandleType {
 	#[yaserde(rename = "Puid", prefix = "nsi1")]
 	pub puid: i64, 
 	#[yaserde(rename = "Cid", prefix = "nsi1")]
-	pub cid: i64, 
+	pub cid: String, 
 	#[yaserde(rename = "CircleId", prefix = "nsi1")]
 	pub circle_id: String, 
 }
@@ -1699,7 +1699,7 @@ pub struct Handle {
 	#[yaserde(rename = "IsPassportNameHidden", prefix = "nsi1")]
 	pub is_passport_name_hidden: bool, 
 	#[yaserde(rename = "CID", prefix = "nsi1")]
-	pub cid: i32, 
+	pub cid: String, 
 }
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
@@ -1713,7 +1713,7 @@ pub struct OwnerNamespaceInfoType {
 	#[yaserde(rename = "CreatorPuid", prefix = "nsi1")]
 	pub creator_puid: String, 
 	#[yaserde(rename = "CreatorCID", prefix = "nsi1")]
-	pub creator_cid: i64, 
+	pub creator_cid: u64, 
 	#[yaserde(rename = "CreatorPassportName", prefix = "nsi1")]
 	pub creator_passport_name: String, 
 	#[yaserde(rename = "CircleAttributes", prefix = "nsi1")]

@@ -18,6 +18,8 @@ use web::webserver::*;
 use tokio::join;
 use lazy_static::lazy_static;
 #[macro_use] extern crate lazy_static_include;
+#[macro_use] extern crate serde_derive;
+
 use crate::repositories::client_data_repository::ClientDataRepository;
 use crate::repositories::matrix_client_repository::MatrixClientRepository;
 use crate::repositories::repository::Repository;
@@ -39,7 +41,15 @@ async fn main() {
 
     let switchboard_server_future = switchboard_server.listen();
 
-    let http_server = HttpServer::new(|| App::new().wrap(Logger::new(r#"%a "%r" %{SOAPAction}i %s %b "%{Referer}i" "%{User-Agent}i" %T"#)).service(greet).service(rst2).service(get_msgr_config).service(soap_adress_book_service).service(soap_sharing_service).service(soap_storage_service)).workers(2)
+    let http_server = HttpServer::new(|| App::new().wrap(Logger::new(r#"%a "%r" %{SOAPAction}i %s %b "%{Referer}i" "%{User-Agent}i" %T"#))
+    .service(greet).service(rst2)
+    .service(get_msgr_config)
+    .service(soap_adress_book_service)
+    .service(soap_sharing_service)
+    .service(soap_storage_service)
+    .service(sha1auth)
+    .service(get_profile_pic))
+    .workers(2)
     .bind(("127.0.0.1", 8080)).unwrap()
     .run();
 

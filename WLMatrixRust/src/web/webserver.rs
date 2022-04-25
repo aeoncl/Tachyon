@@ -5,14 +5,20 @@ use actix_web::{get, post, web, HttpRequest, HttpResponse, HttpResponseBuilder, 
 use http::header::HeaderName;
 use log::info;
 use matrix_sdk::config::SyncSettings;
-use matrix_sdk::media::MediaFormat;
+use matrix_sdk::media::{MediaFormat, MediaThumbnailSize, MediaRequest};
+use matrix_sdk::ruma::api::client::media::get_content_thumbnail::v3::Method;
+use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::{Client};
+use regex::Regex;
+
 use std::str::from_utf8;
 use substring::Substring;
+use js_int::UInt;
+use urlencoding::decode;
 
 use http::StatusCode;
 use lazy_static::lazy_static;
-use matrix_sdk::ruma::{UserId, user_id};
+use matrix_sdk::ruma::{UserId, user_id, mxc_uri, MxcUri};
 use reqwest::Url;
 use yaserde::de::from_str;
 use yaserde::ser::to_string;
@@ -31,13 +37,15 @@ use crate::models::uuid::UUID;
 use crate::repositories::client_data_repository::{ClientDataRepository};
 use crate::repositories::matrix_client_repository::MatrixClientRepository;
 use crate::repositories::repository::Repository;
-use crate::utils::identifiers::{msn_addr_to_matrix_id, get_matrix_device_id, get_hostname};
+use crate::utils::identifiers::{msn_addr_to_matrix_id, get_matrix_device_id, get_hostname, parse_mxc};
 use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO};
 
 use super::error::WebError;
 
 lazy_static! {
     static ref DEFAULT_CACHE_KEY: String = String::from("12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA");
+    static ref SHA1_REGEX: Regex = Regex::new(r"ru=([^&]*)&").unwrap();
+
 }
 
 lazy_static_include_bytes! {
@@ -59,7 +67,7 @@ async fn rst2(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, We
     let matrix_id = msn_addr_to_matrix_id(&username_token.username);
     let matrix_id_str = matrix_id.as_str();
     
-    let matrix_user = user_id!(matrix_id_str).to_owned();
+    let matrix_user : Box<UserId> = <&UserId>::try_from(matrix_id_str).unwrap().to_owned();
 
     let url = Url::parse(format!("https://{}", matrix_user.server_name()).as_str())?;
     let client = Client::new(url).await?;
@@ -233,6 +241,14 @@ async fn soap_storage_service(body: web::Bytes, request: HttpRequest) -> Result<
                 "http://www.msn.com/webservices/storage/2008/GetProfile" => {
                     return storage_get_profile(body, request).await;
                 }
+                "http://www.msn.com/webservices/storage/2008/UpdateDocument" => {
+                    let body = from_utf8(&body)?;
+
+                    println!("DEBUG UPDATE DOCUMENT: {}", body);
+                },
+                "http://www.msn.com/webservices/storage/2008/ShareItem" => {
+                    return share_item(body, request).await;
+                }
 
                 _ => {}
             }
@@ -243,8 +259,55 @@ async fn soap_storage_service(body: web::Bytes, request: HttpRequest) -> Result<
         .finish());
 }
 
+
+#[derive(Deserialize)]
+struct Info {
+    mx_id: String,
+    img_type: String
+}
+
+#[get("/storage/usertile/{mxc}/{img_type}")]
+async fn get_profile_pic(path: web::Path<(String, String)>, request: HttpRequest) -> Result<HttpResponse, WebError> {
+    let (mxc, img_type) = path.into_inner();
+    let mxc = from_utf8(&base64::decode(mxc.as_bytes())?)?.to_string();
+    let mxc_as_str = mxc.as_str();
+    let parsed_mxc = <&MxcUri>::try_from(mxc_as_str).unwrap().to_owned();
+
+    
+    let (server_part , mxc_part) = parse_mxc(&mxc);
+
+    let homeserver_url = Url::parse(format!("https://{}", server_part).as_str())?;
+    let client = Client::new(homeserver_url).await?;
+
+    let media_request = MediaRequest{ source: MediaSource::Plain(parsed_mxc), format: MediaFormat::Thumbnail(MediaThumbnailSize{ method: Method::Scale, width: UInt::new(200).unwrap(), height: UInt::new(200).unwrap() })};
+    let image = client.get_media_content(&media_request, false).await?;
+
+
+   // let matrix_client = client_repo.find(&matrix_token).ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+  // let documentstream = response.body.body.get_profile_response.get_profile_result.expression_profile.photo.document_streams.document_stream.get_mut(0).unwrap();
+
+   //let profile_pic = matrix_client.account().get_avatar(MediaFormat::Thumbnail(MediaThumbnailSize{ method: Method::Scale, width: UInt::new(200).unwrap(), height: UInt::new(200).unwrap() })).await?.unwrap();
+   //let encoded = base64::encode(&profile_pic);
+
+        return Ok(HttpResponseBuilder::new(StatusCode::OK).append_header(("Content-Type", "image/jpeg")).body(image));
+}
+
+#[post("/ppsecure/sha1auth.srf")]
+async fn sha1auth(body: web::Bytes) -> Result<HttpResponse, WebError> {
+    let body = decode(from_utf8(&body)?)?.into_owned();
+    info!("DEBUG SHA1AUTH: {}", body);
+    let captures = SHA1_REGEX.captures(&body).unwrap();
+    let redirect_url = decode(&captures[1])?.into_owned();
+    info!("Redirect to {}", &redirect_url);
+    return Ok(HttpResponseBuilder::new(StatusCode::FOUND).append_header(("Location", redirect_url.as_str())).finish());
+}
+
+
 async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
     let body = from_utf8(&body)?;
+
+    info!("DEBUG GET PROFILE REQUEST: {}", body);
+
 
     let request = from_str::<GetProfileMessageSoapEnvelope>(body)?;
 
@@ -259,15 +322,24 @@ async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<H
 
     let client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
     let matrix_client = client_repo.find(&matrix_token).ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-    
-    let profile = matrix_client.account().get_profile().await?;
-    let display_name = profile.displayname;
 
-    let psm = String::fromt("PSM");
-    let response = GetProfileResponseFactory::get_empty_response(UUID::from_string(&msn_addr_to_matrix_id(&client.msn_login)), DEFAULT_CACHE_KEY.to_string(), matrix_token, display_name, psm);
+    let profile = matrix_client.account().get_profile().await?;
+    let display_name = profile.displayname.ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let psm = matrix_client.account().get_presence().await?.status_msg.unwrap_or_default();
+
+    let image_mx_id = base64::encode(&matrix_client.account().get_avatar_url().await?.unwrap().to_string());
+
+    let mut response = GetProfileResponseFactory::get_empty_response(UUID::from_string(&msn_addr_to_matrix_id(&client.msn_login)), DEFAULT_CACHE_KEY.to_string(), matrix_token, display_name, psm, image_mx_id);
 
     let response_serialized = to_string(&response)?;
     info!("get_profile_response: {}", response_serialized);
     return Ok(HttpResponseBuilder::new(StatusCode::OK).append_header(("Content-Type", "application/soap+xml")).body(response_serialized));
+}
+
+async fn share_item(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
+    let response = String::from("<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"><soap:Body><soap:Fault><faultcode>soap:Client</faultcode><faultstring>API ShareItem no longer supported</faultstring><faultactor>http://www.msn.com/webservices/AddressBook/ShareItem</faultactor><detail><errorcode xmlns=\"http://www.msn.com/webservices/AddressBook\">Forbidden</errorcode><errorstring xmlns=\"http://www.msn.com/webservices/AddressBook\">API ShareItem no longer supported</errorstring><machineName xmlns=\"http://www.msn.com/webservices/AddressBook\">DM2CDP1011931</machineName><additionalDetails><originalExceptionErrorMessage>API ShareItem no longer supported</originalExceptionErrorMessage></additionalDetails></detail></soap:Fault></soap:Body></soap:Envelope>");
+    info!("get_share_item_response: {}", response);
+    return Ok(HttpResponseBuilder::new(StatusCode::OK).append_header(("Content-Type", "application/soap+xml")).body(response));
 }
 
