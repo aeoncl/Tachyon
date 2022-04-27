@@ -588,15 +588,21 @@ pub mod types {
         pub group: Vec<GroupType>,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "DynamicItems")]
+    #[yaserde(rename = "DynamicItems",
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+	prefix = "nsi1",
+	default_namespace="nsi1")]
     pub struct DynamicItems {
-        #[yaserde(rename = "DynamicItem", default)]
+        #[yaserde(rename = "DynamicItem", prefix="nsi1")]
         pub dynamic_item: Vec<BaseDynamicItemType>,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "CircleResult")]
+    #[yaserde(rename = "CircleResult",
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+	prefix = "nsi1",
+	default_namespace="nsi1")]
     pub struct CircleResult {
-        #[yaserde(rename = "CircleTicket", default)]
+        #[yaserde(rename = "CircleTicket", prefix="nsi1")]
         pub circle_ticket: String,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
@@ -951,11 +957,14 @@ pub mod types {
         pub ab_info: AbInfoType,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "UpdateDynamicItemRequestType")]
+    #[yaserde(rename = "UpdateDynamicItemRequestType",
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+	prefix = "nsi1",
+	default_namespace="nsi1")]
     pub struct UpdateDynamicItemRequestType {
-        #[yaserde(rename = "abId", default)]
+        #[yaserde(rename = "abId", prefix="nsi1")]
         pub ab_id: String,
-        #[yaserde(rename = "dynamicItems", default)]
+        #[yaserde(rename = "dynamicItems", prefix="nsi1")]
         pub dynamic_items: DynamicItems,
     }
     pub type UpdateDynamicItem = UpdateDynamicItemRequestType;
@@ -3225,7 +3234,7 @@ pub mod bindings {
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapUpdateDynamicItemResponseMessage {
-        #[yaserde(rename = "UpdateDynamicItemResponseMessage", default)]
+        #[yaserde(rename = "UpdateDynamicItemResponse", default)]
         pub body: ports::UpdateDynamicItemResponseMessage,
         #[yaserde(rename = "Fault", default)]
         pub fault: Option<SoapFault>,
@@ -3234,19 +3243,12 @@ pub mod bindings {
     #[yaserde(
         rename = "Envelope",
         namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+        namespace = "xsd: http://www.w3.org/2001/XMLSchema",
         prefix = "soap"
     )]
     pub struct UpdateDynamicItemResponseMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
-        #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<Header>,
+        pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapUpdateDynamicItemResponseMessage,
     }
@@ -3254,12 +3256,8 @@ pub mod bindings {
     impl UpdateDynamicItemResponseMessageSoapEnvelope {
         pub fn new(body: SoapUpdateDynamicItemResponseMessage) -> Self {
             UpdateDynamicItemResponseMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
-                header: None,
+                header: None
             }
         }
     }
@@ -4782,7 +4780,7 @@ pub mod factories {
     use chrono::{Local, DateTime, NaiveDateTime};
     use lazy_static::lazy_static;
 
-    use super::{bindings::{FindMembershipResponseMessageSoapEnvelope, SoapFindMembershipResponseMessage, AbfindContactsPagedResponseMessageSoapEnvelope, SoapAbfindContactsPagedResponseMessage, AbgroupAddResponseMessageSoapEnvelope, SoapAbgroupAddResponseMessage}, types::{MembershipResult, FindMembershipResponse, Ab, Groups, AbfindContactsPagedResultType, AbgroupAddResponse, AbgroupAddResultType}, messages::{FindMembershipResponseMessage, ServiceHeaderContainer, AbgroupAddResponseMessage}, ports};
+    use super::{bindings::{FindMembershipResponseMessageSoapEnvelope, SoapFindMembershipResponseMessage, AbfindContactsPagedResponseMessageSoapEnvelope, SoapAbfindContactsPagedResponseMessage, AbgroupAddResponseMessageSoapEnvelope, SoapAbgroupAddResponseMessage, UpdateDynamicItemResponseMessageSoapEnvelope, SoapUpdateDynamicItemResponseMessage}, types::{MembershipResult, FindMembershipResponse, Ab, Groups, AbfindContactsPagedResultType, AbgroupAddResponse, AbgroupAddResultType}, messages::{FindMembershipResponseMessage, ServiceHeaderContainer, AbgroupAddResponseMessage, UpdateDynamicItemResponseMessage}, ports};
 
 
     pub struct FindMembershipResponseFactory;
@@ -4890,6 +4888,15 @@ pub mod factories {
             }
     }
 
+    pub struct UpdateDynamicItemResponseFactory;
+    impl UpdateDynamicItemResponseFactory {
+        pub fn get_response(cache_key: String) -> UpdateDynamicItemResponseMessageSoapEnvelope {
+            let body_content = UpdateDynamicItemResponseMessage{ update_dynamic_item_response: None };
+            let body = SoapUpdateDynamicItemResponseMessage { body: body_content, fault: None };
+            return UpdateDynamicItemResponseMessageSoapEnvelope{ header: Some(HeaderFactory::get_service_header(cache_key)), body: body };
+        }
+    }
+
     pub struct AnnotationFactory;
         
     impl AnnotationFactory {
@@ -4986,7 +4993,7 @@ mod tests {
 
     use crate::{generated::msnab_datatypes::types::{OwnerNamespaceType, OwnerNamespaceInfoType, Handle, CircleAttributesType, ArrayOfServiceType, ServiceType, Memberships, Membership, RoleId, Members, BaseMember, MemberState, InfoType, HandleType, ServiceName, ArrayOfContactType, GroupType, ContactType, CircleResultType, AbInfoType}, models::uuid::UUID};
 
-    use super::{bindings::{FindMembershipResponseMessageSoapEnvelope, SoapFindMembershipResponseMessage, FindMembershipMessageSoapEnvelope, AbfindContactsPagedMessageSoapEnvelope, AbfindContactsPagedResponseMessageSoapEnvelope, SoapAbfindContactsPagedResponseMessage, AbgroupAddResponseMessageSoapEnvelope, SoapAbgroupAddResponseMessage, AbgroupAddMessageSoapEnvelope}, messages::{FindMembershipResponseMessage, ServiceHeaderContainer, AbgroupAddResponseMessage}, types::{FindMembershipResponse, MembershipResult, AbfindContactsPagedResultType, Groups, Ab, AbgroupAddResponse, AbgroupAddResultType}, ports};
+    use super::{bindings::{FindMembershipResponseMessageSoapEnvelope, SoapFindMembershipResponseMessage, FindMembershipMessageSoapEnvelope, AbfindContactsPagedMessageSoapEnvelope, AbfindContactsPagedResponseMessageSoapEnvelope, SoapAbfindContactsPagedResponseMessage, AbgroupAddResponseMessageSoapEnvelope, SoapAbgroupAddResponseMessage, AbgroupAddMessageSoapEnvelope, UpdateDynamicItemMessageSoapEnvelope, UpdateDynamicItemResponseMessageSoapEnvelope, SoapUpdateDynamicItemResponseMessage}, messages::{FindMembershipResponseMessage, ServiceHeaderContainer, AbgroupAddResponseMessage, UpdateDynamicItemResponseMessage}, types::{FindMembershipResponse, MembershipResult, AbfindContactsPagedResultType, Groups, Ab, AbgroupAddResponse, AbgroupAddResultType}, ports};
 
     #[test]
     fn test_find_membership() {
@@ -5002,8 +5009,8 @@ mod tests {
     fn test_find_membership_2() {
 
         let circle_attributes = CircleAttributesType{ is_presence_enabled: false, is_event: None, domain: String::from("WindowsLive") };
-        let handle = Handle { id: String::from("00000000-0000-0000-0000-000000000000"), is_passport_name_hidden: false, cid: 0 };
-        let owner_namespace_info = OwnerNamespaceInfoType{ handle: handle, creator_puid: String::from("0"), creator_cid: -863314, creator_passport_name: String::from("aeon@test.fr"), circle_attributes: circle_attributes, messenger_application_service_created: Some(false) };
+        let handle = Handle { id: String::from("00000000-0000-0000-0000-000000000000"), is_passport_name_hidden: false, cid: String::from("0") };
+        let owner_namespace_info = OwnerNamespaceInfoType{ handle: handle, creator_puid: String::from("0"), creator_cid: 863314, creator_passport_name: String::from("aeon@test.fr"), circle_attributes: circle_attributes, messenger_application_service_created: Some(false) };
         let owner_namespace = OwnerNamespaceType{ info: owner_namespace_info, changes: "Hi".to_string(), create_date: "date".to_string(), last_change: "date".to_string() };
         
         let mut members = Vec::new();
@@ -5129,5 +5136,23 @@ mod tests {
        assert!(response_serialized.contains("ABGroupAddResult"));
        assert!(response_serialized.contains("guid"));
     }
+
+    #[test]
+    fn test_update_dynamic_item_request() {
+        let request = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>RoamingIdentityChanged</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C9mNfQujUk470Pfz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=0bfusc4t3dT0k3n</TicketToken></ABAuthHeader></soap:Header><soap:Body><UpdateDynamicItem xmlns=\"http://www.msn.com/webservices/AddressBook\"><abId>00000000-0000-0000-0000-000000000000</abId><dynamicItems><DynamicItem xsi:type=\"PassportDynamicItem\"><Type>Passport</Type><PassportName>aeoncl@matrix.org</PassportName><Notifications><NotificationData><StoreService><Info><Handle><Id>0</Id><Type>Profile</Type><ForeignId>MyProfile</ForeignId></Handle><InverseRequired>false</InverseRequired><IsBot>false</IsBot></Info><Changes /><LastChange>0001-01-01T00:00:00</LastChange><Deleted>false</Deleted></StoreService><Status>Exist Access</Status><Gleam>false</Gleam><InstanceId>0</InstanceId></NotificationData></Notifications><Changes>Notifications</Changes></DynamicItem></dynamicItems></UpdateDynamicItem></soap:Body></soap:Envelope>";
+
+        let request_deserialized : UpdateDynamicItemMessageSoapEnvelope = from_str(request).unwrap();
+
+    }
+
+    #[test]
+    fn test_update_dynamic_item_response() {
+        let body_content = UpdateDynamicItemResponseMessage{ update_dynamic_item_response: None };
+        let body = SoapUpdateDynamicItemResponseMessage { body: body_content, fault: None };
+        let response =  UpdateDynamicItemResponseMessageSoapEnvelope{ header: None, body: body };
+        let response_serialized = to_string(&response).unwrap();
+
+    }
+
 
 }

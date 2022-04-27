@@ -93,6 +93,6 @@ mod tests {
         let mut payload = MsgPayload::new("content-type");
         payload.add_header(String::from("headerName"),String::from("headerValue"));
         let serialized = payload.serialize();
-        assert_eq!(serialized,String::from("MIME-Version: 1.0\r\nContent-Type: content-type; charset=UTF-8\r\nheaderName:headerValue\r\n\r\n")); 
+        assert_eq!(serialized,String::from("MIME-Version: 1.0\r\nContent-Type: content-type; charset=UTF-8\r\nheaderName: headerValue\r\n\r\n")); 
     }
 }

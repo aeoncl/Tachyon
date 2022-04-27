@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <soap:Header>
+        <AffinityCacheHeader xmlns="http://www.msn.com/webservices/storage/2008">
+            <CacheKey>cachekey</CacheKey>
+        </AffinityCacheHeader>
+        <StorageUserHeader xmlns="http://www.msn.com/webservices/storage/2008">
+            <Puid>0</Puid>
+            <Cid>bb4609f28591a247</Cid>
+            <ApplicationId>0</ApplicationId>
+            <DeviceId>0</DeviceId>
+            <IsTrustedDevice>false</IsTrustedDevice>
+            <IsStrongAuth>false</IsStrongAuth>
+            <TicketToken>t=t0k3n</TicketToken>
+            <IsAdmin>false</IsAdmin>
+            <LanguagePreference>0</LanguagePreference>
+        </StorageUserHeader>
+    </soap:Header>
+    <soap:Body>
+        <UpdateProfileResponse></UpdateProfileResponse>
+    </soap:Body>
+</soap:Envelope>

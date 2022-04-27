@@ -49,7 +49,6 @@ async fn main() {
     .service(soap_storage_service)
     .service(sha1auth)
     .service(get_profile_pic))
-    .workers(2)
     .bind(("127.0.0.1", 8080)).unwrap()
     .run();
 

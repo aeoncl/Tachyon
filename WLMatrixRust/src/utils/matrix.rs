@@ -1,4 +1,4 @@
-use matrix_sdk::{Client, ruma::{UserId, DeviceId, device_id, user_id}, Session, Error};
+use matrix_sdk::{Client, ruma::{UserId, DeviceId, device_id, user_id, OwnedUserId}, Session, Error};
 use reqwest::Url;
 
 use super::identifiers::get_matrix_device_id;
@@ -9,7 +9,8 @@ pub async fn login(matrix_id: String, matrix_token: String) -> Result<Client, Er
 
 
     let matrix_id_str = matrix_id.as_str();
-    let matrix_user : Box<UserId> = <&UserId>::try_from(matrix_id_str).unwrap().to_owned();
+
+    let matrix_user : OwnedUserId = <&UserId>::try_from(matrix_id_str).unwrap().to_owned();
     let device_id = get_matrix_device_id();
     let device_id_str = device_id.as_str();
     let device_id = device_id!(device_id_str).to_owned();

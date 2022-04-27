@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+    <soap:Header>
+        <AffinityCacheHeader xmlns="http://www.msn.com/webservices/storage/2008">
+            <CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey>
+        </AffinityCacheHeader>
+        <StorageApplicationHeader xmlns="http://www.msn.com/webservices/storage/2008">
+            <ApplicationID>Messenger Client 9.0</ApplicationID>
+            <Scenario>RoamingIdentityChanged</Scenario>
+        </StorageApplicationHeader>
+        <StorageUserHeader xmlns="http://www.msn.com/webservices/storage/2008">
+            <Puid>0</Puid>
+            <TicketToken>t=0bfusc4t3dT0k3n</TicketToken>
+        </StorageUserHeader>
+    </soap:Header>
+    <soap:Body>
+        <UpdateDocument xmlns="http://www.msn.com/webservices/storage/2008">
+            <document xsi:type="Photo">
+                <ResourceID>195c865c2afaaa3b!205</ResourceID>
+                <Name>Soccer</Name>
+                <DocumentStreams>
+                    <DocumentStream xsi:type="PhotoStream">
+                        <DocumentStreamType>UserTileStatic</DocumentStreamType>
+                        <MimeType>image/png</MimeType>
+                        <Data>BASE64bytes</Data>
+                        <DataSize>0</DataSize>
+                    </DocumentStream>
+                </DocumentStreams>
+            </document>
+        </UpdateDocument>
+    </soap:Body>
+</soap:Envelope>
