@@ -39,7 +39,7 @@ impl TCPServer {
 
     fn get_command_handler(&self, sender: Sender<String>) -> Box<dyn CommandHandler> {
         if let ServerType::Notification = self.server_type {
-            return Box::new(NotificationCommandHandler::new());
+            return Box::new(NotificationCommandHandler::new(sender));
         } else {
             return Box::new(SwitchboardCommandHandler::new());
         }
@@ -68,7 +68,7 @@ impl TCPServer {
                         bytes_read = reader.read(&mut buffer) => {
                         let line = String::from(from_utf8(&buffer).unwrap());
                             //println!("DEBUG: {}", &line);
-                             if bytes_read.unwrap() == 0 {
+                             if bytes_read.unwrap_or(0) == 0 {
                                  break;
                              }
                              let commands = MSNPCommandParser::parse_message(&line);
@@ -77,7 +77,7 @@ impl TCPServer {
                                 println!("NS <= {}", &command);
                                 let response = command_handler.handle_command(&command).await;
                                 if !response.is_empty() {
-                                    write.write_all(response.as_bytes()).await.unwrap();
+                                    write.write_all(response.as_bytes()).await;
                                     println!("NS => {}", &response);
                                 }
                             }
@@ -86,7 +86,7 @@ impl TCPServer {
                         command_to_send = rx.recv() => {
                             let msg = command_to_send.unwrap();
                             println!("NS => {}", &msg);
-                            write.write_all(msg.as_bytes()).await.unwrap();
+                            write.write_all(msg.as_bytes()).await;
                         }
                     }
                 }

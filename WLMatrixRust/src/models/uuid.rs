@@ -95,8 +95,8 @@ impl UUID {
         return format!("{}", self.get_most_significant_bytes());
     }
 
-    pub fn to_decimal_cid(&self) -> u64 {
-        return self.get_most_significant_bytes();
+    pub fn to_decimal_cid(&self) -> i64 {
+        return self.get_most_significant_bytes() as i64;
     }
 
     pub fn to_hex_cid(&self) -> String {

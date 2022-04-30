@@ -327,7 +327,7 @@ async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<H
         img_mx_id = Some(base64::encode(avatar_url.to_string()));
     }
 
-    let mut response = GetProfileResponseFactory::get_response(UUID::from_string(&msn_addr_to_matrix_id(&client.msn_login)), DEFAULT_CACHE_KEY.to_string(), matrix_token, display_name, psm, img_mx_id);
+    let response = GetProfileResponseFactory::get_response(UUID::from_string(&msn_addr_to_matrix_id(&client.msn_login)), DEFAULT_CACHE_KEY.to_string(), matrix_token, display_name, psm, img_mx_id);
 
     let response_serialized = to_string(&response)?;
     info!("get_profile_response: {}", response_serialized);

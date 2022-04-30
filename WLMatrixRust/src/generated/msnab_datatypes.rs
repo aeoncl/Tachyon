@@ -53,6 +53,9 @@ use yaserde::{YaSerialize, YaDeserialize};
             }
 
 pub mod types {
+use std::fmt::Display;
+
+use strum_macros::Display;
 use yaserde::{YaSerialize, YaDeserialize};
             use yaserde::de::from_str;
             use async_trait::async_trait;
@@ -184,7 +187,7 @@ pub struct AbInfoType {
 	#[yaserde(rename = "ownerPuid", prefix = "nsi1")]
 	pub owner_puid: i64, 
 	#[yaserde(rename = "OwnerCID", prefix = "nsi1")]
-	pub owner_cid: u64, 
+	pub owner_cid: i64, 
 	#[yaserde(rename = "ownerEmail", prefix = "nsi1")]
 	pub owner_email: Option<String>, 
 	#[yaserde(rename = "fDefault", prefix = "nsi1")]
@@ -318,6 +321,26 @@ pub struct Location {
 	#[yaserde(rename = "CID", prefix = "nsi1")]
 	pub cid: i64, 
 }
+
+#[derive(Debug, YaSerialize, YaDeserialize, Clone)]
+#[yaserde(
+	rename = "Type", namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+	prefix = "nsi1",
+	default_namespace="nsi1"
+)]
+pub enum MemberType {
+	Passport,
+	Circle
+}
+
+impl Default for MemberType {
+    fn default() -> Self {
+        MemberType::Passport
+    }
+}
+
+
+
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 	rename = "BaseMember", namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
@@ -328,15 +351,31 @@ pub struct BaseMember {
 
 	#[yaserde(rename = "MembershipId",
 	prefix = "nsi1")]
-	pub membership_id: Option<i32>, 
+	pub membership_id: Option<String>, 
+	#[yaserde(prefix = "xsi", rename="type", attribute)]
+	pub xsi_type: String,
 	#[yaserde(rename = "Type", prefix = "nsi1")]
-	pub rs_type: String, 
+	pub rs_type: MemberType, 
 	#[yaserde(rename = "Location", prefix = "nsi1")]
 	pub location: Option<Location>, 
 	#[yaserde(rename = "DisplayName", prefix = "nsi1")]
 	pub display_name: Option<String>, 
 	#[yaserde(rename = "State", prefix = "nsi1")]
 	pub state: MemberState, 
+	#[yaserde(rename = "PassportName", prefix = "nsi1")]
+	pub passport_name: Option<String>, 
+	#[yaserde(rename = "CircleId", prefix = "nsi1")]
+	pub circle_id: Option<Guid>, 
+	#[yaserde(rename = "IsPassportNameHidden", prefix = "nsi1")]
+	pub is_passport_name_hidden: Option<bool>, 
+	#[yaserde(rename = "PassportId", prefix = "nsi1")]
+	pub passport_id: Option<i32>, 
+	#[yaserde(rename = "CID", prefix = "nsi1")]
+	pub cid: Option<i64>, 
+	#[yaserde(rename = "PassportChanges", prefix = "nsi1")]
+	pub passport_changes: Option<String>, 
+	#[yaserde(rename = "LookedupByCID", prefix = "nsi1")]
+	pub lookedup_by_cid: Option<bool>, 
 	#[yaserde(rename = "NewRole", prefix = "nsi1")]
 	pub new_role: Option<RoleId>, 
 	#[yaserde(rename = "Annotations", prefix = "nsi1")]
@@ -548,32 +587,57 @@ pub struct Guid {
 	#[yaserde(text, prefix = "nsi1")]
 	pub body: String, 
 }
-#[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
+#[derive(Debug, Display, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 	rename = "RoleId",namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
 	prefix = "nsi1",
 	default_namespace="nsi1"
 )]
-pub struct RoleId {
-	#[yaserde(text, prefix = "nsi1")]
-	pub body: String, 
+pub enum RoleId {
+	Allow,
+	Block,
+	Pending,
+	Reverse
 }
-#[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
+
+impl Default for RoleId {
+    fn default() -> Self {
+        RoleId::Allow
+    }
+}
+
+
+#[derive(Debug, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 	rename = "MemberState", namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
 	prefix = "nsi1",
 	default_namespace="nsi1"
 )]
-pub struct MemberState {
-	#[yaserde(text, default)]
-	pub body: String, 
+
+pub enum MemberState {
+
+	Accepted,
+	Pending,
+	Declined,
+	Removed,
+	Tentative
+
 }
+
+impl Default for MemberState {
+    fn default() -> Self {
+        MemberState::Accepted
+    }
+}
+
+
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 	rename = "Annotation", namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
 	prefix = "nsi1",
 	default_namespace="nsi1"
 )]
+
 pub struct Annotation {
 	#[yaserde(rename = "Name", prefix = "nsi1")]
 	pub name: String, 
@@ -676,7 +740,7 @@ pub struct ContactInfoType {
 	#[yaserde(rename = "puid", prefix = "nsi1")]
 	pub puid: Option<i64>, 
 	#[yaserde(rename = "CID", prefix = "nsi1")]
-	pub cid: Option<u64>, 
+	pub cid: Option<i64>, 
 	#[yaserde(rename = "BrandIdList", prefix = "nsi1")]
 	pub brand_id_list: Option<String>, 
 	#[yaserde(rename = "comment", prefix = "nsi1")]
@@ -1713,7 +1777,7 @@ pub struct OwnerNamespaceInfoType {
 	#[yaserde(rename = "CreatorPuid", prefix = "nsi1")]
 	pub creator_puid: String, 
 	#[yaserde(rename = "CreatorCID", prefix = "nsi1")]
-	pub creator_cid: u64, 
+	pub creator_cid: i64, 
 	#[yaserde(rename = "CreatorPassportName", prefix = "nsi1")]
 	pub creator_passport_name: String, 
 	#[yaserde(rename = "CircleAttributes", prefix = "nsi1")]

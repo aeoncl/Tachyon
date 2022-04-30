@@ -1,4 +1,4 @@
-use matrix_sdk::{Client, ruma::{UserId, DeviceId, device_id, user_id, OwnedUserId}, Session, Error};
+use matrix_sdk::{Client, ruma::{UserId, DeviceId, device_id, user_id, OwnedUserId, events::{AnySyncMessageLikeEvent, AnySyncRoomEvent, SyncMessageLikeEvent}}, Session, Error, deserialized_responses::JoinedRoom};
 use reqwest::Url;
 
 use super::identifiers::get_matrix_device_id;

@@ -5,14 +5,11 @@ mod models;
 mod web;
 mod utils;
 
-use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::Mutex;
 
 use actix_web::App;
 use actix_web::HttpServer;
 use actix_web::middleware::Logger;
-use matrix_sdk::Client;
 use sockets::tcpserver::*;
 use web::webserver::*;
 use tokio::join;

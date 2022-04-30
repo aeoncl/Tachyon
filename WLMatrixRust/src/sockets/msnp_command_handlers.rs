@@ -1,8 +1,16 @@
+use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 
+use chashmap::ReadGuard;
+use matrix_sdk::Client;
 use matrix_sdk::config::SyncSettings;
+use matrix_sdk::ruma::OwnedDeviceId;
+use matrix_sdk::ruma::api::client::uiaa::AuthData;
 use substring::Substring;
 use async_trait::async_trait;
+use tokio::sync::broadcast::Sender;
+use crate::generated::payloads::{PrivateEndpointData, PresenceStatus};
 use crate::repositories::matrix_client_repository::MatrixClientRepository;
 use crate::repositories::repository::Repository;
 use crate::utils::identifiers::msn_addr_to_matrix_id;
@@ -13,11 +21,13 @@ use crate::models::uuid::UUID;
 use crate::repositories::client_data_repository::{ClientDataRepository};
 use crate::models::msg_payload::factories::{MsgPayloadFactory};
 use super::msnp_command::MSNPCommand;
+use crate::utils::matrix_sync_helpers::*;
 
 pub struct NotificationCommandHandler {
     protocol_version: i16,
     msn_addr: String,
-    matrix_token: String
+    matrix_token: String,
+    sender: Sender<String>
 }
 
 pub struct SwitchboardCommandHandler {
@@ -30,8 +40,9 @@ pub trait CommandHandler : Send {
 }
 
 impl NotificationCommandHandler {
-    pub fn new() -> NotificationCommandHandler {
+    pub fn new(sender: Sender<String>) -> NotificationCommandHandler {
         return NotificationCommandHandler {
+            sender: sender,
             protocol_version: -1,
             msn_addr: String::new(),
             matrix_token: String::new(),
@@ -108,19 +119,40 @@ impl CommandHandler for NotificationCommandHandler {
                         if let Ok(client) = matrix::login(matrix_id.clone(), self.matrix_token.clone()).await {
                             //Token valid, client authenticated.
                             let client_data_repo : Arc<ClientDataRepository> = CLIENT_DATA_REPO.clone();
-                            client_data_repo.add(self.matrix_token.clone(), ClientData::new(self.msn_addr.clone(), self.protocol_version.clone(), split[5].to_string()));
+                            client_data_repo.add(self.matrix_token.clone(), ClientData::new(self.msn_addr.clone(), self.protocol_version.clone(), split[5].to_string(), PresenceStatus::HDN));
 
-                            let matrix_client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
-                            matrix_client_repo.add(self.matrix_token.clone(), client);
     
                             let msmsgs_profile_msg = MsgPayloadFactory::get_msmsgs_profile(UUID::from_string(&matrix_id).get_puid(), self.msn_addr.clone(), self.matrix_token.clone()).serialize();
     
                             let oim_payload = MsgPayloadFactory::get_initial_mail_data_notification().serialize();
                             let oim_payload_size = oim_payload.len();
+                            
+                            let devices = client.devices().await.unwrap().devices;
+                            
 
-                            //let result = &client.sync_once(SyncSettings::new()).await.unwrap();
 
-                            return format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\nMSG Hotmail Hotmail {msmsgs_profile_payload_size}\r\n{payload}MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}UBX 1:{email} 0\r\n", tr_id = tr_id, email=&self.msn_addr, msmsgs_profile_payload_size= msmsgs_profile_msg.len(), payload=msmsgs_profile_msg, oim_payload = oim_payload, oim_payload_size = oim_payload_size);
+                            let mut endpoints = String::new();
+                            let this_device_id = client.device_id().await.unwrap();
+
+                            for device in devices {
+                                if device.device_id != this_device_id {
+                                    let machine_guid = UUID::from_string(&device.device_id.to_string());
+                                    let endpoint_name = device.display_name.unwrap_or(device.device_id.to_string());
+                                    let private_endpoint = format!("<EndpointData id=\"{{{machine_guid}}}\"><Capabilities>2789003324:48</Capabilities></EndpointData><PrivateEndpointData id=\"{{{machine_guid}}}\"><EpName>{endpoint_name}</EpName><Idle>false</Idle><ClientType>1</ClientType><State>NLN</State></PrivateEndpointData>", machine_guid = machine_guid.to_string(), endpoint_name = endpoint_name);
+                                    endpoints.push_str(private_endpoint.as_str());
+                                }
+                            }
+
+                            tokio::spawn(start_matrix_loop(self.matrix_token.clone(), self.sender.clone()));
+
+
+                            let matrix_client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
+                            matrix_client_repo.add(self.matrix_token.clone(), client);
+
+                            let private_endpoint_test = format!("<Data>{endpoints}</Data>", endpoints = endpoints);
+                            
+
+                            return format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\nMSG Hotmail Hotmail {msmsgs_profile_payload_size}\r\n{payload}MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", tr_id = tr_id, email=&self.msn_addr, msmsgs_profile_payload_size= msmsgs_profile_msg.len(), payload=msmsgs_profile_msg, oim_payload = oim_payload, oim_payload_size = oim_payload_size, private_endpoint_payload_size = private_endpoint_test.len(), private_endpoint_payload = private_endpoint_test);
                         } else {
                             //Invalid token. Auth failure.
                             return format!("911 {tr_id}\r\n", tr_id= tr_id);
@@ -149,6 +181,10 @@ impl CommandHandler for NotificationCommandHandler {
                     <<< UUX 8 0
                 */
                 let tr_id = split[1];
+                let payload = &command.payload;
+                if payload.starts_with("<PrivateEndpointData>") {
+                    self.handle_device_name_update(payload.as_str()).await;
+                }
                 return format!("UUX {tr_id} 0\r\n", tr_id=tr_id);
             },
             "BLP" => {
@@ -167,12 +203,88 @@ impl CommandHandler for NotificationCommandHandler {
                 // >>> PRP 13 MFN display%20name
                 // <<< PRP 13 MFN display%20name
                 return format!("{}\r\n", command.command);
-            }
+            },
+            "UUN" => {
+                // >>> UUN 14 aeoncl@matrix.org;{0ab73364-6ccf-507b-bb66-a967fe281cd0} 4 14 | goawyplzthxbye
+                // <<< UUN 14 OK
+                let tr_id = split[1];
+                let receiver = split[2].to_string();
+                let receiver_split : Vec<&str> = receiver.split(';').collect();
+                let receiver_msn_addr = receiver_split.get(0).unwrap_or(&receiver.as_str()).to_string();
+                let endpoint_guid = self.parse_endpoint_guid(receiver_split.get(1));
+
+                if receiver_msn_addr == self.msn_addr {
+                    //this for me
+                    if command.payload.as_str() == "goawyplzthxbye" {
+                        self.handle_device_logout(endpoint_guid).await;
+                    } else if command.payload.as_str() == "gtfo" {
+                        //TODO
+                    }
+                }
+
+                return format!("UUN {tr_id} OK\r\n", tr_id = tr_id);
+            },
             _ => {
                 return String::new();
             }
         }
     }
+}
+
+impl NotificationCommandHandler {
+
+    async fn handle_device_name_update(&self, payload: &str) {
+        let matrix_client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
+
+        if let Ok(private_endpoint_data) = PrivateEndpointData::from_str(payload) {
+            if let Some(matrix_client) = matrix_client_repo.find(&self.matrix_token) {
+
+                 let device_id = matrix_client.device_id().await.unwrap();
+                 matrix_client.update_device(&device_id, private_endpoint_data.ep_name).await.unwrap_or_default();
+
+            }
+        }
+
+    }
+
+    async fn handle_device_logout(&self, endpoint_guid : String) {
+
+        let client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
+        let matrix_client = client_repo.find(&self.matrix_token).unwrap();
+
+        let devices = matrix_client.devices().await.unwrap().devices;
+        for device in devices {
+            let current_endpoint_guid = UUID::from_string(&device.device_id.to_string()).to_string();
+            if current_endpoint_guid == endpoint_guid {
+                let result = matrix_client.delete_devices(&[device.device_id], None).await;
+                //TODO handle user credential input. (Maybe via opening a web page in browser or in msn using COM object call)
+            }
+
+        }
+    }
+
+    // async fn handle_all_devices_logout(&self) {
+    //     let client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
+    //     let matrix_client = client_repo.find(&self.matrix_token).unwrap();
+
+    //     let devices = matrix_client.devices().await.unwrap().devices;
+
+    //     let mut devices_ids : [OwnedDeviceId];
+    //     for device in devices {
+    //         let current_endpoint_guid = UUID::from_string(&device.device_id.to_string()).to_string();
+    //             let result = matrix_client.delete_devices(&[device.device_id], None).await;
+    //             //TODO handle user credential input. (Maybe via opening a web page in browser or in msn using COM object call)
+    //     }
+    // }
+
+    fn parse_endpoint_guid(&self, maybe_endpoint_guid: Option<&&str>) -> String{
+
+        if let Some(mut endpoind_guid) = maybe_endpoint_guid {
+            return endpoind_guid.to_string().substring(1, endpoind_guid.len()-1).to_string()
+        }
+        return String::new();
+    }
+
 }
 
 #[async_trait]
