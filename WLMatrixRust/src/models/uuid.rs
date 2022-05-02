@@ -67,6 +67,10 @@ impl UUID {
         return LittleEndian::read_u64(&lsb);
     }
 
+    pub fn get_least_significant_bytes_as_hex(&self) -> String {
+        return format!("{:x}", self.get_least_significant_bytes());
+    }
+
     fn get_most_significant_bytes_as_array(&self) -> [u8; 8] {
         let bytes = self.uuid.as_bytes();
         let msb = &bytes[0..8];
@@ -77,6 +81,10 @@ impl UUID {
         let bytes = self.uuid.as_bytes();
         let msb = &bytes[0..8];
         return LittleEndian::read_u64(&msb);
+    }
+
+    pub fn get_most_significant_bytes_as_hex(&self) -> String {
+        return format!("{:x}", self.get_most_significant_bytes());
     }
 
     pub fn get_puid(&self) -> PUID {

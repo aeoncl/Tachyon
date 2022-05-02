@@ -1623,17 +1623,12 @@ pub mod bindings {
     #[yaserde(
         rename = "Envelope",
         namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+        namespace = "xsd: http://www.w3.org/2001/XMLSchema",
+        namespace = "soapenc: http://schemas.xmlsoap.org/soap/encoding/",
         prefix = "soap"
     )]
     pub struct FindMembershipResponseMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
         pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
@@ -1643,11 +1638,7 @@ pub mod bindings {
     impl FindMembershipResponseMessageSoapEnvelope {
         pub fn new(body: SoapFindMembershipResponseMessage) -> Self {
             FindMembershipResponseMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
                 header: None,
             }
         }
@@ -4787,7 +4778,7 @@ pub mod factories {
 
     impl FindMembershipResponseFactory {
 
-        pub fn get_empty_response(uuid: UUID, msn_addr: String, cache_key: String ) -> FindMembershipResponseMessageSoapEnvelope {
+        pub fn get_empty_response(uuid: UUID, msn_addr: String, cache_key: String) -> FindMembershipResponseMessageSoapEnvelope {
 
             let circle_attributes = CircleAttributesType{ is_presence_enabled: false, is_event: None, domain: String::from("WindowsLive") };
             let handle = Handle { id: UUID::nil().to_string(), is_passport_name_hidden: false, cid: String::from("0") };
@@ -4798,7 +4789,7 @@ pub mod factories {
             let owner_namespace = OwnerNamespaceType{ info: owner_namespace_info, changes: String::new(), create_date: String::from("2014-10-31T00:00:00Z"), last_change: now.format("%Y-%m-%dT%H:%M:%SZ").to_string() };
             
             let mut services = Vec::new();
-            services.push(FindMembershipResponseFactory::get_messenger_service());
+            services.push(FindMembershipResponseFactory::get_messenger_service(Vec::new(), Vec::new(), Vec::new(), Vec::new(), true));
     
             let array_of_services = ArrayOfServiceType{ service: services };
             
@@ -4813,26 +4804,51 @@ pub mod factories {
             return response;
         }
 
-        pub fn get_messenger_service() -> ServiceType {
+        pub fn get_response(uuid: UUID, msn_addr: String, cache_key: String, messenger_service: ServiceType) -> FindMembershipResponseMessageSoapEnvelope {
+
+            let circle_attributes = CircleAttributesType{ is_presence_enabled: false, is_event: None, domain: String::from("WindowsLive") };
+            let handle = Handle { id: UUID::nil().to_string(), is_passport_name_hidden: false, cid: String::from("0") };
+            let owner_namespace_info = OwnerNamespaceInfoType{ handle: handle, creator_puid: String::from("0"), creator_cid: uuid.to_decimal_cid(), creator_passport_name: msn_addr, circle_attributes: circle_attributes, messenger_application_service_created: Some(false) };
+            
+            let now = Local::now();
+
+            let owner_namespace = OwnerNamespaceType{ info: owner_namespace_info, changes: String::new(), create_date: String::from("2014-10-31T00:00:00Z"), last_change: now.format("%Y-%m-%dT%H:%M:%SZ").to_string() };
+            
+            let mut services = Vec::new();
+            services.push(messenger_service);
+    
+            let array_of_services = ArrayOfServiceType{ service: services };
+            
+            let result = MembershipResult{ services: Some(array_of_services), owner_namespace: Some(owner_namespace) };
+            let fmr = FindMembershipResponse{ find_membership_result: result };
+            let body = FindMembershipResponseMessage { find_membership_response: fmr };
+            let message = SoapFindMembershipResponseMessage {body:body, fault: None };
+
+            let mut response = FindMembershipResponseMessageSoapEnvelope::new(message);
+
+            response.header = Some(HeaderFactory::get_service_header(cache_key));
+            return response;
+        }
+
+        pub fn get_messenger_service(allow_list: Vec<BaseMember>, block_list: Vec<BaseMember>, reverse_list: Vec<BaseMember>, pending_list: Vec<BaseMember>, membership_is_complete: bool) -> ServiceType {
 
             let mut memberships = Vec::new();
 
-            lazy_static! {
-                static ref ROLE_IDS: Vec<RoleId> = Vec::from([RoleId::Allow, RoleId::Block, RoleId::Reverse, RoleId::Pending]);
-            }
+            memberships.push(FindMembershipResponseFactory::get_membership(RoleId::Allow, allow_list, membership_is_complete));
+            memberships.push(FindMembershipResponseFactory::get_membership(RoleId::Block, block_list, membership_is_complete));
+            memberships.push(FindMembershipResponseFactory::get_membership(RoleId::Pending, pending_list, membership_is_complete));
+            memberships.push(FindMembershipResponseFactory::get_membership(RoleId::Reverse, reverse_list, membership_is_complete));
 
-            let role_ids : &Vec<RoleId> = &ROLE_IDS;
-            for current_role_id in role_ids {
-                let members_array = Members{ member: Vec::new() };
-                let membership = Membership{ member_role: current_role_id.clone(), members: members_array, membership_is_complete: Some(true) };
-                memberships.push(membership);
-            }
-            
             let handle = HandleType{ id: 1, rs_type: ServiceName{ body: "Messenger".to_string() }, foreign_id: Some(String::new()) };
             let info_type = InfoType{ handle: handle, display_name: None, inverse_required: false, authorization_criteria: Some(String::from("Everyone")), rss_url: None, is_bot: false };
             let array_of_membership = Memberships{ membership: memberships };
             let now = Local::now();
             return ServiceType{ memberships: Some(array_of_membership), info: info_type, changes: String::new(), last_change: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), deleted: false };
+        }
+
+        pub fn get_membership(role_id: RoleId, members: Vec<BaseMember>, membership_is_complete: bool) -> Membership {
+            let members_array = Members{ member: members };
+            return Membership{ member_role: role_id, members: members_array, membership_is_complete: Some(membership_is_complete) };
         }
 
     }
@@ -4845,7 +4861,7 @@ pub mod factories {
             let now = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
             let create_date = String::from("2014-10-31T00:00:00Z");
             let no_date = String::from("0001-01-01T00:00:00");
-            let membership_id = format!("{}/{}", role_id.to_string(), uuid.to_string());
+            let membership_id = format!("{}\\{}", role_id.to_string(), uuid.to_string());
             return BaseMember{ membership_id: Some(membership_id), xsi_type: String::from("PassportMember"), rs_type: MemberType::Passport, location: None, display_name: None, state, passport_name: Some(msn_addr.clone()), circle_id: None, is_passport_name_hidden: Some(false), passport_id: Some(0), cid: Some(uuid.to_decimal_cid()), passport_changes: Some(String::new()), lookedup_by_cid: Some(false), new_role: None, annotations: None, deleted: Some(deleted), last_changed: Some(now), joined_date: Some(create_date), expiration_date: Some(no_date), changes: Some(String::new()) };
         }
 
@@ -4869,15 +4885,15 @@ pub mod factories {
 
             let array_of_annotations = ArrayOfAnnotation{ annotation: annotation_array };
 
-            let me_contact_info = ContactInfoType{ emails: None, phones: None, locations: None, web_sites: None, annotations: Some(array_of_annotations), group_ids: None, group_ids_deleted: None, contact_type: Some(String::from("Me")), quick_name: Some(msn_addr.clone()), first_name: None, middle_name: None, last_name: None, suffix: None, name_title: None, passport_name: Some(msn_addr.clone()), display_name: Some(msn_addr.clone()), puid: Some(0), cid: Some(uuid.to_decimal_cid()), brand_id_list: None, comment: None, is_mobile_im_enabled: Some(false), is_messenger_user: Some(true), is_favorite: Some(false), is_smtp: Some(false), has_space: Some(true), spot_watch_state: Some(String::from("NoDevice")), birthdate: Some(String::from("0001-01-01T00:00:00")), primary_email_type: Some(ContactEmailTypeType{ body: String::from("Passport") }), primary_location: Some(ContactLocationTypeType{ body: String::from("ContactLocationPersonal") }), primary_phone: Some(String::from("ContactPhonePersonal")), is_private: Some(false), anniversary: None, gender: Some(String::from("Unspecified") ), time_zone: Some(String::from("None")), trust_level: None, network_info_list: None, public_display_name: None, is_auto_update_disabled: None, is_hidden: None, is_passport_name_hidden: Some(false), is_not_mobile_visible: Some(false), is_shell_contact: None, messenger_member_info: None, properties_changed: None, client_error_data: None, link_info: None, source_handle: None, file_as: None, ur_ls: None };
+            let me_contact_info = ContactInfoType{ emails: None, phones: None, locations: None, web_sites: None, annotations: Some(array_of_annotations), group_ids: None, group_ids_deleted: None, contact_type: Some(ContactTypeEnum::Me), quick_name: Some(msn_addr.clone()), first_name: None, middle_name: None, last_name: None, suffix: None, name_title: None, passport_name: Some(msn_addr.clone()), display_name: Some(msn_addr.clone()), puid: Some(0), cid: Some(uuid.to_decimal_cid()), brand_id_list: None, comment: None, is_mobile_im_enabled: Some(false), is_messenger_user: Some(true), is_favorite: Some(false), is_smtp: Some(false), has_space: Some(true), spot_watch_state: Some(String::from("NoDevice")), birthdate: Some(String::from("0001-01-01T00:00:00")), primary_email_type: Some(ContactEmailTypeType{ body: String::from("Passport") }), primary_location: Some(ContactLocationTypeType{ body: String::from("ContactLocationPersonal") }), primary_phone: Some(String::from("ContactPhonePersonal")), is_private: Some(false), anniversary: None, gender: Some(String::from("Unspecified") ), time_zone: Some(String::from("None")), trust_level: None, network_info_list: None, public_display_name: None, is_auto_update_disabled: None, is_hidden: None, is_passport_name_hidden: Some(false), is_not_mobile_visible: Some(false), is_shell_contact: None, messenger_member_info: None, properties_changed: None, client_error_data: None, link_info: None, source_handle: None, file_as: None, ur_ls: None };
             return ContactType{ contact_id: Some(uuid.to_string()), contact_info: Some(me_contact_info), properties_changed: Some(String::new()), f_deleted: Some(false), last_change: Some(now.format("%Y-%m-%dT%H:%M:%SZ").to_string()), create_date: None, last_modified_by: None, created_by: None };
 
         }
 
-        pub fn get_contact(uuid: &UUID, msn_addr: &String) -> ContactType {
+        pub fn get_contact(uuid: &UUID, msn_addr: &String, contact_type: ContactTypeEnum, deleted: bool) -> ContactType {
             let now = Local::now();
-            let contact_info = ContactInfoType{ emails: None, phones: None, locations: None, web_sites: None, annotations: None, group_ids: None, group_ids_deleted: None, contact_type: Some(String::from("Live")), quick_name: Some(msn_addr.clone()), first_name: None, middle_name: None, last_name: None, suffix: None, name_title: None, passport_name: Some(msn_addr.clone()), display_name: Some(msn_addr.clone()), puid: Some(0), cid: Some(uuid.to_decimal_cid()), brand_id_list: None, comment: None, is_mobile_im_enabled: Some(false), is_messenger_user: Some(true), is_favorite: Some(false), is_smtp: Some(false), has_space: Some(true), spot_watch_state: Some(String::from("NoDevice")), birthdate: Some(String::from("0001-01-01T00:00:00")), primary_email_type: Some(ContactEmailTypeType{ body: String::from("Passport") }), primary_location: Some(ContactLocationTypeType{ body: String::from("ContactLocationPersonal") }), primary_phone: Some(String::from("ContactPhonePersonal")), is_private: Some(false), anniversary: None, gender: Some(String::from("Unspecified") ), time_zone: Some(String::from("None")), trust_level: None, network_info_list: None, public_display_name: None, is_auto_update_disabled: None, is_hidden: None, is_passport_name_hidden: Some(false), is_not_mobile_visible: Some(false), is_shell_contact: None, messenger_member_info: None, properties_changed: None, client_error_data: None, link_info: None, source_handle: None, file_as: None, ur_ls: None };
-            return ContactType{ contact_id: Some(uuid.to_string()), contact_info: Some(contact_info), properties_changed: Some(String::new()), f_deleted: Some(false), last_change: Some(now.format("%Y-%m-%dT%H:%M:%SZ").to_string()), create_date: None, last_modified_by: None, created_by: None };
+            let contact_info = ContactInfoType{ emails: None, phones: None, locations: None, web_sites: None, annotations: None, group_ids: None, group_ids_deleted: None, contact_type: Some(contact_type), quick_name: Some(msn_addr.clone()), first_name: None, middle_name: None, last_name: None, suffix: None, name_title: None, passport_name: Some(msn_addr.clone()), display_name: Some(msn_addr.clone()), puid: Some(0), cid: Some(uuid.to_decimal_cid()), brand_id_list: None, comment: None, is_mobile_im_enabled: Some(false), is_messenger_user: Some(true), is_favorite: Some(false), is_smtp: Some(false), has_space: Some(true), spot_watch_state: Some(String::from("NoDevice")), birthdate: Some(String::from("0001-01-01T00:00:00")), primary_email_type: Some(ContactEmailTypeType{ body: String::from("Passport") }), primary_location: Some(ContactLocationTypeType{ body: String::from("ContactLocationPersonal") }), primary_phone: Some(String::from("ContactPhonePersonal")), is_private: Some(false), anniversary: None, gender: Some(String::from("Unspecified") ), time_zone: Some(String::from("None")), trust_level: None, network_info_list: None, public_display_name: None, is_auto_update_disabled: None, is_hidden: None, is_passport_name_hidden: Some(false), is_not_mobile_visible: Some(false), is_shell_contact: None, messenger_member_info: None, properties_changed: None, client_error_data: None, link_info: None, source_handle: None, file_as: None, ur_ls: None };
+            return ContactType{ contact_id: Some(uuid.to_string()), contact_info: Some(contact_info), properties_changed: Some(String::new()), f_deleted: Some(deleted), last_change: Some(now.format("%Y-%m-%dT%H:%M:%SZ").to_string()), create_date: None, last_modified_by: None, created_by: None };
         }
 
     }
@@ -4886,7 +4902,7 @@ pub mod factories {
 
     impl FindContactsPagedResponseFactory {
 
-        pub fn get_empty_response(uuid: UUID, cache_key: String, msn_addr: String) -> AbfindContactsPagedResponseMessageSoapEnvelope {
+        pub fn get_response(uuid: UUID, cache_key: String, msn_addr: String, contacts: Vec<ContactType>) -> AbfindContactsPagedResponseMessageSoapEnvelope {
 
             let now = Local::now();
     
@@ -4895,7 +4911,7 @@ pub mod factories {
             let ab_info_type = AbInfoType{ migrated_to: None, beta_status: None, name: None, owner_puid: 0, owner_cid: uuid.to_decimal_cid(), owner_email:Some(msn_addr.clone()), f_default: true, joined_namespace: false, is_bot: false, is_parent_managed: false, account_tier: None, account_tier_last_changed: String::from("0001-01-01T00:00:00"), profile_version: 0, subscribe_external_partner: false, notify_external_partner: false, address_book_type: String::from("Individual"), messenger_application_service_created: None, is_beta_migrated: None, last_relevance_update: None };
             let ab = Ab{ ab_id: UUID::nil().to_string(), ab_info: ab_info_type, last_change: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), dynamic_item_last_changed: String::from("0001-01-01T00:00:00"), recent_activity_item_last_changed: None, create_date: create_date.clone(), properties_changed: String::new() };
     
-            let mut contact_array : Vec<ContactType> = Vec::new();
+            let mut contact_array = contacts;
             contact_array.push(ContactFactory::get_me_contact(&uuid, &msn_addr));
             let array_of_contact = ArrayOfContactType{ contact: contact_array };
 
@@ -4917,6 +4933,9 @@ pub mod factories {
 
             return AbfindContactsPagedResponseMessageSoapEnvelope{header: Some(HeaderFactory::get_service_header(cache_key)), body: body };
             }
+
+
+        
     }
 
     pub struct UpdateDynamicItemResponseFactory;
@@ -4963,6 +4982,10 @@ pub mod factories {
         pub fn get_display(value: Option<bool>) -> Annotation {
             let value = value.unwrap_or(false);
             return Annotation { name: String::from("MSN.IM.Display"), value: Some(AnnotationFactory::parse_boolean_value(&value)) };
+        }
+
+        pub fn get_invite(message: String) -> Annotation {
+            return Annotation { name: String::from("MSN.IM.InviteMessage"), value: Some(message) };
         }
 
     }
@@ -5022,7 +5045,7 @@ mod tests {
     use yaserde::de::from_str;
     use yaserde::ser::to_string;
 
-    use crate::{generated::msnab_datatypes::types::{OwnerNamespaceType, OwnerNamespaceInfoType, Handle, CircleAttributesType, ArrayOfServiceType, ServiceType, Memberships, Membership, RoleId, Members, BaseMember, MemberState, InfoType, HandleType, ServiceName, ArrayOfContactType, GroupType, ContactType, CircleResultType, AbInfoType}, models::uuid::UUID};
+    use crate::{generated::msnab_datatypes::types::{OwnerNamespaceType, OwnerNamespaceInfoType, Handle, CircleAttributesType, ArrayOfServiceType, ServiceType, Memberships, Membership, RoleId, Members, BaseMember, MemberState, InfoType, HandleType, ServiceName, ArrayOfContactType, GroupType, ContactType, CircleResultType, AbInfoType, MemberType}, models::uuid::UUID};
 
     use super::{bindings::{FindMembershipResponseMessageSoapEnvelope, SoapFindMembershipResponseMessage, FindMembershipMessageSoapEnvelope, AbfindContactsPagedMessageSoapEnvelope, AbfindContactsPagedResponseMessageSoapEnvelope, SoapAbfindContactsPagedResponseMessage, AbgroupAddResponseMessageSoapEnvelope, SoapAbgroupAddResponseMessage, AbgroupAddMessageSoapEnvelope, UpdateDynamicItemMessageSoapEnvelope, UpdateDynamicItemResponseMessageSoapEnvelope, SoapUpdateDynamicItemResponseMessage}, messages::{FindMembershipResponseMessage, ServiceHeaderContainer, AbgroupAddResponseMessage, UpdateDynamicItemResponseMessage}, types::{FindMembershipResponse, MembershipResult, AbfindContactsPagedResultType, Groups, Ab, AbgroupAddResponse, AbgroupAddResultType}, ports};
 
@@ -5045,7 +5068,7 @@ mod tests {
         let owner_namespace = OwnerNamespaceType{ info: owner_namespace_info, changes: "Hi".to_string(), create_date: "date".to_string(), last_change: "date".to_string() };
         
         let mut members = Vec::new();
-        let member = BaseMember{ membership_id: Some(321), rs_type: "type".to_string(), location: None, display_name: Some("displayName".to_string()), state: MemberState{ body: "State".to_string() }, new_role: None, annotations: None, deleted: Some(false), last_changed: Some("date".to_string()), joined_date: Some("date".to_string()), expiration_date: Some("date".to_string()), changes: None, xsi_type: None, passport_name: None, circle_id: None, is_passport_name_hidden: None, passport_id: None, cid: None, passport_changes: None, lookedup_by_cid: None };
+        let member = BaseMember{ membership_id: Some(String::from("faefaef")), rs_type: MemberType::Passport, location: None, display_name: Some("displayName".to_string()), state: MemberState::Accepted, new_role: None, annotations: None, deleted: Some(false), last_changed: Some("date".to_string()), joined_date: Some("date".to_string()), expiration_date: Some("date".to_string()), changes: None, xsi_type: String::from("faefa"), passport_name: None, circle_id: None, is_passport_name_hidden: None, passport_id: None, cid: None, passport_changes: None, lookedup_by_cid: None };
         
         members.push(member);
 

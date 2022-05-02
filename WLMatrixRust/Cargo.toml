@@ -37,6 +37,7 @@ urlencoding = "2.1.0"
 strum = "0.24.0"
 strum_macros = "0.24.0"
 xml-rs = "0.8.4"
+html-escape = "0.2.11"
 
 [dependencies.matrix-sdk]
 path = "matrix-rust-sdk/crates/matrix-sdk"

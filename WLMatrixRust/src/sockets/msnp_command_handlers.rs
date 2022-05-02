@@ -1,21 +1,17 @@
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration;
 
-use chashmap::ReadGuard;
-use matrix_sdk::Client;
-use matrix_sdk::config::SyncSettings;
-use matrix_sdk::ruma::OwnedDeviceId;
-use matrix_sdk::ruma::api::client::uiaa::AuthData;
 use substring::Substring;
 use async_trait::async_trait;
 use tokio::sync::broadcast::Sender;
 use crate::generated::payloads::{PrivateEndpointData, PresenceStatus};
+use crate::models::ab_data::AbData;
+use crate::models::errors::{MsnpErrorCode};
 use crate::repositories::matrix_client_repository::MatrixClientRepository;
 use crate::repositories::repository::Repository;
 use crate::utils::identifiers::msn_addr_to_matrix_id;
 use crate::utils::matrix;
-use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO};
+use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, AB_DATA_REPO};
 use crate::models::client_data::ClientData;
 use crate::models::uuid::UUID;
 use crate::repositories::client_data_repository::{ClientDataRepository};
@@ -130,7 +126,6 @@ impl CommandHandler for NotificationCommandHandler {
                             let devices = client.devices().await.unwrap().devices;
                             
 
-
                             let mut endpoints = String::new();
                             let this_device_id = client.device_id().await.unwrap();
 
@@ -143,19 +138,20 @@ impl CommandHandler for NotificationCommandHandler {
                                 }
                             }
 
-                            tokio::spawn(start_matrix_loop(self.matrix_token.clone(), self.sender.clone()));
-
+                            let private_endpoint_test = format!("<Data>{endpoints}</Data>", endpoints = endpoints);
 
                             let matrix_client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
                             matrix_client_repo.add(self.matrix_token.clone(), client);
 
-                            let private_endpoint_test = format!("<Data>{endpoints}</Data>", endpoints = endpoints);
-                            
+                            let ab_data_repo  = AB_DATA_REPO.clone();
+                            ab_data_repo.add(self.matrix_token.clone(), AbData::new());
+
+                            tokio::spawn(start_matrix_loop(self.matrix_token.clone(), self.msn_addr.clone(), self.sender.clone()));
 
                             return format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\nMSG Hotmail Hotmail {msmsgs_profile_payload_size}\r\n{payload}MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", tr_id = tr_id, email=&self.msn_addr, msmsgs_profile_payload_size= msmsgs_profile_msg.len(), payload=msmsgs_profile_msg, oim_payload = oim_payload, oim_payload_size = oim_payload_size, private_endpoint_payload_size = private_endpoint_test.len(), private_endpoint_payload = private_endpoint_test);
                         } else {
                             //Invalid token. Auth failure.
-                            return format!("911 {tr_id}\r\n", tr_id= tr_id);
+                            return format!("{error_code} {tr_id}\r\n", error_code = MsnpErrorCode::AuthFail as i32, tr_id= tr_id);
                         }
 
                     
@@ -174,6 +170,14 @@ impl CommandHandler for NotificationCommandHandler {
                 */
                 let tr_id = split[1];
                 return format!("ADL {tr_id} OK\r\n", tr_id=tr_id);
+            },
+            "RML" => {
+                 /*       0  1  2   payload
+                    >>> RML 6 68 <ml l="1"><d n="matrix.org"><c n="u.user" l="3" t="1"/></d></ml>
+                    <<< RML 6 OK
+                */
+                let tr_id = split[1];
+                return format!("RML {tr_id} OK\r\n", tr_id=tr_id);
             },
             "UUX" => {
                 /*       0  1  2
@@ -202,6 +206,7 @@ impl CommandHandler for NotificationCommandHandler {
             "PRP" => {
                 // >>> PRP 13 MFN display%20name
                 // <<< PRP 13 MFN display%20name
+
                 return format!("{}\r\n", command.command);
             },
             "UUN" => {
@@ -219,6 +224,8 @@ impl CommandHandler for NotificationCommandHandler {
                         self.handle_device_logout(endpoint_guid).await;
                     } else if command.payload.as_str() == "gtfo" {
                         //TODO
+                    } else {
+                        return format!("{error_code} {tr_id}\r\n", error_code = MsnpErrorCode::PrincipalNotOnline as i32, tr_id= tr_id);
                     }
                 }
 
@@ -297,6 +304,8 @@ impl CommandHandler for SwitchboardCommandHandler {
 
 #[cfg(test)]
 mod tests {
+    use tokio::sync::broadcast::{Sender, self};
+
     use crate::sockets::msnp_command::MSNPCommandParser;
     use crate::sockets::msnp_command_handlers::{CommandHandler, NotificationCommandHandler};
 
@@ -305,7 +314,9 @@ mod tests {
         //Arrange
         let command = String::from("VER 1 MSNP18 MSNP17 CVR0\r\n");
         let parsed = MSNPCommandParser::parse_message(&command);
-        let mut handler = NotificationCommandHandler::new();
+        let (tx, mut rx1) = broadcast::channel(16);
+        let mut rx2 = tx.subscribe();
+        let mut handler = NotificationCommandHandler::new(tx);
 
         //Act
         let result = handler.handle_command(&parsed[0]).await;
@@ -322,7 +333,9 @@ mod tests {
             "CVR 2 0x0409 winnt 6.0.0 i386 MSNMSGR 14.0.8117.0416 msmsgs login@email.com\r\n",
         );
         let parsed = MSNPCommandParser::parse_message(&command);
-        let mut handler = NotificationCommandHandler::new();
+        let (tx, mut rx1) = broadcast::channel(16);
+        let mut rx2 = tx.subscribe();
+        let mut handler = NotificationCommandHandler::new(tx);
 
         //Act
         let result = handler.handle_command(&parsed[0]).await;

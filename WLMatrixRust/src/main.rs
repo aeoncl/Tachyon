@@ -12,11 +12,16 @@ use actix_web::HttpServer;
 use actix_web::middleware::Logger;
 use sockets::tcpserver::*;
 use web::webserver::*;
+use web::sharing_service::*;
+use web::storage_service::*;
+use web::ab_service::*;
+
 use tokio::join;
 use lazy_static::lazy_static;
 #[macro_use] extern crate lazy_static_include;
 #[macro_use] extern crate serde_derive;
 
+use crate::repositories::ab_data_repository::AbDataRepository;
 use crate::repositories::client_data_repository::ClientDataRepository;
 use crate::repositories::matrix_client_repository::MatrixClientRepository;
 use crate::repositories::repository::Repository;
@@ -24,6 +29,8 @@ use crate::repositories::repository::Repository;
 lazy_static! {
     static ref MATRIX_CLIENT_REPO: Arc<MatrixClientRepository> = Arc::new(MatrixClientRepository::new());
     static ref CLIENT_DATA_REPO : Arc<ClientDataRepository> = Arc::new(ClientDataRepository::new());
+    static ref AB_DATA_REPO : Arc<AbDataRepository> = Arc::new(AbDataRepository::new());
+
 }
 
 #[tokio::main]

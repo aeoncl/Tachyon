@@ -698,6 +698,26 @@ pub struct Urls {
 	#[yaserde(rename = "ContactURL", prefix = "nsi1")]
 	pub contact_url: Vec<ContactURLType>, 
 }
+
+#[derive(Debug, YaSerialize, YaDeserialize, Clone)]
+#[yaserde(
+	rename = "contactType", namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+	prefix = "nsi1",
+	default_namespace="nsi1"
+)]
+pub enum ContactTypeEnum {
+	Regular,
+	Me,
+	Live,
+	LivePending
+}
+
+impl Default for ContactTypeEnum {
+    fn default() -> Self {
+        ContactTypeEnum::Live
+    }
+}
+
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 	rename = "contactInfoType", namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
@@ -720,7 +740,7 @@ pub struct ContactInfoType {
 	#[yaserde(rename = "groupIdsDeleted", prefix = "nsi1")]
 	pub group_ids_deleted: Option<ArrayOfGuid>, 
 	#[yaserde(rename = "contactType", prefix = "nsi1")]
-	pub contact_type: Option<String>, 
+	pub contact_type: Option<ContactTypeEnum>, 
 	#[yaserde(rename = "quickName", prefix = "nsi1")]
 	pub quick_name: Option<String>, 
 	#[yaserde(rename = "firstName", prefix = "nsi1")]
