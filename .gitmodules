@@ -1,6 +1,3 @@
 [submodule "WLMatrixRust/matrix-rust-sdk"]
 	path = WLMatrixRust/matrix-rust-sdk
 	url = https://github.com/aeoncl/matrix-rust-sdk.git
-[submodule "WLMatrixRust/ruma"]
-	path = WLMatrixRust/ruma
-	url = https://github.com/aeoncl/ruma/
