@@ -482,14 +482,8 @@ impl CommandHandler for SwitchboardCommandHandler {
                     //that's me !
                     self.sender.send(format!("CAL {tr_id} RINGING {session_id}", tr_id = tr_id, session_id = session_id));
                 } else {
-                    self.matrix_client.unwrap().
+                    self.matrix_client.unwrap(); // todo find dm room for target user.
                 }
-
-
-
-
-
-
             },
 
 
