@@ -1,4 +1,6 @@
-use matrix_sdk::{Client, ruma::{UserId, DeviceId, device_id, user_id, OwnedUserId, events::{AnySyncMessageLikeEvent, AnySyncRoomEvent, SyncMessageLikeEvent}}, Session, Error, deserialized_responses::JoinedRoom};
+use std::{collections::HashSet, path::Path};
+
+use matrix_sdk::{Client, ruma::{UserId, DeviceId, device_id, user_id, OwnedUserId, events::{AnySyncMessageLikeEvent, AnySyncRoomEvent, SyncMessageLikeEvent}}, Session, Error, deserialized_responses::JoinedRoom, store::make_store_config};
 use reqwest::Url;
 
 use super::identifiers::get_matrix_device_id;
@@ -14,13 +16,27 @@ pub async fn login(matrix_id: String, matrix_token: String) -> Result<Client, Er
     let device_id = get_matrix_device_id();
     let device_id_str = device_id.as_str();
     let device_id = device_id!(device_id_str).to_owned();
-
     //let homeserver_url = Url::parse(format!("https://{}", matrix_user.server_name()).as_str())?;
     let homeserver_url = Url::parse(format!("http://{}:8008", matrix_user.server_name()).as_str())?;
+    
 
-    let client = Client::new(homeserver_url).await?; //Todo fix this
+    let path = Path::new("c:\\temp");
+    let config =  make_store_config(path, None).unwrap();
+
+    let client = Client::builder().store_config(config).homeserver_url(homeserver_url).build().await.unwrap();
+
     client.restore_login(Session{ access_token: matrix_token.to_owned(), user_id: matrix_user, device_id: device_id}).await?;
     let _check_connection_status = client.whoami().await?;
     return Ok(client);
+}
+
+pub fn get_direct_target_that_isnt_me(direct_targets: HashSet<OwnedUserId>, me: OwnedUserId) -> Option<OwnedUserId> {
+
+    for direct_target in direct_targets {
+        if(direct_target != me) {
+            return Some(direct_target);
+        }
+    }
+    return None;
 
 }

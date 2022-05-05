@@ -1,15 +1,20 @@
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
-
+use tokio::task::JoinHandle;
+use log::info;
+use matrix_sdk::Client;
+use matrix_sdk::room::Room;
+use matrix_sdk::ruma::events::room::message::SyncRoomMessageEvent;
 use substring::Substring;
 use async_trait::async_trait;
-use tokio::sync::broadcast::Sender;
+use tokio::sync::broadcast::{Sender, Receiver};
 use crate::generated::payloads::{PrivateEndpointData, PresenceStatus};
 use crate::models::ab_data::AbData;
 use crate::models::errors::{MsnpErrorCode};
 use crate::repositories::matrix_client_repository::MatrixClientRepository;
 use crate::repositories::repository::Repository;
-use crate::utils::identifiers::msn_addr_to_matrix_id;
+use crate::utils::identifiers::{msn_addr_to_matrix_id, matrix_id_to_msn_addr};
 use crate::utils::matrix;
 use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, AB_DATA_REPO};
 use crate::models::client_data::ClientData;
@@ -18,21 +23,22 @@ use crate::repositories::client_data_repository::{ClientDataRepository};
 use crate::models::msg_payload::factories::{MsgPayloadFactory};
 use super::msnp_command::MSNPCommand;
 use crate::utils::matrix_sync_helpers::*;
-
+use std::mem;
 pub struct NotificationCommandHandler {
     protocol_version: i16,
     msn_addr: String,
     matrix_token: String,
-    sender: Sender<String>
-}
-
-pub struct SwitchboardCommandHandler {
-    protocol_version: i16,
+    sender: Sender<String>,
+    kill_sender: Option<Sender<String>>
 }
 
 #[async_trait]
 pub trait CommandHandler : Send {
     async fn handle_command(&mut self, command: &MSNPCommand) -> String;
+
+    fn get_matrix_token(&self) -> String;
+
+    fn cleanup(&self);
 }
 
 impl NotificationCommandHandler {
@@ -42,14 +48,7 @@ impl NotificationCommandHandler {
             protocol_version: -1,
             msn_addr: String::new(),
             matrix_token: String::new(),
-        };
-    }
-}
-
-impl SwitchboardCommandHandler {
-    pub fn new() -> SwitchboardCommandHandler {
-        return SwitchboardCommandHandler {
-            protocol_version: -1,
+            kill_sender: None
         };
     }
 }
@@ -113,6 +112,12 @@ impl CommandHandler for NotificationCommandHandler {
                         let matrix_id = msn_addr_to_matrix_id(&self.msn_addr);
 
                         if let Ok(client) = matrix::login(matrix_id.clone(), self.matrix_token.clone()).await {
+                           
+                            let path = PathBuf::from("C:\\temp\\e2e-keys.txt");
+                            client.encryption().import_keys(path, "secret-passphrase");
+
+                            
+                            
                             //Token valid, client authenticated.
                             let client_data_repo : Arc<ClientDataRepository> = CLIENT_DATA_REPO.clone();
                             client_data_repo.add(self.matrix_token.clone(), ClientData::new(self.msn_addr.clone(), self.protocol_version.clone(), split[5].to_string(), PresenceStatus::HDN));
@@ -140,13 +145,18 @@ impl CommandHandler for NotificationCommandHandler {
 
                             let private_endpoint_test = format!("<Data>{endpoints}</Data>", endpoints = endpoints);
 
+
+                            let test_msg = MsgPayloadFactory::get_system_msg(String::from("1"), String::from("17"));
+                            let serialized = test_msg.serialize();
+                            self.sender.send(format!("MSG Hotmail Hotmail {payload_size}\r\n{payload}", payload_size=serialized.len(), payload=&serialized));
+
                             let matrix_client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
                             matrix_client_repo.add(self.matrix_token.clone(), client);
 
                             let ab_data_repo  = AB_DATA_REPO.clone();
                             ab_data_repo.add(self.matrix_token.clone(), AbData::new());
 
-                            tokio::spawn(start_matrix_loop(self.matrix_token.clone(), self.msn_addr.clone(), self.sender.clone()));
+                            self.kill_sender = Some(start_matrix_loop(self.matrix_token.clone(), self.msn_addr.clone(), self.sender.clone()).await);
 
                             return format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\nMSG Hotmail Hotmail {msmsgs_profile_payload_size}\r\n{payload}MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", tr_id = tr_id, email=&self.msn_addr, msmsgs_profile_payload_size= msmsgs_profile_msg.len(), payload=msmsgs_profile_msg, oim_payload = oim_payload, oim_payload_size = oim_payload_size, private_endpoint_payload_size = private_endpoint_test.len(), private_endpoint_payload = private_endpoint_test);
                         } else {
@@ -199,6 +209,11 @@ impl CommandHandler for NotificationCommandHandler {
                 return format!("{}\r\n", command.command);
             },
             "CHG" => {
+                let status = PresenceStatus::from_str(split[2]).unwrap_or(PresenceStatus::NLN);
+                let client_data_repo : Arc<ClientDataRepository> = CLIENT_DATA_REPO.clone();
+                if let Some(mut client_data) = client_data_repo.find_mut(&self.matrix_token) {
+                    client_data.presence_status = status;
+                }
                 // >>> CHG 11 NLN 2789003324:48 0
                 // <<< CHG 11 NLN 2789003324:48 0
                 return format!("{}\r\n", command.command);
@@ -231,9 +246,39 @@ impl CommandHandler for NotificationCommandHandler {
 
                 return format!("UUN {tr_id} OK\r\n", tr_id = tr_id);
             },
+            "XFR" => {
+                // >>> XFR 17 SB
+                // <<< XFR 17 SB 127.0.0.1:1864 CKI token
+                let tr_id = split[1];
+                let request_type = split[2];
+                if request_type == "SB" {
+                    return format!("XFR {tr_id} {req_type} 127.0.0.1:1864 CKI {token}\r\n", 
+                        tr_id = tr_id,
+                        req_type = request_type, 
+                        token = &self.matrix_token);
+                }
+                return format!("{error_code} {tr_id}\r\n", error_code=MsnpErrorCode::InternalServerError as i32, tr_id=tr_id);
+            },
             _ => {
                 return String::new();
             }
+        }
+    }
+
+    fn get_matrix_token(&self) -> String {
+        return self.matrix_token.clone();
+    }
+
+    fn cleanup(&self) {
+        if let Some(kill_sender) = &self.kill_sender {
+            kill_sender.send(String::from("STOP"));
+        }
+
+        let token = &self.get_matrix_token();
+        if(!token.is_empty()) {
+            MATRIX_CLIENT_REPO.remove(token);
+            CLIENT_DATA_REPO.remove(token);
+            AB_DATA_REPO.remove(token);
         }
     }
 }
@@ -294,11 +339,178 @@ impl NotificationCommandHandler {
 
 }
 
+
+pub struct SwitchboardCommandHandler {
+    protocol_version: i16,
+    msn_addr: String,
+    endpoint_guid: String,
+    matrix_token: String,
+    target_room_id: String,
+    target_matrix_id: String,
+    target_msn_addr: String,
+    matrix_client: Option<Client>,
+    sender: Sender<String>,
+}
+
+impl SwitchboardCommandHandler {
+    pub fn new(sender: Sender<String>) -> SwitchboardCommandHandler {
+        return SwitchboardCommandHandler {
+            protocol_version: -1,
+            msn_addr: String::new(),
+            endpoint_guid: String::new(),
+            matrix_token: String::new(),
+            target_room_id: String::new(),
+            matrix_client: None,
+            target_matrix_id: String::new(),
+            target_msn_addr: String::new(),
+            sender: sender,
+        };
+    }
+}
+
 #[async_trait]
 impl CommandHandler for SwitchboardCommandHandler {
 
     async fn handle_command(&mut self, command: &MSNPCommand) -> String {
-        todo!()
+        let split = command.split();
+        match command.operand.as_str() {
+            "ANS" => {
+                // >>> ANS 3 aeontest@shl.local;{F52973B6-C926-4BAD-9BA8-7C1E840E4AB0} base64token 4060759068338340280
+                // <<< 
+                let token = String::from_utf8(base64::decode(split[3]).unwrap()).unwrap();
+                let split_token : Vec<&str> = token.split(";").collect();
+                let tr_id = split[1];
+                let endpoint = split[2];
+                let endpoint_parts : Vec<&str> = endpoint.split(";").collect();;
+                self.msn_addr = endpoint_parts.get(0).unwrap().to_string();
+                self.endpoint_guid = endpoint_parts.get(1).unwrap().to_string();
+
+
+                self.target_room_id = split_token.get(0).unwrap().to_string();
+                self.matrix_token = split_token.get(1).unwrap().to_string();
+                self.target_matrix_id = split_token.get(2).unwrap().to_string();
+                self.target_msn_addr = matrix_id_to_msn_addr(&self.target_matrix_id);
+                self.matrix_client = Some(MATRIX_CLIENT_REPO.find(&self.matrix_token).unwrap().clone());
+
+                self.sender.send(format!("IRO {tr_id} {index} {roster_count} {passport} {friendly_name} {capabilities}\r\n",
+                tr_id = &tr_id,
+                index = 1,
+                roster_count = 1,
+                passport = &self.target_msn_addr,
+                friendly_name = &self.target_msn_addr,
+                capabilities = "2789003324:48"));
+
+                // self.sender.send(format!("IRO {tr_id} {index} {roster_count} {passport};{{{endpoint_guid}}} {friendly_name} {capabilities}\r\n",
+                // tr_id = &tr_id,
+                // index = 1,
+                // roster_count = 1,
+                // passport = &self.target_msn_addr,
+                // endpoint_guid = UUID::from_string(&self.target_msn_addr).to_string(),
+                // friendly_name = &self.target_msn_addr,
+                // capabilities = "2789003324:48"));
+
+                self.sender.send(format!("ANS {tr_id} OK\r\n", tr_id = &tr_id));
+
+                self.sender.send(format!("JOI {passport} {friendly_name} 2788999228:48\r\n", passport=&self.msn_addr, friendly_name = &self.msn_addr));
+                
+                // self.sender.send(format!("JOI {passport};{endpoint_guid} {friendly_name} 2788999228:48\r\n", passport=&self.msn_addr, endpoint_guid = self.endpoint_guid, friendly_name = &self.msn_addr));
+
+                let client_data = CLIENT_DATA_REPO.find_mut(&self.matrix_token).unwrap();
+
+
+                if let Some(found) = client_data.switchboards.find_mut(&self.target_room_id){
+                    
+
+                    let mut receiver = {
+                        let mut lock = found.receiver.lock().unwrap();
+                        let receiver = mem::replace(&mut *lock, None);
+                        receiver.unwrap()
+                    }; 
+
+
+                    let sender = self.sender.clone();
+                    tokio::spawn(async move {
+                            let sender = sender;
+                            loop {
+                                tokio::select! {
+                                    command_to_send = receiver.recv() => {
+                                        let msg = command_to_send.unwrap();
+
+                                        if msg.starts_with("STOP") {
+                                            break;
+                                        } else {
+                                            let _result = sender.send(msg);
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                };
+                return String::new();
+            },
+            "USR" => {
+                // >>> USR 55 aeontest@shl.local;{F52973B6-C926-4BAD-9BA8-7C1E840E4AB0} matrix_token
+                // <<< USR 55 aeontest@shl.local aeontest@shl.local OK
+
+                let tr_id = split[1];
+                let endpoint_str = split[2].to_string();
+                self.matrix_token = split[3].to_string();
+                let endpoint_str_split : Vec<&str> = endpoint_str.split(";").collect(); 
+                if let Some(msn_addr) = endpoint_str_split.get(0){
+                    self.msn_addr = msn_addr.to_string();
+                    self.endpoint_guid = endpoint_str_split.get(1).unwrap_or(&"").to_string();
+                    if let Some(client_data) = CLIENT_DATA_REPO.find(&self.matrix_token){
+                        if let Some(client) = MATRIX_CLIENT_REPO.find(&self.matrix_token) {
+                            self.matrix_client = Some(client.clone());
+                            self.protocol_version = client_data.msnp_version;
+                            return format!("USR {tr_id} {msn_addr} {msn_addr} OK\r\n", tr_id = tr_id, msn_addr = msn_addr);
+                        }
+                    }
+                }
+                return format!("{error_code} {tr_id}\r\n", error_code = MsnpErrorCode::AuthFail as i32, tr_id = tr_id)
+            },
+            "CAL" => {
+                //Calls all the members to join the SB
+                // >>> CAL 58 aeontest@shl.local
+                // <<< CAL 58 RINGING 4324234
+
+                let tr_id = split[1];
+                let msn_addr_to_add = split[2].to_string();
+                let session_id = UUID::new().to_decimal_cid_string();
+
+                if msn_addr_to_add == self.msn_addr {
+                    //that's me !
+                    self.sender.send(format!("CAL {tr_id} RINGING {session_id}", tr_id = tr_id, session_id = session_id));
+                } else {
+                    self.matrix_client.unwrap().
+                }
+
+
+
+
+
+
+            },
+
+
+
+            _=> {
+                return String::new();
+            }
+        }
+    }
+
+    fn get_matrix_token(&self) -> String {
+        return String::new();
+    }
+
+    fn cleanup(&self) {
+        if let Some(client_data) = CLIENT_DATA_REPO.find_mut(&self.matrix_token) {
+            if let Some(found) = client_data.switchboards.find(&self.target_room_id){
+                let _result = found.sender.send(String::from("STOP"));
+            }
+            client_data.switchboards.remove(&self.target_room_id);
+        }
     }
 }
 
@@ -320,6 +532,7 @@ mod tests {
 
         //Act
         let result = handler.handle_command(&parsed[0]).await;
+        
 
         //Assert
         assert_eq!(result, "VER 1 MSNP18\r\n");

@@ -10,7 +10,6 @@ use std::sync::Arc;
 use actix_web::App;
 use actix_web::HttpServer;
 use actix_web::middleware::Logger;
-use sockets::tcpserver::*;
 use web::webserver::*;
 use web::sharing_service::*;
 use web::storage_service::*;
@@ -25,12 +24,14 @@ use crate::repositories::ab_data_repository::AbDataRepository;
 use crate::repositories::client_data_repository::ClientDataRepository;
 use crate::repositories::matrix_client_repository::MatrixClientRepository;
 use crate::repositories::repository::Repository;
+use crate::sockets::notification_server::NotificationServer;
+use crate::sockets::switchboard_server::SwitchboardServer;
+use crate::sockets::tcpserver::TCPServer;
 
 lazy_static! {
     static ref MATRIX_CLIENT_REPO: Arc<MatrixClientRepository> = Arc::new(MatrixClientRepository::new());
     static ref CLIENT_DATA_REPO : Arc<ClientDataRepository> = Arc::new(ClientDataRepository::new());
     static ref AB_DATA_REPO : Arc<AbDataRepository> = Arc::new(AbDataRepository::new());
-
 }
 
 #[tokio::main]
@@ -38,9 +39,10 @@ async fn main() {
 
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
-    let notif_server = TCPServer::new("127.0.0.1".to_string(), 1863, ServerType::Notification);
-    let switchboard_server = TCPServer::new("127.0.0.1".to_string(), 1864, ServerType::Switchboard);
+    let notif_server = NotificationServer::new("127.0.0.1".to_string(), 1863);
+    let switchboard_server = SwitchboardServer::new("127.0.0.1".to_string(), 1864);
 
+    
     let notif_server_future = notif_server.listen();
 
     let switchboard_server_future = switchboard_server.listen();

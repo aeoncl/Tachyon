@@ -30,7 +30,7 @@ pub fn get_device_uuid() -> String {
 }
 
 pub fn get_matrix_device_id() -> String {
-    return format!("WLMatrix[{}]", get_device_uuid());
+    return get_hostname();
 }
 
 pub fn get_hostname() -> String {
@@ -53,6 +53,7 @@ mod tests {
     fn test_get_hostname() {
 
         let result = get_hostname();
+        print!("{}", result);
         assert_eq!(result.is_empty(), false);
     }
 

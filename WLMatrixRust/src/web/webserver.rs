@@ -1,4 +1,5 @@
 use std::io::Cursor;
+use std::path::{PathBuf, Path};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -6,6 +7,7 @@ use actix_web::{get, post, web, HttpRequest, HttpResponse, HttpResponseBuilder, 
 
 use log::info;
 
+use matrix_sdk::store::make_store_config;
 use matrix_sdk::{Client};
 
 use regex::Regex;
@@ -60,7 +62,10 @@ pub async fn rst2(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse
     //let homeserver_url = Url::parse(format!("https://{}", matrix_user.server_name()).as_str())?;
     let homeserver_url = Url::parse(format!("http://{}:8008", matrix_user.server_name()).as_str())?;
 
-    let client = Client::new(homeserver_url).await?;
+    let path = Path::new("c:\\temp");
+    let config =  make_store_config(path, None).unwrap();
+
+    let client = Client::builder().store_config(config).homeserver_url(homeserver_url).build().await.unwrap();
     
     let result = client
         .login(
@@ -70,12 +75,14 @@ pub async fn rst2(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse
             Some(get_hostname().as_str()),
         )
         .await?;
-    
+
     let response = RST2ResponseFactory::get_rst2_success_response(
         result.access_token,
         username_token.username,
         UUID::from_string(&matrix_id),
     );
+
+    
 
     let response_serialized = to_string(&response).unwrap();
     info!("RST2 Response: {}", &response_serialized);

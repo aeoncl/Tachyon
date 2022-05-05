@@ -79,6 +79,19 @@ pub mod factories {
             out.set_body(String::from("Mail-Data: <MD><E><I>0</I><IU>0</IU><O>0</O><OU>0</OU></E><Q><QTM>409600</QTM><QNM>204800</QNM></Q></MD>\r\nInbox-Unread: 1\r\nFolders-Unread: 0\r\nInbox-URL: /cgi-bin/HoTMaiL\r\nFolders-URL: /cgi-bin/folders\r\nPost-URL: http://127.0.0.1:8080/email\r\n"));
             return out;
         }
+
+        pub fn get_system_msg(msg_type: String, arg1: String) -> MsgPayload {
+            let mut out = MsgPayload::new("application/x-msmsgssystemmessage");
+            out.set_body(format!("Type: {msg_type}\r\nArg1: {arg1}", msg_type = msg_type, arg1 = arg1));
+            return out;
+        }
+
+        pub fn get_message(text: String) -> MsgPayload {
+            let mut out = MsgPayload::new("text/plain");
+            out.add_header(String::from("X-MMS-IM-Format"), String::from("FN=MS%20Sans%20Serif; EF=; CO=0; PF=0; RL=0"));
+            out.set_body(text);
+            return out;
+        }
     }
 
 }

@@ -1,7 +1,7 @@
 use std::{io::Read, convert::Infallible, fmt::{Display}, str::FromStr};
 
 use matrix_sdk::ruma::presence::PresenceState;
-use strum_macros::ToString;
+use strum_macros::{ToString, EnumString};
 use substring::Substring;
 use yaserde::{de::{self, from_str}, ser::to_string};
 use yaserde_derive::{YaSerialize, YaDeserialize};
@@ -137,7 +137,7 @@ impl yaserde::YaDeserialize for ClientType {
 
 
 
-#[derive(Debug, Clone, ToString, YaSerialize, YaDeserialize)]
+#[derive(Debug, Clone, ToString, EnumString, YaSerialize, YaDeserialize)]
 pub enum PresenceStatus {
 
     /* Online */
