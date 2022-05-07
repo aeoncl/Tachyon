@@ -4,7 +4,7 @@ use chashmap::CHashMap;
 use matrix_sdk::{ruma::{events::{room::message::{RoomMessageEventContent}, OriginalSyncMessageLikeEvent}, OwnedEventId, OwnedRoomId, RoomId}, Client};
 use tokio::sync::broadcast::{Sender, self, Receiver, error::SendError};
 
-use super::{msg_payload::{factories::MsgPayloadFactory, MsgPayload}, msn_user::MSNUser};
+use super::{msg_payload::{factories::MsgPayloadFactory, MsgPayload}, msn_user::MSNUser, uuid::UUID};
 
 #[derive(Clone)]
 pub struct SwitchboardHandle {
@@ -81,32 +81,6 @@ impl SwitchboardHandle {
     pub fn stop(&self) {
         let _result = self.sender.send(String::from("STOP"));
     }
-
-    pub async fn send_initial_roster(&mut self, tr_id: &str) {
-        if let Some(room) = self.matrix_client.get_joined_room(&self.target_room_id) {
-            let members = room.joined_members().await.unwrap();
-            let mut index = 1;
-            let count = members.len() - 1;
-            for member in members {
-                let msn_user = MSNUser::from_matrix_id(member.user_id().to_string());
-                if msn_user.msn_addr != self.client_msn_addr {
-                    self.send_initial_roster_member(tr_id, index, count as i32, &msn_user);
-                    index += 1;
-                }
-            }
-        }
-    }
-
-    fn send_initial_roster_member(&self, tr_id: &str, index: i32, count: i32, msn_user: &MSNUser) {
-            self.sender.send(format!("IRO {tr_id} {index} {roster_count} {passport} {friendly_name} {capabilities}\r\n",
-            tr_id = &tr_id,
-            index = &index,
-            roster_count = &count,
-            passport = &msn_user.msn_addr,
-            friendly_name = &msn_user.msn_addr,
-            capabilities = &msn_user.capabilities));
-    }
-
 
     pub fn take_receiver(&mut self) -> Option<Receiver<String>> {
         let mut lock = self.receiver.lock().unwrap();

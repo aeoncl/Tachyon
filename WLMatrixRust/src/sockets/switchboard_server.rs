@@ -9,7 +9,7 @@ use tokio::{
 use async_trait::async_trait;
 
 
-use crate::models::uuid::UUID;
+use crate::{models::uuid::UUID, sockets::msnp_command::MSNPCommand};
 
 use super::{
     msnp_command::{MSNPCommandParser},
@@ -52,31 +52,49 @@ impl TCPServer for SwitchboardServer {
             let (mut socket, _addr) = listener.accept().await.unwrap();
             let (tx, mut rx) = broadcast::channel::<String>(10);
             let mut command_handler = self.get_command_handler(tx.clone());
-            
+            let mut incomplete_command: Option<MSNPCommand> = None;
+
 
             let _result = tokio::spawn(async move {
                 let (read, mut write) = socket.split();
                 let mut reader = BufReader::new(read);
-                let mut buffer = [0u8; 2048];
+                let mut buffer = [0u8; 2048]; //TODO shit workaround, support message chunking in the parser.
 
                 let uuid = UUID::new();
                 loop {
                     tokio::select! {
                         bytes_read = reader.read(&mut buffer) => {
-                        let line = String::from(from_utf8(&buffer).unwrap());
-                            //println!("DEBUG: {}", &line);
+                        let mut line = String::from(from_utf8(&buffer).unwrap());
+                            // println!("DEBUG: {}, length: {}", &line, line.len());
                              if bytes_read.unwrap_or(0) == 0 {
                                  break;
                              }
-                             let commands = MSNPCommandParser::parse_message(&line);
+
+                             let mut commands : Vec<MSNPCommand> = Vec::new();
+
+                             if let Some(command_to_fill) = incomplete_command {
+                                incomplete_command = None;
+
+                                let (remaining, command) = MSNPCommandParser::parsed_chunked(line.clone(), command_to_fill);
+                               line = remaining;
+                               commands.push(command);
+                             }
+
+
+                            commands.extend(MSNPCommandParser::parse_message(&line));
 
                             for command in commands {
-                                println!("SW {}<= {}", &uuid.to_string(), &command);
-                                let response = command_handler.handle_command(&command).await;
-                                if !response.is_empty() {
-                                    write.write_all(response.as_bytes()).await;
-                                    println!("SW {}=> {}",&uuid.to_string(), &response);
+                                if command.is_complete() {
+                                    println!("SW {}<= {}", &uuid.to_string(), &command);
+                                    let response = command_handler.handle_command(&command).await;
+                                    if !response.is_empty() {
+                                        write.write_all(response.as_bytes()).await;
+                                        println!("SW {}=> {}",&uuid.to_string(), &response);
+                                    }
+                                } else {
+                                    incomplete_command = Some(command);
                                 }
+
                             }
                             buffer = [0u8; 2048];
                         },

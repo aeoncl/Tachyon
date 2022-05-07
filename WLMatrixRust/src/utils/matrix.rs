@@ -30,11 +30,21 @@ pub async fn login(matrix_id: String, matrix_token: String) -> Result<Client, Er
     return Ok(client);
 }
 
-pub fn get_direct_target_that_isnt_me(direct_targets: HashSet<OwnedUserId>, me: OwnedUserId) -> Option<OwnedUserId> {
+pub fn save_mtx_timestamp(msn_addr: &String, mtx_timestamp: String) {
+
+
+}
+
+pub fn load_mtx_timestamp(msn_addr: &String) -> String {
+    return String::new();
+}
+
+
+pub fn get_direct_target_that_isnt_me(direct_targets: &HashSet<OwnedUserId>, me: &OwnedUserId) -> Option<OwnedUserId> {
 
     for direct_target in direct_targets {
         if(direct_target != me) {
-            return Some(direct_target);
+            return Some(direct_target.clone());
         }
     }
     return None;

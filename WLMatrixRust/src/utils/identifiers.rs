@@ -1,4 +1,5 @@
 use lazy_static::lazy_static;
+use matrix_sdk::ruma::{OwnedUserId, UserId, OwnedRoomId, RoomId};
 use regex::Regex;
 
 use crate::models::uuid::UUID;
@@ -18,6 +19,17 @@ pub fn msn_addr_to_matrix_id(msn_addr: &String) -> String {
     let captures = MSN_ADDRESS_REGEX.captures(&msn_addr).unwrap();
 
     return format!("@{}:{}", captures[1].to_string(), captures[2].to_string()).to_string();
+}
+
+pub fn msn_addr_to_matrix_user_id(msn_addr: &String) -> OwnedUserId {
+    let matrix_user_id_string =  msn_addr_to_matrix_id(msn_addr);
+    let matrix_user_id : OwnedUserId = <&UserId>::try_from(matrix_user_id_string.as_str()).unwrap().to_owned();
+    return matrix_user_id;
+}
+
+pub fn matrix_room_id_to_annoying_matrix_room_id(matrix_room_id: &String) -> OwnedRoomId {
+    let mtx_room_id : OwnedRoomId = <&RoomId>::try_from(matrix_room_id.as_str()).unwrap().to_owned();
+    return mtx_room_id;
 }
 
 pub fn matrix_id_to_msn_addr(matrix_id: &String) -> String {
