@@ -1,35 +1,36 @@
+use std::{sync::{Arc, Mutex}, collections::HashMap};
+
 use chashmap::CHashMap;
 use tokio::sync::broadcast::Sender;
 
-use crate::models::{switchboard_data::SwitchboardData};
+use crate::models::{switchboard_handle::SwitchboardHandle};
 
 use super::repository::Repository;
 
 pub struct SwitchboardRepository {
-    data : CHashMap<String, SwitchboardData>
+    data : Arc<Mutex<HashMap<String, SwitchboardHandle>>>
 }
 
-impl Repository<String, SwitchboardData> for SwitchboardRepository {
+impl SwitchboardRepository {
 
 
-    fn new() -> Self {
-        return SwitchboardRepository{ data: CHashMap::new() };
+    pub fn new() -> Self {
+        return SwitchboardRepository{ data: Arc::new(Mutex::new(HashMap::new())) };
     }
 
-    fn find(&self, id: &String) -> Option<chashmap::ReadGuard<String, SwitchboardData>> {
-        return self.data.get(id);
+    pub fn find(&self, id: &String) -> Option<SwitchboardHandle> {
+        if let Some(found) = self.data.lock().unwrap().get(id) {
+            return Some(found.clone());
+        }
+        return None;
     }
 
-    fn find_mut(&self, id: &String) -> Option<chashmap::WriteGuard<String, SwitchboardData>> {
-        return self.data.get_mut(id);
+    pub fn add(&self, id: String, data: SwitchboardHandle) {
+        self.data.lock().unwrap().insert(id, data);
     }
 
-    fn add(&self, id: String, data: SwitchboardData) {
-        self.data.insert(id, data);
-    }
-
-    fn remove(&self, id: &String) {
-        self.data.remove(id);
+    pub fn remove(&self, id: &String) {
+        self.data.lock().unwrap().remove(id);
     }
 
 }

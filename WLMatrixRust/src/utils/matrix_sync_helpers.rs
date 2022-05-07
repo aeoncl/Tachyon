@@ -2,10 +2,10 @@ use std::{time::Duration, sync::Arc};
 
 use chashmap::ReadGuard;
 use log::info;
-use matrix_sdk::{deserialized_responses::SyncResponse, config::SyncSettings, Client, ruma::{OwnedUserId, events::{room::{member::{MembershipState, RoomMemberEventContent, RoomMemberEvent, SyncRoomMemberEvent, StrippedRoomMemberEvent}, message::{SyncRoomMessageEvent, MessageType, RoomMessageEventContent}}, presence::PresenceEvent, OriginalSyncMessageLikeEvent}}, RoomMember, room::Room};
+use matrix_sdk::{deserialized_responses::SyncResponse, config::SyncSettings, Client, ruma::{OwnedUserId, events::{room::{member::{MembershipState, RoomMemberEventContent, RoomMemberEvent, SyncRoomMemberEvent, StrippedRoomMemberEvent}, message::{SyncRoomMessageEvent, MessageType, RoomMessageEventContent}}, presence::PresenceEvent, OriginalSyncMessageLikeEvent, SyncEphemeralRoomEvent, EphemeralRoomEvent, typing::{TypingEventContent, SyncTypingEvent}, direct::{DirectEventContent, DirectEvent}}}, RoomMember, room::Room};
 use tokio::{join, sync::broadcast::{Sender, self}};
 
-use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, repositories::{matrix_client_repository::MatrixClientRepository, client_data_repository::ClientDataRepository, repository::Repository}, generated::{msnab_sharingservice::factories::{ContactFactory, MemberFactory, AnnotationFactory}, msnab_datatypes::types::{MemberState, RoleId, ContactTypeEnum, ArrayOfAnnotation}, payloads::{factories::NotificationFactory, PresenceStatus}}, models::{uuid::UUID, switchboard_data::SwitchboardData, msg_payload::factories::MsgPayloadFactory}, AB_DATA_REPO};
+use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, repositories::{matrix_client_repository::MatrixClientRepository, client_data_repository::ClientDataRepository, repository::Repository}, generated::{msnab_sharingservice::factories::{ContactFactory, MemberFactory, AnnotationFactory}, msnab_datatypes::types::{MemberState, RoleId, ContactTypeEnum, ArrayOfAnnotation}, payloads::{factories::NotificationFactory, PresenceStatus}}, models::{uuid::UUID, switchboard_handle::SwitchboardHandle, msg_payload::factories::MsgPayloadFactory}, AB_DATA_REPO};
 
 use super::{identifiers::matrix_id_to_msn_addr, matrix::get_direct_target_that_isnt_me};
 
@@ -38,7 +38,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                         msn_ns_sender.send(format!("FLN 1:{msn_addr}\r\n", msn_addr = sender_msn_addr));
                     } else {
                         //let msn_obj = "<msnobj/>";
-                        let msn_obj = " ";
+                        let msn_obj = "";
                         msn_ns_sender.send(format!("NLN {status} 1:{msn_addr} {nickname} 2788999228:48 {msn_obj}\r\n", msn_addr= &sender_msn_addr, status = presence_status.to_string(), nickname= ev.content.displayname.unwrap_or(sender_msn_addr.clone()), msn_obj = msn_obj));
                         let ubx_payload = format!("<PSM>{status_msg}</PSM><CurrentMedia></CurrentMedia><MachineGuid>&#x7B;{machine_guid}&#x7D;</MachineGuid>", status_msg = ev.content.status_msg.unwrap_or(String::new()), machine_guid = &sender_machine_guid);
                         msn_ns_sender.send(format!("UBX 1:{msn_addr} {ubx_payload_size}\r\n{ubx_payload}", msn_addr = &sender_msn_addr, ubx_payload_size= ubx_payload.len(), ubx_payload=ubx_payload));
@@ -125,8 +125,12 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                                             let debug_len = joined_members.len();
 
     
+                                            let display_name = ev.content.displayname.unwrap_or(target_msn_addr.clone());
+
+
                                             if ev.sender == target {
     
+
                                                 if ev.content.membership == MembershipState::Leave || ev.content.membership == MembershipState::Ban {
                                                     // my friend is in reverse list and gone from the allow list.
                                                     let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, true);
@@ -135,7 +139,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
     
                                                 } else if ev.content.membership == MembershipState::Join {
                                                     // my friend is in reverse list and allow list.
-                                                    let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, ContactTypeEnum::Live, false);
+                                                    let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::Live, false);
                                                     let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
                                                     let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, false);
     
@@ -146,7 +150,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                                            
                                             } else if ev.sender == me && ev.content.membership == MembershipState::Invite { // && ev.state_key = target_user_id
                                                // C'est mon poto pending seulement dans l'allowlist
-                                                let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, ContactTypeEnum::LivePending, false);
+                                                let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::LivePending, false);
                                                 let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
                                             
                                                 ab_data.add_to_contact_list(target.to_string(), current_contact);
@@ -157,7 +161,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                                             //TODO left room not working when user is already gone before us.
                                             if ev.sender == me && ev.content.membership == MembershipState::Leave || ev.content.membership == MembershipState::Ban { 
                                               let msn_addr = matrix_id_to_msn_addr(&target.to_string());
-                                              let current_contact = ContactFactory::get_contact(&target_uuid, &msn_addr, ContactTypeEnum::Live, true);
+                                              let current_contact = ContactFactory::get_contact(&target_uuid, &msn_addr,  &msn_addr, ContactTypeEnum::Live, true);
                                               let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &msn_addr, MemberState::Accepted, RoleId::Allow, true);
                                               ab_data.add_to_contact_list(target.to_string(), current_contact);
                                               ab_data.add_to_messenger_service(target.to_string(), current_allow_member, RoleId::Allow);
@@ -180,6 +184,33 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
             }
         }).await;
 
+
+        matrix_client.register_event_handler({
+
+            let token = token.clone();
+            let msn_addr = msn_addr.clone();
+
+            move |ev: SyncTypingEvent, room: Room, client: Client| {
+                let token = token.clone();
+                let me_msn_addr = msn_addr.clone();
+
+                async move {
+                    let room_id = room.room_id().to_string();
+                    if let Some(client_data) = CLIENT_DATA_REPO.find_mut(&token){
+                        if let Some(found) = client_data.switchboards.find(&room_id) {
+
+                            for user_id in ev.content.user_ids {
+                                let typer_msn_addr = matrix_id_to_msn_addr(&user_id.to_string());
+                                if(typer_msn_addr != me_msn_addr) {
+                                    found.send_typing_notification_to_client(&typer_msn_addr);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+        }).await;
 
         matrix_client.register_event_handler({
             let token = token.clone();
@@ -209,15 +240,15 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
 
                                 if let Some(client_data) = CLIENT_DATA_REPO.find_mut(&token){
                                     if let Some(found) = client_data.switchboards.find(&room_id) {
-                                        handle_messages(found.sender.clone(), &ev);
+                                        handle_messages(&found, &ev);
                                     } else {
                                              //sb not initialized yet
-                                             let sb_data = SwitchboardData::new();
-                                             {
-                                                 handle_messages(sb_data.sender.clone(), &ev);
-                                             }
+                                            let sb_data = SwitchboardHandle::new(client.clone(), room.room_id().to_owned(), msn_addr.clone());
+                                            {
+                                                handle_messages(&sb_data, &ev);
+                                            }
+
                                              client_data.switchboards.add(room_id.clone(), sb_data);
-     
                                              //send RNG command
                                              let room_uuid = UUID::from_string(&room_id);
      
@@ -302,16 +333,14 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
     return tx;
 }
 
-pub fn handle_messages(switchboard: Sender<String>, msg_event: &OriginalSyncMessageLikeEvent<RoomMessageEventContent>) {
+pub fn handle_messages(switchboard: &SwitchboardHandle, msg_event: &OriginalSyncMessageLikeEvent<RoomMessageEventContent>) {
 
     let sender_msn_addr = matrix_id_to_msn_addr(&msg_event.sender.to_string());
 
     if let MessageType::Text(content) = &msg_event.content.msgtype {
-        let test_msg = MsgPayloadFactory::get_message(content.body.clone());
-        let serialized = test_msg.serialize();
-        switchboard.send(format!("MSG {sender} {sender} {payload_size}\r\n{payload}", sender=&sender_msn_addr, payload_size=serialized.len(), payload=&serialized));
+        let msg = MsgPayloadFactory::get_message(content.body.clone());
+        switchboard.send_message_to_client(msg, &sender_msn_addr, Some(&msg_event.event_id.to_string()));
     }
-
 }
 
 // pub async fn presence_update_task(response : SyncResponse, sender: Sender<String>, matrix_client: ReadGuard<'_, String, Client>) {

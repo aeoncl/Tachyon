@@ -1,17 +1,21 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
+use matrix_sdk::ruma::{RoomId, OwnedRoomId};
+use matrix_sdk::ruma::exports::ruma_macros::room_id;
 use tokio::task::JoinHandle;
 use log::info;
 use matrix_sdk::Client;
 use matrix_sdk::room::Room;
-use matrix_sdk::ruma::events::room::message::SyncRoomMessageEvent;
+use matrix_sdk::ruma::events::room::message::{SyncRoomMessageEvent, RoomMessageEventContent};
 use substring::Substring;
 use async_trait::async_trait;
 use tokio::sync::broadcast::{Sender, Receiver};
 use crate::generated::payloads::{PrivateEndpointData, PresenceStatus};
 use crate::models::ab_data::AbData;
 use crate::models::errors::{MsnpErrorCode};
+use crate::models::msg_payload::MsgPayload;
+use crate::models::switchboard_handle::SwitchboardHandle;
 use crate::repositories::matrix_client_repository::MatrixClientRepository;
 use crate::repositories::repository::Repository;
 use crate::utils::identifiers::{msn_addr_to_matrix_id, matrix_id_to_msn_addr};
@@ -112,12 +116,7 @@ impl CommandHandler for NotificationCommandHandler {
                         let matrix_id = msn_addr_to_matrix_id(&self.msn_addr);
 
                         if let Ok(client) = matrix::login(matrix_id.clone(), self.matrix_token.clone()).await {
-                           
-                            let path = PathBuf::from("C:\\temp\\e2e-keys.txt");
-                            client.encryption().import_keys(path, "secret-passphrase");
-
-                            
-                            
+    
                             //Token valid, client authenticated.
                             let client_data_repo : Arc<ClientDataRepository> = CLIENT_DATA_REPO.clone();
                             client_data_repo.add(self.matrix_token.clone(), ClientData::new(self.msn_addr.clone(), self.protocol_version.clone(), split[5].to_string(), PresenceStatus::HDN));
@@ -244,6 +243,8 @@ impl CommandHandler for NotificationCommandHandler {
                     }
                 }
 
+                let payload = command.payload.as_str();
+                //return format!("UUN {tr_id} OK\r\nUBN {msn_addr} 5 {payload_size}\r\n{payload}", tr_id = tr_id, msn_addr= &receiver_msn_addr, payload=&payload, payload_size = payload.len());
                 return format!("UUN {tr_id} OK\r\n", tr_id = tr_id);
             },
             "XFR" => {
@@ -350,6 +351,7 @@ pub struct SwitchboardCommandHandler {
     target_msn_addr: String,
     matrix_client: Option<Client>,
     sender: Sender<String>,
+    sb_handle: Option<SwitchboardHandle>
 }
 
 impl SwitchboardCommandHandler {
@@ -364,6 +366,7 @@ impl SwitchboardCommandHandler {
             target_matrix_id: String::new(),
             target_msn_addr: String::new(),
             sender: sender,
+            sb_handle: None
         };
     }
 }
@@ -381,53 +384,21 @@ impl CommandHandler for SwitchboardCommandHandler {
                 let split_token : Vec<&str> = token.split(";").collect();
                 let tr_id = split[1];
                 let endpoint = split[2];
-                let endpoint_parts : Vec<&str> = endpoint.split(";").collect();;
+                let endpoint_parts : Vec<&str> = endpoint.split(";").collect();
+
                 self.msn_addr = endpoint_parts.get(0).unwrap().to_string();
                 self.endpoint_guid = endpoint_parts.get(1).unwrap().to_string();
-
-
                 self.target_room_id = split_token.get(0).unwrap().to_string();
                 self.matrix_token = split_token.get(1).unwrap().to_string();
                 self.target_matrix_id = split_token.get(2).unwrap().to_string();
                 self.target_msn_addr = matrix_id_to_msn_addr(&self.target_matrix_id);
                 self.matrix_client = Some(MATRIX_CLIENT_REPO.find(&self.matrix_token).unwrap().clone());
 
-                self.sender.send(format!("IRO {tr_id} {index} {roster_count} {passport} {friendly_name} {capabilities}\r\n",
-                tr_id = &tr_id,
-                index = 1,
-                roster_count = 1,
-                passport = &self.target_msn_addr,
-                friendly_name = &self.target_msn_addr,
-                capabilities = "2789003324:48"));
-
-                // self.sender.send(format!("IRO {tr_id} {index} {roster_count} {passport};{{{endpoint_guid}}} {friendly_name} {capabilities}\r\n",
-                // tr_id = &tr_id,
-                // index = 1,
-                // roster_count = 1,
-                // passport = &self.target_msn_addr,
-                // endpoint_guid = UUID::from_string(&self.target_msn_addr).to_string(),
-                // friendly_name = &self.target_msn_addr,
-                // capabilities = "2789003324:48"));
-
-                self.sender.send(format!("ANS {tr_id} OK\r\n", tr_id = &tr_id));
-
-                self.sender.send(format!("JOI {passport} {friendly_name} 2788999228:48\r\n", passport=&self.msn_addr, friendly_name = &self.msn_addr));
-                
-                // self.sender.send(format!("JOI {passport};{endpoint_guid} {friendly_name} 2788999228:48\r\n", passport=&self.msn_addr, endpoint_guid = self.endpoint_guid, friendly_name = &self.msn_addr));
 
                 let client_data = CLIENT_DATA_REPO.find_mut(&self.matrix_token).unwrap();
 
-
-                if let Some(found) = client_data.switchboards.find_mut(&self.target_room_id){
-                    
-
-                    let mut receiver = {
-                        let mut lock = found.receiver.lock().unwrap();
-                        let receiver = mem::replace(&mut *lock, None);
-                        receiver.unwrap()
-                    }; 
-
-
+                if let Some(mut sb_handle) = client_data.switchboards.find(&self.target_room_id){
+                    let mut receiver = sb_handle.take_receiver().unwrap();
                     let sender = self.sender.clone();
                     tokio::spawn(async move {
                             let sender = sender;
@@ -435,7 +406,6 @@ impl CommandHandler for SwitchboardCommandHandler {
                                 tokio::select! {
                                     command_to_send = receiver.recv() => {
                                         let msg = command_to_send.unwrap();
-
                                         if msg.starts_with("STOP") {
                                             break;
                                         } else {
@@ -445,7 +415,16 @@ impl CommandHandler for SwitchboardCommandHandler {
                                 }
                             }
                         });
-                };
+                    
+                        let _result = sb_handle.send_initial_roster(&tr_id).await;
+
+                        self.sender.send(format!("ANS {tr_id} OK\r\n", tr_id = &tr_id));
+                        self.sender.send(format!("JOI {passport} {friendly_name} 2788999228:48\r\n", passport=&self.msn_addr, friendly_name = &self.msn_addr));
+                } 
+
+
+
+
                 return String::new();
             },
             "USR" => {
@@ -482,12 +461,35 @@ impl CommandHandler for SwitchboardCommandHandler {
                     //that's me !
                     self.sender.send(format!("CAL {tr_id} RINGING {session_id}", tr_id = tr_id, session_id = session_id));
                 } else {
-                    self.matrix_client.unwrap(); // todo find dm room for target user.
+                    //self.matrix_client.unwrap(); // todo find dm room for target user.
                 }
+                return String::new();
             },
+            "MSG" => {
+                // >>> MSG aeontest3@shl.local aeontest3@shl.local 126
+                // <<< 
+                if let Ok(payload) = MsgPayload::from_str(command.payload.as_str()){
+
+                    let client_data = CLIENT_DATA_REPO.find(&self.matrix_token).unwrap();
+                    if let Some(mut sb_handle) = client_data.switchboards.find(&self.target_room_id){
+                        sb_handle.send_message_to_server(payload).await;
 
 
+                      // let test_payload = MsgPayloadFactory::get_action_msg(String::from("Hello"), false);
 
+                      let test_payload = "MIME-Version: 1.0\r\nContent-Type: text/x-msnmsgr-datacast\r\n\r\nID: 4\r\nData: test\r\n\r\n";
+                       // let test_payload = MsgPayloadFactory::get_nudge();
+                       // sb_handle.send_message_to_client(test_payload, &String::from("aeontest3@shl.local"), None);
+
+                        self.sender.send(format!("MSG {sender} {sender} {payload_size}\r\n{payload}",sender=&String::from("aeontest3@shl.local"), payload_size=test_payload.len(), payload=&test_payload));
+
+                    }
+                  
+                }
+                           
+                return String::new();
+
+            },
             _=> {
                 return String::new();
             }
@@ -501,7 +503,7 @@ impl CommandHandler for SwitchboardCommandHandler {
     fn cleanup(&self) {
         if let Some(client_data) = CLIENT_DATA_REPO.find_mut(&self.matrix_token) {
             if let Some(found) = client_data.switchboards.find(&self.target_room_id){
-                let _result = found.sender.send(String::from("STOP"));
+                found.stop();
             }
             client_data.switchboards.remove(&self.target_room_id);
         }
