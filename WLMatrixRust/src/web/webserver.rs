@@ -59,13 +59,10 @@ pub async fn rst2(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse
     
     let matrix_user : OwnedUserId = <&UserId>::try_from(matrix_id_str).unwrap().to_owned();
 
-    //let homeserver_url = Url::parse(format!("https://{}", matrix_user.server_name()).as_str())?;
-    let homeserver_url = Url::parse(format!("http://{}:8008", matrix_user.server_name()).as_str())?;
-
     let path = Path::new("c:\\temp");
     let config =  make_store_config(path, None).unwrap();
 
-    let client = Client::builder().store_config(config).homeserver_url(homeserver_url).build().await.unwrap();
+    let client = Client::builder().store_config(config).user_id(&matrix_user).build().await.unwrap();
     
     let result = client
         .login(
