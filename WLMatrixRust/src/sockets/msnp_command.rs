@@ -34,7 +34,7 @@ impl MSNPCommandParser {
                 }
 
                 if payload_size > 0 {
-                    let payload = current_slice.to_string().substring(offset, offset + payload_size).to_string();
+                    let payload = current_slice[offset..offset + payload_size].to_string();
                     offset += payload.len();
                     command.payload = payload;
                 }
@@ -50,17 +50,19 @@ impl MSNPCommandParser {
 
     pub fn parsed_chunked(message: String, command : MSNPCommand) -> (String, MSNPCommand) {
         let mut command = command;
-        let remaining_bytes = command.get_payload_size() - command.payload.len() as i32;
+        let remaining_bytes = command.get_payload_size() - command.payload.len();
 
         let mut bytes_to_take = remaining_bytes as usize;
         if message.len() < remaining_bytes as usize {
             bytes_to_take = message.len();
         }
-        command.payload.push_str(message.substring(0, bytes_to_take));
-        let remaining_stuff = message.substring(bytes_to_take, message.len());
+        command.payload.push_str(&message[0..bytes_to_take]);
+        let remaining_stuff = &message[bytes_to_take..message.len()];
        return (remaining_stuff.to_string(), command);
     }
 }
+
+
 #[derive(Clone)]
 pub struct MSNPCommand {
     pub command: String,
@@ -81,14 +83,15 @@ impl MSNPCommand {
         return self.command.split_whitespace().collect::<Vec<&str>>();
     }
 
-    pub fn get_payload_size(&self) -> i32 {
+    pub fn get_payload_size(&self) -> usize {
+        
         let split = self.split();
         let last = split.last().unwrap();
-        return last.parse::<i32>().unwrap_or_default();
+        return last.parse::<usize>().unwrap_or_default();
     }
 
     pub fn is_complete(&self) -> bool {
-        return self.get_payload_size() as usize == self.payload.len();
+        return self.get_payload_size() == self.payload.len();
     }
 }
 
@@ -206,18 +209,33 @@ mod tests {
     }
 
     #[test]
+    fn test_utf8() {
 
-    fn test_chunked_2() {
-        let first_message = "UUN 16 aeontest3@shl.local 12 3538\r\n<sip e=\"base64\" fid=\"0\" i=\"5d01ac3bc76644f7b2d33ef7f5385272\"><msg>SU5WSVRFIHNpcDphZW9udGVzdDNAc2hsLmxvY2FsIFNJUC8yLjANCmM6IGFwcGxpY2F0aW9uL3NkcA0KVXNlci1BZ2VudDogVUNDQVBJLzMuNS42ODc3LjQNCkNTZXE6IDEgSU5WSVRFDQp2OiBTSVAvMi4wL1RDUCAxMjcuMC4wLjE6NjMwOTANCnY6IFNJUC8yLjAvVENQIDEyNy4wLjAuMTo2MzA5OQ0KTVMtS2VlcC1BbGl2ZTogVUFDO2hvcC1ob3A9eWVzDQpBbGxvdzogSU5WSVRFLCBCWUUsIEFDSywgQ0FOQ0VMLCBJTkZPLCBVUERBVEUsIFJFRkVSLCBOT1RJRlksIEJFTk9USUZZLCBPUFRJT05TDQpmOiA8c2lwOmFlb250ZXN0QHNobC5sb2NhbDttZXBpZD1GNTI5NzNCNkM5MjY0QkFEOUJBODdDMUU4NDBFNEFCMD47dGFnPWY0ZjMwZmFmNTQ7ZXBpZD1kZDEzZmY3NDQ4DQppOiA1ZDAxYWMzYmM3NjY0NGY3YjJkMzNlZjdmNTM4NTI3Mg0KTWF4LUZvcndhcmRzOiA3MA0KazogMTAwcmVsDQprOiBSZXBsYWNlcw0KazogbXMtZWFybHktbWVkaWENCms6IG1zLXNlbmRlcg0KazogbXMtc2FmZS10cmFuc2Zlcg0KazogaGlzdGluZm8NCms6IHRpbWVyDQptOiA8c2lwOmFlb250ZXN0QHNobC5sb2NhbDttZXBpZD1GNTI5NzNCNkM5MjY0QkFEOUJBODdDMUU4NDBFNEFCMD47cHJveHk9cmVwbGFjZTsrc2lwLmluc3RhbmNlPSI8dXJuOnV1aWQ6MjRCNUIyMjMtNDMxNi01N0U1LThEMDQtNUY4NDNGQTYwQzQzPiINCnQ6IDxzaXA6YWVvbnRlc3QzQHNobC5sb2NhbD4NCk1TLUNvbnZlcnNhdGlvbi1JRDogZj0wDQpSZWNvcmQtUm91dGU6IDxzaXA6MTI3LjAuMC4xOjYzMDkwO3RyYW5zcG9ydD10Y3A+DQpsOiAxNzI2DQoNCnY9MA0Kbz0tIDAgMCBJTiBJUDQgMTcyLjMxLjI0MC4xDQpzPXNlc3Npb24NCmM9SU4gSVA0IDE3Mi4zMS4yNDAuMQ0KYj1DVDo5OTk4MA0KdD0wIDANCm09YXVkaW8gMTI0MDYgUlRQL0FWUCAxMTQgMTExIDExMiAxMTUgMTE2IDQgOCAwIDk3IDEzIDExOCAxMDENCmE9aWNlLXVmcmFnOmxkMkUNCmE9aWNlLXB3ZDpIaUJWNEFybDhselVmSWRvNzBNQjlyZzUNCmE9Y2FuZGlkYXRlOjEgMSBVRFAgMjEzMDcwNjQzMSAxNzIuMzEuMjQwLjEgMTI0MDYgdHlwIGhvc3QgDQphPWNhbmRpZGF0ZToxIDIgVURQIDIxMzA3MDU5MTggMTcyLjMxLjI0MC4xIDE1NTIzIHR5cCBob3N0IA0KYT1jYW5kaWRhdGU6MiAxIFVEUCAyMTMwNzA1OTE5IDE3Mi4yMC4xNjAuMSA0Mjg4IHR5cCBob3N0IA0KYT1jYW5kaWRhdGU6MiAyIFVEUCAyMTMwNzA1NDA2IDE3Mi4yMC4xNjAuMSAxODUyOSB0eXAgaG9zdCANCmE9Y2FuZGlkYXRlOjMgMSBVRFAgMjEzMDcwNTQwNyAxNzIuMzEuMjI0LjEgMTE3NTYgdHlwIGhvc3QgDQphPWNhbmRpZGF0ZTozIDIgVURQIDIxMzA3MDQ4OTQgMTcyLjMxLjIyNC4xIDU2NTQgdHlwIGhvc3QgDQphPWNhbmRpZGF0ZTo0IDEgVURQIDIxMzA3MDQ4OTUgMTcyLjI1LjIyNC4xIDI4ODY5IHR5cC".to_string();
-        let second_message = "Bob3N0IA0KYT1jYW5kaWRhdGU6NCAyIFVEUCAyMTMwNzA0MzgyIDE3Mi4yNS4yMjQuMSAyMDUyNiB0eXAgaG9zdCANCmE9Y2FuZGlkYXRlOjUgMSBVRFAgMjEzMDcwNDM4MyAxNzIuMjIuNDguMSAzMzY1NiB0eXAgaG9zdCANCmE9Y2FuZGlkYXRlOjUgMiBVRFAgMjEzMDcwMzg3MCAxNzIuMjIuNDguMSAxNTQ0NyB0eXAgaG9zdCANCmE9Y2FuZGlkYXRlOjYgMSBVRFAgMjEzMDcwMzg3MSAxOTIuMTY4LjU2LjEgODAyNyB0eXAgaG9zdCANCmE9Y2FuZGlkYXRlOjYgMiBVRFAgMjEzMDcwMzM1OCAxOTIuMTY4LjU2LjEgOTQ0NSB0eXAgaG9zdCANCmE9Y2FuZGlkYXRlOjcgMSBVRFAgMjEzMDcwMzM1OSAxOTIuMTY4LjEuNjIgMjU4NTMgdHlwIGhvc3QgDQphPWNhbmRpZGF0ZTo3IDIgVURQIDIxMzA3MDI4NDYgMTkyLjE2OC4xLjYyIDIzMTczIHR5cCBob3N0IA0KYT1jYW5kaWRhdGU6OSAxIFRDUC1BQ1QgMTY4NDc5NTY0NyAxNzIuMzEuMjQwLjEgMTI0MDYgdHlwIHNyZmx4IHJhZGRyIDE3Mi4zMS4yNDAuMSBycG9ydCAxMjQwNiANCmE9Y2FuZGlkYXRlOjkgMiBUQ1AtQUNUIDE2ODQ3OTUxMzQgMTcyLjMxLjI0MC4xIDEyNDA2IHR5cCBzcmZseCByYWRkciAxNzIuMzEuMjQwLjEgcnBvcnQgMTI0MDYgDQphPW1heHB0aW1lOjIwMA0KYT1ydGNwOjE1NTIzDQphPXJ0cG1hcDoxMTQgeC1tc3J0YS8xNjAwMA0KYT1mbXRwOjExNCBiaXRyYXRlPTI5MDAwDQphPXJ0cG1hcDoxMTEgU0lSRU4vMTYwMDANCmE9Zm10cDoxMTEgYml0cmF0ZT0xNjAwMA0KYT1ydHBtYXA6MTEyIEc3MjIxLzE2MDAwDQphPWZtdHA6MTEyIGJpdHJhdGU9MjQwMDANCmE9cnRwbWFwOjExNSB4LW1zcnRhLzgwMDANCmE9Zm10cDoxMTUgYml0cmF0ZT0xMTgwMA0KYT1ydHBtYXA6MTE2IEFBTDItRzcyNi0zMi84MDAwDQphPXJ0cG1hcDo0IEc3MjMvODAwMA0KYT1ydHBtYXA6OCBQQ01BLzgwMDANCmE9cnRwbWFwOjAgUENNVS84MDAwDQphPXJ0cG1hcDo5NyBSRUQvODAwMA0KYT1ydHBtYXA6MTMgQ04vODAwMA0KYT1ydHBtYXA6MTE4IENOLzE2MDAwDQphPXJ0cG1hcDoxMDEgdGVsZXBob25lLWV2ZW50LzgwMDANCmE9Zm10cDoxMDEgMC0xNg0KYT1lbmNyeXB0aW9uOnJlamVjdGVkDQo=</msg></sip>";
+        let payload = "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nX-MMS-IM-Format: FN=Segoe%20UI; EF=; CO=0; CS=1; PF=0\r\n\r\nö";
+        let first_message = format!("MSG 1 U {payload_size}\r\n{payload}", payload_size = payload.len(), payload = payload);
+
 
         let mut parsed = MSNPCommandParser::parse_message(&first_message);
-  
           let payload_command = parsed.pop().unwrap();
-          assert!(payload_command.is_complete() == false);
-  
-          let (remaining, payload_command) = MSNPCommandParser::parsed_chunked(second_message.to_string(), payload_command);
-  
+
+          assert_eq!(payload_command.payload,payload);
+
+          println!("size in message: {}, size with len(): {}", payload_command.get_payload_size(), payload_command.payload.len());
           assert!(payload_command.is_complete() == true);
+  
+    }
+
+    #[test]
+    fn test_long_token() {
+
+        let msg = "ANS 513 aeontest@shl.local;{F52973B6-C926-4BAD-9BA8-7C1E840E4AB0} IU9na3dZSlB4RE1hd29QaUxxRDpzaGwubG9jYWw7c3l0X1lXVnZiblJsYzNRX3dRWlNVTGZpSFVVQ2J3Vk5wRVNjXzNzY0NrWjtAYWVvbnRlc3QzOnNobC5sb2NhbA== 10763347332413127466\r\n".to_string();
+
+
+        let mut parsed = MSNPCommandParser::parse_message(&msg);
+          let payload_command = parsed.pop().unwrap();
+
+        assert_eq!(parsed.len(), 0);
+        assert!(msg.starts_with(&payload_command.command));
+
     }
 }

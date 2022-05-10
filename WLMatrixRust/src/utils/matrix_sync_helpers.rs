@@ -113,12 +113,6 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
 
                     if let SyncRoomMemberEvent::Original(ev) = &ev {
 
-                        if let Some(display_name) = &ev.content.displayname {
-                            let test = ev.state_key.to_string();
-                            let test2  = display_name.as_bytes().to_owned();
-                            client.store().set_custom_value(test.as_bytes(), test2).await;
-                        }
-
                         info!("ABDEBUG: Original Event !!");
                         if room.is_direct() || ev.content.is_direct.unwrap_or(false) {
                             info!("Room is direct !!");
@@ -218,7 +212,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                                              //send RNG command
                                              let room_uuid = UUID::from_string(&room_id);
      
-                                             let session_id = room_uuid.get_most_significant_bytes();
+                                             let session_id = room_uuid.get_most_significant_bytes_as_hex();
      
                                              let ticket = base64::encode(format!("{target_room_id};{token};{target_matrix_id}", target_room_id = &room_id, token = &token, target_matrix_id = target.to_string()));
      
@@ -344,26 +338,30 @@ async fn handle_1v1_dm(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, room
         match &room {
             Room::Joined(room) => {
                 let display_name = &ev.content.displayname.as_ref().unwrap_or(&target_msn_addr);
-                    if ev.content.membership == MembershipState::Leave || ev.content.membership == MembershipState::Ban && ev.sender == target{
+                if ev.sender == target {
+
+                    if ev.content.membership == MembershipState::Leave || ev.content.membership == MembershipState::Ban {
                         // my friend is in reverse list and gone from the allow list.
                         let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, true);
                         ab_data.add_to_messenger_service(target.to_string(), current_reverse_member, RoleId::Reverse);
-
                     } else if ev.content.membership == MembershipState::Join {
-                    // my friend is in reverse list and allow list.
-                    let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, display_name, ContactTypeEnum::Live, false);
-                    let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
-                    let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, false);
+                                            // my friend is in reverse list and allow list.
 
-                    ab_data.add_to_contact_list(target.to_string(), current_contact);
-                    ab_data.add_to_messenger_service(target.to_string(), current_allow_member, RoleId::Allow);
-                    ab_data.add_to_messenger_service(target.to_string(), current_reverse_member, RoleId::Reverse);
-
-                    if ev.sender == me {
-                        //I Accepted an invite
-                        let current_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true);
-                        ab_data.add_to_messenger_service(ev.sender.to_string(), current_pending_member, RoleId::Pending);
+                        let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, display_name, ContactTypeEnum::Live, false);
+                        let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
+                        let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, false);
+    
+                        ab_data.add_to_contact_list(target.to_string(), current_contact);
+                        ab_data.add_to_messenger_service(target.to_string(), current_allow_member, RoleId::Allow);
+                        ab_data.add_to_messenger_service(target.to_string(), current_reverse_member, RoleId::Reverse);
+    
+                      //  if ev.sender == me {
+                            //I Accepted an invite
+                      //      let current_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true);
+                      //      ab_data.add_to_messenger_service(ev.sender.to_string(), current_pending_member, RoleId::Pending);
+                       // }
                     }
+                
                 }
             },
             Room::Left(room) => {

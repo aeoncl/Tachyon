@@ -551,27 +551,32 @@ impl CommandHandler for SwitchboardCommandHandler {
                 return String::new();
             },
             "MSG" => {
-                // >>> MSG aeontest3@shl.local aeontest3@shl.local 126
-                // <<< 
+                //      0   1  2 3     
+                // >>> MSG 231 U 91 
+                // <<< ACK 231           on success
+                // <<< NAK 231          on failure
+                // The 2nd parameter is the type of ack the clients wants.
+                // N: ack only when the message was not received
+                // A: always send an ack
+                // U: never ack
+                
                 if let Ok(payload) = MsgPayload::from_str(command.payload.as_str()){
 
                     let client_data = CLIENT_DATA_REPO.find(&self.matrix_token).unwrap();
                     if let Some(mut sb_handle) = client_data.switchboards.find(&self.target_room_id){
                         sb_handle.send_message_to_server(payload).await;
-
-
-                      // let test_payload = MsgPayloadFactory::get_action_msg(String::from("Hello"), false);
-
-                      //let test_payload = "MIME-Version: 1.0\r\nContent-Type: text/x-msnmsgr-datacast\r\n\r\nID: 4\r\nData: test\r\n\r\n";
-                       // let test_payload = MsgPayloadFactory::get_nudge();
-                       // sb_handle.send_message_to_client(test_payload, &String::from("aeontest3@shl.local"), None);
-
-                       // self.sender.send(format!("MSG {sender} {sender} {payload_size}\r\n{payload}",sender=&String::from("aeontest3@shl.local"), payload_size=test_payload.len(), payload=&test_payload));
-
                     }
                   
                 }
-                           
+
+                let tr_id = split[1];
+                let type_of_ack = split[2];
+
+
+                if type_of_ack == "A" {
+                    return format!("ACK {tr_id}\r\n", tr_id= &tr_id);
+                }
+                    
                 return String::new();
 
             },

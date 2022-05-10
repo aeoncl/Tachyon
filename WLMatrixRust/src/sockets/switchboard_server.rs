@@ -65,7 +65,8 @@ impl TCPServer for SwitchboardServer {
                     tokio::select! {
                         bytes_read = reader.read(&mut buffer) => {
                         let mut line = String::from(from_utf8(&buffer).unwrap());
-                            // println!("DEBUG: {}, length: {}", &line, line.len());
+
+                             println!("DEBUG: {}, length: {}", &line, line.len());
                              if bytes_read.unwrap_or(0) == 0 {
                                  break;
                              }
@@ -74,17 +75,24 @@ impl TCPServer for SwitchboardServer {
 
                              if let Some(command_to_fill) = incomplete_command {
                                 incomplete_command = None;
-
+                                println!("SOME INCOMPLETE STUFF: {}", &line);
                                 let (remaining, command) = MSNPCommandParser::parsed_chunked(line.clone(), command_to_fill);
                                line = remaining;
                                commands.push(command);
+                             } else {
+                                println!("NO INCOMPLETE STUFF");
+
                              }
 
 
                             commands.extend(MSNPCommandParser::parse_message(&line));
+                            println!("PARSING WORKED, {} commands found in msg", commands.len());
 
                             for command in commands {
                                 if command.is_complete() {
+
+                                    println!("command passed complete check");
+
                                     println!("SW {}<= {}", &uuid.to_string(), &command);
                                     let response = command_handler.handle_command(&command).await;
                                     if !response.is_empty() {
@@ -92,6 +100,7 @@ impl TCPServer for SwitchboardServer {
                                         println!("SW {}=> {}",&uuid.to_string(), &response);
                                     }
                                 } else {
+                                    println!("command failed complete check");
                                     incomplete_command = Some(command);
                                 }
 
