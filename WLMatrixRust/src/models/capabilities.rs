@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{str::FromStr, fmt::Display};
 
 use super::errors;
 
@@ -121,12 +121,20 @@ impl FromStr for ClientCapabilities {
     }
 }
 
-pub struct CapabilitiesFactory;
+impl Display for ClientCapabilities {
+    
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return write!(f, "{}:{}", &self.capabilities, &self.extended_capabilities);
+    }
 
-impl CapabilitiesFactory {
+}
 
-    pub fn get_default_capabilities() -> ClientCapabilities {
-        let standard_cap = Capabilities::RendersGifs as u32 + Capabilities::RendersIsf as u32 + Capabilities::WebcamDetected as u32 + Capabilities::SupportsChunking as u32 + Capabilities::HasSpace as u32 + Capabilities::SupportsWinks as u32 + Capabilities::SupportsMSNSearch as u32 + Capabilities::SupportsVoiceIM as u32 + Capabilities::SupportsSipInvite as u32 + Capabilities::MsgrVersion10 as u32;
+pub struct ClientCapabilitiesFactory;
+
+impl ClientCapabilitiesFactory {
+
+    pub fn  get_default_capabilities() -> ClientCapabilities {
+        let standard_cap = Capabilities::RendersGifs as u32 + Capabilities::RendersIsf as u32 + Capabilities::WebcamDetected as u32  + Capabilities::SupportsTunneledSip as u32 + Capabilities::SupportsP2PTurn as u32 + Capabilities::SupportsChunking as u32 + Capabilities::HasSpace as u32 + Capabilities::SupportsWinks as u32 + Capabilities::SupportsMSNSearch as u32 + Capabilities::SupportsVoiceIM as u32 + Capabilities::SupportsSipInvite as u32 + Capabilities::MsgrVersion10 as u32;
         let extended_cap = ExtendedCapabilities::RTCVideoEnabled as u32 + ExtendedCapabilities::SupportsP2PV2 as u32;
         return ClientCapabilities::new(standard_cap, extended_cap);
     }
@@ -139,7 +147,7 @@ mod tests {
 
     use crate::models::capabilities::{Capabilities, ExtendedCapabilities};
 
-    use super::ClientCapabilities;
+    use super::{ClientCapabilities, ClientCapabilitiesFactory};
 
 
 
@@ -152,6 +160,14 @@ mod tests {
         assert!(result.supports(Capabilities::MsgrVersion10));
         assert!(result.supports(Capabilities::MobileOnline) == false);
         assert!(result.supports_ext(ExtendedCapabilities::RTCVideoEnabled));
+
+    }
+
+    #[test]
+    fn test_serialize() {
+
+        let result = ClientCapabilitiesFactory::get_default_capabilities();
+        assert!(result.supports(Capabilities::MsgrVersion10));
 
     }
 }

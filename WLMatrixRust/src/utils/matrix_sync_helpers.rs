@@ -2,10 +2,10 @@ use std::{time::Duration, sync::Arc, str::from_utf8};
 
 use chashmap::{ReadGuard, WriteGuard};
 use log::info;
-use matrix_sdk::{deserialized_responses::SyncResponse, config::SyncSettings, Client, ruma::{OwnedUserId, events::{room::{member::{MembershipState, RoomMemberEventContent, RoomMemberEvent, SyncRoomMemberEvent, StrippedRoomMemberEvent}, message::{SyncRoomMessageEvent, MessageType, RoomMessageEventContent}}, presence::PresenceEvent, OriginalSyncMessageLikeEvent, SyncEphemeralRoomEvent, EphemeralRoomEvent, typing::{TypingEventContent, SyncTypingEvent}, direct::{DirectEventContent, DirectEvent}, OriginalSyncStateEvent, GlobalAccountDataEventType, AnyGlobalAccountDataEvent, GlobalAccountDataEvent}, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, GlobalAccountData}}}, RoomMember, room::Room};
+use matrix_sdk::{deserialized_responses::SyncResponse, config::SyncSettings, Client, ruma::{OwnedUserId, events::{room::{member::{MembershipState, RoomMemberEventContent, RoomMemberEvent, SyncRoomMemberEvent, StrippedRoomMemberEvent}, message::{SyncRoomMessageEvent, MessageType, RoomMessageEventContent}}, presence::PresenceEvent, OriginalSyncMessageLikeEvent, SyncEphemeralRoomEvent, EphemeralRoomEvent, typing::{TypingEventContent, SyncTypingEvent}, direct::{DirectEventContent, DirectEvent}, OriginalSyncStateEvent, GlobalAccountDataEventType, AnyGlobalAccountDataEvent, GlobalAccountDataEvent}, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, GlobalAccountData}}, presence::PresenceState}, RoomMember, room::Room};
 use tokio::{join, sync::broadcast::{Sender, self}};
 
-use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, repositories::{matrix_client_repository::MatrixClientRepository, client_data_repository::ClientDataRepository, repository::Repository}, generated::{msnab_sharingservice::factories::{ContactFactory, MemberFactory, AnnotationFactory}, msnab_datatypes::types::{MemberState, RoleId, ContactTypeEnum, ArrayOfAnnotation}, payloads::{factories::NotificationFactory, PresenceStatus}}, models::{uuid::UUID, switchboard_handle::SwitchboardHandle, msg_payload::factories::MsgPayloadFactory, ab_data::AbData}, AB_DATA_REPO};
+use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, repositories::{matrix_client_repository::MatrixClientRepository, client_data_repository::ClientDataRepository, repository::Repository}, generated::{msnab_sharingservice::factories::{ContactFactory, MemberFactory, AnnotationFactory}, msnab_datatypes::types::{MemberState, RoleId, ContactTypeEnum, ArrayOfAnnotation}, payloads::{factories::NotificationFactory, PresenceStatus}}, models::{uuid::UUID, switchboard_handle::SwitchboardHandle, msg_payload::factories::MsgPayloadFactory, ab_data::AbData, capabilities::ClientCapabilitiesFactory}, AB_DATA_REPO};
 
 use super::{identifiers::matrix_id_to_msn_addr, matrix::get_direct_target_that_isnt_me};
 
@@ -29,7 +29,8 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                         return;
                     }
 
-                    let sender_msn_addr = matrix_id_to_msn_addr(&ev.sender.to_string());
+                    let event_sender = &ev.sender;
+                    let sender_msn_addr = matrix_id_to_msn_addr(&event_sender.to_string());
                     let sender_machine_guid = UUID::from_string(&sender_msn_addr).to_string().to_uppercase();
 
                     let presence_status : PresenceStatus = ev.content.presence.into();
@@ -42,10 +43,16 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                         //let test_vec= client.store().get_custom_value(test.as_bytes()).await.unwrap().unwrap_or("Michel".as_bytes().to_owned());
                         //let test3 = format!("{:?}", &test_vec);   
 
-                        info!("PRESENCE DISPLAY NAME{}", ev.content.displayname.as_ref().unwrap_or(&String::from("NOPE")));
+                        let room = client.find_dm_room(event_sender).await.unwrap().unwrap();
+                        let profile = client.store().get_profile(room.room_id(), event_sender).await.unwrap().unwrap();
+                        let original = profile.as_original().unwrap();
+                        
+                        let display_name = original.content.displayname.as_ref().unwrap_or(&sender_msn_addr);
+
                         //let msn_obj = "<msnobj/>";
                         let msn_obj = "";
-                        msn_ns_sender.send(format!("NLN {status} 1:{msn_addr} {nickname} 2788999228:48 {msn_obj}\r\n", msn_addr= &sender_msn_addr, status = presence_status.to_string(), nickname= &ev.content.displayname.unwrap_or(sender_msn_addr.clone()), msn_obj = msn_obj));
+                        let capabilities = ClientCapabilitiesFactory::get_default_capabilities();
+                        msn_ns_sender.send(format!("NLN {status} 1:{msn_addr} {nickname} {client_capabilities} {msn_obj}\r\n", client_capabilities= &capabilities ,msn_addr= &sender_msn_addr, status = presence_status.to_string(), nickname= &display_name, msn_obj = msn_obj));
                         //msn_ns_sender.send(format!("NLN {status} 1:{msn_addr} {nickname} 2788999228:48 {msn_obj}\r\n", msn_addr= &sender_msn_addr, status = presence_status.to_string(), nickname= test3, msn_obj = msn_obj));
 
                         //let ubx_payload = format!("<PSM>{status_msg}</PSM><CurrentMedia></CurrentMedia><EndpointData id=\"{{{machine_guid}}}\"><Capabilities>2788999228:48</Capabilities></EndpointData>", status_msg = ev.content.status_msg.unwrap_or(String::new()), machine_guid = &sender_machine_guid);
@@ -112,7 +119,6 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                     let me = client.user_id().await.unwrap();
 
                     if let SyncRoomMemberEvent::Original(ev) = &ev {
-
                         info!("ABDEBUG: Original Event !!");
                         if room.is_direct() || ev.content.is_direct.unwrap_or(false) {
                             info!("Room is direct !!");
@@ -250,6 +256,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
     filters.room = room_filters;
 
     let mut settings = SyncSettings::new().timeout(Duration::from_secs(10)).filter(Filter::FilterDefinition(filters));
+    settings = settings.set_presence(PresenceState::Offline);
 
     let my_uuid = UUID::from_string(&msn_addr);
 
@@ -261,8 +268,11 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
 
             {
                 let client_data_repo : Arc<ClientDataRepository> = CLIENT_DATA_REPO.clone();
+
+
                 if let Some(client_data) = client_data_repo.find(&token) {
-                    settings = settings.set_presence(client_data.presence_status.clone().into());
+                    matrix_client.account().set_presence(client_data.presence_status.clone().into(), None).await;
+                    //settings = settings.set_presence(client_data.presence_status.clone().into());
                 };
             }
     

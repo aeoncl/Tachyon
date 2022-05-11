@@ -210,10 +210,18 @@ impl CommandHandler for NotificationCommandHandler {
             },
             "CHG" => {
                 let status = PresenceStatus::from_str(split[2]).unwrap_or(PresenceStatus::NLN);
+
+                if let Some(matrix_client) = MATRIX_CLIENT_REPO.clone().find(&self.matrix_token){
+                    matrix_client.account().set_presence(status.clone().into(), None).await;
+                }
+
                 let client_data_repo : Arc<ClientDataRepository> = CLIENT_DATA_REPO.clone();
+
                 if let Some(mut client_data) = client_data_repo.find_mut(&self.matrix_token) {
                     client_data.presence_status = status;
                 }
+
+
                 // >>> CHG 11 NLN 2789003324:48 0
                 // <<< CHG 11 NLN 2789003324:48 0
                 return format!("{}\r\n", command.command);
@@ -242,7 +250,11 @@ impl CommandHandler for NotificationCommandHandler {
                     } else {
                         return format!("{error_code} {tr_id}\r\n", error_code = MsnpErrorCode::PrincipalNotOnline as i32, tr_id= tr_id);
                     }
+                } else {
+                    // this not for me
+                    return format!("{error_code} {tr_id}\r\n", error_code = MsnpErrorCode::PrincipalNotOnline as i32, tr_id= tr_id);                
                 }
+
 
                 let payload = command.payload.as_str();
                 //return format!("UUN {tr_id} OK\r\nUBN {msn_addr} 5 {payload_size}\r\n{payload}", tr_id = tr_id, msn_addr= &receiver_msn_addr, payload=&payload, payload_size = payload.len());
@@ -534,7 +546,7 @@ impl CommandHandler for SwitchboardCommandHandler {
 
                     let mut client = self.matrix_client.as_ref().unwrap().clone();
 
-                    let target_room = client.get_or_create_dm_room(user_to_add).await.unwrap().unwrap(); //TODO handle this
+                    let target_room = client.find_or_create_dm_room(&user_to_add).await.unwrap().unwrap(); //TODO handle this
                     self.target_room_id = target_room.room_id().to_string();
                     let client_data = CLIENT_DATA_REPO.find_mut(&self.matrix_token).unwrap();
 
