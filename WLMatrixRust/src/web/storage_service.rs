@@ -218,11 +218,11 @@ async fn storage_update_profile(body: web::Bytes, request: HttpRequest) -> Resul
         matrix_client.account().set_display_name(Some(display_name.as_str())).await?;
     }
 
-    if let Some(psm) = profile.personal_status {
-        let presence = matrix_client.account().get_presence().await?;
-        matrix_client.account().set_presence(presence.presence, Some(psm.as_str())).await?;
+    let psm = profile.personal_status.unwrap_or(String::new());
+    let presence = matrix_client.account().get_presence().await?;
+    matrix_client.account().set_presence(presence.presence, Some(psm.as_str())).await?;
 
-    }
+    
 
     let response = UpdateProfileResponseFactory::get_response(matrix_token, DEFAULT_CACHE_KEY.to_string());
     let response_serialized = to_string(&response)?;

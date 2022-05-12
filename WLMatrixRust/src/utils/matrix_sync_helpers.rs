@@ -255,7 +255,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
     room_filters.include_leave = true;
     filters.room = room_filters;
 
-    let mut settings = SyncSettings::new().timeout(Duration::from_secs(10)).filter(Filter::FilterDefinition(filters));
+    let mut settings = SyncSettings::new().timeout(Duration::from_secs(5)).filter(Filter::FilterDefinition(filters));
     settings = settings.set_presence(PresenceState::Offline);
 
     let my_uuid = UUID::from_string(&msn_addr);
@@ -266,15 +266,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
     tokio::spawn(async move {
         loop {
 
-            {
-                let client_data_repo : Arc<ClientDataRepository> = CLIENT_DATA_REPO.clone();
 
-
-                if let Some(client_data) = client_data_repo.find(&token) {
-                    matrix_client.account().set_presence(client_data.presence_status.clone().into(), None).await;
-                    //settings = settings.set_presence(client_data.presence_status.clone().into());
-                };
-            }
     
             {
                 let ab_data_repo  = AB_DATA_REPO.clone();
@@ -301,6 +293,29 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                         break;
                     }
                 },    
+            }
+
+            {
+                let client_data_repo : Arc<ClientDataRepository> = CLIENT_DATA_REPO.clone();
+
+
+                if let Some(client_data) = client_data_repo.find(&token) {
+
+                    if let Some(found) = matrix_client.store().get_presence_event(&matrix_client.user_id().await.unwrap()).await.unwrap() {
+                        let event: PresenceEvent = found.deserialize_as().unwrap();
+                        
+
+                        let mut status_msg_to_set: Option<&str> = None;
+                        if let Some(status_msg) = event.content.status_msg.as_ref() {
+                            status_msg_to_set = Some(status_msg.as_str());
+                        }
+
+                        matrix_client.account().set_presence(client_data.presence_status.clone().into(), status_msg_to_set).await;
+
+                    }
+
+                    //settings = settings.set_presence(client_data.presence_status.clone().into());
+                };
             }
         
         }
