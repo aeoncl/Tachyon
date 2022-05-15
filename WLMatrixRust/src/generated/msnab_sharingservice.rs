@@ -4778,7 +4778,7 @@ pub mod factories {
 
     impl FindMembershipResponseFactory {
 
-        pub fn get_empty_response(uuid: UUID, msn_addr: String, cache_key: String) -> FindMembershipResponseMessageSoapEnvelope {
+        pub fn get_empty_response(uuid: UUID, msn_addr: String, cache_key: String, membership_is_complete: bool) -> FindMembershipResponseMessageSoapEnvelope {
 
             let circle_attributes = CircleAttributesType{ is_presence_enabled: false, is_event: None, domain: String::from("WindowsLive") };
             let handle = Handle { id: UUID::nil().to_string(), is_passport_name_hidden: false, cid: String::from("0") };
@@ -4789,7 +4789,7 @@ pub mod factories {
             let owner_namespace = OwnerNamespaceType{ info: owner_namespace_info, changes: String::new(), create_date: String::from("2014-10-31T00:00:00Z"), last_change: now.format("%Y-%m-%dT%H:%M:%SZ").to_string() };
             
             let mut services = Vec::new();
-            services.push(FindMembershipResponseFactory::get_messenger_service(Vec::new(), Vec::new(), Vec::new(), Vec::new(), true));
+            services.push(FindMembershipResponseFactory::get_messenger_service(Vec::new(), Vec::new(), Vec::new(), Vec::new(), membership_is_complete));
     
             let array_of_services = ArrayOfServiceType{ service: services };
             
@@ -4872,7 +4872,7 @@ pub mod factories {
 
     impl ContactFactory {
 
-        pub fn get_me_contact(uuid: &UUID, msn_addr: &String) -> ContactType {
+        pub fn get_me_contact(uuid: &UUID, msn_addr: &String, display_name: &String) -> ContactType {
 
             let now = Local::now();
 
@@ -4885,7 +4885,7 @@ pub mod factories {
 
             let array_of_annotations = ArrayOfAnnotation{ annotation: annotation_array };
 
-            let me_contact_info = ContactInfoType{ emails: None, phones: None, locations: None, web_sites: None, annotations: Some(array_of_annotations), group_ids: None, group_ids_deleted: None, contact_type: Some(ContactTypeEnum::Me), quick_name: Some(msn_addr.clone()), first_name: None, middle_name: None, last_name: None, suffix: None, name_title: None, passport_name: Some(msn_addr.clone()), display_name: Some(msn_addr.clone()), puid: Some(0), cid: Some(uuid.to_decimal_cid()), brand_id_list: None, comment: None, is_mobile_im_enabled: Some(false), is_messenger_user: Some(true), is_favorite: Some(false), is_smtp: Some(false), has_space: Some(true), spot_watch_state: Some(String::from("NoDevice")), birthdate: Some(String::from("0001-01-01T00:00:00")), primary_email_type: Some(ContactEmailTypeType{ body: String::from("Passport") }), primary_location: Some(ContactLocationTypeType{ body: String::from("ContactLocationPersonal") }), primary_phone: Some(String::from("ContactPhonePersonal")), is_private: Some(false), anniversary: None, gender: Some(String::from("Unspecified") ), time_zone: Some(String::from("None")), trust_level: None, network_info_list: None, public_display_name: None, is_auto_update_disabled: None, is_hidden: None, is_passport_name_hidden: Some(false), is_not_mobile_visible: Some(false), is_shell_contact: None, messenger_member_info: None, properties_changed: None, client_error_data: None, link_info: None, source_handle: None, file_as: None, ur_ls: None };
+            let me_contact_info = ContactInfoType{ emails: None, phones: None, locations: None, web_sites: None, annotations: Some(array_of_annotations), group_ids: None, group_ids_deleted: None, contact_type: Some(ContactTypeEnum::Me), quick_name: Some(display_name.clone()), first_name: None, middle_name: None, last_name: None, suffix: None, name_title: None, passport_name: Some(msn_addr.clone()), display_name: Some(display_name.clone()), puid: Some(0), cid: Some(uuid.to_decimal_cid()), brand_id_list: None, comment: None, is_mobile_im_enabled: Some(false), is_messenger_user: Some(true), is_favorite: Some(false), is_smtp: Some(false), has_space: Some(true), spot_watch_state: Some(String::from("NoDevice")), birthdate: Some(String::from("0001-01-01T00:00:00")), primary_email_type: Some(ContactEmailTypeType{ body: String::from("Passport") }), primary_location: Some(ContactLocationTypeType{ body: String::from("ContactLocationPersonal") }), primary_phone: Some(String::from("ContactPhonePersonal")), is_private: Some(false), anniversary: None, gender: Some(String::from("Unspecified") ), time_zone: Some(String::from("None")), trust_level: None, network_info_list: None, public_display_name: None, is_auto_update_disabled: None, is_hidden: None, is_passport_name_hidden: Some(false), is_not_mobile_visible: Some(false), is_shell_contact: None, messenger_member_info: None, properties_changed: None, client_error_data: None, link_info: None, source_handle: None, file_as: None, ur_ls: None };
             return ContactType{ contact_id: Some(uuid.to_string()), contact_info: Some(me_contact_info), properties_changed: Some(String::new()), f_deleted: Some(false), last_change: Some(now.format("%Y-%m-%dT%H:%M:%SZ").to_string()), create_date: None, last_modified_by: None, created_by: None };
 
         }
@@ -4902,7 +4902,7 @@ pub mod factories {
 
     impl FindContactsPagedResponseFactory {
 
-        pub fn get_response(uuid: UUID, cache_key: String, msn_addr: String, contacts: Vec<ContactType>) -> AbfindContactsPagedResponseMessageSoapEnvelope {
+        pub fn get_response(uuid: UUID, cache_key: String, msn_addr: String, display_name: String, contacts: Vec<ContactType>) -> AbfindContactsPagedResponseMessageSoapEnvelope {
 
             let now = Local::now();
     
@@ -4912,7 +4912,7 @@ pub mod factories {
             let ab = Ab{ ab_id: UUID::nil().to_string(), ab_info: ab_info_type, last_change: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), dynamic_item_last_changed: String::from("0001-01-01T00:00:00"), recent_activity_item_last_changed: None, create_date: create_date.clone(), properties_changed: String::new() };
     
             let mut contact_array = contacts;
-            contact_array.push(ContactFactory::get_me_contact(&uuid, &msn_addr));
+            contact_array.push(ContactFactory::get_me_contact(&uuid, &msn_addr, &display_name));
             let array_of_contact = ArrayOfContactType{ contact: contact_array };
 
             let mut favorite_annotation_arary : Vec<Annotation> = Vec::new();
@@ -5029,7 +5029,7 @@ pub mod factories {
         #[test]
         fn test_get_empty_find_membership_response() {
 
-            let response = FindMembershipResponseFactory::get_empty_response(UUID::from_string(&String::from("TEST")), String::from("test@matrix.org"), String::from("c4che_key"));
+            let response = FindMembershipResponseFactory::get_empty_response(UUID::from_string(&String::from("TEST")), String::from("test@matrix.org"), String::from("c4che_key"), true);
             let serialized = to_string(&response).unwrap();
         }
 

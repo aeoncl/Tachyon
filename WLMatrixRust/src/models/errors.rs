@@ -1,9 +1,17 @@
+use std::str::Utf8Error;
+
 #[derive(Debug)]
 
 pub enum Errors {
 
     PayloadDeserializeError
 
+}
+
+impl From<Utf8Error> for Errors {
+    fn from(err: Utf8Error) -> Errors {
+        Errors::PayloadDeserializeError
+    }
 }
 
 pub enum MsnpErrorCode {

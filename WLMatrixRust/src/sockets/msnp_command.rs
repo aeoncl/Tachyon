@@ -20,7 +20,7 @@ impl MSNPCommandParser {
                 let mut offset: usize = 0;
 
                 let mut command = MSNPCommand::new(
-                    cap[0].substring(0, cap[0].len() - 2).to_string(),
+                    cap[0][0..cap[0].len() - 2].to_string(),
                     cap[1].to_string(),
                     String::new(),
                 );

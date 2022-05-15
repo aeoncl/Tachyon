@@ -1,6 +1,9 @@
 use std::{collections::HashMap, str::FromStr};
 use lazy_static::lazy_static;
+use log::info;
 use regex::Regex;
+
+use crate::models::errors::Errors;
 
 use super::errors;
 
@@ -75,46 +78,46 @@ impl FromStr for MsgPayload {
 
         let mut out = MsgPayload::new("");
 
+        info!("debug testtt");
 
         let s = String::from(s);
-        let split_str : Vec<&str> = s.split("\r\n").collect();
-        let count = split_str.len();
-        for i in 0..count {
-            let current = split_str.get(i).unwrap().to_string();
+        info!("debug testtt1");
 
-            if(i==count-1){
-                //thass the body
-                out.body = current;
-            } else {
-                //thass a header
-                let current_header_split : Vec<&str> =  current.split(":").collect();
-                if current_header_split.len() >= 2 {
-                
-                    let header_name = current_header_split.get(0).unwrap().to_string();
-                    let value = current_header_split.get(1).unwrap().to_string().trim().to_string();
-    
-                    if header_name == String::from("Content-Type") {
-                        let value_split : Vec<&str> = value.split(";").collect();
-                        let mime_type = value_split.get(0).unwrap().to_string();
-                        out.content_type = mime_type;
-                    } else {
-                        if header_name != String::from("MIME-Version") {
-                            out.add_header(header_name, value);
+        if let Some((headers, body)) = s.split_once("\r\n\r\n") {
+
+            let split_str : Vec<&str> = headers.split("\r\n").collect();
+            info!("debug split: {:?}", &split_str);
+            let count = split_str.len();
+            for i in 0..count {
+                let current = split_str.get(i).unwrap().to_string();
+
+                if let Some((name, value)) =  current.split_once(":"){
+
+                        if name == String::from("Content-Type") {
+                            let value_split : Vec<&str> = value.split(";").collect();
+                            let mime_type = value_split.get(0).ok_or(Errors::PayloadDeserializeError)?.trim().to_string();
+                            out.content_type = mime_type;
+                        } else {
+                            if name != String::from("MIME-Version") {
+                                out.add_header(name.trim().to_string(), value.trim().to_string());
+                            }
                         }
-                    }
-
 
                 }
             }
+            out.body = body.to_owned();
+            return Ok(out);
+
         }
-        return Ok(out);
+        return Err(Errors::PayloadDeserializeError);
     }
 }
 
 pub mod factories {
     use chrono::Local;
+    use matrix_sdk::ruma::exports::serde_json::de;
 
-    use crate::models::uuid::{PUID};
+    use crate::models::{uuid::{PUID}, msn_user::MSNUser, slp_payload::P2PTransportPacket};
 
     use super::MsgPayload;
 
@@ -196,6 +199,16 @@ pub mod factories {
             return out;
         }
 
+        pub fn get_p2p(source: &MSNUser, destination: &MSNUser, payload: &P2PTransportPacket) -> MsgPayload {
+            let mut out = MsgPayload::new("application/x-msnmsgrp2p");
+            out.add_header(String::from("P2P-Dest"), format!("{msn_addr};{{{endpoint_guid}}}", msn_addr = &destination.msn_addr, endpoint_guid = &destination.endpoint_guid));
+            out.add_header(String::from("P2P-Src"), format!("{msn_addr};{{{endpoint_guid}}}", msn_addr = &source.msn_addr, endpoint_guid = &source.endpoint_guid));
+
+            out.body = payload.to_string();
+            out.disable_charset();
+            return out;
+        }
+
     }
 
 }
@@ -211,6 +224,7 @@ mod tests {
     fn test() {
         let mut payload = MsgPayload::new("content-type");
         payload.add_header(String::from("headerName"),String::from("headerValue"));
+        payload.disable_trailing_terminators();
         let serialized = payload.serialize();
         assert_eq!(serialized,String::from("MIME-Version: 1.0\r\nContent-Type: content-type; charset=UTF-8\r\nheaderName: headerValue\r\n\r\n")); 
     }
@@ -218,7 +232,8 @@ mod tests {
     #[test]
     fn test_deserialize() {
         let test = "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nX-MMS-IM-Format: FN=Segoe%20UI; EF=; CO=0; CS=1; PF=0\r\n\r\nfaefeafa";
-        let result = MsgPayload::from_str(test).unwrap();
+        let mut result = MsgPayload::from_str(test).unwrap();
+        result.disable_trailing_terminators();
         assert_eq!(result.body, String::from("faefeafa"));
         assert_eq!(result.content_type, String::from("text/plain"));
         assert!(result.get_header(&String::from("X-MMS-IM-Format")) == Some(&String::from("FN=Segoe%20UI; EF=; CO=0; CS=1; PF=0")));

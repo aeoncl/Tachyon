@@ -52,11 +52,11 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                         //let msn_obj = "<msnobj/>";
                         let msn_obj = "";
                         let capabilities = ClientCapabilitiesFactory::get_default_capabilities();
-                        msn_ns_sender.send(format!("NLN {status} 1:{msn_addr} {nickname} {client_capabilities} {msn_obj}\r\n", client_capabilities= &capabilities ,msn_addr= &sender_msn_addr, status = presence_status.to_string(), nickname= &display_name, msn_obj = msn_obj));
+                        msn_ns_sender.send(format!("NLN {status} 1:{msn_addr} {nickname} {client_capabilities} {msn_obj}\r\n", client_capabilities= "2788999228:48" ,msn_addr= &sender_msn_addr, status = presence_status.to_string(), nickname= &display_name, msn_obj = msn_obj));
                         //msn_ns_sender.send(format!("NLN {status} 1:{msn_addr} {nickname} 2788999228:48 {msn_obj}\r\n", msn_addr= &sender_msn_addr, status = presence_status.to_string(), nickname= test3, msn_obj = msn_obj));
 
-                        //let ubx_payload = format!("<PSM>{status_msg}</PSM><CurrentMedia></CurrentMedia><EndpointData id=\"{{{machine_guid}}}\"><Capabilities>2788999228:48</Capabilities></EndpointData>", status_msg = ev.content.status_msg.unwrap_or(String::new()), machine_guid = &sender_machine_guid);
-                        let ubx_payload = format!("<PSM>{status_msg}</PSM><CurrentMedia></CurrentMedia>", status_msg = ev.content.status_msg.unwrap_or(String::new()));
+                        let ubx_payload = format!("<PSM>{status_msg}</PSM><CurrentMedia></CurrentMedia><EndpointData id=\"{{{machine_guid}}}\"><Capabilities>2788999228:48</Capabilities></EndpointData>", status_msg = ev.content.status_msg.unwrap_or(String::new()), machine_guid = &sender_machine_guid);
+                        //let ubx_payload = format!("<PSM>{status_msg}</PSM><CurrentMedia></CurrentMedia>", status_msg = ev.content.status_msg.unwrap_or(String::new()));
                         msn_ns_sender.send(format!("UBX 1:{msn_addr} {ubx_payload_size}\r\n{ubx_payload}", msn_addr = &sender_msn_addr, ubx_payload_size= ubx_payload.len(), ubx_payload=ubx_payload));
                     }
                 }

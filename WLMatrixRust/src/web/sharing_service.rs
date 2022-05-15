@@ -35,6 +35,8 @@ async fn ab_sharing_find_membership(body: web::Bytes, request: HttpRequest) -> R
     let body = from_utf8(&body).unwrap();
 
     let request = from_str::<FindMembershipMessageSoapEnvelope>(body)?;
+    let deltas_only = request.body.body.find_membership_request.deltas_only;
+    
     let header = request.header.ok_or(StatusCode::BAD_REQUEST)?;
     let ticket_token = &header.ab_auth_header.ticket_token;
     let matrix_token = header.ab_auth_header.ticket_token.substring(2, ticket_token.len()).to_string();
@@ -51,7 +53,7 @@ async fn ab_sharing_find_membership(body: web::Bytes, request: HttpRequest) -> R
         response = FindMembershipResponseFactory::get_empty_response(
             UUID::from_string(&msn_addr_to_matrix_id(&found.msn_login)),
             found.msn_login.clone(),
-            cache_key.clone());
+            cache_key.clone(), deltas_only);
     } else {
         let ab_data_repo  = AB_DATA_REPO.clone();
         let mut ab_data = ab_data_repo.find_mut(&matrix_token).unwrap();

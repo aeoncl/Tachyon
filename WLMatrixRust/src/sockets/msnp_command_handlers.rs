@@ -16,6 +16,8 @@ use crate::models::ab_data::AbData;
 use crate::models::errors::{MsnpErrorCode};
 use crate::models::msg_payload::MsgPayload;
 use crate::models::msn_user::MSNUser;
+use crate::models::slp_payload::{P2PTransportPacket, P2PPayload};
+use crate::models::slp_payload::factories::SlpPayloadFactory;
 use crate::models::switchboard_handle::SwitchboardHandle;
 use crate::repositories::matrix_client_repository::MatrixClientRepository;
 use crate::repositories::repository::Repository;
@@ -432,16 +434,16 @@ impl SwitchboardCommandHandler {
             capabilities = &msn_user.capabilities));
 
 
-            // let endpoint_guid = UUID::from_string(&msn_user.msn_addr).to_string().to_uppercase();
+            let endpoint_guid = UUID::from_string(&msn_user.msn_addr).to_string().to_uppercase();
 
-            // self.sender.send(format!("IRO {tr_id} {index} {roster_count} {passport};{{{endpoint_guid}}} {friendly_name} {capabilities}\r\n",
-            // tr_id = &tr_id,
-            // index = &index+1,
-            // roster_count = &count,
-            // passport = &msn_user.msn_addr,
-            // friendly_name = &msn_user.msn_addr,
-            // endpoint_guid = &endpoint_guid,
-            // capabilities = &msn_user.capabilities));
+            self.sender.send(format!("IRO {tr_id} {index} {roster_count} {passport};{{{endpoint_guid}}} {friendly_name} {capabilities}\r\n",
+            tr_id = &tr_id,
+            index = &index+1,
+            roster_count = &count,
+            passport = &msn_user.msn_addr,
+            friendly_name = &msn_user.msn_addr,
+            endpoint_guid = &endpoint_guid,
+            capabilities = &msn_user.capabilities));
 
     }
 
@@ -574,9 +576,40 @@ impl CommandHandler for SwitchboardCommandHandler {
                 
                 if let Ok(payload) = MsgPayload::from_str(command.payload.as_str()){
 
-                    let client_data = CLIENT_DATA_REPO.find(&self.matrix_token).unwrap();
-                    if let Some(mut sb_handle) = client_data.switchboards.find(&self.target_room_id){
-                        sb_handle.send_message_to_server(payload).await;
+                    if payload.content_type == "application/x-msnmsgrp2p" {
+                        //P2P packets
+                       if let Ok(p2p_packet) = P2PTransportPacket::from_str(&payload.body){
+
+                            if let Some(request_p2p_payload) = &p2p_packet.payload {
+                                if let Ok(slp_payload) = request_p2p_payload.get_payload_as_slp() {
+                                    let slp_response = SlpPayloadFactory::get_200_ok(&slp_payload);
+        
+                                    let slp_response_serialized = slp_response.to_string().into_bytes();
+                                    let slp_response_length = slp_response_serialized.len();
+
+
+                                    let p2p_payload = P2PPayload{ header_length: 0, tf_combination: request_p2p_payload.tf_combination.clone(), package_number: request_p2p_payload.package_number.clone(), session_id: request_p2p_payload.session_id.clone(), tlvs: Vec::new(), payload: slp_response_serialized };
+                                    let p2p_transport_response = P2PTransportPacket { header_length: 0, op_code: 0, payload_length: slp_response_length, sequence_number: p2p_packet.get_next_squence_number(), tlvs: Vec::new(), payload: Some(p2p_payload) };
+                                    let source = MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Dest")).unwrap().to_owned()).unwrap();
+                                    let msg_response = MsgPayloadFactory::get_p2p(&source, &MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Src")).unwrap().to_owned()).unwrap(), &p2p_transport_response);
+                                    let serialized_response = msg_response.serialize();
+                                
+                                    self.sender.send(format!("MSG {msn_addr} {msn_addr} {payload_size}\r\n{payload}", msn_addr = &source.msn_addr, payload_size = serialized_response.len(), payload = &serialized_response));
+                                } else {
+                                    info!("P2P: Message body was not a SLP message: {}", &p2p_packet);
+                                }
+                            }
+                           
+                        } else {
+                            info!("P2P: Transport packet deserialization failed: {}", &payload.body);
+    
+                           }
+                    } else {
+
+                        let client_data = CLIENT_DATA_REPO.find(&self.matrix_token).unwrap();
+                        if let Some(mut sb_handle) = client_data.switchboards.find(&self.target_room_id){
+                            sb_handle.send_message_to_server(payload).await;
+                        }
                     }
                   
                 }
