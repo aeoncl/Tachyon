@@ -206,6 +206,7 @@ pub mod factories {
 
             out.body = payload.to_string();
             out.disable_charset();
+            out.disable_trailing_terminators();
             return out;
         }
 
