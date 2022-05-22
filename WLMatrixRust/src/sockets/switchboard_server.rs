@@ -82,11 +82,11 @@ impl TCPServer for SwitchboardServer {
                         //  They contain a binary header which is not UTF8
                         let line = unsafe {from_utf8_unchecked(&buffer)};
 
-                             info!("DEBUG BUFFER\r\n{:#04x?}", &buffer);
+                          //   info!("DEBUG BUFFER\r\n{:#04x?}", &buffer);
 
                             let mut line = String::from(line);
                             //This is potentially not an UTF8 String
-                            info!("DEBUG: {}, length: {}", &line, line.len());
+                           // info!("DEBUG: {}, length: {}", &line, line.len());
                             if bytes_read.unwrap_or(0) == 0 {
                                 break;
                             }
@@ -95,23 +95,23 @@ impl TCPServer for SwitchboardServer {
 
                             if let Some(command_to_fill) = incomplete_command {
                                incomplete_command = None;
-                               info!("SOME INCOMPLETE STUFF: {}", &line);
+                          //     info!("SOME INCOMPLETE STUFF: {}", &line);
                                let (remaining, command) = MSNPCommandParser::parsed_chunked(line.clone(), command_to_fill);
                               line = remaining;
                               commands.push(command);
                             } else {
-                               info!("NO INCOMPLETE STUFF");
+                         //      info!("NO INCOMPLETE STUFF");
 
                             }
 
 
                            commands.extend(MSNPCommandParser::parse_message(&line));
-                           info!("PARSING WORKED, {} commands found in msg", commands.len());
+                        //   info!("PARSING WORKED, {} commands found in msg", commands.len());
 
                            for command in commands {
                                if command.is_complete() {
 
-                                info!("command passed complete check");
+                            //    info!("command passed complete check");
 
                                 info!("SW {}<= {}", &uuid.to_string(), &command);
                                    let response = command_handler.handle_command(&command).await;
@@ -120,7 +120,7 @@ impl TCPServer for SwitchboardServer {
                                        info!("SW {}=> {}",&uuid.to_string(), &response);
                                    }
                                } else {
-                                info!("command failed complete check");
+                      //          info!("command failed complete check");
                                    incomplete_command = Some(command);
                                }
 

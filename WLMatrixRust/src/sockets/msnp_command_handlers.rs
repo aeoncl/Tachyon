@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::str::FromStr;
+use std::str::{FromStr, from_utf8_unchecked};
 use std::sync::Arc;
 use matrix_sdk::ruma::{RoomId, OwnedRoomId};
 use matrix_sdk::ruma::exports::ruma_macros::room_id;
@@ -11,12 +11,14 @@ use matrix_sdk::room::Room;
 use matrix_sdk::ruma::events::room::message::{SyncRoomMessageEvent, RoomMessageEventContent};
 use substring::Substring;
 use async_trait::async_trait;
-use tokio::sync::broadcast::{Sender, Receiver};
+use tokio::sync::broadcast::{Sender, Receiver, self};
 use crate::generated::payloads::{PrivateEndpointData, PresenceStatus};
 use crate::models::ab_data::AbData;
 use crate::models::errors::{MsnpErrorCode};
 use crate::models::msg_payload::MsgPayload;
 use crate::models::msn_user::MSNUser;
+use crate::models::p2p::pending_packet::PendingPacket;
+use crate::models::p2p::proxy_client::ProxyClient;
 use crate::models::slp_payload::{P2PTransportPacket, P2PPayload};
 use crate::models::slp_payload::factories::{SlpPayloadFactory, P2PTransportPacketFactory};
 use crate::models::switchboard_handle::SwitchboardHandle;
@@ -367,7 +369,8 @@ pub struct SwitchboardCommandHandler {
     target_msn_addr: String,
     matrix_client: Option<Client>,
     sender: Sender<String>,
-    sb_handle: Option<SwitchboardHandle>
+    sb_handle: Option<SwitchboardHandle>,
+    proxy_client: Option<ProxyClient>
 }
 
 impl SwitchboardCommandHandler {
@@ -382,12 +385,17 @@ impl SwitchboardCommandHandler {
             target_matrix_id: String::new(),
             target_msn_addr: String::new(),
             sender: sender,
+            proxy_client: None,
             sb_handle: None
         };
     }
 
 
-    fn start_receiving(&self, mut sb_handle_receiver: Receiver<String>) {
+    fn start_receiving(&mut self, mut sb_handle_receiver: Receiver<String>) {
+
+        let (p2p_sender, mut p2p_receiver) = broadcast::channel::<PendingPacket>(10);
+        self.proxy_client = Some(ProxyClient::new(p2p_sender));
+
         let sender = self.sender.clone();
         tokio::spawn(async move {
                 let sender = sender;
@@ -400,6 +408,16 @@ impl SwitchboardCommandHandler {
                             } else {
                                 let _result = sender.send(msg);
                             }
+                        },
+                        p2p_packet_to_send_maybe = p2p_receiver.recv() => {
+                            if let Ok(p2p_packet_to_send) = p2p_packet_to_send_maybe {
+                                let msn_sender = &p2p_packet_to_send.sender;
+                                let msn_receiver = &p2p_packet_to_send.receiver;
+
+                                let msg_to_send = MsgPayloadFactory::get_p2p(msn_sender, msn_receiver,  &p2p_packet_to_send.packet);
+                                let serialized_response = msg_to_send.serialize();
+                                let _result = sender.send(format!("MSG {msn_addr} {msn_addr} {payload_size}\r\n{payload}", msn_addr = &msn_sender.msn_addr, payload_size = serialized_response.len(), payload = &serialized_response));
+                            } 
                         }
                     }
                 }
@@ -579,59 +597,18 @@ impl CommandHandler for SwitchboardCommandHandler {
 
                     if payload.content_type == "application/x-msnmsgrp2p" {
                         //P2P packets
-                       if let Ok(p2p_packet) = P2PTransportPacket::from_str(&payload.body){
+                       if let Ok(mut p2p_packet) = P2PTransportPacket::from_str(&payload.body){
+                            if let Some(proxy_client) = &mut self.proxy_client {
 
-                            if let Some(request_p2p_payload) = &p2p_packet.payload {
-
-                                if let Ok(slp_payload) = request_p2p_payload.get_payload_as_slp() {
-                                    let slp_response = SlpPayloadFactory::get_200_ok(&slp_payload);
-        
-                                    let slp_response_serialized = slp_response.unwrap().to_string().into_bytes();
-                                    let slp_response_length = slp_response_serialized.len();
-
-
-                                    let p2p_payload = P2PPayload{ header_length: 0, tf_combination: 0x01, package_number: request_p2p_payload.package_number.clone(), session_id: 0x0000, tlvs: Vec::new(), payload: slp_response_serialized };
-                                    let mut p2p_transport_response = P2PTransportPacket { header_length: 0, op_code: 0, payload_length: slp_response_length, sequence_number: p2p_packet.get_next_squence_number(), tlvs: Vec::new(), payload: Some(p2p_payload) };
-                                    if p2p_packet.is_syn() {
-                                        info!("IS SYN");
-                                        let client_info_tlv = p2p_packet.get_client_info_tlv().unwrap();
-                                        p2p_transport_response.set_syn(client_info_tlv.clone());
-                                    }
-
-                                    if p2p_packet.is_rak() {
-                                        info!("IS RAK");
-                                        let mut rng = rand::thread_rng();
-
-                                        let next_seq_number = p2p_packet.get_next_ack_sequence_number().unwrap_or(rng.gen::<u32>());
-                                        p2p_transport_response.set_ack(next_seq_number);
-                                    }
-                                   
-                                    let source = MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Dest")).unwrap().to_owned()).unwrap();
-                                    let msg_response = MsgPayloadFactory::get_p2p(&source, &MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Src")).unwrap().to_owned()).unwrap(), &p2p_transport_response);
-                                    let serialized_response = msg_response.serialize();
-                                
-                                    self.sender.send(format!("MSG {msn_addr} {msn_addr} {payload_size}\r\n{payload}", msn_addr = &source.msn_addr, payload_size = serialized_response.len(), payload = &serialized_response));
-                                } else {
-                                    info!("P2P: Message body was not a SLP message: {}", &p2p_packet);
-                                }
+                                let source = MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Src")).unwrap().to_owned()).unwrap();
+                                let dest = MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Dest")).unwrap().to_owned()).unwrap();
+                                proxy_client.on_message_received(PendingPacket::new(p2p_packet, source, dest));
 
                             } else {
-                                info!("P2P: No P2P Payload in message: {}", &p2p_packet);
-                                let mut rng = rand::thread_rng();
+                                info!("P2P: Message received while proxy_client wasn't initialized: {}", &payload.body);
 
-                                    let mut p2p_transport_response = P2PTransportPacket::new(0, None);
-                                    if p2p_packet.is_syn() && p2p_packet.is_rak() {
-                                        p2p_transport_response = P2PTransportPacketFactory::get_syn_ack(p2p_packet.get_next_squence_number(), p2p_packet.get_next_ack_sequence_number().unwrap_or(rng.gen::<u32>()), p2p_packet.get_client_info_tlv().unwrap().clone());
-                                    } else if p2p_packet.is_rak() {
-                                        p2p_transport_response = P2PTransportPacketFactory::get_ack(p2p_packet.get_next_squence_number(), p2p_packet.get_next_ack_sequence_number().unwrap_or(rng.gen::<u32>()));
-                                    }
-
-                                    let source = MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Dest")).unwrap().to_owned()).unwrap();
-                                    let msg_response = MsgPayloadFactory::get_p2p(&source, &MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Src")).unwrap().to_owned()).unwrap(), &p2p_transport_response);
-                                    let serialized_response = msg_response.serialize();
-
-                                    self.sender.send(format!("MSG {msn_addr} {msn_addr} {payload_size}\r\n{payload}", msn_addr = &source.msn_addr, payload_size = serialized_response.len(), payload = &serialized_response));
                             }
+
                            
                         } else {
                             info!("P2P: Transport packet deserialization failed: {}", &payload.body);

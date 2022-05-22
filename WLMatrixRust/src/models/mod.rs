@@ -7,3 +7,4 @@ pub mod ab_data;
 pub mod switchboard_handle;
 pub mod msn_user;
 pub mod capabilities;
+pub mod p2p;

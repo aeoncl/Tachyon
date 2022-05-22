@@ -7,23 +7,24 @@ use crate::utils::buffer::extract_tlvs;
 
 use self::factories::TLVFactory;
 
-use super::errors::Errors;
-
+use super::{errors::Errors, msn_user::MSNUser};
+use linked_hash_map::LinkedHashMap;
 /**
  * Amazing documentation for the P2P stack by msnp-sharp project
  * https://code.google.com/archive/p/msnp-sharp/wikis/KB_MSNC12_BinaryHeader.wiki
  */
 
+#[derive(Clone, Debug)]
 pub struct SlpPayload {
 
     pub first_line: String,
-    pub headers: HashMap<String, String>,
-    pub body: HashMap<String, String>
+    pub headers: LinkedHashMap<String, String>,
+    pub body: LinkedHashMap<String, String>
 }
 
 impl SlpPayload {
     pub fn new() -> Self {
-        return SlpPayload{ first_line: String::new(), headers: HashMap::new(), body: HashMap::new()};
+        return SlpPayload{ first_line: String::new(), headers: LinkedHashMap::new(), body: LinkedHashMap::new()};
     }
 
     pub fn add_header(&mut self, name: String, value: String){
@@ -99,19 +100,21 @@ impl Display for SlpPayload {
         for (key, value) in &self.body {
             body.push_str(format!("{key}: {value}\r\n", key=&key, value=&value).as_str());
         }
+        body.push_str("\r\n");
+        body.push_str("\0");
 
         
         let mut headers = String::new();
 
-        headers.push_str(format!("Content-Length: {value}\r\n", value=body.len()).as_str());
         for (key, value) in &self.headers {
             headers.push_str(format!("{key}: {value}\r\n", key=&key, value=&value).as_str());
         }
+        
+        headers.push_str(format!("Content-Length: {value}\r\n", value=body.len()).as_str()); 
 
         out.push_str(headers.as_str());
         out.push_str("\r\n");
         out.push_str(body.as_str());
-        out.push_str("\r\n");
         return write!(f, "{}", out);
     }
 }
@@ -120,6 +123,7 @@ impl Display for SlpPayload {
 /* P2PHeaderV2 */
 /* For the official client to use P2PV2 headers, firstly, our fake client must have the P2PV2 Extended Capability 
 AND our fake client must be MPOP enabled. (which means adding endpoint data in NLN UBX payload AND making join the endpoint in switchboards. */
+#[derive(Clone, Debug)]
 pub struct P2PTransportPacket {
 
     pub header_length: usize,
@@ -133,11 +137,19 @@ pub struct P2PTransportPacket {
 impl P2PTransportPacket {
 
     pub fn new(sequence_number: u32, payload: Option<P2PPayload>) -> Self {
-        return P2PTransportPacket { header_length: 0, op_code: 0, payload_length: 0, sequence_number, tlvs: Vec::new(), payload };
+        return P2PTransportPacket { header_length: 0, op_code: 0, payload_length: 0, sequence_number, tlvs: Vec::new(), payload};
     }
 
     pub fn get_next_squence_number(&self) -> u32 {
         return self.sequence_number + self.payload_length as u32;
+    }
+
+    pub fn get_payload_length(&self) -> u32 {
+        if let Some(payload) = &self.payload {
+            let serialized = payload.to_string();
+            return serialized.len() as u32;
+        } 
+        return 0;
     }
 
     pub fn is_rak(&self) -> bool {
@@ -150,6 +162,10 @@ impl P2PTransportPacket {
         return is_syn_flag == OperationCode::Syn as u8;
     }
 
+    pub fn is_ack(&self) -> bool {
+        return self.get_ack_tlv().is_some();
+    }
+
     pub fn set_syn(&mut self, client_info: TLV) {
         self.op_code = self.op_code + OperationCode::Syn as u8;
         self.tlvs.push(client_info);
@@ -160,10 +176,14 @@ impl P2PTransportPacket {
         self.tlvs.push(ack_tlv);
     }
 
+    pub fn set_rak(&mut self) {
+        self.op_code += OperationCode::RequestForAck as u8;
+    }
+
     pub fn get_next_ack_sequence_number(&self) -> Option<u32> {
         if self.is_rak() {
             if let Some(ack_tlv) = self.get_ack_tlv(){
-                let seq_number = BigEndian::read_u32(&ack_tlv.value);
+                let seq_number = BigEndian::read_u32(ack_tlv.value.as_slice());
                 return Some(seq_number + self.payload_length as u32);
             }
         }
@@ -212,7 +232,7 @@ impl FromStr for P2PTransportPacket {
 
 
         let stop = true;
-        return Ok(P2PTransportPacket{ header_length, op_code, payload_length, sequence_number, tlvs, payload });
+        return Ok(P2PTransportPacket{ header_length, op_code, payload_length, sequence_number, tlvs, payload});
 
     }
 }
@@ -290,6 +310,7 @@ impl Display for P2PTransportPacket {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct P2PPayload {
 
     pub header_length: usize,
@@ -301,6 +322,10 @@ pub struct P2PPayload {
 }
 
 impl P2PPayload {
+
+    pub fn new(tf_combination: u8, session_id: u32) -> Self{
+        return P2PPayload{ header_length: 0, tf_combination, package_number: 0, session_id, tlvs: Vec::new(), payload: Vec::new() };
+    }
 
     pub fn deserialize(bytes: &[u8], payload_length: usize) -> Result<Self, Errors> {
         let header_length = bytes.get(0).unwrap_or(&0).to_owned() as usize;
@@ -317,6 +342,14 @@ impl P2PPayload {
 
         let payload = bytes[8+tlvs_length..payload_length].to_owned();
         return Ok(P2PPayload{ header_length, tf_combination, package_number, session_id, tlvs, payload });
+    }
+
+    pub fn add_tlv(&mut self, tlv: TLV) {
+        self.tlvs.push(tlv);
+    }
+
+    pub fn set_payload(&mut self, payload: Vec<u8>) {
+        self.payload = payload;
     }
 
     pub fn get_payload_as_slp(&self) -> Result<SlpPayload, Errors> {
@@ -381,11 +414,11 @@ impl Display for P2PPayload {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TLV {
-    length: usize,
-    value_type: u8,
-    value: Vec<u8>
+    pub length: usize,
+    pub value_type: u8,
+    pub value: Vec<u8>
 }
 
 impl TLV {
@@ -557,21 +590,6 @@ SessionID: 2216804035
 
     impl SlpPayloadFactory {
 
-        pub fn get_200_ok(invite: &SlpPayload) -> Result<SlpPayload, Errors> {
-            let content_type = invite.get_content_type().ok_or(Errors::PayloadDeserializeError)?;
-            match content_type.as_str() {
-                "application/x-msnmsgr-transreqbody" => {
-                    return SlpPayloadFactory::get_200_ok_direct_connect(invite);
-                },
-                "application/x-msnmsgr-sessionreqbody" => {
-                    return SlpPayloadFactory::get_200_ok_session(invite);
-                },
-                _ => {
-                    return Err(Errors::PayloadDeserializeError);
-                }
-            }
-        }
-
         pub fn get_200_ok_session(invite: &SlpPayload) -> Result<SlpPayload, Errors>  {
             let mut out = SlpPayload::new();
             out.first_line = String::from("MSNSLP/1.0 200 OK");
@@ -608,16 +626,19 @@ SessionID: 2216804035
                 out.add_body_property(String::from("SessionID"), session_id.to_owned());
             }
 
+            out.add_body_property(String::from("Listening"), String::from("true"));
+            out.add_body_property(String::from("NeedConnectingEndpointInfo"), String::from("false"));
+            out.add_body_property(String::from("Conn-Type"), String::from("Firewall"));
+            out.add_body_property(String::from("TCP-Conn-Type"), String::from("Firewall"));
+          //  out.add_body_property(String::from("IPv6-global"), String::from(""));
+          //  out.add_body_property(String::from("UPnPNat"), String::from("false"));
+            out.add_body_property(String::from("Capabilities-Flags"), String::from("1"));
+          //  out.add_body_property(String::from("srddA-lanretnI4vPI"), String::from("127.0.0.1"));
+          //  out.add_body_property(String::from("troP-lanretnI4vPI"), String::from("40505"));
 
             out.add_body_property(String::from("Nat-Trav-Msg-Type"), String::from("WLX-Nat-Trav-Msg-Direct-Connect-Resp"));
-            out.add_body_property(String::from("NeedConnectingEndpointInfo"), String::from("false"));
-            out.add_body_property(String::from("Capabilities-Flags"), String::from("1"));
-            out.add_body_property(String::from("TCP-Conn-Type"), String::from("Firewall"));
-            out.add_body_property(String::from("Conn-Type"), String::from("Firewall"));
-            out.add_body_property(String::from("ICF"), String::from("true"));
             out.add_body_property(String::from("Bridge"), String::from("SBBridge"));
-            out.add_body_property(String::from("Listening"), String::from("true"));
-            out.add_body_property(String::from("Nonce"), format!("{{{}}}", UUID::new().to_string()));
+            out.add_body_property(String::from("Hashed-Nonce"), format!("{{{}}}", UUID::new().to_string()));
 
             return Ok(out);
         }
@@ -645,10 +666,12 @@ SessionID: 2216804035
     }
 
 
-    struct P2PPayloadFactory;
+    pub struct P2PPayloadFactory;
 
     impl P2PPayloadFactory {
-
+        pub fn get_sip_text_message() -> P2PPayload {
+            return P2PPayload::new(0x01, 0x0);
+        }
     }
 
     pub struct TLVFactory;
@@ -716,6 +739,7 @@ SessionID: 2216804035
 mod tests {
     use std::str::{from_utf8_unchecked, FromStr};
 
+    use byteorder::{BigEndian, ByteOrder};
     use log::info;
     use rand::Rng;
 
@@ -724,9 +748,9 @@ mod tests {
     use crate::models::slp_payload::P2PPayload;
     use crate::{models::msg_payload::MsgPayload, sockets::msnp_command::MSNPCommandParser};
 
-    use super::{P2PTransportPacket, SlpPayload};
+    use super::{P2PTransportPacket, SlpPayload, ValueType};
 
-    use super::factories::SlpPayloadFactory;
+    use super::factories::{SlpPayloadFactory, TLVFactory, P2PTransportPacketFactory};
 
     #[test]
     fn test_deserialize_msg_command_containing_slp_payload() {
@@ -751,8 +775,6 @@ mod tests {
         info!("msg payload payload serialize test: {}", &p2p_transport_packet_serialized);
 
         assert_eq!(msg.body.as_bytes(), p2p_transport_packet_serialized.as_bytes());
-        
-        
         
         let original_p2p_payload = &p2p_transport_packet.payload.unwrap();
         let p2p_payload_serialized = original_p2p_payload.to_string();
@@ -830,110 +852,139 @@ mod tests {
 
 
     #[test]
+    fn tlv_is_type_test() {
+        let ack_tlv = TLVFactory::get_ack(0);
+
+        assert!(ack_tlv.is_type(&ValueType::AckSequenceNumber));
+    }
+
+    #[test]
+    fn get_tlv_for_type_in_packet_test() {
+        let ack = P2PTransportPacketFactory::get_ack(1, 1);
+        let tlv = ack.get_tlv_for_type(&ValueType::AckSequenceNumber);
+
+        let ack_tlv = ack.get_ack_tlv();
+
+        let seq = ack.get_next_ack_sequence_number();
+
+
+
+        assert!(tlv.is_some());
+        assert!(ack_tlv.is_some());
+
+
+        let seq_number = BigEndian::read_u32(ack_tlv.unwrap().value.as_slice());
+
+        assert_eq!(seq_number, 1);
+
+    }
+
+
+    #[test]
     fn test_serialize_slp_payload_200_ok() {
 
-        let mut invite_slp_payload = SlpPayload::new();
-        invite_slp_payload.first_line = String::from("INVITE MSNMSGR:aeontest3@shl.local;{77c46a8f-33a3-5282-9a5d-905ecd3eb069} MSNSLP/1.0");
+        // let mut invite_slp_payload = SlpPayload::new();
+        // invite_slp_payload.first_line = String::from("INVITE MSNMSGR:aeontest3@shl.local;{77c46a8f-33a3-5282-9a5d-905ecd3eb069} MSNSLP/1.0");
 
-        invite_slp_payload.add_header(String::from("Max-Forwards"), String::from("0"));
-        invite_slp_payload.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-transreqbody"));
-        invite_slp_payload.add_header(String::from("To"), String::from("<msnmsgr:aeontest3@shl.local;{77c46a8f-33a3-5282-9a5d-905ecd3eb069}>"));
-        invite_slp_payload.add_header(String::from("From"), String::from("<msnmsgr:aeontest@shl.local;{f52973b6-c926-4bad-9ba8-7c1e840e4ab0}>"));
-        invite_slp_payload.add_header(String::from("Via"), String::from("MSNSLP/1.0/TLP ;branch={D764D298-37B8-4C8A-B9D6-E811AED1C981}"));
-        invite_slp_payload.add_header(String::from("CSeq"), String::from("0"));
-        invite_slp_payload.add_header(String::from("Call-ID"), String::from("{02BB9EA5-F0DB-41BF-80E3-291CB98F9793}"));
+        // invite_slp_payload.add_header(String::from("Max-Forwards"), String::from("0"));
+        // invite_slp_payload.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-transreqbody"));
+        // invite_slp_payload.add_header(String::from("To"), String::from("<msnmsgr:aeontest3@shl.local;{77c46a8f-33a3-5282-9a5d-905ecd3eb069}>"));
+        // invite_slp_payload.add_header(String::from("From"), String::from("<msnmsgr:aeontest@shl.local;{f52973b6-c926-4bad-9ba8-7c1e840e4ab0}>"));
+        // invite_slp_payload.add_header(String::from("Via"), String::from("MSNSLP/1.0/TLP ;branch={D764D298-37B8-4C8A-B9D6-E811AED1C981}"));
+        // invite_slp_payload.add_header(String::from("CSeq"), String::from("0"));
+        // invite_slp_payload.add_header(String::from("Call-ID"), String::from("{02BB9EA5-F0DB-41BF-80E3-291CB98F9793}"));
 
-        invite_slp_payload.add_body_property(String::from("NetID"), String::from("1040296128"));
-        invite_slp_payload.add_body_property(String::from("Conn-Type"), String::from("Firewall"));
-        invite_slp_payload.add_body_property(String::from("TCP-Conn-Type"), String::from("Firewall"));
-        invite_slp_payload.add_body_property(String::from("UPnPNat"), String::from("false"));
-        invite_slp_payload.add_body_property(String::from("ICF"), String::from("false"));
-        invite_slp_payload.add_body_property(String::from("Capabilities-Flags"), String::from("1"));
-        invite_slp_payload.add_body_property(String::from("Nat-Trav-Msg-Type"), String::from("WLX-Nat-Trav-Msg-Direct-Connect-Req"));
-        invite_slp_payload.add_body_property(String::from("Bridges"), String::from("TRUDPv1 TCPv1 SBBridge TURNv1"));
-        invite_slp_payload.add_body_property(String::from("Hashed-Nonce"), String::from("{BF30FBE7-2941-C82E-3590-5731C824BBEF}"));
+        // invite_slp_payload.add_body_property(String::from("NetID"), String::from("1040296128"));
+        // invite_slp_payload.add_body_property(String::from("Conn-Type"), String::from("Firewall"));
+        // invite_slp_payload.add_body_property(String::from("TCP-Conn-Type"), String::from("Firewall"));
+        // invite_slp_payload.add_body_property(String::from("UPnPNat"), String::from("false"));
+        // invite_slp_payload.add_body_property(String::from("ICF"), String::from("false"));
+        // invite_slp_payload.add_body_property(String::from("Capabilities-Flags"), String::from("1"));
+        // invite_slp_payload.add_body_property(String::from("Nat-Trav-Msg-Type"), String::from("WLX-Nat-Trav-Msg-Direct-Connect-Req"));
+        // invite_slp_payload.add_body_property(String::from("Bridges"), String::from("TRUDPv1 TCPv1 SBBridge TURNv1"));
+        // invite_slp_payload.add_body_property(String::from("Hashed-Nonce"), String::from("{BF30FBE7-2941-C82E-3590-5731C824BBEF}"));
 
-        let result = SlpPayloadFactory::get_200_ok(&invite_slp_payload);
+        // let result = SlpPayloadFactory::get_200_ok(&invite_slp_payload);
 
-        assert_eq!(result.first_line, String::from("MSNSLP/1.0 200 OK"));
-        assert_eq!(result.get_header(&String::from("CSeq")).unwrap(), &String::from("1"));
-        assert_eq!(result.get_header(&String::from("To")).unwrap(), &String::from("<msnmsgr:aeontest@shl.local;{f52973b6-c926-4bad-9ba8-7c1e840e4ab0}>"));
-        assert_eq!(result.get_header(&String::from("From")).unwrap(), &String::from("<msnmsgr:aeontest3@shl.local;{77c46a8f-33a3-5282-9a5d-905ecd3eb069}>"));
-        assert_eq!(result.get_body_property(&String::from("Bridge")).unwrap(), &String::from("SBBridge"));
+        // assert_eq!(result.first_line, String::from("MSNSLP/1.0 200 OK"));
+        // assert_eq!(result.get_header(&String::from("CSeq")).unwrap(), &String::from("1"));
+        // assert_eq!(result.get_header(&String::from("To")).unwrap(), &String::from("<msnmsgr:aeontest@shl.local;{f52973b6-c926-4bad-9ba8-7c1e840e4ab0}>"));
+        // assert_eq!(result.get_header(&String::from("From")).unwrap(), &String::from("<msnmsgr:aeontest3@shl.local;{77c46a8f-33a3-5282-9a5d-905ecd3eb069}>"));
+        // assert_eq!(result.get_body_property(&String::from("Bridge")).unwrap(), &String::from("SBBridge"));
 
     }
 
     #[test]
     pub fn test_complete_200_ok() {
 
-        let msg_command : [u8;806] = [ 0x4d, 0x53, 0x47, 0x20, 0x33, 0x20, 0x44, 0x20, 0x37, 0x39, 0x34, 0x0d, 0x0a, 0x4d, 0x49, 0x4d, 0x45, 0x2d, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x3a, 0x20, 0x31, 0x2e, 0x30, 0x0d, 0x0a, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x2d, 0x54, 0x79, 0x70, 0x65, 0x3a, 0x20, 0x61, 0x70, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2f, 0x78, 0x2d, 0x6d, 0x73, 0x6e, 0x6d, 0x73, 0x67, 0x72, 0x70, 0x32, 0x70, 0x0d, 0x0a, 0x50, 0x32, 0x50, 0x2d, 0x44, 0x65, 0x73, 0x74, 0x3a, 0x20, 0x61, 0x65, 0x6f, 0x6e, 0x74, 0x65, 0x73, 0x74, 0x33, 0x40, 0x73, 0x68, 0x6c, 0x2e, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x3b, 0x7b, 0x37, 0x37, 0x63, 0x34, 0x36, 0x61, 0x38, 0x66, 0x2d, 0x33, 0x33, 0x61, 0x33, 0x2d, 0x35, 0x32, 0x38, 0x32, 0x2d, 0x39, 0x61, 0x35, 0x64, 0x2d, 0x39, 0x30, 0x35, 0x65, 0x63, 0x64, 0x33, 0x65, 0x62, 0x30, 0x36, 0x39, 0x7d, 0x0d, 0x0a, 0x50, 0x32, 0x50, 0x2d, 0x53, 0x72, 0x63, 0x3a, 0x20, 0x61, 0x65, 0x6f, 0x6e, 0x74, 0x65, 0x73, 0x74, 0x40, 0x73, 0x68, 0x6c, 0x2e, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x3b, 0x7b, 0x66, 0x35, 0x32, 0x39, 0x37, 0x33, 0x62, 0x36, 0x2d, 0x63, 0x39, 0x32, 0x36, 0x2d, 0x34, 0x62, 0x61, 0x64, 0x2d, 0x39, 0x62, 0x61, 0x38, 0x2d, 0x37, 0x63, 0x31, 0x65, 0x38, 0x34, 0x30, 0x65, 0x34, 0x61, 0x62, 0x30, 0x7d, 0x0d, 0x0a, 0x0d, 0x0a, 0x18, 0x03, 0x02, 0x37, 0xe1, 0x62, 0x3d, 0xf3, 0x01, 0x0c, 0x00, 0x02, 0x00, 0x00, 0x00, 0x0e, 0x00, 0x00, 0x0f, 0x01, 0x00, 0x00, 0x00, 0x00, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x49, 0x4e, 0x56, 0x49, 0x54, 0x45, 0x20, 0x4d, 0x53, 0x4e, 0x4d, 0x53, 0x47, 0x52, 0x3a, 0x61, 0x65, 0x6f, 0x6e, 0x74, 0x65, 0x73, 0x74, 0x33, 0x40, 0x73, 0x68, 0x6c, 0x2e, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x3b, 0x7b, 0x37, 0x37, 0x63, 0x34, 0x36, 0x61, 0x38, 0x66, 0x2d, 0x33, 0x33, 0x61, 0x33, 0x2d, 0x35, 0x32, 0x38, 0x32, 0x2d, 0x39, 0x61, 0x35, 0x64, 0x2d, 0x39, 0x30, 0x35, 0x65, 0x63, 0x64, 0x33, 0x65, 0x62, 0x30, 0x36, 0x39, 0x7d, 0x20, 0x4d, 0x53, 0x4e, 0x53, 0x4c, 0x50, 0x2f, 0x31, 0x2e, 0x30, 0x0d, 0x0a, 0x54, 0x6f, 0x3a, 0x20, 0x3c, 0x6d, 0x73, 0x6e, 0x6d, 0x73, 0x67, 0x72, 0x3a, 0x61, 0x65, 0x6f, 0x6e, 0x74, 0x65, 0x73, 0x74, 0x33, 0x40, 0x73, 0x68, 0x6c, 0x2e, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x3b, 0x7b, 0x37, 0x37, 0x63, 0x34, 0x36, 0x61, 0x38, 0x66, 0x2d, 0x33, 0x33, 0x61, 0x33, 0x2d, 0x35, 0x32, 0x38, 0x32, 0x2d, 0x39, 0x61, 0x35, 0x64, 0x2d, 0x39, 0x30, 0x35, 0x65, 0x63, 0x64, 0x33, 0x65, 0x62, 0x30, 0x36, 0x39, 0x7d, 0x3e, 0x0d, 0x0a, 0x46, 0x72, 0x6f, 0x6d, 0x3a, 0x20, 0x3c, 0x6d, 0x73, 0x6e, 0x6d, 0x73, 0x67, 0x72, 0x3a, 0x61, 0x65, 0x6f, 0x6e, 0x74, 0x65, 0x73, 0x74, 0x40, 0x73, 0x68, 0x6c, 0x2e, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x3b, 0x7b, 0x66, 0x35, 0x32, 0x39, 0x37, 0x33, 0x62, 0x36, 0x2d, 0x63, 0x39, 0x32, 0x36, 0x2d, 0x34, 0x62, 0x61, 0x64, 0x2d, 0x39, 0x62, 0x61, 0x38, 0x2d, 0x37, 0x63, 0x31, 0x65, 0x38, 0x34, 0x30, 0x65, 0x34, 0x61, 0x62, 0x30, 0x7d, 0x3e, 0x0d, 0x0a, 0x56, 0x69, 0x61, 0x3a, 0x20, 0x4d, 0x53, 0x4e, 0x53, 0x4c, 0x50, 0x2f, 0x31, 0x2e, 0x30, 0x2f, 0x54, 0x4c, 0x50, 0x20, 0x3b, 0x62, 0x72, 0x61, 0x6e, 0x63, 0x68, 0x3d, 0x7b, 0x44, 0x38, 0x41, 0x38, 0x42, 0x44, 0x45, 0x32, 0x2d, 0x30, 0x46, 0x41, 0x37, 0x2d, 0x34, 0x46, 0x32, 0x37, 0x2d, 0x39, 0x34, 0x30, 0x38, 0x2d, 0x44, 0x43, 0x42, 0x36, 0x31, 0x34, 0x32, 0x46, 0x38, 0x35, 0x45, 0x42, 0x7d, 0x0d, 0x0a, 0x43, 0x53, 0x65, 0x71, 0x3a, 0x20, 0x30, 0x20, 0x0d, 0x0a, 0x43, 0x61, 0x6c, 0x6c, 0x2d, 0x49, 0x44, 0x3a, 0x20, 0x7b, 0x41, 0x38, 0x37, 0x44, 0x37, 0x38, 0x33, 0x41, 0x2d, 0x35, 0x46, 0x44, 0x36, 0x2d, 0x34, 0x39, 0x35, 0x45, 0x2d, 0x39, 0x43, 0x46, 0x34, 0x2d, 0x31, 0x38, 0x43, 0x33, 0x37, 0x41, 0x35, 0x41, 0x39, 0x39, 0x45, 0x46, 0x7d, 0x0d, 0x0a, 0x4d, 0x61, 0x78, 0x2d, 0x46, 0x6f, 0x72, 0x77, 0x61, 0x72, 0x64, 0x73, 0x3a, 0x20, 0x30, 0x0d, 0x0a, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x2d, 0x54, 0x79, 0x70, 0x65, 0x3a, 0x20, 0x61, 0x70, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2f, 0x78, 0x2d, 0x6d, 0x73, 0x6e, 0x6d, 0x73, 0x67, 0x72, 0x2d, 0x73, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x72, 0x65, 0x71, 0x62, 0x6f, 0x64, 0x79, 0x0d, 0x0a, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x2d, 0x4c, 0x65, 0x6e, 0x67, 0x74, 0x68, 0x3a, 0x20, 0x31, 0x30, 0x35, 0x0d, 0x0a, 0x0d, 0x0a, 0x45, 0x55, 0x46, 0x2d, 0x47, 0x55, 0x49, 0x44, 0x3a, 0x20, 0x7b, 0x34, 0x31, 0x44, 0x33, 0x45, 0x37, 0x34, 0x45, 0x2d, 0x30, 0x34, 0x41, 0x32, 0x2d, 0x34, 0x42, 0x33, 0x37, 0x2d, 0x39, 0x36, 0x46, 0x38, 0x2d, 0x30, 0x38, 0x41, 0x43, 0x44, 0x42, 0x36, 0x31, 0x30, 0x38, 0x37, 0x34, 0x7d, 0x0d, 0x0a, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x49, 0x44, 0x3a, 0x20, 0x33, 0x33, 0x38, 0x39, 0x31, 0x33, 0x33, 0x38, 0x33, 0x38, 0x0d, 0x0a, 0x41, 0x70, 0x70, 0x49, 0x44, 0x3a, 0x20, 0x33, 0x35, 0x0d, 0x0a, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x46, 0x6c, 0x61, 0x67, 0x73, 0x3a, 0x20, 0x31, 0x36, 0x0d, 0x0a, 0x0d, 0x0a, 0x00, 0x00, 0x00, 0x00];
+    //     let msg_command : [u8;806] = [ 0x4d, 0x53, 0x47, 0x20, 0x33, 0x20, 0x44, 0x20, 0x37, 0x39, 0x34, 0x0d, 0x0a, 0x4d, 0x49, 0x4d, 0x45, 0x2d, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x3a, 0x20, 0x31, 0x2e, 0x30, 0x0d, 0x0a, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x2d, 0x54, 0x79, 0x70, 0x65, 0x3a, 0x20, 0x61, 0x70, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2f, 0x78, 0x2d, 0x6d, 0x73, 0x6e, 0x6d, 0x73, 0x67, 0x72, 0x70, 0x32, 0x70, 0x0d, 0x0a, 0x50, 0x32, 0x50, 0x2d, 0x44, 0x65, 0x73, 0x74, 0x3a, 0x20, 0x61, 0x65, 0x6f, 0x6e, 0x74, 0x65, 0x73, 0x74, 0x33, 0x40, 0x73, 0x68, 0x6c, 0x2e, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x3b, 0x7b, 0x37, 0x37, 0x63, 0x34, 0x36, 0x61, 0x38, 0x66, 0x2d, 0x33, 0x33, 0x61, 0x33, 0x2d, 0x35, 0x32, 0x38, 0x32, 0x2d, 0x39, 0x61, 0x35, 0x64, 0x2d, 0x39, 0x30, 0x35, 0x65, 0x63, 0x64, 0x33, 0x65, 0x62, 0x30, 0x36, 0x39, 0x7d, 0x0d, 0x0a, 0x50, 0x32, 0x50, 0x2d, 0x53, 0x72, 0x63, 0x3a, 0x20, 0x61, 0x65, 0x6f, 0x6e, 0x74, 0x65, 0x73, 0x74, 0x40, 0x73, 0x68, 0x6c, 0x2e, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x3b, 0x7b, 0x66, 0x35, 0x32, 0x39, 0x37, 0x33, 0x62, 0x36, 0x2d, 0x63, 0x39, 0x32, 0x36, 0x2d, 0x34, 0x62, 0x61, 0x64, 0x2d, 0x39, 0x62, 0x61, 0x38, 0x2d, 0x37, 0x63, 0x31, 0x65, 0x38, 0x34, 0x30, 0x65, 0x34, 0x61, 0x62, 0x30, 0x7d, 0x0d, 0x0a, 0x0d, 0x0a, 0x18, 0x03, 0x02, 0x37, 0xe1, 0x62, 0x3d, 0xf3, 0x01, 0x0c, 0x00, 0x02, 0x00, 0x00, 0x00, 0x0e, 0x00, 0x00, 0x0f, 0x01, 0x00, 0x00, 0x00, 0x00, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x49, 0x4e, 0x56, 0x49, 0x54, 0x45, 0x20, 0x4d, 0x53, 0x4e, 0x4d, 0x53, 0x47, 0x52, 0x3a, 0x61, 0x65, 0x6f, 0x6e, 0x74, 0x65, 0x73, 0x74, 0x33, 0x40, 0x73, 0x68, 0x6c, 0x2e, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x3b, 0x7b, 0x37, 0x37, 0x63, 0x34, 0x36, 0x61, 0x38, 0x66, 0x2d, 0x33, 0x33, 0x61, 0x33, 0x2d, 0x35, 0x32, 0x38, 0x32, 0x2d, 0x39, 0x61, 0x35, 0x64, 0x2d, 0x39, 0x30, 0x35, 0x65, 0x63, 0x64, 0x33, 0x65, 0x62, 0x30, 0x36, 0x39, 0x7d, 0x20, 0x4d, 0x53, 0x4e, 0x53, 0x4c, 0x50, 0x2f, 0x31, 0x2e, 0x30, 0x0d, 0x0a, 0x54, 0x6f, 0x3a, 0x20, 0x3c, 0x6d, 0x73, 0x6e, 0x6d, 0x73, 0x67, 0x72, 0x3a, 0x61, 0x65, 0x6f, 0x6e, 0x74, 0x65, 0x73, 0x74, 0x33, 0x40, 0x73, 0x68, 0x6c, 0x2e, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x3b, 0x7b, 0x37, 0x37, 0x63, 0x34, 0x36, 0x61, 0x38, 0x66, 0x2d, 0x33, 0x33, 0x61, 0x33, 0x2d, 0x35, 0x32, 0x38, 0x32, 0x2d, 0x39, 0x61, 0x35, 0x64, 0x2d, 0x39, 0x30, 0x35, 0x65, 0x63, 0x64, 0x33, 0x65, 0x62, 0x30, 0x36, 0x39, 0x7d, 0x3e, 0x0d, 0x0a, 0x46, 0x72, 0x6f, 0x6d, 0x3a, 0x20, 0x3c, 0x6d, 0x73, 0x6e, 0x6d, 0x73, 0x67, 0x72, 0x3a, 0x61, 0x65, 0x6f, 0x6e, 0x74, 0x65, 0x73, 0x74, 0x40, 0x73, 0x68, 0x6c, 0x2e, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x3b, 0x7b, 0x66, 0x35, 0x32, 0x39, 0x37, 0x33, 0x62, 0x36, 0x2d, 0x63, 0x39, 0x32, 0x36, 0x2d, 0x34, 0x62, 0x61, 0x64, 0x2d, 0x39, 0x62, 0x61, 0x38, 0x2d, 0x37, 0x63, 0x31, 0x65, 0x38, 0x34, 0x30, 0x65, 0x34, 0x61, 0x62, 0x30, 0x7d, 0x3e, 0x0d, 0x0a, 0x56, 0x69, 0x61, 0x3a, 0x20, 0x4d, 0x53, 0x4e, 0x53, 0x4c, 0x50, 0x2f, 0x31, 0x2e, 0x30, 0x2f, 0x54, 0x4c, 0x50, 0x20, 0x3b, 0x62, 0x72, 0x61, 0x6e, 0x63, 0x68, 0x3d, 0x7b, 0x44, 0x38, 0x41, 0x38, 0x42, 0x44, 0x45, 0x32, 0x2d, 0x30, 0x46, 0x41, 0x37, 0x2d, 0x34, 0x46, 0x32, 0x37, 0x2d, 0x39, 0x34, 0x30, 0x38, 0x2d, 0x44, 0x43, 0x42, 0x36, 0x31, 0x34, 0x32, 0x46, 0x38, 0x35, 0x45, 0x42, 0x7d, 0x0d, 0x0a, 0x43, 0x53, 0x65, 0x71, 0x3a, 0x20, 0x30, 0x20, 0x0d, 0x0a, 0x43, 0x61, 0x6c, 0x6c, 0x2d, 0x49, 0x44, 0x3a, 0x20, 0x7b, 0x41, 0x38, 0x37, 0x44, 0x37, 0x38, 0x33, 0x41, 0x2d, 0x35, 0x46, 0x44, 0x36, 0x2d, 0x34, 0x39, 0x35, 0x45, 0x2d, 0x39, 0x43, 0x46, 0x34, 0x2d, 0x31, 0x38, 0x43, 0x33, 0x37, 0x41, 0x35, 0x41, 0x39, 0x39, 0x45, 0x46, 0x7d, 0x0d, 0x0a, 0x4d, 0x61, 0x78, 0x2d, 0x46, 0x6f, 0x72, 0x77, 0x61, 0x72, 0x64, 0x73, 0x3a, 0x20, 0x30, 0x0d, 0x0a, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x2d, 0x54, 0x79, 0x70, 0x65, 0x3a, 0x20, 0x61, 0x70, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2f, 0x78, 0x2d, 0x6d, 0x73, 0x6e, 0x6d, 0x73, 0x67, 0x72, 0x2d, 0x73, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x72, 0x65, 0x71, 0x62, 0x6f, 0x64, 0x79, 0x0d, 0x0a, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x2d, 0x4c, 0x65, 0x6e, 0x67, 0x74, 0x68, 0x3a, 0x20, 0x31, 0x30, 0x35, 0x0d, 0x0a, 0x0d, 0x0a, 0x45, 0x55, 0x46, 0x2d, 0x47, 0x55, 0x49, 0x44, 0x3a, 0x20, 0x7b, 0x34, 0x31, 0x44, 0x33, 0x45, 0x37, 0x34, 0x45, 0x2d, 0x30, 0x34, 0x41, 0x32, 0x2d, 0x34, 0x42, 0x33, 0x37, 0x2d, 0x39, 0x36, 0x46, 0x38, 0x2d, 0x30, 0x38, 0x41, 0x43, 0x44, 0x42, 0x36, 0x31, 0x30, 0x38, 0x37, 0x34, 0x7d, 0x0d, 0x0a, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x49, 0x44, 0x3a, 0x20, 0x33, 0x33, 0x38, 0x39, 0x31, 0x33, 0x33, 0x38, 0x33, 0x38, 0x0d, 0x0a, 0x41, 0x70, 0x70, 0x49, 0x44, 0x3a, 0x20, 0x33, 0x35, 0x0d, 0x0a, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x46, 0x6c, 0x61, 0x67, 0x73, 0x3a, 0x20, 0x31, 0x36, 0x0d, 0x0a, 0x0d, 0x0a, 0x00, 0x00, 0x00, 0x00];
 
-        let msg_as_str = unsafe {from_utf8_unchecked(&msg_command)}.to_owned();
-        info!("MSG command: {}", &msg_as_str);
+    //     let msg_as_str = unsafe {from_utf8_unchecked(&msg_command)}.to_owned();
+    //     info!("MSG command: {}", &msg_as_str);
 
-        let commands = MSNPCommandParser::parse_message(&msg_as_str);
-        let command = commands.get(0).unwrap();
+    //     let commands = MSNPCommandParser::parse_message(&msg_as_str);
+    //     let command = commands.get(0).unwrap();
 
-        info!("MSG command payload: {}", command.payload.as_str());
+    //     info!("MSG command payload: {}", command.payload.as_str());
 
-        let payload = MsgPayload::from_str(command.payload.as_str()).unwrap();
+    //     let payload = MsgPayload::from_str(command.payload.as_str()).unwrap();
 
-        if let Ok(p2p_packet) = P2PTransportPacket::from_str(&payload.body){
+    //     if let Ok(p2p_packet) = P2PTransportPacket::from_str(&payload.body){
 
-            if let Some(request_p2p_payload) = &p2p_packet.payload {
-                if let Ok(slp_payload) = request_p2p_payload.get_payload_as_slp() {
-                    let slp_response = SlpPayloadFactory::get_200_ok(&slp_payload);
+    //         if let Some(request_p2p_payload) = &p2p_packet.payload {
+    //             if let Ok(slp_payload) = request_p2p_payload.get_payload_as_slp() {
+    //                 let slp_response = SlpPayloadFactory::get_200_ok(&slp_payload);
 
-                    let slp_response_serialized = slp_response.to_string().into_bytes();
-                    let slp_response_length = slp_response_serialized.len();
+    //                 let slp_response_serialized = slp_response.to_string().into_bytes();
+    //                 let slp_response_length = slp_response_serialized.len();
 
 
-                    let p2p_payload = P2PPayload{ header_length: 0, tf_combination: request_p2p_payload.tf_combination.clone(), package_number: request_p2p_payload.package_number.clone(), session_id: request_p2p_payload.session_id.clone(), tlvs: Vec::new(), payload: slp_response_serialized };
-                    let mut p2p_transport_response = P2PTransportPacket { header_length: 0, op_code: 0, payload_length: 0, sequence_number: p2p_packet.get_next_squence_number(), tlvs: Vec::new(), payload: Some(p2p_payload) };
-                    if p2p_packet.is_syn() {
-                        info!("IS SYN");
-                        let client_info_tlv = p2p_packet.get_client_info_tlv().unwrap();
-                        p2p_transport_response.set_syn(client_info_tlv.clone());
-                    }
+    //                 let p2p_payload = P2PPayload{ header_length: 0, tf_combination: request_p2p_payload.tf_combination.clone(), package_number: request_p2p_payload.package_number.clone(), session_id: request_p2p_payload.session_id.clone(), tlvs: Vec::new(), payload: slp_response_serialized };
+    //                 let mut p2p_transport_response = P2PTransportPacket { header_length: 0, op_code: 0, payload_length: 0, sequence_number: p2p_packet.get_next_squence_number(), tlvs: Vec::new(), payload: Some(p2p_payload)};
+    //                 if p2p_packet.is_syn() {
+    //                     info!("IS SYN");
+    //                     let client_info_tlv = p2p_packet.get_client_info_tlv().unwrap();
+    //                     p2p_transport_response.set_syn(client_info_tlv.clone());
+    //                 }
 
-                    if p2p_packet.is_rak() {
-                        info!("IS RAK");
-                        let mut rng = rand::thread_rng();
+    //                 if p2p_packet.is_rak() {
+    //                     info!("IS RAK");
+    //                     let mut rng = rand::thread_rng();
 
-                        let next_seq_number = p2p_packet.get_next_ack_sequence_number().unwrap_or(rng.gen::<u32>());
-                        p2p_transport_response.set_ack(next_seq_number);
-                    }
+    //                     let next_seq_number = p2p_packet.get_next_ack_sequence_number().unwrap_or(rng.gen::<u32>());
+    //                     p2p_transport_response.set_ack(next_seq_number);
+    //                 }
                    
-                    let source = MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Dest")).unwrap().to_owned()).unwrap();
-                    let msg_response = MsgPayloadFactory::get_p2p(&source, &MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Src")).unwrap().to_owned()).unwrap(), &p2p_transport_response);
-                    let serialized_response = msg_response.serialize();
+    //                 let source = MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Dest")).unwrap().to_owned()).unwrap();
+    //                 let msg_response = MsgPayloadFactory::get_p2p(&source, &MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Src")).unwrap().to_owned()).unwrap(), &p2p_transport_response);
+    //                 let serialized_response = msg_response.serialize();
 
             
-                    let msg = MsgPayload::from_str(serialized_response.as_str()).unwrap();
-                    info!("msg payload payload: {}", msg.body.as_str());
-                    let p2p_transport_packet = P2PTransportPacket::from_str(msg.body.as_str()).unwrap();
-                    let p2p_transport_packet_serialized = p2p_transport_packet.to_string();
+    //                 let msg = MsgPayload::from_str(serialized_response.as_str()).unwrap();
+    //                 info!("msg payload payload: {}", msg.body.as_str());
+    //                 let p2p_transport_packet = P2PTransportPacket::from_str(msg.body.as_str()).unwrap();
+    //                 let p2p_transport_packet_serialized = p2p_transport_packet.to_string();
             
-                    info!("msg payload payload serialize test: {}", &p2p_transport_packet_serialized);
+    //                 info!("msg payload payload serialize test: {}", &p2p_transport_packet_serialized);
             
-                    assert_eq!(p2p_transport_packet.tlvs.len(), 2);
-                    assert!(p2p_transport_packet.get_ack_tlv().is_some());
-                    assert!(p2p_transport_packet.get_client_info_tlv().is_some());
+    //                 assert_eq!(p2p_transport_packet.tlvs.len(), 2);
+    //                 assert!(p2p_transport_packet.get_ack_tlv().is_some());
+    //                 assert!(p2p_transport_packet.get_client_info_tlv().is_some());
             
-                    assert_eq!(msg.body.as_bytes(), p2p_transport_packet_serialized.as_bytes());
+    //                 assert_eq!(msg.body.as_bytes(), p2p_transport_packet_serialized.as_bytes());
             
                     
                     
-                    let original_p2p_payload = &p2p_transport_packet.payload.unwrap();
-                    let p2p_payload_serialized = original_p2p_payload.to_string();
-                    let p2p_payload_deserialized = P2PPayload::deserialize(p2p_payload_serialized.as_bytes(), p2p_transport_packet.payload_length).unwrap();
+    //                 let original_p2p_payload = &p2p_transport_packet.payload.unwrap();
+    //                 let p2p_payload_serialized = original_p2p_payload.to_string();
+    //                 let p2p_payload_deserialized = P2PPayload::deserialize(p2p_payload_serialized.as_bytes(), p2p_transport_packet.payload_length).unwrap();
             
-                    assert_eq!(p2p_payload_deserialized.header_length, original_p2p_payload.header_length);
-                    assert_eq!(p2p_payload_deserialized.tf_combination, original_p2p_payload.tf_combination);
+    //                 assert_eq!(p2p_payload_deserialized.header_length, original_p2p_payload.header_length);
+    //                 assert_eq!(p2p_payload_deserialized.tf_combination, original_p2p_payload.tf_combination);
             
-                    let slp_payload = original_p2p_payload.get_payload_as_slp().unwrap();
+    //                 let slp_payload = original_p2p_payload.get_payload_as_slp().unwrap();
             
-                    info!("slp payload: {}", slp_payload);
+    //                 info!("slp payload: {}", slp_payload);
 
 
 
@@ -944,15 +995,16 @@ mod tests {
 
 
 
-                    let test = 0;
-                } else {
-                    info!("P2P: Message body was not a SLP message: {}", &p2p_packet);
-                }
-            }
+    //                 let test = 0;
+    //             } else {
+    //                 info!("P2P: Message body was not a SLP message: {}", &p2p_packet);
+    //             }
+    //         }
            
-        } else {
-            info!("P2P: Transport packet deserialization failed: {}", &payload.body);
+    //     } else {
+    //         info!("P2P: Transport packet deserialization failed: {}", &payload.body);
 
-        }
-    }
+    //     }
+    // }
+}
 }

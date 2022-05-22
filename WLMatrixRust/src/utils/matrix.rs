@@ -16,14 +16,12 @@ pub async fn login(matrix_id: String, matrix_token: String) -> Result<Client, Er
     let device_id = get_matrix_device_id();
     let device_id_str = device_id.as_str();
     let device_id = device_id!(device_id_str).to_owned();
-    //let homeserver_url = Url::parse(format!("https://{}", matrix_user.server_name()).as_str())?;
-    let homeserver_url = Url::parse(format!("http://{}:8008", matrix_user.server_name()).as_str())?;
     
-
     let path = Path::new("c:\\temp");
     let config =  make_store_config(path, None).unwrap();
 
-    let client = Client::builder().store_config(config).homeserver_url(homeserver_url).build().await.unwrap();
+    let client = Client::builder().store_config(config).user_id(&matrix_user).build().await.unwrap();
+    
 
     client.restore_login(Session{ access_token: matrix_token.to_owned(), user_id: matrix_user, device_id: device_id}).await?;
     let _check_connection_status = client.whoami().await?;

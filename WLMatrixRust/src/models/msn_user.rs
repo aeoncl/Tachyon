@@ -4,6 +4,8 @@ use crate::{utils::identifiers::{msn_addr_to_matrix_id, matrix_id_to_msn_addr}, 
 
 use super::{uuid::UUID, capabilities::ClientCapabilitiesFactory, errors::Errors};
 
+#[derive(Clone, Debug)]
+
 pub struct MSNUser {
 
     pub msn_addr: String,

@@ -1,14 +1,8 @@
 use std::{sync::{Arc, Mutex}, collections::HashMap};
-
-use chashmap::CHashMap;
-use tokio::sync::broadcast::Sender;
-
 use crate::models::{switchboard_handle::SwitchboardHandle};
 
-use super::repository::Repository;
-
 pub struct SwitchboardRepository {
-    data : Arc<Mutex<HashMap<String, SwitchboardHandle>>>
+    data : Arc<Mutex<HashMap<String, SwitchboardHandle>>> 
 }
 
 impl SwitchboardRepository {
