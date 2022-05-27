@@ -4,7 +4,8 @@ use chashmap::CHashMap;
 use matrix_sdk::{ruma::{events::{room::message::{RoomMessageEventContent}, OriginalSyncMessageLikeEvent}, OwnedEventId, OwnedRoomId, RoomId}, Client};
 use tokio::sync::broadcast::{Sender, self, Receiver, error::SendError};
 
-use super::{msg_payload::{factories::MsgPayloadFactory, MsgPayload}, msn_user::MSNUser, uuid::UUID};
+use super::{p2p::{factories::{SlpPayloadFactory, P2PPayloadFactory, TLVFactory}, p2p_transport_packet::P2PTransportPacket}, msn_user::MSNUser, msg_payload::{factories::MsgPayloadFactory, MsgPayload}};
+
 
 #[derive(Clone)]
 pub struct SwitchboardHandle {
@@ -50,6 +51,24 @@ impl SwitchboardHandle {
             if let Some(room) = self.matrix_client.get_joined_room(room_id) {
                 match payload.content_type.as_str() {
                     "text/plain" => {
+
+                        //remove this
+                        if payload.body.as_str() == "patate" {
+                            let slp_payload = SlpPayloadFactory::get_direct_connect_invite();
+                            let mut p2p_payload = P2PPayloadFactory::get_sip_text_message();
+                            p2p_payload.set_payload(slp_payload.to_string().as_bytes().to_owned());
+                            let mut p2p_transport = P2PTransportPacket::new(100000, Some(p2p_payload));
+                            p2p_transport.set_syn(TLVFactory::get_client_peer_info());
+
+                            let source = MSNUser::from_mpop_addr_string(String::from("aeontest3@shl.local;{77c46a8f-33a3-5282-9a5d-905ecd3eb069}")).unwrap();
+                            let dest = MSNUser::from_mpop_addr_string(String::from("aeontest@shl.local;{f52973b6-c926-4bad-9ba8-7c1e840e4ab0}")).unwrap();
+
+                            let msg_to_send = MsgPayloadFactory::get_p2p(&source, &dest,  &p2p_transport);
+                            let serialized_response = msg_to_send.serialize();
+                            let _result = self.sender.send(format!("MSG {msn_addr} {msn_addr} {payload_size}\r\n{payload}", msn_addr = &source.msn_addr, payload_size = serialized_response.len(), payload = &serialized_response));
+                        
+                        }
+
                         let content = RoomMessageEventContent::text_plain(payload.body);
                         if let Ok(response) = room.send(content, None).await {
                              self.add_to_events_sent(response.event_id.to_string());

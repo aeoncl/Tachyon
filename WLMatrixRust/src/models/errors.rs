@@ -4,7 +4,9 @@ use std::str::Utf8Error;
 
 pub enum Errors {
 
-    PayloadDeserializeError
+    PayloadDeserializeError,
+	PayloadDoesNotContainsSLP,
+	PayloadNotComplete
 
 }
 

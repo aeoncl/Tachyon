@@ -17,13 +17,17 @@ pub struct MSNUser {
 
 impl MSNUser {
 
+    pub fn default() -> MSNUser {
+        return MSNUser::new(String::from("johndoe@default.com"));
+    }
+
     pub fn new(msn_addr: String) -> MSNUser {
 
         let endpoint_guid = UUID::from_string(&msn_addr).to_string().to_uppercase();
         return MSNUser{msn_addr: msn_addr.clone(), 
             matrix_id: msn_addr_to_matrix_id(&msn_addr), 
-           // capabilities: ClientCapabilitiesFactory::get_default_capabilities().to_string(), 
-            capabilities: String::from("2788999228:48"), 
+            capabilities: ClientCapabilitiesFactory::get_default_capabilities().to_string(), 
+            //capabilities: String::from("2788999228:48"), 
             status: PresenceStatus::FLN, 
             endpoint_guid: endpoint_guid };
     }
@@ -33,8 +37,8 @@ impl MSNUser {
         let endpoint_guid = UUID::from_string(&msn_addr).to_string().to_uppercase();
         return MSNUser{msn_addr: msn_addr, 
             matrix_id: matrix_id.clone(), 
-            //capabilities: ClientCapabilitiesFactory::get_default_capabilities().to_string(), 
-            capabilities: String::from("2788999228:48"),
+            capabilities: ClientCapabilitiesFactory::get_default_capabilities().to_string(), 
+            //capabilities: String::from("2788999228:48"),
             status: PresenceStatus::FLN, endpoint_guid: 
             endpoint_guid };
     }
@@ -46,7 +50,8 @@ impl MSNUser {
        if let Some((msn_addr, endpoint_guid)) = mpop_string.split_once(";") {
            let  trimmed_msn_addr = msn_addr.trim().to_string();
             let trimmed_endpoint_guid = endpoint_guid.trim().strip_prefix("{").ok_or(Errors::PayloadDeserializeError)?.strip_suffix("}").ok_or(Errors::PayloadDeserializeError)?;
-            return Ok(MSNUser{ msn_addr: trimmed_msn_addr.clone(), matrix_id: msn_addr_to_matrix_id(&trimmed_msn_addr), capabilities: String::from("2788999228:48"), status: PresenceStatus::FLN, endpoint_guid: trimmed_endpoint_guid.to_string() });
+            let capab = ClientCapabilitiesFactory::get_default_capabilities().to_string();
+            return Ok(MSNUser{ msn_addr: trimmed_msn_addr.clone(), matrix_id: msn_addr_to_matrix_id(&trimmed_msn_addr), capabilities: capab, status: PresenceStatus::FLN, endpoint_guid: trimmed_endpoint_guid.to_string() });
        }
        return Err(Errors::PayloadDeserializeError);
     }

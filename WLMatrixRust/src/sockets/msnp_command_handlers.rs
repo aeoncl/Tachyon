@@ -17,16 +17,16 @@ use crate::models::ab_data::AbData;
 use crate::models::errors::{MsnpErrorCode};
 use crate::models::msg_payload::MsgPayload;
 use crate::models::msn_user::MSNUser;
+use crate::models::p2p::p2p_session::P2PSession;
+use crate::models::p2p::p2p_transport_packet::P2PTransportPacket;
 use crate::models::p2p::pending_packet::PendingPacket;
-use crate::models::p2p::proxy_client::ProxyClient;
-use crate::models::slp_payload::{P2PTransportPacket, P2PPayload};
-use crate::models::slp_payload::factories::{SlpPayloadFactory, P2PTransportPacketFactory};
+
 use crate::models::switchboard_handle::SwitchboardHandle;
 use crate::repositories::matrix_client_repository::MatrixClientRepository;
 use crate::repositories::repository::Repository;
 use crate::utils::identifiers::{msn_addr_to_matrix_id, matrix_id_to_msn_addr, msn_addr_to_matrix_user_id, matrix_room_id_to_annoying_matrix_room_id};
 use crate::utils::matrix;
-use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, AB_DATA_REPO};
+use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, AB_DATA_REPO, P2P_REPO};
 use crate::models::client_data::ClientData;
 use crate::models::uuid::UUID;
 use crate::repositories::client_data_repository::{ClientDataRepository};
@@ -370,7 +370,7 @@ pub struct SwitchboardCommandHandler {
     matrix_client: Option<Client>,
     sender: Sender<String>,
     sb_handle: Option<SwitchboardHandle>,
-    proxy_client: Option<ProxyClient>
+    p2p_session: Option<P2PSession>
 }
 
 impl SwitchboardCommandHandler {
@@ -385,7 +385,7 @@ impl SwitchboardCommandHandler {
             target_matrix_id: String::new(),
             target_msn_addr: String::new(),
             sender: sender,
-            proxy_client: None,
+            p2p_session: None,
             sb_handle: None
         };
     }
@@ -394,7 +394,7 @@ impl SwitchboardCommandHandler {
     fn start_receiving(&mut self, mut sb_handle_receiver: Receiver<String>) {
 
         let (p2p_sender, mut p2p_receiver) = broadcast::channel::<PendingPacket>(10);
-        self.proxy_client = Some(ProxyClient::new(p2p_sender));
+        self.p2p_session = Some(P2PSession::new(p2p_sender));
 
         let sender = self.sender.clone();
         tokio::spawn(async move {
@@ -413,6 +413,8 @@ impl SwitchboardCommandHandler {
                             if let Ok(p2p_packet_to_send) = p2p_packet_to_send_maybe {
                                 let msn_sender = &p2p_packet_to_send.sender;
                                 let msn_receiver = &p2p_packet_to_send.receiver;
+
+                                P2P_REPO.set_seq_number(p2p_packet_to_send.packet.get_next_sequence_number());
 
                                 let msg_to_send = MsgPayloadFactory::get_p2p(msn_sender, msn_receiver,  &p2p_packet_to_send.packet);
                                 let serialized_response = msg_to_send.serialize();
@@ -598,14 +600,14 @@ impl CommandHandler for SwitchboardCommandHandler {
                     if payload.content_type == "application/x-msnmsgrp2p" {
                         //P2P packets
                        if let Ok(mut p2p_packet) = P2PTransportPacket::from_str(&payload.body){
-                            if let Some(proxy_client) = &mut self.proxy_client {
+                            if let Some(p2p_session) = &mut self.p2p_session {
 
                                 let source = MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Src")).unwrap().to_owned()).unwrap();
                                 let dest = MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Dest")).unwrap().to_owned()).unwrap();
-                                proxy_client.on_message_received(PendingPacket::new(p2p_packet, source, dest));
+                                p2p_session.on_message_received(PendingPacket::new(p2p_packet, source, dest));
 
                             } else {
-                                info!("P2P: Message received while proxy_client wasn't initialized: {}", &payload.body);
+                                info!("P2P: Message received while p2p session wasn't initialized: {}", &payload.body);
 
                             }
 
@@ -653,10 +655,6 @@ impl CommandHandler for SwitchboardCommandHandler {
             client_data.switchboards.remove(&self.target_room_id);
         }
     }
-
-
-    
-
 }
 
 #[cfg(test)]

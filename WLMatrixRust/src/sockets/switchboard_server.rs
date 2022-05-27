@@ -71,7 +71,7 @@ impl TCPServer for SwitchboardServer {
             let _result = tokio::spawn(async move {
                 let (read, mut write) = socket.split();
                 let mut reader = BufReader::new(read);
-                let mut buffer = [0u8; 2048]; //TODO shit workaround, support message chunking in the parser.
+                let mut buffer = [0u8; 2048];
 
                 let uuid = UUID::new();
                 loop {
@@ -82,11 +82,11 @@ impl TCPServer for SwitchboardServer {
                         //  They contain a binary header which is not UTF8
                         let line = unsafe {from_utf8_unchecked(&buffer)};
 
-                          //   info!("DEBUG BUFFER\r\n{:#04x?}", &buffer);
+                             info!("DEBUG BUFFER\r\n{:?}", &buffer);
 
                             let mut line = String::from(line);
                             //This is potentially not an UTF8 String
-                           // info!("DEBUG: {}, length: {}", &line, line.len());
+                            info!("DEBUG: {}, length: {}", &line, line.len());
                             if bytes_read.unwrap_or(0) == 0 {
                                 break;
                             }
