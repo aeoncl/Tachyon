@@ -10,8 +10,6 @@ use super::errors;
 lazy_static! {
     static ref TEMPLATE : String = String::from("MIME-Version: 1.0\r\nContent-Type: ");
     static ref CHARSET : String = String::from("; charset=UTF-8");
-    static ref HEADERS_REGEX : Regex = Regex::new(r"(.*: .*)*\r\n").unwrap();
-    static ref BODY_REGEX : Regex = Regex::new(r"\r\n\r\n(.*)").unwrap();
 }
  
 pub struct MsgPayload {

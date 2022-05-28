@@ -42,6 +42,7 @@ tokio-graceful-shutdown = "0.6.0"
 directories = "4.0.1"
 rand = "0.8.5"
 linked-hash-map = "0.5.4"
+emojis = "0.4.0"
 
 [dependencies.matrix-sdk]
 path = "matrix-rust-sdk/crates/matrix-sdk"

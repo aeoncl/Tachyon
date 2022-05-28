@@ -4,6 +4,8 @@ use chashmap::CHashMap;
 use matrix_sdk::{ruma::{events::{room::message::{RoomMessageEventContent}, OriginalSyncMessageLikeEvent}, OwnedEventId, OwnedRoomId, RoomId}, Client};
 use tokio::sync::broadcast::{Sender, self, Receiver, error::SendError};
 
+use crate::utils::emoji::{smiley_to_emoji};
+
 use super::{p2p::{factories::{SlpPayloadFactory, P2PPayloadFactory, TLVFactory}, p2p_transport_packet::P2PTransportPacket}, msn_user::MSNUser, msg_payload::{factories::MsgPayloadFactory, MsgPayload}};
 
 
@@ -69,7 +71,7 @@ impl SwitchboardHandle {
                         
                         }
 
-                        let content = RoomMessageEventContent::text_plain(payload.body);
+                        let content = RoomMessageEventContent::text_plain(smiley_to_emoji(&payload.body));
                         if let Ok(response) = room.send(content, None).await {
                              self.add_to_events_sent(response.event_id.to_string());
                         }

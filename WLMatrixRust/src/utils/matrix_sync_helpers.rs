@@ -7,7 +7,7 @@ use tokio::{join, sync::broadcast::{Sender, self}};
 
 use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, repositories::{matrix_client_repository::MatrixClientRepository, client_data_repository::ClientDataRepository, repository::Repository}, generated::{msnab_sharingservice::factories::{ContactFactory, MemberFactory, AnnotationFactory}, msnab_datatypes::types::{MemberState, RoleId, ContactTypeEnum, ArrayOfAnnotation}, payloads::{factories::NotificationFactory, PresenceStatus}}, models::{uuid::UUID, switchboard_handle::SwitchboardHandle, msg_payload::factories::MsgPayloadFactory, ab_data::AbData, capabilities::ClientCapabilitiesFactory}, AB_DATA_REPO};
 
-use super::{identifiers::matrix_id_to_msn_addr, matrix::get_direct_target_that_isnt_me};
+use super::{identifiers::matrix_id_to_msn_addr, matrix::get_direct_target_that_isnt_me, emoji::emoji_to_smiley};
 
 pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<String>) -> Sender<String> {
     
@@ -328,7 +328,7 @@ pub fn handle_messages(switchboard: &SwitchboardHandle, msg_event: &OriginalSync
     let sender_msn_addr = matrix_id_to_msn_addr(&msg_event.sender.to_string());
 
     if let MessageType::Text(content) = &msg_event.content.msgtype {
-        let msg = MsgPayloadFactory::get_message(content.body.clone());
+        let msg = MsgPayloadFactory::get_message(emoji_to_smiley(&content.body));
         switchboard.send_message_to_client(msg, &sender_msn_addr, Some(&msg_event.event_id.to_string()));
     }
 }
