@@ -1,9 +1,12 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration, sync::{Mutex, Arc}, mem};
 
+use tokio::time::{Interval, self};
 use chashmap::CHashMap;
 use log::info;
 use rand::Rng;
 use tokio::sync::broadcast::Sender;
+
+use crate::models::{errors::Errors, msn_user::MSNUser};
 
 use super::{pending_packet::PendingPacket, p2p_transport_packet::P2PTransportPacket, factories::{P2PTransportPacketFactory, SlpPayloadFactory, P2PPayloadFactory}, p2p_payload::P2PPayload, slp_payload::SlpPayload};
 
@@ -18,7 +21,10 @@ pub struct P2PSession {
     /* Session has been initialized */
     initialized: bool,
     /* The current sequence number */
-    sequence_number: u32
+    sequence_number: Arc<Mutex<u32>>,
+
+    test: u32
+
 
 }
 
@@ -29,11 +35,43 @@ impl P2PSession {
         let mut rng = rand::thread_rng();
         let seq_number = rng.gen::<u32>();
 
-        return P2PSession { sender, chunked_packets: HashMap::new(), pending_packets: Vec::new(), initialized: false, sequence_number: seq_number };
+        return P2PSession { sender, chunked_packets: HashMap::new(), pending_packets: Vec::new(), initialized: false, sequence_number: Arc::new(Mutex::new(seq_number)), test: 0 };
+    }
+
+    pub fn listen_for_raks(&self) {
+        let sender = self.sender.clone();
+        let sequence_number = self.sequence_number.clone();
+
+        let _result = tokio::spawn(async move {
+            let mut interval = time::interval(Duration::from_secs(5));
+
+            loop {
+                interval.tick().await;
+                if sender.receiver_count() > 0 {
+
+                    let mut rak = P2PTransportPacketFactory::get_rak();
+                    rak.sequence_number = sequence_number.lock().expect("sequence number should be unlocked").clone();
+
+                    sender.send(PendingPacket::new(rak, MSNUser::default(), MSNUser::default()));
+
+                } else {
+                    info!("stop listen for raks");
+                    break;
+                }
+            }
+            
+
+        });
     }
 
     pub fn set_seq_number(&mut self, seq_number: u32) {
-        self.sequence_number = seq_number;
+        let mut seq_num = self.sequence_number.lock().expect("seq_number to be unlocked");
+        mem::replace(&mut *seq_num, seq_number);
+    }
+
+    fn get_seq_number(&self) -> u32 {
+        let mut seq_num = self.sequence_number.lock().expect("seq_number to be unlocked");
+        return seq_num.clone();
     }
 
     pub fn set_initialized(&mut self, initialized: bool) {
@@ -58,6 +96,11 @@ impl P2PSession {
 
     fn add_or_append_to_chunks(&mut self, msg: &PendingPacket) -> u16 {
 
+
+        if msg.packet.is_rak() {
+            self.reply_ack(&msg);
+        }
+
         if let Some(package_num) = msg.packet.get_payload_package_number(){
             if let Some(found) = self.chunked_packets.get_mut(&package_num) {
                 found.add_chunk(msg.packet.to_owned());
@@ -70,6 +113,9 @@ impl P2PSession {
     }
 
     pub fn on_message_received(&mut self, msg: PendingPacket) {
+
+      //  info!("on msg received");
+
 
         let is_chunk = self.handle_chunks(&msg);
         if !is_chunk {
@@ -90,6 +136,9 @@ impl P2PSession {
                 if let Some(payload) = packet.get_payload() {
                     if let Ok(slp) = payload.get_payload_as_slp() {
                         self.reply_slp(&msg, slp);
+                    }else if payload.is_file_transfer() {
+                        info!("file transfer packet received!");
+                        self.reply_ack(&msg);
                     }
                 }
             } else {
@@ -153,41 +202,55 @@ impl P2PSession {
         self.on_message_received(packet);
     }
 
-    fn handle_slp_payload(&mut self, slp_payload: &SlpPayload) -> P2PPayload {
+    fn handle_slp_payload(&mut self, slp_payload: &SlpPayload) -> Result<P2PPayload, Errors> {
 
-        let content_type = slp_payload.get_content_type().unwrap(); //todo unwrap_or error slp message
+        let error = String::from("error");
+        let content_type = slp_payload.get_content_type().unwrap_or(&error); //todo unwrap_or error slp message
             match content_type.as_str() {
                 "application/x-msnmsgr-transreqbody" => {
-                   let slp_payload_response = SlpPayloadFactory::get_200_ok_direct_connect(&slp_payload).unwrap(); //todo unwrap_or error slp message
+                let slp_payload_response = SlpPayloadFactory::get_200_ok_direct_connect(&slp_payload).unwrap(); //todo unwrap_or error slp message
+                   
+                   
+                // let mut slp_payload_response = SlpPayloadFactory::get_500_error_direct_connect(slp_payload, String::from("TCPv1")).unwrap(); //todo unwrap_or error slp message
+                // if self.test > 0 {
+                //  slp_payload_response = SlpPayloadFactory::get_500_error_direct_connect(slp_payload, String::from("TRUDPv1")).unwrap(); //todo unwrap_or error slp message
+                //  }
 
+                // self.test += 1;
+                   
                    let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
                    p2p_payload_response.set_payload(slp_payload_response.to_string().as_bytes().to_owned());
-                    return p2p_payload_response;
+                    return Ok(p2p_payload_response);
                 },
                 "application/x-msnmsgr-sessionreqbody" => {
                     let slp_payload_response = SlpPayloadFactory::get_200_ok_session(slp_payload).unwrap(); //todo unwrap_or error slp message
                     let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
                     p2p_payload_response.set_payload(slp_payload_response.to_string().as_bytes().to_owned());
-                    return p2p_payload_response;
+                    return Ok(p2p_payload_response);
                 },
                 "application/x-msnmsgr-transrespbody" => {
                     let bridge = slp_payload.get_body_property(&String::from("Bridge")).unwrap();
                     let slp_payload_response = SlpPayloadFactory::get_500_error_direct_connect(slp_payload, bridge.to_owned()).unwrap(); //todo unwrap_or error slp message
                     let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
                     p2p_payload_response.set_payload(slp_payload_response.to_string().as_bytes().to_owned());
-                    return p2p_payload_response;
+                    return Ok(p2p_payload_response);
                 },
+                "application/x-msnmsgr-sessionclosebody" => {
+                    return Err(Errors::PayloadNotComplete);
+                    
+                }
                 _ => {
-                    info!("not handled slp payload yet: {:?}", slp_payload);
-                   return P2PPayload::new(0, 0);
+                    info!("not handled slp payload: {:?}", slp_payload);
+                   return Err(Errors::PayloadNotComplete);
                 }
             }
     }
 
     fn reply_slp(&mut self, request: &PendingPacket, slp_request: SlpPayload) {
-        let slp_payload_resp = self.handle_slp_payload(&slp_request);
-        let slp_transport_resp = P2PTransportPacket::new(0, Some(slp_payload_resp));
-        self.reply(request, slp_transport_resp);
+        if let Ok(slp_payload_resp) = self.handle_slp_payload(&slp_request) {
+            let slp_transport_resp = P2PTransportPacket::new(0, Some(slp_payload_resp));
+            self.reply(request, slp_transport_resp);
+        }
     }
 
     fn reply_ack(&mut self, request: &PendingPacket) {
@@ -200,10 +263,10 @@ impl P2PSession {
 
     fn reply(&mut self, request: &PendingPacket, msg_to_send: P2PTransportPacket) {
         let mut msg_to_send = msg_to_send.clone();
-        msg_to_send.sequence_number = self.sequence_number.clone();
+        msg_to_send.sequence_number = self.get_seq_number();
 
         //setting next sequence number
-        self.sequence_number = self.sequence_number + msg_to_send.get_payload_length();
+        self.set_seq_number(self.get_seq_number() + msg_to_send.get_payload_length());
 
         self.sender.send(PendingPacket::new(msg_to_send, request.receiver.clone(), request.sender.clone()));
     }

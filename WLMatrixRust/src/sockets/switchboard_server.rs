@@ -82,11 +82,11 @@ impl TCPServer for SwitchboardServer {
                         //  They contain a binary header which is not UTF8
                         let line = unsafe {from_utf8_unchecked(&buffer)};
 
-                             info!("DEBUG BUFFER\r\n{:?}", &buffer);
+                           //  info!("DEBUG BUFFER\r\n{:?}", &buffer);
 
                             let mut line = String::from(line);
                             //This is potentially not an UTF8 String
-                            info!("DEBUG: {}, length: {}", &line, line.len());
+                          //  info!("DEBUG: {}, length: {}", &line, line.len());
                             if bytes_read.unwrap_or(0) == 0 {
                                 break;
                             }
@@ -113,7 +113,7 @@ impl TCPServer for SwitchboardServer {
 
                             //    info!("command passed complete check");
 
-                                info!("SW {}<= {}", &uuid.to_string(), &command);
+                             //   info!("SW {}<= {}", &uuid.to_string(), &command);
                                    let response = command_handler.handle_command(&command).await;
                                    if !response.is_empty() {
                                        write.write_all(response.as_bytes()).await;

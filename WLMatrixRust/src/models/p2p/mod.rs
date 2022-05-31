@@ -183,6 +183,40 @@ SessionID: 2216804035
             return Ok(out);
         }
 
+        pub fn get_200_ok_direct_connect_bad_port(invite: &SlpPayload) -> Result<SlpPayload, Errors> {
+            let mut out = SlpPayload::new();
+            out.first_line = String::from("MSNSLP/1.0 200 OK");
+
+            
+            out.add_header(String::from("To"), invite.get_header(&String::from("From")).unwrap().to_owned());
+            out.add_header(String::from("From"), invite.get_header(&String::from("To")).unwrap().to_owned());
+            out.add_header(String::from("Via"), invite.get_header(&String::from("Via")).unwrap().to_owned());
+
+            let cseq = invite.headers.get("CSeq").unwrap().parse::<i32>().unwrap() + 1;
+            out.add_header(String::from("CSeq"), cseq.to_string());
+            out.add_header(String::from("Call-ID"), invite.get_header(&String::from("Call-ID")).unwrap().to_owned());
+            out.add_header(String::from("Max-Forwards"), String::from("0"));
+            out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-transrespbody"));
+
+            if let Some(session_id) = invite.get_body_property(&String::from("SessionID")){
+                out.add_body_property(String::from("SessionID"), session_id.to_owned());
+            }
+
+            out.add_body_property(String::from("Listening"), String::from("true"));
+            out.add_body_property(String::from("NeedConnectingEndpointInfo"), String::from("false"));
+            out.add_body_property(String::from("Conn-Type"), String::from("Firewall"));
+            out.add_body_property(String::from("TCP-Conn-Type"), String::from("Firewall"));
+            out.add_body_property(String::from("IPv6-global"), String::from(""));
+            out.add_body_property(String::from("UPnPNat"), String::from("false"));
+            out.add_body_property(String::from("Capabilities-Flags"), String::from("1"));
+            out.add_body_property(String::from("IPv4External-Addrs"), String::from("127.0.0.1"));
+            out.add_body_property(String::from("IPv4External-Port"), String::from("1866"));
+            out.add_body_property(String::from("Nat-Trav-Msg-Type"), String::from("WLX-Nat-Trav-Msg-Direct-Connect-Resp"));
+            out.add_body_property(String::from("Bridge"), String::from("TCPv1"));
+            out.add_body_property(String::from("Hashed-Nonce"), String::from("{2B95F56D-9CA0-9A64-82CE-ADC1F3C55845}"));
+            return Ok(out);
+        }
+
         pub fn get_500_error_direct_connect(invite: &SlpPayload, bridge: String) -> Result<SlpPayload, Errors> {
             let mut out = SlpPayload::new();
             out.first_line = String::from("MSNSLP/1.0 500 Internal Error");
@@ -250,6 +284,12 @@ SessionID: 2216804035
         pub fn get_syn_ack(next_ack_sequence_number: u32) -> P2PTransportPacket {
             let mut out = P2PTransportPacketFactory::get_ack(next_ack_sequence_number);
             out.set_syn(TLVFactory::get_client_peer_info());
+            out.set_rak();
+            return out;
+        }
+
+        pub fn get_rak() -> P2PTransportPacket {
+            let mut out = P2PTransportPacket::new(0, None);
             out.set_rak();
             return out;
         }

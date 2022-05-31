@@ -27,6 +27,11 @@ impl P2PPayload {
 
     pub fn deserialize(bytes: &[u8], payload_length: usize) -> Result<Self, Errors> {
         let header_length = bytes.get(0).unwrap_or(&0).to_owned() as usize;
+
+        if header_length < 8 {
+            return Err(Errors::PayloadDeserializeError);
+        }
+
         let tf_combination = bytes.get(1).unwrap_or(&0).to_owned();
         let package_number = BigEndian::read_u16(&bytes[2..4]);
         let session_id = BigEndian::read_u32(&bytes[4..8]);
@@ -38,7 +43,12 @@ impl P2PPayload {
             tlvs = extract_tlvs(tlvs_bytes, tlvs_length);
         }
 
-        let payload = bytes[8+tlvs_length..payload_length].to_owned();
+        let mut payload_length_to_take = payload_length;
+        if payload_length > bytes.len() {
+            return Err(Errors::PayloadNotComplete);
+        }
+
+        let payload = bytes[8+tlvs_length..payload_length_to_take].to_owned();
         return Ok(P2PPayload{ header_length, tf_combination, package_number, session_id, tlvs, payload });
     }
 
@@ -89,9 +99,27 @@ impl P2PPayload {
         return Err(Errors::PayloadDoesNotContainsSLP);
     }
 
+    pub fn is_file_transfer(&self) -> bool {
+        info!("is file transfer");
+        if !self.payload.is_empty() {
+            info!("tf: {}, session_id: {}", &self.tf_combination, &self.session_id);
+
+            if self.tf_combination == 6 || self.tf_combination == 7 && self.session_id > 0 {
+                return true;
+            }
+        }
+        return false;
+    }
+
     pub fn append(&mut self, payload: &mut P2PPayload) -> usize {
         let added_size = payload.payload.len();
         self.payload.append(payload.payload.as_mut());
+        return added_size;
+    }
+
+    pub fn append_raw(&mut self, payload: &[u8]) -> usize {
+        let added_size = payload.len();
+        self.payload.extend_from_slice(&payload);
         return added_size;
     }
  

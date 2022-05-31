@@ -23,7 +23,11 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
     }
     
     impl P2PTransportPacket {
-    
+
+        pub fn extract_payload_length(p2p_transport_data: &[u8]) -> usize {
+            return BigEndian::read_u16(&p2p_transport_data[2..4]) as usize;
+        }
+
         pub fn new(sequence_number: u32, payload: Option<P2PPayload>) -> Self {
             return P2PTransportPacket { header_length: 0, op_code: 0, payload_length: 0, sequence_number, tlvs: Vec::new(), payload};
         }
@@ -196,6 +200,14 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
             }
         }
 
+        pub fn append_raw_chunk(&mut self, chunk: &[u8]) {
+
+            if let Some(payload) = self.payload.as_mut(){
+                let added_len = payload.append_raw(&chunk);
+                self.payload_length += added_len;
+            }
+        }
+
     }
     
     impl TryFrom<&[u8]> for P2PTransportPacket {
@@ -203,6 +215,11 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
 
         fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
             let header_length = bytes.get(0).unwrap_or(&0).to_owned() as usize;
+
+            if header_length < 8 {
+                return Err(Errors::PayloadNotComplete);
+            }
+            
             let op_code = bytes.get(1).unwrap_or(&0).to_owned();
             let payload_length = BigEndian::read_u16(&bytes[2..4]) as usize;
             let sequence_number = BigEndian::read_u32(&bytes[4..8]);
@@ -216,7 +233,7 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
     
             let mut payload = None;
             if payload_length > 0 {
-                info!("P2PPayload present!");
+                //info!("P2PPayload present!");
                 payload = Some(P2PPayload::deserialize(&bytes[8+tlvs_length..bytes.len()], payload_length)?);
             } 
     
