@@ -1,6 +1,6 @@
 use std::{collections::HashSet, path::Path};
 
-use matrix_sdk::{Client, ruma::{UserId, DeviceId, device_id, user_id, OwnedUserId, events::{AnySyncMessageLikeEvent, AnySyncRoomEvent, SyncMessageLikeEvent}}, Session, Error, deserialized_responses::JoinedRoom, store::make_store_config};
+use matrix_sdk::{Client, ruma::{UserId, DeviceId, device_id, user_id, events::{AnySyncMessageLikeEvent, AnySyncRoomEvent, SyncMessageLikeEvent}, OwnedUserId}, Session, Error, deserialized_responses::JoinedRoom, store::make_store_config};
 use reqwest::Url;
 
 use super::identifiers::get_matrix_device_id;
@@ -38,7 +38,7 @@ pub fn load_mtx_timestamp(msn_addr: &String) -> String {
 }
 
 
-pub fn get_direct_target_that_isnt_me(direct_targets: &HashSet<OwnedUserId>, me: &OwnedUserId) -> Option<OwnedUserId> {
+pub fn get_direct_target_that_isnt_me(direct_targets: &HashSet<OwnedUserId>, me: &UserId) -> Option<OwnedUserId> {
 
     for direct_target in direct_targets {
         if(direct_target != me) {

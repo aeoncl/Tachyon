@@ -25,7 +25,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
 
                 async move {
 
-                    if ev.sender == client.user_id().await.unwrap() { 
+                    if ev.sender == client.user_id().unwrap() { 
                         return;
                     }
 
@@ -79,7 +79,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                     let ab_data_repo  = AB_DATA_REPO.clone();
                     let ab_data = ab_data_repo.find_mut(&token).unwrap();
 
-                    if ev.content.membership == MembershipState::Invite && ev.state_key == client.user_id().await.unwrap() && ev.content.is_direct.unwrap_or(false) { 
+                    if ev.content.membership == MembershipState::Invite && ev.state_key == client.user_id().unwrap() && ev.content.is_direct.unwrap_or(false) { 
 
                         let target_uuid = UUID::from_string(&ev.sender.to_string());
                         let target_msn_addr = matrix_id_to_msn_addr(&ev.sender.to_string());
@@ -116,7 +116,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
 
                 async move {
 
-                    let me = client.user_id().await.unwrap();
+                    let me = client.user_id().unwrap();
 
                     if let SyncRoomMemberEvent::Original(ev) = &ev {
                         info!("ABDEBUG: Original Event !!");
@@ -189,7 +189,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                 let msn_ns_sender = sender.clone();
                 async move {
 
-                    let me = client.user_id().await.unwrap();
+                    let me = client.user_id().unwrap();
                     if let SyncRoomMessageEvent::Original(ev) = ev {
                     
                         let joined_members = room.joined_members().await.unwrap_or(Vec::new());
@@ -198,7 +198,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                         let debug_len = joined_members.len();
 
                         if room.is_direct() && joined_members.len() > 0 && joined_members.len() <= 2 {
-                            let me =  client.user_id().await.unwrap();
+                            let me =  client.user_id().unwrap();
                             if let Some(target) = get_direct_target_that_isnt_me(&room.direct_targets(), &me){
 
                                 let room_id = room.room_id().to_string();
@@ -301,7 +301,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
 
                 if let Some(client_data) = client_data_repo.find(&token) {
 
-                    if let Some(found) = matrix_client.store().get_presence_event(&matrix_client.user_id().await.unwrap()).await.unwrap() {
+                    if let Some(found) = matrix_client.store().get_presence_event(&matrix_client.user_id().unwrap()).await.unwrap() {
                         let event: PresenceEvent = found.deserialize_as().unwrap();
                         
 
@@ -353,7 +353,7 @@ async fn handle_1v1_dm(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, room
     let ab_data_repo  = AB_DATA_REPO.clone();
     let ab_data = ab_data_repo.find_mut(&mtx_token).unwrap();
 
-    let me = client.user_id().await.unwrap();
+    let me = client.user_id().unwrap();
     if let Some(target) = get_direct_target_that_isnt_me(&room.direct_targets(), &me){
 
         let target_uuid = UUID::from_string(&target.to_string());

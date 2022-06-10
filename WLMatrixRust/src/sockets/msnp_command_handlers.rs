@@ -137,7 +137,7 @@ impl CommandHandler for NotificationCommandHandler {
                             
 
                             let mut endpoints = String::new();
-                            let this_device_id = client.device_id().await.unwrap();
+                            let this_device_id = client.device_id().unwrap();
 
                             for device in devices {
                                 if device.device_id != this_device_id {
@@ -310,8 +310,8 @@ impl NotificationCommandHandler {
         if let Ok(private_endpoint_data) = PrivateEndpointData::from_str(payload) {
             if let Some(matrix_client) = matrix_client_repo.find(&self.matrix_token) {
 
-                 let device_id = matrix_client.device_id().await.unwrap();
-                 matrix_client.update_device(&device_id, private_endpoint_data.ep_name).await.unwrap_or_default();
+                 let device_id = matrix_client.device_id().unwrap();
+                 matrix_client.update_device(&device_id.to_owned(), private_endpoint_data.ep_name).await.unwrap_or_default();
 
             }
         }
@@ -402,12 +402,17 @@ impl SwitchboardCommandHandler {
                 loop {
                     tokio::select! {
                         command_to_send = sb_handle_receiver.recv() => {
-                            let msg = command_to_send.unwrap();
-                            if msg.starts_with("STOP") {
-                                break;
+                            if let Ok(msg) = command_to_send {
+                                if msg.starts_with("STOP") {
+                                    break;
+                                } else {
+                                    let _result = sender.send(msg);
+                                }
                             } else {
-                                let _result = sender.send(msg);
+                                info!("bad message received in sb command handler -> exitting.");
+                                break;
                             }
+                          
                         },
                         p2p_packet_to_send_maybe = p2p_receiver.recv() => {
                             if let Ok(p2p_packet_to_send) = p2p_packet_to_send_maybe {
@@ -630,7 +635,7 @@ impl CommandHandler for SwitchboardCommandHandler {
                 let type_of_ack = split[2];
 
 
-                if type_of_ack == "A" {
+                if type_of_ack == "A" && type_of_ack == "D" {
                     return format!("ACK {tr_id}\r\n", tr_id= &tr_id);
                 }
                     

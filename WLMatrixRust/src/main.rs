@@ -59,7 +59,7 @@ async fn main() {
     let echo_server_future = echo_server.listen();
 
     let http_server = HttpServer::new(|| App::new().wrap(Logger::new(r#"%a "%r" %{SOAPAction}i %s %b "%{Referer}i" "%{User-Agent}i" %T"#))
-    .service(greet).service(rst2)
+    .service(firewall_test).service(rst2)
     .service(get_msgr_config)
     .service(soap_adress_book_service)
     .service(soap_sharing_service)

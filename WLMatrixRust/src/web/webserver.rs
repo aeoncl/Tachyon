@@ -42,9 +42,9 @@ lazy_static_include_bytes! {
     MSGR_CONFIG_XML => "assets/web/MsgrConfig.xml"
 }
 
-#[get("/hello/{name}")]
-pub async fn greet(name: web::Path<String>) -> impl Responder {
-    format!("Hello {name}!")
+#[post("/")]
+pub async fn firewall_test(request: HttpRequest) -> Result<HttpResponse, WebError> {
+    return Ok(HttpResponseBuilder::new(StatusCode::OK).finish());
 }
 
 #[post("/RST2.srf")]

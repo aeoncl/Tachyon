@@ -107,15 +107,20 @@ impl TCPServer for P2PServer {
                             buffer = [0u8; 4096];
                         },
                         command_to_send = rx.recv() => {
-                            let msg = command_to_send.unwrap();
+                            if let Ok(msg) = command_to_send {
+                                info!("P2P >> {:?}", &msg);
                             
-                            info!("P2P >> {:?}", &msg);
-                            
-                            let bytes_to_send = msg.as_direct_p2p();
-                            let line = unsafe {from_utf8_unchecked(&bytes_to_send.as_slice())};
-                        //    info!("P2P >> STRING: {}", &line);
+                                let bytes_to_send = msg.as_direct_p2p();
+                                let line = unsafe {from_utf8_unchecked(&bytes_to_send.as_slice())};
+                            //    info!("P2P >> STRING: {}", &line);
+    
+                                write.write_all(bytes_to_send.as_slice()).await;
+                            } else {
+                                info!("P2P >> BAD COMMAND {:?}", &command_to_send);
 
-                            write.write_all(bytes_to_send.as_slice()).await;
+                            }
+                            
+                           
                         }
                     }
                 }

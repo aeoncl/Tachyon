@@ -131,7 +131,7 @@ impl P2PCommandParser {
     
                     info!("debug message: {:?}", &message);
     
-                    std::process::exit(0);
+                    std::process::exit(0); //todo remove this
                     break;
                 }
     

@@ -207,8 +207,8 @@ impl P2PSession {
         let error = String::from("error");
         let content_type = slp_payload.get_content_type().unwrap_or(&error); //todo unwrap_or error slp message
             match content_type.as_str() {
-                "application/x-msnmsgr-transreqbody" => {
-                let slp_payload_response = SlpPayloadFactory::get_200_ok_direct_connect(&slp_payload).unwrap(); //todo unwrap_or error slp message
+              //  "application/x-msnmsgr-transreqbody" => {
+              //  let slp_payload_response = SlpPayloadFactory::get_200_ok_direct_connect(&slp_payload).unwrap(); //todo unwrap_or error slp message
                    
                    
                 // let mut slp_payload_response = SlpPayloadFactory::get_500_error_direct_connect(slp_payload, String::from("TCPv1")).unwrap(); //todo unwrap_or error slp message
@@ -218,10 +218,10 @@ impl P2PSession {
 
                 // self.test += 1;
                    
-                   let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
-                   p2p_payload_response.set_payload(slp_payload_response.to_string().as_bytes().to_owned());
-                    return Ok(p2p_payload_response);
-                },
+                  // let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
+                  // p2p_payload_response.set_payload(slp_payload_response.to_string().as_bytes().to_owned());
+                 //   return Ok(p2p_payload_response);
+              //  },
                 "application/x-msnmsgr-sessionreqbody" => {
                     let slp_payload_response = SlpPayloadFactory::get_200_ok_session(slp_payload).unwrap(); //todo unwrap_or error slp message
                     let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
