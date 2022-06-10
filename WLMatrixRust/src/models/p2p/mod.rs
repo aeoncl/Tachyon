@@ -5,6 +5,7 @@ pub mod p2p_transport_packet;
 pub mod slp_payload;
 pub mod tlv;
 pub mod p2p_session;
+pub mod slp_payload_handler;
 
 pub mod factories {
     use byteorder::{BigEndian, ByteOrder, LittleEndian};

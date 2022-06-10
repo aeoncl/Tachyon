@@ -8,7 +8,7 @@ use tokio::sync::broadcast::Sender;
 
 use crate::models::{errors::Errors, msn_user::MSNUser};
 
-use super::{pending_packet::PendingPacket, p2p_transport_packet::P2PTransportPacket, factories::{P2PTransportPacketFactory, SlpPayloadFactory, P2PPayloadFactory}, p2p_payload::P2PPayload, slp_payload::SlpPayload};
+use super::{pending_packet::PendingPacket, p2p_transport_packet::P2PTransportPacket, factories::{P2PTransportPacketFactory, SlpPayloadFactory, P2PPayloadFactory}, p2p_payload::P2PPayload, slp_payload::SlpPayload, slp_payload_handler::SlpPayloadHandler};
 
 pub struct P2PSession {
 
@@ -202,52 +202,8 @@ impl P2PSession {
         self.on_message_received(packet);
     }
 
-    fn handle_slp_payload(&mut self, slp_payload: &SlpPayload) -> Result<P2PPayload, Errors> {
-
-        let error = String::from("error");
-        let content_type = slp_payload.get_content_type().unwrap_or(&error); //todo unwrap_or error slp message
-            match content_type.as_str() {
-              //  "application/x-msnmsgr-transreqbody" => {
-              //  let slp_payload_response = SlpPayloadFactory::get_200_ok_direct_connect(&slp_payload).unwrap(); //todo unwrap_or error slp message
-                   
-                   
-                // let mut slp_payload_response = SlpPayloadFactory::get_500_error_direct_connect(slp_payload, String::from("TCPv1")).unwrap(); //todo unwrap_or error slp message
-                // if self.test > 0 {
-                //  slp_payload_response = SlpPayloadFactory::get_500_error_direct_connect(slp_payload, String::from("TRUDPv1")).unwrap(); //todo unwrap_or error slp message
-                //  }
-
-                // self.test += 1;
-                   
-                  // let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
-                  // p2p_payload_response.set_payload(slp_payload_response.to_string().as_bytes().to_owned());
-                 //   return Ok(p2p_payload_response);
-              //  },
-                "application/x-msnmsgr-sessionreqbody" => {
-                    let slp_payload_response = SlpPayloadFactory::get_200_ok_session(slp_payload).unwrap(); //todo unwrap_or error slp message
-                    let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
-                    p2p_payload_response.set_payload(slp_payload_response.to_string().as_bytes().to_owned());
-                    return Ok(p2p_payload_response);
-                },
-                "application/x-msnmsgr-transrespbody" => {
-                    let bridge = slp_payload.get_body_property(&String::from("Bridge")).unwrap();
-                    let slp_payload_response = SlpPayloadFactory::get_500_error_direct_connect(slp_payload, bridge.to_owned()).unwrap(); //todo unwrap_or error slp message
-                    let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
-                    p2p_payload_response.set_payload(slp_payload_response.to_string().as_bytes().to_owned());
-                    return Ok(p2p_payload_response);
-                },
-                "application/x-msnmsgr-sessionclosebody" => {
-                    return Err(Errors::PayloadNotComplete);
-                    
-                }
-                _ => {
-                    info!("not handled slp payload: {:?}", slp_payload);
-                   return Err(Errors::PayloadNotComplete);
-                }
-            }
-    }
-
     fn reply_slp(&mut self, request: &PendingPacket, slp_request: SlpPayload) {
-        if let Ok(slp_payload_resp) = self.handle_slp_payload(&slp_request) {
+        if let Ok(slp_payload_resp) = SlpPayloadHandler::handle_p2p(&slp_request) {
             let slp_transport_resp = P2PTransportPacket::new(0, Some(slp_payload_resp));
             self.reply(request, slp_transport_resp);
         }

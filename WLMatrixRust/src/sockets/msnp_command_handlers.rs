@@ -21,6 +21,8 @@ use crate::models::p2p::p2p_session::P2PSession;
 use crate::models::p2p::p2p_transport_packet::P2PTransportPacket;
 use crate::models::p2p::pending_packet::PendingPacket;
 
+use crate::models::p2p::slp_payload::SlpPayload;
+use crate::models::p2p::slp_payload_handler::SlpPayloadHandler;
 use crate::models::switchboard_handle::SwitchboardHandle;
 use crate::repositories::matrix_client_repository::MatrixClientRepository;
 use crate::repositories::repository::Repository;
@@ -252,12 +254,21 @@ impl CommandHandler for NotificationCommandHandler {
                         self.handle_device_logout(endpoint_guid).await;
                     } else if command.payload.as_str() == "gtfo" {
                         //TODO
-                    } else {
-                        return format!("{error_code} {tr_id}\r\n", error_code = MsnpErrorCode::PrincipalNotOnline as i32, tr_id= tr_id);
                     }
+
                 } else {
                     // this not for me
-                    return format!("{error_code} {tr_id}\r\n", error_code = MsnpErrorCode::PrincipalNotOnline as i32, tr_id= tr_id);                
+                    if command.payload.contains("MSNSLP/1.0") {
+                        //slp payload
+                        let slp_request = SlpPayload::from_str(command.payload.as_str()).unwrap();
+                        let slp_response = SlpPayloadHandler::handle(&slp_request).unwrap();
+
+                        let payload = slp_response.to_string();
+                        return format!("UUN {tr_id} OK\r\nUBN {msn_addr} 5 {payload_size}\r\n{payload}", tr_id = tr_id, msn_addr= &receiver_msn_addr, payload=&payload, payload_size = payload.len());
+                    }
+
+
+                    return format!("UUN {tr_id} OK\r\n", tr_id = tr_id);                
                 }
 
 
