@@ -47,16 +47,16 @@ async fn main() {
 
     let notif_server = NotificationServer::new("127.0.0.1".to_string(), 1863);
     let switchboard_server = SwitchboardServer::new("127.0.0.1".to_string(), 1864);
-    let bad_server = P2PServer::new("127.0.0.1".to_string(), 1865);
-    let echo_server = EchoServer::new("127.0.0.1".to_string(), 7001);
     
+    //let direct_p2p_server = P2PServer::new("127.0.0.1".to_string(), 1865);
+    //let direct_p2p_server_future = direct_p2p_server.listen();
+
+    //let echo_server = EchoServer::new("127.0.0.1".to_string(), 7001);
+    //let echo_server_future = echo_server.listen();
+
     let notif_server_future = notif_server.listen();
 
     let switchboard_server_future = switchboard_server.listen();
-
-    let bad_server_future = bad_server.listen();
-
-    let echo_server_future = echo_server.listen();
 
     let http_server = HttpServer::new(|| App::new().wrap(Logger::new(r#"%a "%r" %{SOAPAction}i %s %b "%{Referer}i" "%{User-Agent}i" %T"#))
     .service(firewall_test).service(rst2)
@@ -69,6 +69,6 @@ async fn main() {
     .bind(("127.0.0.1", 8080)).unwrap()
     .run();
 
-    let _test = join!(notif_server_future, switchboard_server_future, bad_server_future, http_server, echo_server_future);
+    let _test = join!(notif_server_future, switchboard_server_future, http_server);
     println!("See you next time 👀!");
 }
