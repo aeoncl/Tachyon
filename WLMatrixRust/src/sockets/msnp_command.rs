@@ -1,69 +1,99 @@
-use std::fmt;
+use std::{fmt, mem, string::FromUtf8Error};
 
 use lazy_static::lazy_static;
+use log::info;
 use regex::Regex;
-use substring::Substring;
-pub struct MSNPCommandParser {}
+
+lazy_static! {
+    static ref COMMAND_REGEX: Regex = Regex::new(r"([A-Z]{3}).*[\r\n]").unwrap();
+}
+
+
+pub struct MSNPCommandParser {
+
+    incomplete_command: Vec<MSNPCommand>
+
+}
 
 impl MSNPCommandParser {
-    pub fn parse_message(message: &String) -> Vec<MSNPCommand> {
-        let mut out: Vec<MSNPCommand> = Vec::new();
 
-        lazy_static! {
-            static ref NORMAL_COMMAND: Regex = Regex::new(r"([A-Z]{3}).*[\r\n]").unwrap();
-        }
-
-        let mut current_slice = message.as_str();
-        let mut maybe_cap = NORMAL_COMMAND.captures(current_slice);
-        {
-            while let Some(ref mut cap) = maybe_cap {
-                let mut offset: usize = 0;
-
-                let mut command = MSNPCommand::new(
-                    cap[0][0..cap[0].len() - 2].to_string(),
-                    cap[1].to_string(),
-                    String::new(),
-                );
-
-                offset += cap[0].len();
-
-                let mut payload_size: usize = command.get_payload_size().try_into().unwrap();
-                if offset + payload_size > current_slice.len() {
-                    //If the payload size is bigger than what we have, don't go past our buffer. Payload is chunked.
-                    payload_size = current_slice.len() - offset;
-                }
-
-                if payload_size > 0 {
-                    let payload = current_slice[offset..offset + payload_size].to_string();
-                    offset += payload.len();
-                    command.payload = payload;
-                }
-
-                out.push(command);
-
-                current_slice = &current_slice[offset..current_slice.len()];
-                maybe_cap = NORMAL_COMMAND.captures(current_slice);
-            }
-            return out;
-        }
+    pub fn new() -> Self {
+        return MSNPCommandParser { incomplete_command: Vec::new() };
     }
 
-    pub fn parsed_chunked(message: String, command : MSNPCommand) -> (String, MSNPCommand) {
-        let mut command = command;
-        let remaining_bytes = command.get_payload_size() - command.payload.len();
+    pub fn parse_message(&mut self, message: &str) -> Vec<MSNPCommand> {
 
-        let mut bytes_to_take = remaining_bytes as usize;
-        if message.len() < remaining_bytes as usize {
-            bytes_to_take = message.len();
+        let mut bytes_to_handle = message;
+        let mut out: Vec<MSNPCommand> = Vec::new();
+
+        //Handle previous chunks
+        if let Some(mut incomplete) = self.incomplete_command.pop() {
+            let remaining_bytes = incomplete.get_missing_bytes_count();
+
+            info!("previous message was chunked!");
+
+            if message.len() >= remaining_bytes {
+                //incomplete will be complete
+                info!("no longer chunked!");
+
+                incomplete.payload.push_str(&message[..remaining_bytes]);
+                out.push(incomplete);
+                bytes_to_handle = &bytes_to_handle[remaining_bytes..message.len()];
+            } else {
+                //still not complete
+                info!("still chunked!");
+
+                incomplete.payload.push_str(&message[..message.len()]);
+                self.incomplete_command.push(incomplete);
+                return out;
+            }
         }
-        command.payload.push_str(&message[0..bytes_to_take]);
-        let remaining_stuff = &message[bytes_to_take..message.len()];
-       return (remaining_stuff.to_string(), command);
+
+        //handle message content
+
+        let mut maybe_cap = COMMAND_REGEX.captures(bytes_to_handle);
+
+        while let Some(ref mut cap) = maybe_cap {
+            let mut offset: usize = 0;
+            let mut command = MSNPCommand::new(
+                cap[0][0..cap[0].len() - 2].to_string(),
+                cap[1].to_string(),
+                String::new(),
+            );
+
+            offset += cap[0].len();
+
+            let mut payload_size: usize = command.get_payload_size();
+            if offset + payload_size > bytes_to_handle.len() {
+                //If the payload size is bigger than what we have, don't go past our buffer. Payload is chunked.
+                payload_size = bytes_to_handle.len() - offset;
+            }
+
+            if payload_size > 0 {
+                let payload = bytes_to_handle[offset..offset + payload_size].to_string();
+                offset += payload.len();
+                command.payload = payload;
+            }
+
+            if command.is_complete() {
+                out.push(command);
+            } else {
+                info!("message was chunked");
+                self.incomplete_command.push(command);
+                break;
+            }
+
+            bytes_to_handle = &bytes_to_handle[offset..bytes_to_handle.len()];
+            maybe_cap = COMMAND_REGEX.captures(bytes_to_handle);
+
+        }
+
+        return out;
     }
 }
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MSNPCommand {
     pub command: String,
     pub payload: String,
@@ -93,6 +123,11 @@ impl MSNPCommand {
     pub fn is_complete(&self) -> bool {
         return self.get_payload_size() == self.payload.len();
     }
+
+    pub fn get_missing_bytes_count(&self) -> usize {
+        return self.get_payload_size() - self.payload.len();
+    }
+
 }
 
 impl fmt::Display for MSNPCommand {
@@ -112,10 +147,11 @@ mod tests {
     #[test]
     fn test_one_simple_command_old() {
         //Arrange
+        let mut parser = MSNPCommandParser::new();
         let command = String::from("TST 1 TST\r\n");
 
         //Act
-        let parsed = MSNPCommandParser::parse_message(&command);
+        let parsed = parser.parse_message(command.as_str());
 
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0].command, "TST 1 TST");
@@ -125,10 +161,11 @@ mod tests {
     #[test]
     fn test_two_simple_command_old() {
         //Arrange
+        let mut parser = MSNPCommandParser::new();
         let command = String::from("TST 1 TST\r\nMOV 4 WOOWOO\r\n");
 
         //Act
-        let parsed = MSNPCommandParser::parse_message(&command);
+        let parsed = parser.parse_message(command.as_str());
 
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed[0].command, "TST 1 TST");
@@ -141,10 +178,11 @@ mod tests {
     #[test]
     fn test_payload_command_old() {
         //Arrange
+        let mut parser = MSNPCommandParser::new();
         let command = String::from("ADL 6 15\r\n<ml l=\"1\"></ml>");
 
         //Act
-        let parsed = MSNPCommandParser::parse_message(&command);
+        let parsed = parser.parse_message(command.as_str());
 
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0].command, "ADL 6 15");
@@ -155,10 +193,11 @@ mod tests {
     #[test]
     fn test_payload_command2_old() {
         //Arrange
+        let mut parser = MSNPCommandParser::new();
         let command = String::from("MOV 4 WOOWOO\r\nADL 6 15\r\n<ml l=\"1\"></ml>TST 1 TST\r\n");
 
         //Act
-        let parsed = MSNPCommandParser::parse_message(&command);
+        let parsed = parser.parse_message(command.as_str());
 
         assert_eq!(parsed.len(), 3);
 
@@ -175,9 +214,10 @@ mod tests {
 
     #[test]
     fn test_payload_contains_psm() {
+        let mut parser = MSNPCommandParser::new();
         let commands = String::from("BLP 9 AL\r\nUUX 10 224\r\n<Data><PSM>Hi my dude</PSM><CurrentMedia></CurrentMedia><MachineGuid>&#x7B;F52973B6-C926-4BAD-9BA8-7C1E840E4AB0&#x7D;</MachineGuid><DDP></DDP><SignatureSound></SignatureSound><Scene></Scene><ColorScheme></ColorScheme></Data>CHG 11 NLN 2789003324:48 0\r\n");
 
-        let parsed = MSNPCommandParser::parse_message(&commands);
+        let parsed = parser.parse_message(commands.as_str());
 
         assert_eq!(parsed.len(), 3);
 
@@ -195,27 +235,30 @@ mod tests {
     #[test]
     fn test_chunked() {
       //  let command = String::from("MOV 4 WOOWOO\r\nADL 6 15\r\n");
-        let command = String::from("MOV 4 WOOWOO\r\nADL 6 15\r\n");
+      let mut parser = MSNPCommandParser::new();  
+      let command = String::from("MOV 4 WOOWOO\r\nADL 6 15\r\n");
         let chunked_payload = String::from("<ml l=\"1\"></ml>MOV 5 WEEWOO\r\n");
 
-        let mut parsed = MSNPCommandParser::parse_message(&command);
+        let parsed = parser.parse_message(command.as_str());
+
+        assert!(parsed.len() == 1);
+
+
+        let mut parsed = parser.parse_message(chunked_payload.as_str());
 
         let payload_command = parsed.pop().unwrap();
-        assert!(payload_command.is_complete() == false);
-
-        let (remaining_msg, payload_command) = MSNPCommandParser::parsed_chunked(chunked_payload, payload_command);
-
         assert!(payload_command.is_complete() == true);
     }
 
     #[test]
     fn test_utf8() {
+        let mut parser = MSNPCommandParser::new();
 
         let payload = "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nX-MMS-IM-Format: FN=Segoe%20UI; EF=; CO=0; CS=1; PF=0\r\n\r\nö";
         let first_message = format!("MSG 1 U {payload_size}\r\n{payload}", payload_size = payload.len(), payload = payload);
 
 
-        let mut parsed = MSNPCommandParser::parse_message(&first_message);
+        let mut parsed = parser.parse_message(first_message.as_str());
           let payload_command = parsed.pop().unwrap();
 
           assert_eq!(payload_command.payload,payload);
@@ -223,19 +266,5 @@ mod tests {
           println!("size in message: {}, size with len(): {}", payload_command.get_payload_size(), payload_command.payload.len());
           assert!(payload_command.is_complete() == true);
   
-    }
-
-    #[test]
-    fn test_long_token() {
-
-        let msg = "ANS 513 aeontest@shl.local;{F52973B6-C926-4BAD-9BA8-7C1E840E4AB0} IU9na3dZSlB4RE1hd29QaUxxRDpzaGwubG9jYWw7c3l0X1lXVnZiblJsYzNRX3dRWlNVTGZpSFVVQ2J3Vk5wRVNjXzNzY0NrWjtAYWVvbnRlc3QzOnNobC5sb2NhbA== 10763347332413127466\r\n".to_string();
-
-
-        let mut parsed = MSNPCommandParser::parse_message(&msg);
-          let payload_command = parsed.pop().unwrap();
-
-        assert_eq!(parsed.len(), 0);
-        assert!(msg.starts_with(&payload_command.command));
-
     }
 }

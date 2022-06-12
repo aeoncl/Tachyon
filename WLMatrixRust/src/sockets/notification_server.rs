@@ -1,4 +1,4 @@
-use std::{str::from_utf8};
+use std::{str::{from_utf8, from_utf8_unchecked}};
 
 use tokio::{
     io::{AsyncWriteExt, BufReader, AsyncReadExt},
@@ -38,6 +38,7 @@ impl TCPServer for NotificationServer {
             let (tx, mut rx) = broadcast::channel::<String>(10);
             let mut command_handler = self.get_command_handler(tx.clone());
             let mut incomplete_command: Option<MSNPCommand> = None;
+            let mut parser = MSNPCommandParser::new();
 
 
             let _result = tokio::spawn(async move {
@@ -47,35 +48,27 @@ impl TCPServer for NotificationServer {
                 loop {
                     tokio::select! {
                         bytes_read = reader.read(&mut buffer) => {
-                        let mut line = String::from(from_utf8(&buffer).unwrap());
+
+                            let bytes_read = bytes_read.unwrap_or(0);
+
                             //println!("DEBUG: {}", &line);
-                             if bytes_read.unwrap_or(0) == 0 {
-                                 break;
-                             }
+                            if bytes_read == 0 {
+                                break;
+                            }
 
-                             let mut commands : Vec<MSNPCommand> = Vec::new();
+                        //  I'm forced to use the unchecked variant of the from_utf8 function because of P2P packets.
+                        //  They contain a binary header which is not UTF8
+                        let line = unsafe {from_utf8_unchecked(&buffer[..bytes_read])};
 
-                             if let Some(command_to_fill) = incomplete_command {
-                               incomplete_command = None;
-                               let (remaining, command) = MSNPCommandParser::parsed_chunked(line.clone(), command_to_fill);
-                               line = remaining;
-                               commands.push(command);
-                             }
-
-
-                            commands.extend(MSNPCommandParser::parse_message(&line));
+                            let commands : Vec<MSNPCommand> = parser.parse_message(line);
 
                             for command in commands {
-                                if command.is_complete() {
                                     println!("NS <= {}", &command);
                                     let response = command_handler.handle_command(&command).await;
                                     if !response.is_empty() {
                                         write.write_all(response.as_bytes()).await;
                                         println!("NS => {}", &response);
                                     }
-                                } else {
-                                    incomplete_command = Some(command);
-                                }
                             }
                             buffer = [0u8; 2048];
                         },

@@ -616,6 +616,8 @@ impl CommandHandler for SwitchboardCommandHandler {
                     if payload.content_type == "application/x-msnmsgrp2p" {
                         //P2P packets
                        if let Ok(mut p2p_packet) = P2PTransportPacket::from_str(&payload.body){
+                            info!("was a p2p packet: {:?}", &p2p_packet);
+
                             if let Some(p2p_session) = &mut self.p2p_session {
 
                                 let source = MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Src")).unwrap().to_owned()).unwrap();
@@ -646,7 +648,7 @@ impl CommandHandler for SwitchboardCommandHandler {
                 let type_of_ack = split[2];
 
 
-                if type_of_ack == "A" && type_of_ack == "D" {
+                if type_of_ack == "A" || type_of_ack == "D" {
                     return format!("ACK {tr_id}\r\n", tr_id= &tr_id);
                 }
                     
@@ -683,8 +685,9 @@ mod tests {
     #[actix_rt::test]
     async fn test_ver_command() {
         //Arrange
+        let mut parser = MSNPCommandParser::new();
         let command = String::from("VER 1 MSNP18 MSNP17 CVR0\r\n");
-        let parsed = MSNPCommandParser::parse_message(&command);
+        let parsed = parser.parse_message(&command.as_str());
         let (tx, mut rx1) = broadcast::channel(16);
         let mut rx2 = tx.subscribe();
         let mut handler = NotificationCommandHandler::new(tx);
@@ -701,10 +704,12 @@ mod tests {
     #[actix_rt::test]
     async fn test_cvr_command() {
         //Arrange
+        let mut parser = MSNPCommandParser::new();
+
         let command = String::from(
             "CVR 2 0x0409 winnt 6.0.0 i386 MSNMSGR 14.0.8117.0416 msmsgs login@email.com\r\n",
         );
-        let parsed = MSNPCommandParser::parse_message(&command);
+        let parsed = parser.parse_message(command.as_str());
         let (tx, mut rx1) = broadcast::channel(16);
         let mut rx2 = tx.subscribe();
         let mut handler = NotificationCommandHandler::new(tx);

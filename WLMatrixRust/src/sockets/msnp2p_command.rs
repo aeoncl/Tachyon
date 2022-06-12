@@ -101,11 +101,11 @@ impl P2PCommandParser {
         return Ok(P2PCommand::data(p2p_transport_packet));
     }
 
-    pub fn store_chunked(&mut self, chunk: &[u8]) {
+    fn store_chunked(&mut self, chunk: &[u8]) {
         self.incomplete_command = chunk.to_vec();
     }
 
-    pub fn pop_chunked(&mut self) -> Vec<u8> {
+    fn pop_chunked(&mut self) -> Vec<u8> {
         return mem::take(&mut self.incomplete_command);
     }
 
