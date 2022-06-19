@@ -1,12 +1,12 @@
-use std::{sync::{Mutex, RwLock, Arc}, collections::HashSet, mem};
-
+use std::{sync::{Mutex, RwLock, Arc}, collections::HashSet, mem, io::Cursor, str::FromStr};
 use chashmap::CHashMap;
-use matrix_sdk::{ruma::{events::{room::message::{RoomMessageEventContent}, OriginalSyncMessageLikeEvent}, OwnedEventId, OwnedRoomId, RoomId}, Client};
+use matrix_sdk::{ruma::{events::{room::message::{RoomMessageEventContent}, OriginalSyncMessageLikeEvent}, OwnedEventId, OwnedRoomId, RoomId}, Client, attachment::AttachmentConfig};
+use mime::Mime;
 use tokio::sync::broadcast::{Sender, self, Receiver, error::SendError};
 
 use crate::utils::emoji::{smiley_to_emoji};
 
-use super::{p2p::{factories::{SlpPayloadFactory, P2PPayloadFactory, TLVFactory}, p2p_transport_packet::P2PTransportPacket}, msn_user::MSNUser, msg_payload::{factories::MsgPayloadFactory, MsgPayload}};
+use super::{p2p::{factories::{SlpPayloadFactory, P2PPayloadFactory, TLVFactory}, p2p_transport_packet::P2PTransportPacket, File::File}, msn_user::MSNUser, msg_payload::{factories::MsgPayloadFactory, MsgPayload}};
 
 
 #[derive(Clone)]
@@ -46,6 +46,21 @@ impl SwitchboardHandle {
     pub fn send_typing_notification_to_client(&self, typing_user_msn_addr: &String) -> Result<usize, SendError<String>> {
         let typing_user = MsgPayloadFactory::get_typing_user(typing_user_msn_addr.clone());
         return self.send_message_to_client(typing_user, typing_user_msn_addr, None);
+    }
+
+    pub async fn send_file_to_server(&self, file: File) {
+
+            let mut cursor = Cursor::new(&file.bytes);
+            if let Ok(mime) = mime::Mime::from_str(file.get_mime().as_str()) {
+                if let Some (room) = self.matrix_client.get_joined_room(&self.target_room_id) {
+
+                    let config = AttachmentConfig::new().generate_thumbnail(None);
+                    room.send_attachment(file.filename.as_str(), &mime, &mut cursor, config).await;
+                }
+                
+   
+            }
+            
     }
 
     pub async fn send_message_to_server(&mut self, payload: MsgPayload) {

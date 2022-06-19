@@ -1,14 +1,13 @@
 use std::{collections::HashMap, time::Duration, sync::{Mutex, Arc}, mem};
 
-use tokio::time::{Interval, self};
-use chashmap::CHashMap;
+use tokio::time::{self};
 use log::info;
 use rand::Rng;
 use tokio::sync::broadcast::Sender;
 
-use crate::models::{errors::Errors, msn_user::MSNUser};
+use crate::{models::{msn_user::MSNUser, errors::Errors, switchboard_handle::SwitchboardHandle}, utils::callback::Callback};
 
-use super::{pending_packet::PendingPacket, p2p_transport_packet::P2PTransportPacket, factories::{P2PTransportPacketFactory, SlpPayloadFactory, P2PPayloadFactory}, p2p_payload::P2PPayload, slp_payload::SlpPayload, slp_payload_handler::SlpPayloadHandler};
+use super::{pending_packet::PendingPacket, p2p_transport_packet::P2PTransportPacket, factories::{P2PTransportPacketFactory, SlpPayloadFactory, P2PPayloadFactory}, p2p_payload::P2PPayload, slp_payload::SlpPayload, slp_payload_handler::SlpPayloadHandler, File::File};
 
 pub struct P2PSession {
 
@@ -23,9 +22,15 @@ pub struct P2PSession {
     /* The current sequence number */
     sequence_number: Arc<Mutex<u32>>,
 
+    sb_handle: Option<Arc<tokio::sync::Mutex<SwitchboardHandle>>>,
+
+    /** a map of session_ids / files */
+    pending_files: HashMap<u32, File>,
+
+    //todo remove from pending files when we have a session ending.
+    //todo also remove from chunks
+
     test: u32
-
-
 }
 
 impl P2PSession {
@@ -35,7 +40,12 @@ impl P2PSession {
         let mut rng = rand::thread_rng();
         let seq_number = rng.gen::<u32>();
 
-        return P2PSession { sender, chunked_packets: HashMap::new(), pending_packets: Vec::new(), initialized: false, sequence_number: Arc::new(Mutex::new(seq_number)), test: 0 };
+        return P2PSession { sender, chunked_packets: HashMap::new(), pending_packets: Vec::new(), initialized: false, sequence_number: Arc::new(Mutex::new(seq_number)), test: 0, pending_files: HashMap::new(), sb_handle: None};
+    }
+
+    
+    pub fn set_sb_handle(&mut self, sb_handle: Arc<tokio::sync::Mutex<SwitchboardHandle>>) {
+        self.sb_handle = Some(sb_handle);
     }
 
     pub fn listen_for_raks(&self) {
@@ -86,10 +96,6 @@ impl P2PSession {
         return found;
     }
 
-    fn get_from_chunks(&self, package_number: u16) -> Option<&PendingPacket> {
-        return self.chunked_packets.get(&package_number);
-    }
-
     fn pop_from_chunks(&mut self, package_number: u16) -> Option<PendingPacket> {
         return self.chunked_packets.remove(&package_number);
     }
@@ -135,10 +141,33 @@ impl P2PSession {
                 }
 
                 if let Some(payload) = packet.get_payload() {
-                    if let Ok(slp) = payload.get_payload_as_slp() {
-                        self.reply_slp(&msg, slp);
+                    if let Ok(slp_request) = payload.get_payload_as_slp() {
+
+                        if let Ok(slp_response) = self.handle_slp_payload(&slp_request) {
+                            self.reply_slp(&msg, slp_response);
+                        } else {
+                            //TODO reply error slp
+                        }
+
                     }else if payload.is_file_transfer() {
-                        info!("file transfer packet received!");
+                        info!("file transfer packet received!, retrieveing pending file: {}", &payload.session_id);
+                        let file = self.pending_files.remove(&payload.session_id);
+                        if let Some(mut file) = file {
+                            file.bytes = payload.get_payload_bytes().clone();
+
+
+                            if let Some(sb_handle) = self.sb_handle.as_ref(){
+
+                                let sb_handle = sb_handle.clone();
+                                tokio::spawn(async move {
+                                    let sb_handle = sb_handle.lock().await;
+                                    sb_handle.send_file_to_server(file).await;
+
+                                });
+
+
+                            }
+                        }
                         self.reply_ack(&msg);
                     }
                 }
@@ -202,15 +231,49 @@ impl P2PSession {
     }
 
     fn on_message_complete(&mut self, package_number: u16) {
+        info!("message complete! {}", &package_number);
         let packet = self.pop_from_chunks(package_number).expect("on_message_complete did not in fact contain a message");
         self.on_message_received(packet);
     }
 
-    fn reply_slp(&mut self, request: &PendingPacket, slp_request: SlpPayload) {
-        if let Ok(slp_payload_resp) = SlpPayloadHandler::handle_p2p(&slp_request) {
-            let slp_transport_resp = P2PTransportPacket::new(0, Some(slp_payload_resp));
+/**
+ * EUF GUID
+ *     MSN_OBJECT = "{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}"
+    FILE_TRANSFER = "{5D3E02AB-6190-11D3-BBBB-00C04F795683}"
+    MEDIA_RECEIVE_ONLY = "{1C9AA97E-9C05-4583-A3BD-908A196F1E92}"
+    MEDIA_SESSION = "{4BD96FC0-AB17-4425-A14A-439185962DC8}"
+    SHARE_PHOTO = "{41D3E74E-04A2-4B37-96F8-08ACDB610874}"
+    ACTIVITY = "{6A13AF9C-5308-4F35-923A-67E8DDA40C2F}"
+ */
+
+ /**
+  * APP IDS
+      FILE_TRANSFER = 2
+    CUSTOM_EMOTICON_TRANSFER = 11
+    DISPLAY_PICTURE_TRANSFER = 12
+    WEBCAM = 4
+  */
+
+    fn reply_slp(&mut self, request: &PendingPacket, slp_response: SlpPayload) {
+
+            // if slp_request.get_content_type().unwrap_or(&String::new()).eq("application/x-msnmsgr-sessionreqbody") {
+
+            //     //if it's a file transfer. todo refactor
+            //     if slp_request.get_body_property(&String::from("AppID")).unwrap().as_str() == "2" {
+            //         if let Some(context) = slp_request.get_context_as_preview_data() {
+            //             slp_payload_resp.get_payload_as_slp().unwrap().get_body_property(&String::from("SessionID")).unwrap();
+            //             self.pending_files.insert(slp_payload_resp.session_id.clone(), File::new(context.get_size(), context.get_filename()));
+            //         }
+
+            //     }
+            // }
+
+            let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
+            p2p_payload_response.set_payload(slp_response.to_string().as_bytes().to_owned());
+
+            let slp_transport_resp = P2PTransportPacket::new(0, Some(p2p_payload_response));
             self.reply(request, slp_transport_resp);
-        }
+        
     }
 
     fn reply_ack(&mut self, request: &PendingPacket) {
@@ -231,6 +294,55 @@ impl P2PSession {
         self.sender.send(PendingPacket::new(msg_to_send, request.receiver.clone(), request.sender.clone()));
     }
 
+    fn handle_slp_payload(&mut self, slp_payload: &SlpPayload) -> Result<SlpPayload, Errors> {
+        let error = String::from("error");
+        let content_type = slp_payload.get_content_type().unwrap_or(&error);
+            match content_type.as_str() {
+                "application/x-msnmsgr-transreqbody" => {
+              //  let slp_payload_response = SlpPayloadFactory::get_200_ok_direct_connect_bad_port(&slp_payload)?;
+                 //let mut slp_payload_response = SlpPayloadFactory::get_500_error_direct_connect(slp_payload, String::from("TCPv1"))?; //todo unwrap_or error slp message
+                // if self.test > 0 {
+                 let slp_payload_response = SlpPayloadFactory::get_500_error_direct_connect(slp_payload, String::from("TCPv1")).unwrap(); //todo unwrap_or error slp message
+                //  }
+
+                // self.test += 1;
+                   
+                  // let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
+                  // p2p_payload_response.set_payload(slp_payload_response.to_string().as_bytes().to_owned());
+                   return Ok(slp_payload_response);
+                // return Err(Errors::PayloadNotComplete);
+
+                },
+                "application/x-msnmsgr-sessionreqbody" => {
+
+                    //if it's a file transfer request. TODO change this and put it inside slp_payload via an enum
+                if slp_payload.get_body_property(&String::from("AppID")).unwrap_or(&String::from("-1")).as_str() == "2" {
+                    if let Some(context) = slp_payload.get_context_as_preview_data() {
+                        let session_id = slp_payload.get_body_property(&String::from("SessionID")).ok_or(Errors::PayloadDeserializeError)?.parse::<u32>()?;
+                        self.pending_files.insert(session_id, File::new(context.get_size(), context.get_filename()));
+                    }
+                }
+
+
+                    return Ok(SlpPayloadFactory::get_200_ok_session(slp_payload)?);
+
+                },
+                "application/x-msnmsgr-transrespbody" => {
+                    let bridge = slp_payload.get_body_property(&String::from("Bridge")).unwrap();
+                    let slp_payload_response = SlpPayloadFactory::get_500_error_direct_connect(slp_payload, bridge.to_owned())?;
+                    return Ok(slp_payload_response);
+                },
+                "application/x-msnmsgr-sessionclosebody" => {
+                    return Err(Errors::PayloadNotComplete);
+                    
+                }
+                _ => {
+                    info!("not handled slp payload: {:?}", slp_payload);
+                   return Err(Errors::PayloadNotComplete);
+                }
+            }
+    }
+
 
 }
 
@@ -243,7 +355,7 @@ mod tests {
     use log::info;
     use tokio::sync::broadcast;
 
-    use crate::{models::{p2p::{pending_packet::PendingPacket, p2p_transport_packet::P2PTransportPacket, factories::P2PTransportPacketFactory}, msn_user::MSNUser}, sockets::{msnp_command::MSNPCommandParser, msnp_command_handlers::{SwitchboardCommandHandler, CommandHandler}}};
+    use crate::{models::{p2p::{pending_packet::PendingPacket, p2p_transport_packet::P2PTransportPacket, factories::P2PTransportPacketFactory}, msn_user::MSNUser}, sockets::{msnp_command::MSNPCommandParser, command_handler::{CommandHandler}, switchboard_command_handler::SwitchboardCommandHandler}};
 
     use super::P2PSession;
 

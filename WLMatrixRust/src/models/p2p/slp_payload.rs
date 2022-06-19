@@ -6,9 +6,12 @@
 use std::{str::{FromStr, from_utf8}, fmt::Display};
 
 use linked_hash_map::LinkedHashMap;
+use log::warn;
 use substring::Substring;
 
 use crate::models::{errors::Errors, msn_user::MSNUser};
+
+use super::slp_context::{PreviewData, MsnObject, SlpContext};
 
 #[derive(Clone, Debug)]
 pub struct SlpPayload {
@@ -56,6 +59,23 @@ impl SlpPayload {
             let to_trimmed = to.to_owned().substring(1, to.len()-1).to_string();
             return Some(MSNUser::from_mpop_addr_string(to_trimmed).unwrap_or(MSNUser::default()));
         }
+        return None;
+    }
+
+    pub fn get_context_as_preview_data(&self) -> Option<Box<PreviewData>> {
+        if let Some(context) = self.get_body_property(&String::from("Context")) {
+            if let Ok(decoded) = base64::decode(context) {
+                return PreviewData::from_slp_context(decoded);
+            } else {
+                warn!("Couldn't decode base64 slp context: {}", context);
+            }            
+        }
+
+
+        return None;
+    }
+
+    pub fn get_context_as_msnobj() -> Option<MsnObject> {
         return None;
     }
 

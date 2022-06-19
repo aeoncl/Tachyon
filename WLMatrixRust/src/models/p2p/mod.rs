@@ -6,11 +6,13 @@ pub mod slp_payload;
 pub mod tlv;
 pub mod p2p_session;
 pub mod slp_payload_handler;
+pub mod slp_context;
+pub mod File;
 
 pub mod factories {
     use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
-    use crate::models::{uuid::UUID, errors::Errors};
+    use crate::models::{errors::Errors};
 
     use super::{slp_payload::SlpPayload, p2p_transport_packet::P2PTransportPacket, p2p_payload::P2PPayload, tlv::TLV};
 

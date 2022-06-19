@@ -13,10 +13,7 @@ use async_trait::async_trait;
 use crate::{models::uuid::UUID, sockets::msnp_command::MSNPCommand};
 
 use super::{
-    msnp_command::{MSNPCommandParser},
-    msnp_command_handlers::{
-        CommandHandler, NotificationCommandHandler, SwitchboardCommandHandler,
-    }, tcpserver::TCPServer,
+    msnp_command::{MSNPCommandParser}, tcpserver::TCPServer, switchboard_command_handler::SwitchboardCommandHandler, command_handler::CommandHandler,
 };
 
 pub struct SwitchboardServer {
@@ -102,6 +99,9 @@ impl TCPServer for SwitchboardServer {
                 //Cleanup
                 command_handler.cleanup();
             });
+
+
+
         }
     }
 }

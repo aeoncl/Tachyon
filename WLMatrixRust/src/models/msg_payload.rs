@@ -76,15 +76,15 @@ impl FromStr for MsgPayload {
 
         let mut out = MsgPayload::new("");
 
-        info!("debug testtt");
+        //info!("debug testtt");
 
         let s = String::from(s);
-        info!("debug testtt1");
+        //info!("debug testtt1");
 
         if let Some((headers, body)) = s.split_once("\r\n\r\n") {
 
             let split_str : Vec<&str> = headers.split("\r\n").collect();
-            info!("debug split: {:?}", &split_str);
+           // info!("debug split: {:?}", &split_str);
             let count = split_str.len();
             for i in 0..count {
                 let current = split_str.get(i).unwrap().to_string();

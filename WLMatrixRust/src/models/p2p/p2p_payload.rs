@@ -99,6 +99,10 @@ impl P2PPayload {
         return Err(Errors::PayloadDoesNotContainsSLP);
     }
 
+    pub fn get_payload_bytes(&self) -> &Vec<u8> {
+        return &self.payload;
+    }
+
     pub fn is_file_transfer(&self) -> bool {
         info!("is file transfer");
         if !self.payload.is_empty() {

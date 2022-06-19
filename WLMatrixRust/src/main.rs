@@ -42,7 +42,7 @@ lazy_static! {
 #[tokio::main]
 async fn main() {
 
-   // env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+  //  env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     
 
     let notif_server = NotificationServer::new("127.0.0.1".to_string(), 1863);

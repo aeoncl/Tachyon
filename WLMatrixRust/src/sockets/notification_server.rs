@@ -1,4 +1,4 @@
-use std::{str::{from_utf8, from_utf8_unchecked}};
+use std::{str::{from_utf8_unchecked}};
 
 use tokio::{
     io::{AsyncWriteExt, BufReader, AsyncReadExt},
@@ -9,13 +9,10 @@ use tokio::{
 use async_trait::async_trait;
 
 
-use crate::{models::uuid::UUID, sockets::msnp_command::MSNPCommand};
+use crate::{sockets::msnp_command::MSNPCommand};
 
 use super::{
-    msnp_command::{MSNPCommandParser},
-    msnp_command_handlers::{
-        CommandHandler, NotificationCommandHandler, SwitchboardCommandHandler,
-    }, tcpserver::TCPServer,
+    msnp_command::{MSNPCommandParser}, tcpserver::TCPServer, notification_command_handler::NotificationCommandHandler, command_handler::CommandHandler
 };
 
 
@@ -36,12 +33,13 @@ impl TCPServer for NotificationServer {
         loop {
             let (mut socket, _addr) = listener.accept().await.unwrap();
             let (tx, mut rx) = broadcast::channel::<String>(10);
-            let mut command_handler = self.get_command_handler(tx.clone());
             let mut incomplete_command: Option<MSNPCommand> = None;
             let mut parser = MSNPCommandParser::new();
+            let mut command_handler = self.get_command_handler(tx.clone());
 
 
             let _result = tokio::spawn(async move {
+
                 let (read, mut write) = socket.split();
                 let mut reader = BufReader::new(read);
                 let mut buffer = [0u8; 2048];
@@ -81,6 +79,8 @@ impl TCPServer for NotificationServer {
                 }
                 command_handler.cleanup();
             }).await;
+
+
         }
     }
 }

@@ -14,10 +14,7 @@ use async_trait::async_trait;
 use crate::{models::{uuid::UUID, p2p::{pending_packet::PendingPacket, p2p_session::P2PSession}, msn_user::MSNUser}, sockets::{msnp_command::MSNPCommand, msnp2p_command::{P2PCommandParser, P2PCommand}}, P2P_REPO};
 
 use super::{
-    msnp_command::{MSNPCommandParser},
-    msnp_command_handlers::{
-        CommandHandler, NotificationCommandHandler, SwitchboardCommandHandler,
-    }, tcpserver::TCPServer,
+    msnp_command::{MSNPCommandParser}, tcpserver::TCPServer
 };
 
 
@@ -100,9 +97,6 @@ impl TCPServer for P2PServer {
                                     } else {
                                         info!("unkown command {:?}", &command);
                                     }
-                           
-
-
                             }              
                             buffer = [0u8; 4096];
                         },

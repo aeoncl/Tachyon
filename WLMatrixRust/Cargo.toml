@@ -43,10 +43,11 @@ directories = "4.0.1"
 rand = "0.8.5"
 linked-hash-map = "0.5.4"
 emojis = "0.4.0"
+new_mime_guess = "4.0.1"
 
 [dependencies.matrix-sdk]
 path = "matrix-rust-sdk/crates/matrix-sdk"
-features = ["e2e-encryption", "sled", "native-tls"]
+features = ["e2e-encryption", "sled", "native-tls", "image-proc"]
 
 [dev-dependencies]
 actix-rt = "2.7.0"

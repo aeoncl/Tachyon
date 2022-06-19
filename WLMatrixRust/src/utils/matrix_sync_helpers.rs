@@ -1,4 +1,5 @@
-use std::{time::Duration, sync::Arc, str::from_utf8};
+use std::{time::Duration, sync::{Arc}, str::from_utf8};
+use tokio::sync::{Mutex, MutexGuard};
 
 use chashmap::{ReadGuard, WriteGuard};
 use log::info;
@@ -164,7 +165,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                     let room_id = room.room_id().to_string();
                     if let Some(client_data) = CLIENT_DATA_REPO.find_mut(&token){
                         if let Some(found) = client_data.switchboards.find(&room_id) {
-
+                            let found = found.lock().await;
                             for user_id in ev.content.user_ids {
                                 let typer_msn_addr = matrix_id_to_msn_addr(&user_id.to_string());
                                 if(typer_msn_addr != me_msn_addr) {
@@ -206,12 +207,14 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
 
                                 if let Some(client_data) = CLIENT_DATA_REPO.find_mut(&token){
                                     if let Some(found) = client_data.switchboards.find(&room_id) {
-                                        handle_messages(&found, &ev);
+                                        let found = found.lock().await;
+                                        handle_messages(found, &ev);
                                     } else {
                                              //sb not initialized yet
-                                            let sb_data = SwitchboardHandle::new(client.clone(), room.room_id().to_owned(), msn_addr.clone());
+                                            let sb_data = Arc::new(Mutex::new(SwitchboardHandle::new(client.clone(), room.room_id().to_owned(), msn_addr.clone())));
                                             {
-                                                handle_messages(&sb_data, &ev);
+                                                let sb_data = sb_data.lock().await;
+                                                handle_messages(sb_data, &ev);
                                             }
 
                                              client_data.switchboards.add(room_id.clone(), sb_data);
@@ -323,7 +326,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
     return tx;
 }
 
-pub fn handle_messages(switchboard: &SwitchboardHandle, msg_event: &OriginalSyncMessageLikeEvent<RoomMessageEventContent>) {
+pub fn handle_messages(switchboard: MutexGuard<SwitchboardHandle>, msg_event: &OriginalSyncMessageLikeEvent<RoomMessageEventContent>) {
 
     let sender_msn_addr = matrix_id_to_msn_addr(&msg_event.sender.to_string());
 
