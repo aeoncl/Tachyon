@@ -119,7 +119,7 @@ impl TCPServer for P2PServer {
                     }
                 }
                 //cleanup
-            }).await;
+            });
         }
     }
 

@@ -6,7 +6,7 @@ use tokio::sync::broadcast::{Sender, self, Receiver, error::SendError};
 
 use crate::utils::emoji::{smiley_to_emoji};
 
-use super::{p2p::{factories::{SlpPayloadFactory, P2PPayloadFactory, TLVFactory}, p2p_transport_packet::P2PTransportPacket, File::File}, msn_user::MSNUser, msg_payload::{factories::MsgPayloadFactory, MsgPayload}};
+use super::{p2p::{factories::{SlpPayloadFactory, P2PPayloadFactory, TLVFactory}, p2p_transport_packet::P2PTransportPacket, file::File}, msn_user::MSNUser, msg_payload::{factories::MsgPayloadFactory, MsgPayload}};
 
 
 #[derive(Clone)]

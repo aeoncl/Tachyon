@@ -26,7 +26,7 @@ use super::command_handler::CommandHandler;
 use super::msnp_command::MSNPCommand;
 
 pub struct SwitchboardCommandHandler {
-    protocol_version: i16,
+    protocol_version: Arc<i16>,
     msn_addr: String,
     endpoint_guid: String,
     matrix_token: String,
@@ -42,7 +42,7 @@ pub struct SwitchboardCommandHandler {
 impl SwitchboardCommandHandler {
     pub fn new(sender: Sender<String>) -> SwitchboardCommandHandler {
         return SwitchboardCommandHandler {
-            protocol_version: -1,
+            protocol_version: Arc::new(-1),
             msn_addr: String::new(),
             endpoint_guid: String::new(),
             matrix_token: String::new(),
@@ -215,7 +215,7 @@ impl CommandHandler for SwitchboardCommandHandler {
                     if let Some(client_data) = CLIENT_DATA_REPO.find(&self.matrix_token){
                         if let Some(client) = MATRIX_CLIENT_REPO.find(&self.matrix_token) {
                             self.matrix_client = Some(client.clone());
-                            self.protocol_version = client_data.msnp_version;
+                            self.protocol_version = Arc::new(client_data.msnp_version);
                             return format!("USR {tr_id} {msn_addr} {msn_addr} OK\r\n", tr_id = tr_id, msn_addr = msn_addr);
                         }
                     }

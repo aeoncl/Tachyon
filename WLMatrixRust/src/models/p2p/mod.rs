@@ -7,7 +7,7 @@ pub mod tlv;
 pub mod p2p_session;
 pub mod slp_payload_handler;
 pub mod slp_context;
-pub mod File;
+pub mod file;
 
 pub mod factories {
     use byteorder::{BigEndian, ByteOrder, LittleEndian};
@@ -378,8 +378,8 @@ mod tests {
     use std::str::{from_utf8_unchecked, FromStr};
 
     use byteorder::{BigEndian, ByteOrder};
-    use log::info;
     use rand::Rng;
+    use log::info;
 
     use crate::models::msg_payload::factories::MsgPayloadFactory;
     use crate::models::msn_user::MSNUser;

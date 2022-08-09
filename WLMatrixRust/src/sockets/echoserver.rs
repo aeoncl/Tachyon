@@ -60,7 +60,7 @@ impl TCPServer for EchoServer {
                     }
                 }
                 //cleanup
-            }).await;
+            });
         }
     }
 

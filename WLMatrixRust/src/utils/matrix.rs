@@ -23,7 +23,7 @@ pub async fn login(matrix_id: String, matrix_token: String) -> Result<Client, Er
     let client = Client::builder().store_config(config).user_id(&matrix_user).build().await.unwrap();
     
 
-    client.restore_login(Session{ access_token: matrix_token.to_owned(), user_id: matrix_user, device_id: device_id}).await?;
+    client.restore_login(Session{ access_token: matrix_token.to_owned(), refresh_token: None, user_id: matrix_user, device_id: device_id}).await?;
     let _check_connection_status = client.whoami().await?;
     return Ok(client);
 }
