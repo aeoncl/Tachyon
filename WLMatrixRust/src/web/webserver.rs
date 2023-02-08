@@ -7,7 +7,7 @@ use actix_web::{get, post, web, HttpRequest, HttpResponse, HttpResponseBuilder, 
 
 use log::info;
 
-use matrix_sdk::store::make_store_config;
+use matrix_sdk::config::RequestConfig;
 use matrix_sdk::{Client};
 
 use regex::Regex;
@@ -60,18 +60,10 @@ pub async fn rst2(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse
     let matrix_user : OwnedUserId = <&UserId>::try_from(matrix_id_str).unwrap().to_owned();
 
     let path = Path::new("c:\\temp");
-    let config =  make_store_config(path, None).unwrap();
 
-    let client = Client::builder().store_config(config).user_id(&matrix_user).build().await.unwrap();
+    let client = Client::builder().disable_ssl_verification().server_name(matrix_user.server_name()).sled_store(path, None).build().await.unwrap();
     
-    let result = client
-        .login(
-            matrix_user.localpart(),
-            username_token.password.as_str(),
-            Some(get_matrix_device_id().as_str()),
-            Some(get_hostname().as_str()),
-        )
-        .await?;
+    let result = client.login_username(matrix_id_str, username_token.password.as_str()).device_id(get_matrix_device_id().as_str()).initial_device_display_name("WLMatrix").await?;
 
     let response = RST2ResponseFactory::get_rst2_success_response(
         result.access_token,

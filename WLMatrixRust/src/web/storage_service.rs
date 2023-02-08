@@ -70,7 +70,7 @@ pub async fn get_profile_pic(path: web::Path<(String, String)>, request: HttpReq
     let client = Client::new(homeserver_url).await?;
 
     let media_request = MediaRequest{ source: MediaSource::Plain(parsed_mxc), format: MediaFormat::Thumbnail(MediaThumbnailSize{ method: Method::Scale, width: UInt::new(200).unwrap(), height: UInt::new(200).unwrap() })};
-    let image = client.get_media_content(&media_request, false).await?;
+    let image = client.media().get_media_content(&media_request, true).await?;
 
 
    // let matrix_client = client_repo.find(&matrix_token).ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -137,9 +137,10 @@ async fn storage_update_document(body: web::Bytes, request: HttpRequest) -> Resu
             //We need to figure out the filetype from the content, because msn always sends png.
             let data_vector = base64::decode(document_stream.data.ok_or(StatusCode::BAD_REQUEST)?)?;
             let mime = get_mime_type(&data_vector);
-            let mut data = Cursor::new(data_vector);
-            let mtx_upload_response = matrix_client.upload(&mime, &mut data).await?;
-            let mtx_avatar_response = matrix_client.account().set_avatar_url(Some(mtx_upload_response.content_uri.as_ref())).await?;
+
+            let mtx_upload_response = matrix_client.account().upload_avatar(&mime, data_vector).await?;
+
+            let mtx_avatar_response = matrix_client.account().set_avatar_url(Some(mtx_upload_response.as_ref())).await?;
         }
     }
 
@@ -220,7 +221,7 @@ async fn storage_update_profile(body: web::Bytes, request: HttpRequest) -> Resul
 
     let psm = profile.personal_status.unwrap_or(String::new());
     let presence = matrix_client.account().get_presence().await?;
-    matrix_client.account().set_presence(presence.presence, Some(psm.as_str())).await?;
+    matrix_client.account().set_presence(presence.presence, Some(psm)).await?;
 
     
 

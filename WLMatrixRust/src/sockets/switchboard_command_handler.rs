@@ -244,7 +244,7 @@ impl CommandHandler for SwitchboardCommandHandler {
 
                     let mut client = self.matrix_client.as_ref().unwrap().clone();
 
-                    let target_room = client.find_or_create_dm_room(&user_to_add).await.unwrap().unwrap(); //TODO handle this
+                    let target_room = client.find_or_create_dm_room(&user_to_add).await.unwrap(); //TODO handle this
                     self.target_room_id = target_room.room_id().to_string();
                     let client_data = CLIENT_DATA_REPO.find_mut(&self.matrix_token).unwrap();
 
