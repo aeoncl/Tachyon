@@ -18,12 +18,17 @@ pub async fn login(matrix_id: String, matrix_token: String) -> Result<Client, Er
     let device_id = device_id!(device_id_str).to_owned();
     
     let path = Path::new("c:\\temp");
-    let client = Client::builder().disable_ssl_verification().server_name(matrix_user.server_name()).sled_store(path, None).build().await.unwrap();
-    
-
-    client.restore_session(Session{ access_token: matrix_token.to_owned(), refresh_token: None, user_id: matrix_user, device_id: device_id}).await?;
-    let _check_connection_status = client.whoami().await?;
-    return Ok(client);
+    match Client::builder().disable_ssl_verification().server_name(matrix_user.server_name()).sled_store(path, None).build().await {
+        Ok(client) => {
+            client.restore_session(Session{ access_token: matrix_token.to_owned(), refresh_token: None, user_id: matrix_user, device_id: device_id}).await?;
+            let _check_connection_status = client.whoami().await?;
+            return Ok(client);
+        },
+        Err(err) => {
+            return Err(Error::UnknownError(Box::new(err)));
+        }
+    }
+   
 }
 
 pub fn save_mtx_timestamp(msn_addr: &String, mtx_timestamp: String) {

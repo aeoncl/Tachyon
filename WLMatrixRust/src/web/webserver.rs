@@ -61,7 +61,7 @@ pub async fn rst2(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse
 
     let path = Path::new("c:\\temp");
 
-    let client = Client::builder().disable_ssl_verification().server_name(matrix_user.server_name()).sled_store(path, None).build().await.unwrap();
+    let client = Client::builder().disable_ssl_verification().server_name(matrix_user.server_name()).build().await?;
     
     let result = client.login_username(matrix_id_str, username_token.password.as_str()).device_id(get_matrix_device_id().as_str()).initial_device_display_name("WLMatrix").await?;
 
@@ -73,7 +73,7 @@ pub async fn rst2(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse
 
     
 
-    let response_serialized = to_string(&response).unwrap();
+    let response_serialized = to_string(&response)?;
     info!("RST2 Response: {}", &response_serialized);
     return Ok(HttpResponseBuilder::new(StatusCode::OK)
         .append_header(("Content-Type", "application/soap+xml"))

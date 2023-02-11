@@ -112,7 +112,6 @@ impl FromStr for MsgPayload {
 
 pub mod factories {
     use chrono::Local;
-    use matrix_sdk::ruma::exports::serde_json::de;
 
     use crate::models::{uuid::{PUID}, msn_user::MSNUser, p2p::p2p_transport_packet::P2PTransportPacket };
 

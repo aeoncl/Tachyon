@@ -110,10 +110,12 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
         matrix_client.add_event_handler({
             let token = token.clone();
             let msn_addr = msn_addr.clone();
+            let sender = sender.clone();
 
             move |ev: SyncRoomMemberEvent, room: Room, client: Client| {
                 let token = token.clone();
                 let msn_addr = msn_addr.clone();
+                let msn_ns_sender = sender.clone();
 
                 async move {
 
@@ -121,6 +123,21 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
 
                     if let SyncRoomMemberEvent::Original(ev) = &ev {
                         info!("ABDEBUG: Original Event !!");
+
+                        if ev.sender == me.to_owned() {
+                            info!("ABDEBUG: I Changed!");
+                            if let Some(previous_content) = ev.prev_content() {
+                                if ev.content.displayname != previous_content.displayname {
+                                    
+                                    if let Some(display_name) = &ev.content.displayname {
+                                       //TODO update display name
+                                }
+                            }else {
+
+                            }
+                            }
+                        }
+
                         if room.is_direct() || ev.content.is_direct.unwrap_or(false) {
                             info!("Room is direct !!");
                             handle_directs(ev, &room, &client, &token, &msn_addr).await;
