@@ -38,3 +38,4 @@ There are three distinct components making WLMatrix tick:
  - Pang Wu, Ethem Evlice, Scott Werndorfer & The MSNPSharp Team 
  - All the people that saved documentation and packet capture from the time
  - The Matrix Foundation & the team behind the Rust SDK
+ - The team behind Windows Live Messenger, especially 14.0: thanks for all my childhood memories and friendships that still carried on to this day
