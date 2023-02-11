@@ -25,8 +25,6 @@ use crate::repositories::client_data_repository::ClientDataRepository;
 use crate::repositories::matrix_client_repository::MatrixClientRepository;
 use crate::repositories::p2p_repository::P2PRepository;
 use crate::repositories::repository::Repository;
-use crate::sockets::echoserver::EchoServer;
-use crate::sockets::p2p_server::P2PServer;
 use crate::sockets::notification_server::NotificationServer;
 use crate::sockets::switchboard_server::SwitchboardServer;
 use crate::sockets::tcpserver::TCPServer;
