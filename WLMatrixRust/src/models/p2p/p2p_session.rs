@@ -5,7 +5,7 @@ use log::info;
 use rand::Rng;
 use tokio::sync::broadcast::Sender;
 
-use crate::{models::{msn_user::MSNUser, errors::Errors, switchboard_handle::SwitchboardHandle}, utils::callback::Callback};
+use crate::{models::{msn_user::MSNUser, errors::Errors, switchboard::Switchboard}};
 
 use super::{pending_packet::PendingPacket, p2p_transport_packet::P2PTransportPacket, factories::{P2PTransportPacketFactory, SlpPayloadFactory, P2PPayloadFactory}, p2p_payload::P2PPayload, slp_payload::SlpPayload, slp_payload_handler::SlpPayloadHandler, file::File};
 
@@ -22,7 +22,7 @@ pub struct P2PSession {
     /* The current sequence number */
     sequence_number: Arc<Mutex<u32>>,
 
-    sb_handle: Option<Arc<tokio::sync::Mutex<SwitchboardHandle>>>,
+    switchboard: Option<Switchboard>,
 
     /** a map of session_ids / files */
     pending_files: HashMap<u32, File>,
@@ -40,12 +40,12 @@ impl P2PSession {
         let mut rng = rand::thread_rng();
         let seq_number = rng.gen::<u32>();
 
-        return P2PSession { sender, chunked_packets: HashMap::new(), pending_packets: Vec::new(), initialized: false, sequence_number: Arc::new(Mutex::new(seq_number)), test: 0, pending_files: HashMap::new(), sb_handle: None};
+        return P2PSession { sender, chunked_packets: HashMap::new(), pending_packets: Vec::new(), initialized: false, sequence_number: Arc::new(Mutex::new(seq_number)), test: 0, pending_files: HashMap::new(), switchboard: None};
     }
 
     
-    pub fn set_sb_handle(&mut self, sb_handle: Arc<tokio::sync::Mutex<SwitchboardHandle>>) {
-        self.sb_handle = Some(sb_handle);
+    pub fn set_switchboard(&mut self, switchboard: Switchboard) {
+        self.switchboard = Some(switchboard);
     }
 
     pub fn listen_for_raks(&self) {
@@ -156,13 +156,10 @@ impl P2PSession {
                             file.bytes = payload.get_payload_bytes().clone();
 
 
-                            if let Some(sb_handle) = self.sb_handle.as_ref(){
-
-                                let sb_handle = sb_handle.clone();
+                            if let Some(switchboard) = self.switchboard.as_ref() {
+                                let sb = switchboard.clone();
                                 tokio::spawn(async move {
-                                    let sb_handle = sb_handle.lock().await;
-                                    sb_handle.send_file_to_server(file).await;
-
+                                    sb.send_file(file).await;
                                 });
 
 

@@ -1,6 +1,5 @@
 use std::{collections::HashMap, str::FromStr};
 use lazy_static::lazy_static;
-use regex::Regex;
 
 use crate::models::errors::Errors;
 
@@ -10,7 +9,8 @@ lazy_static! {
     static ref TEMPLATE : String = String::from("MIME-Version: 1.0\r\nContent-Type: ");
     static ref CHARSET : String = String::from("; charset=UTF-8");
 }
- 
+#[derive(Clone, Debug)]
+
 pub struct MsgPayload {
 
     pub content_type: String,

@@ -3,9 +3,9 @@ use std::{str::from_utf8_unchecked, fmt::Display};
 use byteorder::{BigEndian, ByteOrder};
 use log::info;
 
-use crate::{utils::buffer::extract_tlvs, models::{errors::Errors, msn_user::MSNUser}};
+use crate::{models::{errors::Errors}};
 
-use super::{tlv::{TLV, ValueType}, slp_payload::SlpPayload};
+use super::{tlv::{TLV, ValueType, extract_tlvs}, slp_payload::SlpPayload};
 
 
 #[derive(Clone, Debug)]

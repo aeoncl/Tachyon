@@ -13,6 +13,7 @@ pub struct MSNUser {
     pub capabilities: String,
     pub status: PresenceStatus,
     pub endpoint_guid: String,
+    pub display_name: String
 }
 
 impl MSNUser {
@@ -25,6 +26,7 @@ impl MSNUser {
 
         let endpoint_guid = UUID::from_string(&msn_addr).to_string().to_uppercase();
         return MSNUser{msn_addr: msn_addr.clone(), 
+            display_name: msn_addr.clone(),
             matrix_id: msn_addr_to_matrix_id(&msn_addr), 
             capabilities: ClientCapabilitiesFactory::get_default_capabilities().to_string(), 
             //capabilities: String::from("2788999228:48"), 
@@ -35,8 +37,9 @@ impl MSNUser {
     pub fn from_matrix_id(matrix_id: String) -> MSNUser {
         let msn_addr = matrix_id_to_msn_addr(&matrix_id);
         let endpoint_guid = UUID::from_string(&msn_addr).to_string().to_uppercase();
-        return MSNUser{msn_addr: msn_addr, 
+        return MSNUser{msn_addr: msn_addr.clone(), 
             matrix_id: matrix_id.clone(), 
+            display_name: msn_addr.clone(),
             capabilities: ClientCapabilitiesFactory::get_default_capabilities().to_string(), 
             //capabilities: String::from("2788999228:48"),
             status: PresenceStatus::FLN, endpoint_guid: 
@@ -51,7 +54,7 @@ impl MSNUser {
            let  trimmed_msn_addr = msn_addr.trim().to_string();
             let trimmed_endpoint_guid = endpoint_guid.trim().strip_prefix("{").ok_or(Errors::PayloadDeserializeError)?.strip_suffix("}").ok_or(Errors::PayloadDeserializeError)?;
             let capab = ClientCapabilitiesFactory::get_default_capabilities().to_string();
-            return Ok(MSNUser{ msn_addr: trimmed_msn_addr.clone(), matrix_id: msn_addr_to_matrix_id(&trimmed_msn_addr), capabilities: capab, status: PresenceStatus::FLN, endpoint_guid: trimmed_endpoint_guid.to_string() });
+            return Ok(MSNUser{ msn_addr: trimmed_msn_addr.clone(),display_name:trimmed_msn_addr.clone(), matrix_id: msn_addr_to_matrix_id(&trimmed_msn_addr), capabilities: capab, status: PresenceStatus::FLN, endpoint_guid: trimmed_endpoint_guid.to_string() });
        }
        return Err(Errors::PayloadDeserializeError);
     }

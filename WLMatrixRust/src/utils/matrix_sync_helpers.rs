@@ -6,7 +6,7 @@ use log::info;
 use matrix_sdk::{config::SyncSettings, Client, ruma::{OwnedUserId, events::{room::{member::{MembershipState, RoomMemberEventContent, RoomMemberEvent, SyncRoomMemberEvent, StrippedRoomMemberEvent}, message::{SyncRoomMessageEvent, MessageType, RoomMessageEventContent}}, presence::PresenceEvent, OriginalSyncMessageLikeEvent, SyncEphemeralRoomEvent, EphemeralRoomEvent, typing::{TypingEventContent, SyncTypingEvent}, direct::{DirectEventContent, DirectEvent}, OriginalSyncStateEvent, GlobalAccountDataEventType, AnyGlobalAccountDataEvent, GlobalAccountDataEvent}, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, GlobalAccountData}}, presence::PresenceState}, room::Room};
 use tokio::{join, sync::broadcast::{Sender, self}};
 
-use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, repositories::{matrix_client_repository::MatrixClientRepository, client_data_repository::ClientDataRepository, repository::Repository}, generated::{msnab_sharingservice::factories::{ContactFactory, MemberFactory, AnnotationFactory}, msnab_datatypes::types::{MemberState, RoleId, ContactTypeEnum, ArrayOfAnnotation}, payloads::{factories::NotificationFactory, PresenceStatus}}, models::{uuid::UUID, switchboard_handle::SwitchboardHandle, msg_payload::factories::MsgPayloadFactory, ab_data::AbData, capabilities::ClientCapabilitiesFactory}, AB_DATA_REPO};
+use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, repositories::{matrix_client_repository::MatrixClientRepository, client_data_repository::ClientDataRepository, repository::Repository}, generated::{msnab_sharingservice::factories::{ContactFactory, MemberFactory, AnnotationFactory}, msnab_datatypes::types::{MemberState, RoleId, ContactTypeEnum, ArrayOfAnnotation}, payloads::{factories::NotificationFactory, PresenceStatus}}, models::{uuid::UUID, msg_payload::factories::MsgPayloadFactory, ab_data::AbData, capabilities::ClientCapabilitiesFactory, msn_user::MSNUser, switchboard::Switchboard}, AB_DATA_REPO};
 
 use super::{identifiers::matrix_id_to_msn_addr, matrix::get_direct_target_that_isnt_me, emoji::emoji_to_smiley};
 
@@ -182,11 +182,12 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                     let room_id = room.room_id().to_string();
                     if let Some(client_data) = CLIENT_DATA_REPO.find_mut(&token){
                         if let Some(found) = client_data.switchboards.find(&room_id) {
-                            let found = found.lock().await;
                             for user_id in ev.content.user_ids {
                                 let typer_msn_addr = matrix_id_to_msn_addr(&user_id.to_string());
-                                if(typer_msn_addr != me_msn_addr) {
-                                    found.send_typing_notification_to_client(&typer_msn_addr);
+                                if typer_msn_addr != me_msn_addr {
+                                    let typing_user_payload = MsgPayloadFactory::get_typing_user(typer_msn_addr.clone());
+                                    let sender = MSNUser::new(typer_msn_addr.clone());
+                                    found.on_message_received(typing_user_payload, sender, None);
                                 }
                             }
                         }
@@ -224,14 +225,12 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
 
                                 if let Some(client_data) = CLIENT_DATA_REPO.find_mut(&token){
                                     if let Some(found) = client_data.switchboards.find(&room_id) {
-                                        let found = found.lock().await;
-                                        handle_messages(found, &ev);
+                                        handle_messages(&found, &ev);
                                     } else {
                                              //sb not initialized yet
-                                            let sb_data = Arc::new(Mutex::new(SwitchboardHandle::new(client.clone(), room.room_id().to_owned(), msn_addr.clone())));
+                                            let sb_data = Switchboard::new(client.clone(), room.room_id().to_owned(), client.user_id().unwrap().to_owned());
                                             {
-                                                let sb_data = sb_data.lock().await;
-                                                handle_messages(sb_data, &ev);
+                                                handle_messages(&sb_data, &ev);
                                             }
 
                                              client_data.switchboards.add(room_id.clone(), sb_data);
@@ -343,13 +342,14 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
     return tx;
 }
 
-pub fn handle_messages(switchboard: MutexGuard<SwitchboardHandle>, msg_event: &OriginalSyncMessageLikeEvent<RoomMessageEventContent>) {
+pub fn handle_messages(switchboard: &Switchboard, msg_event: &OriginalSyncMessageLikeEvent<RoomMessageEventContent>) {
 
     let sender_msn_addr = matrix_id_to_msn_addr(&msg_event.sender.to_string());
 
     if let MessageType::Text(content) = &msg_event.content.msgtype {
         let msg = MsgPayloadFactory::get_message(emoji_to_smiley(&content.body));
-        switchboard.send_message_to_client(msg, &sender_msn_addr, Some(&msg_event.event_id.to_string()));
+        let sender = MSNUser::new(sender_msn_addr.clone());
+        switchboard.on_message_received(msg, sender, Some(msg_event.event_id.to_string()));
     }
 }
 

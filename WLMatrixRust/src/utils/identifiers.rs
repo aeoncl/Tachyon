@@ -12,8 +12,6 @@ lazy_static! {
 
 }
 
-
-
 pub fn msn_addr_to_matrix_id(msn_addr: &String) -> String {
 
     let captures = MSN_ADDRESS_REGEX.captures(&msn_addr).unwrap();
