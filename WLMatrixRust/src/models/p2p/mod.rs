@@ -376,20 +376,15 @@ SessionID: 2216804035
 #[cfg(test)]
 mod tests {
     use std::str::{from_utf8_unchecked, FromStr};
-
     use byteorder::{BigEndian, ByteOrder};
-    use rand::Rng;
     use log::info;
-
-    use crate::models::msg_payload::factories::MsgPayloadFactory;
-    use crate::models::msn_user::MSNUser;
     use crate::models::p2p::p2p_payload::P2PPayload;
     use crate::models::p2p::p2p_transport_packet::P2PTransportPacket;
     use crate::models::p2p::tlv::ValueType;
     use crate::{models::msg_payload::MsgPayload, sockets::msnp_command::MSNPCommandParser};
 
 
-    use super::factories::{SlpPayloadFactory, TLVFactory, P2PTransportPacketFactory};
+    use super::factories::{TLVFactory, P2PTransportPacketFactory};
 
     #[test]
     fn test_deserialize_msg_command_containing_slp_payload() {

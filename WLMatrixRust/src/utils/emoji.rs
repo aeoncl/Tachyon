@@ -1,6 +1,5 @@
 use std::{collections::HashMap, str::{from_utf8, Utf8Error}};
 
-use emojis::Emoji;
 use lazy_static::lazy_static;
 
 lazy_static! {

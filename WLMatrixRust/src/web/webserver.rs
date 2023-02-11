@@ -1,13 +1,9 @@
-use std::io::Cursor;
 use std::path::{PathBuf, Path};
-use std::str::FromStr;
-use std::sync::Arc;
 
-use actix_web::{get, post, web, HttpRequest, HttpResponse, HttpResponseBuilder, Responder, Error};
+use actix_web::{get, post, web, HttpRequest, HttpResponse, HttpResponseBuilder};
 
 use log::info;
 
-use matrix_sdk::config::RequestConfig;
 use matrix_sdk::{Client};
 
 use regex::Regex;
@@ -19,7 +15,6 @@ use urlencoding::decode;
 use http::StatusCode;
 use lazy_static::lazy_static;
 use matrix_sdk::ruma::{UserId, OwnedUserId};
-use reqwest::Url;
 use yaserde::de::from_str;
 use yaserde::ser::to_string;
 
@@ -27,7 +22,7 @@ use crate::generated::ppcrl_webservice::factories::RST2ResponseFactory;
 use crate::generated::ppcrl_webservice::*;
 use crate::models::uuid::UUID;
 
-use crate::utils::identifiers::{msn_addr_to_matrix_id, get_matrix_device_id, get_hostname};
+use crate::utils::identifiers::{msn_addr_to_matrix_id, get_matrix_device_id};
 
 
 use super::error::WebError;

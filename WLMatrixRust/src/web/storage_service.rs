@@ -1,16 +1,14 @@
-use std::{str::{from_utf8, FromStr}, sync::Arc, io::Cursor, path::Path};
+use std::{str::{from_utf8, FromStr}, sync::Arc};
 
 use actix_web::{post, web, HttpRequest, HttpResponse, HttpResponseBuilder, get};
-use base64::decode;
 use http::{header::HeaderName, StatusCode};
 use js_int::UInt;
 use log::info;
 use matrix_sdk::{ruma::{MxcUri, events::room::MediaSource, api::client::media::get_content_thumbnail::v3::Method, ServerName, server_name, user_id, UserId, OwnedUserId}, Client, media::{MediaRequest, MediaFormat, MediaThumbnailSize}};
 use mime::Mime;
-use reqwest::Url;
 use substring::Substring;
 use yaserde::{ser::to_string, de::from_str};
-use crate::{web::{error::WebError, webserver::{SHA1_REGEX, DEFAULT_CACHE_KEY}}, generated::msnstorage_service::{bindings::{GetProfileMessageSoapEnvelope, DeleteRelationshipsMessageSoapEnvelope, UpdateProfileMessageSoapEnvelope, UpdateDocumentMessageSoapEnvelope}, factories::{GetProfileResponseFactory, UpdateDocumentResponseFactory, DeleteRelationshipsResponseFactory, UpdateProfileResponseFactory}, types::StorageUserHeader}, repositories::{client_data_repository::ClientDataRepository, matrix_client_repository::MatrixClientRepository, repository::Repository}, CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, models::uuid::UUID, utils::identifiers::{msn_addr_to_matrix_id, parse_mxc}};
+use crate::{web::{error::WebError, webserver::{DEFAULT_CACHE_KEY}}, generated::msnstorage_service::{bindings::{GetProfileMessageSoapEnvelope, DeleteRelationshipsMessageSoapEnvelope, UpdateProfileMessageSoapEnvelope, UpdateDocumentMessageSoapEnvelope}, factories::{GetProfileResponseFactory, UpdateDocumentResponseFactory, DeleteRelationshipsResponseFactory, UpdateProfileResponseFactory}, types::StorageUserHeader}, repositories::{client_data_repository::ClientDataRepository, matrix_client_repository::MatrixClientRepository, repository::Repository}, CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, models::uuid::UUID, utils::identifiers::{msn_addr_to_matrix_id, parse_mxc}};
 
 
 

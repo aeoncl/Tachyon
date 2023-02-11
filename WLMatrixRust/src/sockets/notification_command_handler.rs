@@ -1,28 +1,20 @@
 use std::str::{FromStr};
 use std::sync::Arc;
-use log::info;
-use matrix_sdk::Client;
-use matrix_sdk::ruma::events::room::message::{SyncRoomMessageEvent, RoomMessageEventContent};
+
 use substring::Substring;
 use async_trait::async_trait;
-use tokio::sync::broadcast::{Sender, Receiver, self};
+use tokio::sync::broadcast::{Sender};
 use crate::generated::payloads::{PrivateEndpointData, PresenceStatus};
 use crate::models::ab_data::AbData;
 use crate::models::errors::{MsnpErrorCode};
-use crate::models::msg_payload::MsgPayload;
-use crate::models::msn_user::MSNUser;
-use crate::models::p2p::p2p_session::P2PSession;
-use crate::models::p2p::p2p_transport_packet::P2PTransportPacket;
-use crate::models::p2p::pending_packet::PendingPacket;
 
 use crate::models::p2p::slp_payload::SlpPayload;
 use crate::models::p2p::slp_payload_handler::SlpPayloadHandler;
-use crate::models::switchboard_handle::SwitchboardHandle;
 use crate::repositories::matrix_client_repository::MatrixClientRepository;
 use crate::repositories::repository::Repository;
-use crate::utils::identifiers::{msn_addr_to_matrix_id, matrix_id_to_msn_addr, msn_addr_to_matrix_user_id, matrix_room_id_to_annoying_matrix_room_id};
+use crate::utils::identifiers::{msn_addr_to_matrix_id};
 use crate::utils::matrix;
-use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, AB_DATA_REPO, P2P_REPO};
+use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, AB_DATA_REPO};
 use crate::models::client_data::ClientData;
 use crate::models::uuid::UUID;
 use crate::repositories::client_data_repository::{ClientDataRepository};
