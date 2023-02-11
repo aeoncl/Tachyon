@@ -3,7 +3,7 @@ use tokio::sync::{Mutex, MutexGuard};
 
 use chashmap::{ReadGuard, WriteGuard};
 use log::info;
-use matrix_sdk::{deserialized_responses::SyncResponse, config::SyncSettings, Client, ruma::{OwnedUserId, events::{room::{member::{MembershipState, RoomMemberEventContent, RoomMemberEvent, SyncRoomMemberEvent, StrippedRoomMemberEvent}, message::{SyncRoomMessageEvent, MessageType, RoomMessageEventContent}}, presence::PresenceEvent, OriginalSyncMessageLikeEvent, SyncEphemeralRoomEvent, EphemeralRoomEvent, typing::{TypingEventContent, SyncTypingEvent}, direct::{DirectEventContent, DirectEvent}, OriginalSyncStateEvent, GlobalAccountDataEventType, AnyGlobalAccountDataEvent, GlobalAccountDataEvent}, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, GlobalAccountData}}, presence::PresenceState}, RoomMember, room::Room};
+use matrix_sdk::{config::SyncSettings, Client, ruma::{OwnedUserId, events::{room::{member::{MembershipState, RoomMemberEventContent, RoomMemberEvent, SyncRoomMemberEvent, StrippedRoomMemberEvent}, message::{SyncRoomMessageEvent, MessageType, RoomMessageEventContent}}, presence::PresenceEvent, OriginalSyncMessageLikeEvent, SyncEphemeralRoomEvent, EphemeralRoomEvent, typing::{TypingEventContent, SyncTypingEvent}, direct::{DirectEventContent, DirectEvent}, OriginalSyncStateEvent, GlobalAccountDataEventType, AnyGlobalAccountDataEvent, GlobalAccountDataEvent}, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, GlobalAccountData}}, presence::PresenceState}, room::Room};
 use tokio::{join, sync::broadcast::{Sender, self}};
 
 use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, repositories::{matrix_client_repository::MatrixClientRepository, client_data_repository::ClientDataRepository, repository::Repository}, generated::{msnab_sharingservice::factories::{ContactFactory, MemberFactory, AnnotationFactory}, msnab_datatypes::types::{MemberState, RoleId, ContactTypeEnum, ArrayOfAnnotation}, payloads::{factories::NotificationFactory, PresenceStatus}}, models::{uuid::UUID, switchboard_handle::SwitchboardHandle, msg_payload::factories::MsgPayloadFactory, ab_data::AbData, capabilities::ClientCapabilitiesFactory}, AB_DATA_REPO};
@@ -15,7 +15,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
     let matrix_client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
     let matrix_client = matrix_client_repo.find(&token).unwrap().clone();
 
-        matrix_client.register_event_handler({
+        matrix_client.add_event_handler({
             let token = token.clone();
             let msn_addr = msn_addr.clone();
             let sender = sender.clone();
@@ -64,9 +64,9 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
 
             }
 
-        }).await;
+        });
 
-        matrix_client.register_event_handler({
+        matrix_client.add_event_handler({
             let token = token.clone();
             let msn_addr = msn_addr.clone();
 
@@ -104,16 +104,18 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                     }
                 }
             }
-        }).await;
+        });
 
 
-        matrix_client.register_event_handler({
+        matrix_client.add_event_handler({
             let token = token.clone();
             let msn_addr = msn_addr.clone();
+            let sender = sender.clone();
 
             move |ev: SyncRoomMemberEvent, room: Room, client: Client| {
                 let token = token.clone();
                 let msn_addr = msn_addr.clone();
+                let msn_ns_sender = sender.clone();
 
                 async move {
 
@@ -121,6 +123,21 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
 
                     if let SyncRoomMemberEvent::Original(ev) = &ev {
                         info!("ABDEBUG: Original Event !!");
+
+                        if ev.sender == me.to_owned() {
+                            info!("ABDEBUG: I Changed!");
+                            if let Some(previous_content) = ev.prev_content() {
+                                if ev.content.displayname != previous_content.displayname {
+                                    
+                                    if let Some(display_name) = &ev.content.displayname {
+                                       //TODO update display name
+                                }
+                            }else {
+
+                            }
+                            }
+                        }
+
                         if room.is_direct() || ev.content.is_direct.unwrap_or(false) {
                             info!("Room is direct !!");
                             handle_directs(ev, &room, &client, &token, &msn_addr).await;
@@ -133,10 +150,10 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                 }
                   
             }
-        }).await;
+        });
 
 
-        matrix_client.register_event_handler({
+        matrix_client.add_event_handler({
 
             let token = token.clone();
             let msn_addr = msn_addr.clone();
@@ -149,10 +166,10 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
 
                 }
             }
-        }).await;
+        });
 
 
-        matrix_client.register_event_handler({
+        matrix_client.add_event_handler({
 
             let token = token.clone();
             let msn_addr = msn_addr.clone();
@@ -177,9 +194,9 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                 }
             }
 
-        }).await;
+        });
 
-        matrix_client.register_event_handler({
+        matrix_client.add_event_handler({
             let token = token.clone();
             let msn_addr = msn_addr.clone();
             let sender = sender.clone();
@@ -240,7 +257,7 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                     }
                 }
             }
-        }).await;
+        });
     
         /**
          * 
@@ -308,9 +325,9 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                         let event: PresenceEvent = found.deserialize_as().unwrap();
                         
 
-                        let mut status_msg_to_set: Option<&str> = None;
+                        let mut status_msg_to_set: Option<String> = None;
                         if let Some(status_msg) = event.content.status_msg.as_ref() {
-                            status_msg_to_set = Some(status_msg.as_str());
+                            status_msg_to_set = Some(status_msg.to_owned());
                         }
 
                         matrix_client.account().set_presence(client_data.presence_status.clone().into(), status_msg_to_set).await;

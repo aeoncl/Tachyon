@@ -15,7 +15,7 @@ pub fn extract_tlvs(tlvs_bytes: &[u8], tlvs_length: usize) -> Vec<TLV> {
         let start_index = tlvs_treated_count;
         let value_type = tlvs_bytes.get(start_index).unwrap().to_owned();
 
-        if (value_type != 0) {
+        if value_type != 0 {
             let length = tlvs_bytes.get(start_index+1).unwrap().to_owned() as usize;
 
       //      info!("current tlv start_index: {}, type: {:x}, length: {:x}", &start_index, &value_type, &length);

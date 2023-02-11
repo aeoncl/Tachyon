@@ -308,7 +308,7 @@ impl NotificationCommandHandler {
             if let Some(matrix_client) = matrix_client_repo.find(&self.matrix_token) {
 
                  let device_id = matrix_client.device_id().unwrap();
-                 matrix_client.update_device(&device_id.to_owned(), private_endpoint_data.ep_name).await.unwrap_or_default();
+                 matrix_client.update_device(device_id.to_owned(), private_endpoint_data.ep_name).await.unwrap_or_default();
 
             }
         }

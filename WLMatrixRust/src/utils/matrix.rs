@@ -1,6 +1,6 @@
 use std::{collections::HashSet, path::Path};
 
-use matrix_sdk::{Client, ruma::{UserId, DeviceId, device_id, user_id, events::{AnySyncMessageLikeEvent, AnySyncRoomEvent, SyncMessageLikeEvent}, OwnedUserId}, Session, Error, deserialized_responses::JoinedRoom, store::make_store_config};
+use matrix_sdk::{Client, ruma::{UserId, DeviceId, device_id, user_id, events::{AnySyncMessageLikeEvent, SyncMessageLikeEvent}, OwnedUserId}, Session, Error};
 use reqwest::Url;
 
 use super::identifiers::get_matrix_device_id;
@@ -18,14 +18,17 @@ pub async fn login(matrix_id: String, matrix_token: String) -> Result<Client, Er
     let device_id = device_id!(device_id_str).to_owned();
     
     let path = Path::new("c:\\temp");
-    let config =  make_store_config(path, None).unwrap();
-
-    let client = Client::builder().store_config(config).user_id(&matrix_user).build().await.unwrap();
-    
-
-    client.restore_login(Session{ access_token: matrix_token.to_owned(), refresh_token: None, user_id: matrix_user, device_id: device_id}).await?;
-    let _check_connection_status = client.whoami().await?;
-    return Ok(client);
+    match Client::builder().disable_ssl_verification().server_name(matrix_user.server_name()).sled_store(path, None).build().await {
+        Ok(client) => {
+            client.restore_session(Session{ access_token: matrix_token.to_owned(), refresh_token: None, user_id: matrix_user, device_id: device_id}).await?;
+            let _check_connection_status = client.whoami().await?;
+            return Ok(client);
+        },
+        Err(err) => {
+            return Err(Error::UnknownError(Box::new(err)));
+        }
+    }
+   
 }
 
 pub fn save_mtx_timestamp(msn_addr: &String, mtx_timestamp: String) {

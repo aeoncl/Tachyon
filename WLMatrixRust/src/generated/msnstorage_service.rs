@@ -1623,13 +1623,15 @@ pub mod factories {
             let mut document_stream_array : Vec<DocumentStream> = Vec::new();
 
 
-
+            let mut static_user_tile_public_url = String::new();
             if let Some(found_image_id) = image_mxid {
                 let user_tile_static = DocumentStream{ document_stream_name: Some(String::from("UserTileStatic")), mime_type: Some(String::from("image/jpeg")), data: None, data_size: 0, pre_auth_url: Some(format!("http://127.0.0.1/storage/usertile/{}/static", &found_image_id)), pre_auth_url_partner: None, document_stream_type: String::from("UserTileStatic"), write_mode: Some(String::from("Overwrite")), stream_version: Some(0), sha1_hash: None, genie: Some(false), stream_data_status: Some(String::from("None")), stream_status: Some(String::from("None")), is_alias_for_default:Some(false), expiration_date_time: Some(String::from("0001-01-01T00:00:00")) };
                 document_stream_array.push(user_tile_static);
 
                 let user_tile_small = DocumentStream{ document_stream_name: Some(String::from("UserTileSmall")), mime_type: None, data: None, data_size: 0, pre_auth_url: Some(format!("http://127.0.0.1/storage/usertile/{}/small", &found_image_id)), pre_auth_url_partner: None, document_stream_type: String::from("Named"), write_mode: Some(String::from("Overwrite")), stream_version: Some(0), sha1_hash: None, genie: Some(false), stream_data_status: Some(String::from("None")), stream_status: Some(String::from("None")), is_alias_for_default:Some(false), expiration_date_time: Some(String::from("0001-01-01T00:00:00")) };
                 document_stream_array.push(user_tile_small);
+
+                static_user_tile_public_url = format!("http://127.0.0.1/storage/usertile/{}/static", &found_image_id);
             } 
            
 
@@ -1637,7 +1639,7 @@ pub mod factories {
     
             let photo = DocumentBaseType{ resource_id: Some(format!("{}!205", uuid.to_hex_cid())), name: None, item_type: None, date_modified: None, document_streams: document_streams };
     
-            let expression_profile = ExpressionProfile{ resource_id: format!("{}!118", uuid.to_hex_cid()), date_modified: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), version: Some(205), flags: None, photo: photo, attachments: None, personal_status: Some(psm), personal_status_last_modified:  Some(now.format("%Y-%m-%dT%H:%M:%SZ").to_string()), display_name: Some(display_name), display_name_last_modified: Some(now.format("%Y-%m-%dT%H:%M:%SZ").to_string()), static_user_tile_public_url:  format!("http://127.0.0.1/storage/usertile/{}/static", uuid.to_string()) };
+            let expression_profile = ExpressionProfile{ resource_id: format!("{}!118", uuid.to_hex_cid()), date_modified: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), version: Some(205), flags: None, photo: photo, attachments: None, personal_status: Some(psm), personal_status_last_modified:  Some(now.format("%Y-%m-%dT%H:%M:%SZ").to_string()), display_name: Some(display_name), display_name_last_modified: Some(now.format("%Y-%m-%dT%H:%M:%SZ").to_string()), static_user_tile_public_url };
     
             let get_profile_result = GetProfileResultType { resource_id: format!("{}!106", uuid.to_hex_cid()), date_modified: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), expression_profile: expression_profile };
     

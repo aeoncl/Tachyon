@@ -3,6 +3,7 @@ use std::{str::Utf8Error, string::FromUtf8Error};
 use actix_web::{HttpResponse, ResponseError, body::BoxBody};
 use base64::DecodeError;
 use http::StatusCode;
+use matrix_sdk::ClientBuildError;
 use url::ParseError;
 
 #[derive(Debug)]
@@ -125,7 +126,24 @@ impl From<Result<(), StatusCode>> for WebError {
 }
 
 
+impl From<ClientBuildError> for WebError {
+    fn from(value: ClientBuildError) -> Self {
+        WebError {
+            message: None,
+            status_code: StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
+}
 
+
+impl From<Result<(), ClientBuildError>> for WebError {
+    fn from(err: Result<(), ClientBuildError>) -> WebError {
+        WebError {
+            message: None,
+            status_code: StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
+}
 
 /* 
 impl From<validator::ValidationErrors> for WebError {

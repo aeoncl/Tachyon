@@ -50,12 +50,11 @@ impl SwitchboardHandle {
 
     pub async fn send_file_to_server(&self, file: File) {
 
-            let mut cursor = Cursor::new(&file.bytes);
             if let Ok(mime) = mime::Mime::from_str(file.get_mime().as_str()) {
                 if let Some (room) = self.matrix_client.get_joined_room(&self.target_room_id) {
 
                     let config = AttachmentConfig::new().generate_thumbnail(None);
-                    room.send_attachment(file.filename.as_str(), &mime, &mut cursor, config).await;
+                    room.send_attachment(file.filename.as_str(), &mime, file.bytes, config).await;
                 }
                 
    

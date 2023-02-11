@@ -1,11 +1,11 @@
-use std::{str::{from_utf8, FromStr}, sync::Arc, io::Cursor};
+use std::{str::{from_utf8, FromStr}, sync::Arc, io::Cursor, path::Path};
 
 use actix_web::{post, web, HttpRequest, HttpResponse, HttpResponseBuilder, get};
 use base64::decode;
 use http::{header::HeaderName, StatusCode};
 use js_int::UInt;
 use log::info;
-use matrix_sdk::{ruma::{MxcUri, events::room::MediaSource, api::client::media::get_content_thumbnail::v3::Method}, Client, media::{MediaRequest, MediaFormat, MediaThumbnailSize}};
+use matrix_sdk::{ruma::{MxcUri, events::room::MediaSource, api::client::media::get_content_thumbnail::v3::Method, ServerName, server_name, user_id, UserId, OwnedUserId}, Client, media::{MediaRequest, MediaFormat, MediaThumbnailSize}};
 use mime::Mime;
 use reqwest::Url;
 use substring::Substring;
@@ -65,12 +65,14 @@ pub async fn get_profile_pic(path: web::Path<(String, String)>, request: HttpReq
     let (server_part , mxc_part) = parse_mxc(&mxc);
 
     // let homeserver_url = Url::parse(format!("https://{}", server_part).as_str())?;
-    let homeserver_url = Url::parse(format!("http://{}:8008", server_part).as_str())?;
 
-    let client = Client::new(homeserver_url).await?;
-
+    let client= Client::builder().disable_ssl_verification().server_name(parsed_mxc.server_name().unwrap()).build().await?;
+    
     let media_request = MediaRequest{ source: MediaSource::Plain(parsed_mxc), format: MediaFormat::Thumbnail(MediaThumbnailSize{ method: Method::Scale, width: UInt::new(200).unwrap(), height: UInt::new(200).unwrap() })};
-    let image = client.get_media_content(&media_request, false).await?;
+    let image = client.media().get_media_content(&media_request, false).await?;
+    return Ok(HttpResponseBuilder::new(StatusCode::OK).append_header(("Content-Type", "image/jpeg")).body(image));
+
+    
 
 
    // let matrix_client = client_repo.find(&matrix_token).ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -79,7 +81,6 @@ pub async fn get_profile_pic(path: web::Path<(String, String)>, request: HttpReq
    //let profile_pic = matrix_client.account().get_avatar(MediaFormat::Thumbnail(MediaThumbnailSize{ method: Method::Scale, width: UInt::new(200).unwrap(), height: UInt::new(200).unwrap() })).await?.unwrap();
    //let encoded = base64::encode(&profile_pic);
 
-        return Ok(HttpResponseBuilder::new(StatusCode::OK).append_header(("Content-Type", "image/jpeg")).body(image));
 }
 
 async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
@@ -137,9 +138,10 @@ async fn storage_update_document(body: web::Bytes, request: HttpRequest) -> Resu
             //We need to figure out the filetype from the content, because msn always sends png.
             let data_vector = base64::decode(document_stream.data.ok_or(StatusCode::BAD_REQUEST)?)?;
             let mime = get_mime_type(&data_vector);
-            let mut data = Cursor::new(data_vector);
-            let mtx_upload_response = matrix_client.upload(&mime, &mut data).await?;
-            let mtx_avatar_response = matrix_client.account().set_avatar_url(Some(mtx_upload_response.content_uri.as_ref())).await?;
+
+            let mtx_upload_response = matrix_client.account().upload_avatar(&mime, data_vector).await?;
+
+            let mtx_avatar_response = matrix_client.account().set_avatar_url(Some(mtx_upload_response.as_ref())).await?;
         }
     }
 
@@ -220,7 +222,7 @@ async fn storage_update_profile(body: web::Bytes, request: HttpRequest) -> Resul
 
     let psm = profile.personal_status.unwrap_or(String::new());
     let presence = matrix_client.account().get_presence().await?;
-    matrix_client.account().set_presence(presence.presence, Some(psm.as_str())).await?;
+    matrix_client.account().set_presence(presence.presence, Some(psm)).await?;
 
     
 
