@@ -1,8 +1,6 @@
-use std::str::FromStr;
+use matrix_sdk::{ruma::{UserId, RoomId}, Client, StoreError};
 
-use matrix_sdk::{ruma::{OwnedUserId, UserId, RoomId}, Client, StoreError};
-
-use crate::{models::msn_user::MSNUser, utils::identifiers::matrix_id_to_msn_addr, generated::payloads::PresenceStatus};
+use crate::{utils::identifiers::matrix_id_to_msn_addr, generated::payloads::PresenceStatus, models::msn_user::MSNUser};
 
 
 

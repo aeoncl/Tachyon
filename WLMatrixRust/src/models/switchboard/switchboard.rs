@@ -2,16 +2,15 @@ use std::{sync::{Arc, Mutex}, collections::HashSet, str::FromStr, io::Cursor, me
 use matrix_sdk::{ruma::{OwnedRoomId, OwnedUserId, OwnedEventId, events::room::message::RoomMessageEventContent}, Client, attachment::AttachmentConfig};
 use tokio::sync::{broadcast::{Sender, Receiver, error::SendError, self}};
 
-use crate::utils::emoji::smiley_to_emoji;
+use crate::{utils::emoji::smiley_to_emoji, models::{p2p::file::File, msg_payload::MsgPayload, msn_user::MSNUser}};
 
-use super::{events::{switchboard_event::SwitchboardEvent, content::message_event_content::MessageEventContent}, p2p::file::File, switchboard_error::SwitchboardError, msg_payload::MsgPayload, msn_user::MSNUser};
+use super::{events::{switchboard_event::SwitchboardEvent, content::message_event_content::MessageEventContent}, switchboard_error::SwitchboardError};
 
 
 #[derive(Clone)]
 pub struct Switchboard {
     pub(crate) inner: Arc<SwitchboardInner>,
 }
-
 
 pub(crate) struct SwitchboardInner {
     //Matrix Events ID That were sent from here (for dedup)

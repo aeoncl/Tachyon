@@ -1,6 +1,6 @@
 use crate::{utils::identifiers::{msn_addr_to_matrix_id, matrix_id_to_msn_addr}, generated::payloads::PresenceStatus};
 
-use super::{uuid::UUID, capabilities::{ClientCapabilitiesFactory, ClientCapabilities}, errors::Errors};
+use super::{uuid::UUID, capabilities::{ClientCapabilitiesFactory, ClientCapabilities}, errors::Errors, msn_object::MSNObject};
 
 #[derive(Clone, Debug)]
 
@@ -12,7 +12,8 @@ pub struct MSNUser {
     status: PresenceStatus,
     endpoint_guid: String,
     display_name: String,
-    psm: String
+    psm: String,
+    display_picture: Option<MSNObject>
 }
 
 impl MSNUser {
@@ -31,7 +32,8 @@ impl MSNUser {
             //capabilities: String::from("2788999228:48"), 
             status: PresenceStatus::FLN, 
             endpoint_guid: endpoint_guid,
-            psm: String::new() };
+            psm: String::new(),
+            display_picture: None };
     }
 
     pub fn from_matrix_id(matrix_id: String) -> MSNUser {
@@ -44,7 +46,8 @@ impl MSNUser {
             //capabilities: String::from("2788999228:48"),
             status: PresenceStatus::FLN, endpoint_guid: 
             endpoint_guid,
-            psm: String::new() };
+            psm: String::new(),
+            display_picture: None };
     }
 
     /**
@@ -55,7 +58,7 @@ impl MSNUser {
            let  trimmed_msn_addr = msn_addr.trim().to_string();
             let trimmed_endpoint_guid = endpoint_guid.trim().strip_prefix("{").ok_or(Errors::PayloadDeserializeError)?.strip_suffix("}").ok_or(Errors::PayloadDeserializeError)?;
             let capab = ClientCapabilitiesFactory::get_default_capabilities();
-            return Ok(MSNUser{ msn_addr: trimmed_msn_addr.clone(),display_name:trimmed_msn_addr.clone(), matrix_id: msn_addr_to_matrix_id(&trimmed_msn_addr), capabilities: capab, status: PresenceStatus::FLN, endpoint_guid: trimmed_endpoint_guid.to_string(), psm: String::new() });
+            return Ok(MSNUser{ msn_addr: trimmed_msn_addr.clone(),display_name:trimmed_msn_addr.clone(), matrix_id: msn_addr_to_matrix_id(&trimmed_msn_addr), capabilities: capab, status: PresenceStatus::FLN, endpoint_guid: trimmed_endpoint_guid.to_string(), psm: String::new(), display_picture: None });
        }
        return Err(Errors::PayloadDeserializeError);
     }

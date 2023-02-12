@@ -5,7 +5,7 @@ use log::info;
 use rand::Rng;
 use tokio::sync::broadcast::Sender;
 
-use crate::{models::{msn_user::MSNUser, errors::Errors, switchboard::Switchboard}};
+use crate::{models::{msn_user::MSNUser, errors::Errors, switchboard::switchboard::Switchboard}};
 
 use super::{pending_packet::PendingPacket, p2p_transport_packet::P2PTransportPacket, factories::{P2PTransportPacketFactory, SlpPayloadFactory, P2PPayloadFactory}, p2p_payload::P2PPayload, slp_payload::SlpPayload, slp_payload_handler::SlpPayloadHandler, file::File};
 

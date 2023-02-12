@@ -1,6 +1,6 @@
 use std::str::{FromStr};
-use std::sync::Arc;
 
+use matrix_sdk::Client;
 use substring::Substring;
 use async_trait::async_trait;
 use tokio::sync::broadcast::{Sender};
@@ -8,15 +8,14 @@ use crate::generated::payloads::{PrivateEndpointData, PresenceStatus};
 use crate::models::ab_data::AbData;
 use crate::models::errors::{MsnpErrorCode};
 
-use crate::models::msn_client::MSNClient;
 use crate::models::msn_user::MSNUser;
+use crate::models::notification::msn_client::MSNClient;
 use crate::models::p2p::slp_payload::SlpPayload;
 use crate::models::p2p::slp_payload_handler::SlpPayloadHandler;
-use crate::repositories::matrix_client_repository::MatrixClientRepository;
 use crate::repositories::repository::Repository;
 use crate::utils::identifiers::{msn_addr_to_matrix_id};
 use crate::utils::matrix;
-use crate::{MATRIX_CLIENT_REPO, AB_DATA_REPO, MSN_CLIENT_LOCATOR};
+use crate::{AB_DATA_REPO, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
 use crate::models::uuid::UUID;
 use crate::models::msg_payload::factories::{MsgPayloadFactory};
 use super::command_handler::CommandHandler;
@@ -27,7 +26,8 @@ pub struct NotificationCommandHandler {
     matrix_token: String,
     sender: Sender<String>,
     kill_sender: Option<Sender<String>>,
-    msn_client: MSNClient
+    msn_client: MSNClient,
+    matrix_client: Option<Client>
 }
 
 impl NotificationCommandHandler {
@@ -36,7 +36,8 @@ impl NotificationCommandHandler {
             sender: sender,
             matrix_token: String::new(),
             kill_sender: None,
-            msn_client: MSNClient::new(MSNUser::default(), -1)
+            msn_client: MSNClient::new(MSNUser::default(), -1),
+            matrix_client: None
         };
     }
 }
@@ -103,8 +104,7 @@ impl CommandHandler for NotificationCommandHandler {
                         if let Ok(client) = matrix::login(matrix_id.clone(), self.matrix_token.clone()).await {
     
                             //Token valid, client authenticated.
-                            let client_locator  = MSN_CLIENT_LOCATOR.clone();
-                            client_locator.set(self.msn_client.clone());
+                            MSN_CLIENT_LOCATOR.set(self.msn_client.clone());
     
                             let msmsgs_profile_msg = MsgPayloadFactory::get_msmsgs_profile(UUID::from_string(&matrix_id).get_puid(), self.msn_client.get_user_msn_addr(), self.matrix_token.clone()).serialize();
     
@@ -133,8 +133,8 @@ impl CommandHandler for NotificationCommandHandler {
                             let serialized = test_msg.serialize();
                             self.sender.send(format!("MSG Hotmail Hotmail {payload_size}\r\n{payload}", payload_size=serialized.len(), payload=&serialized));
 
-                            let matrix_client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
-                            matrix_client_repo.add(self.matrix_token.clone(), client);
+                            self.matrix_client = Some(client.clone());
+                            MATRIX_CLIENT_LOCATOR.set(client);
 
                             let ab_data_repo  = AB_DATA_REPO.clone();
                             ab_data_repo.add(self.matrix_token.clone(), AbData::new());
@@ -146,8 +146,6 @@ impl CommandHandler for NotificationCommandHandler {
                             //Invalid token. Auth failure.
                             return format!("{error_code} {tr_id}\r\n", error_code = MsnpErrorCode::AuthFail as i32, tr_id= tr_id);
                         }
-
-                    
                     }
                 }
 
@@ -194,12 +192,9 @@ impl CommandHandler for NotificationCommandHandler {
             "CHG" => {
                 let status = PresenceStatus::from_str(split[2]).unwrap_or(PresenceStatus::NLN);
 
-                let msn_client_locator = MSN_CLIENT_LOCATOR.clone();
-                if let Some(mut client_data) = msn_client_locator.get() {
-                    client_data.get_user_mut().set_status(status.clone())
-                }
+                self.msn_client.get_user_mut().set_status(status.clone());
 
-                if let Some(matrix_client) = MATRIX_CLIENT_REPO.clone().find(&self.matrix_token){
+                if let Some(matrix_client) = self.matrix_client.as_ref() {
                     matrix_client.account().set_presence(status.clone().into(), None).await;
                 }
 
@@ -280,7 +275,7 @@ impl CommandHandler for NotificationCommandHandler {
 
         let token = &self.get_matrix_token();
         if !token.is_empty()  {
-            MATRIX_CLIENT_REPO.remove(token);
+            MATRIX_CLIENT_LOCATOR.remove();
             MSN_CLIENT_LOCATOR.remove();
             AB_DATA_REPO.remove(token);
         }
@@ -290,10 +285,9 @@ impl CommandHandler for NotificationCommandHandler {
 impl NotificationCommandHandler {
 
     async fn handle_device_name_update(&self, payload: &str) {
-        let matrix_client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
 
         if let Ok(private_endpoint_data) = PrivateEndpointData::from_str(payload) {
-            if let Some(matrix_client) = matrix_client_repo.find(&self.matrix_token) {
+            if let Some(matrix_client) = MATRIX_CLIENT_LOCATOR.get() {
 
                  let device_id = matrix_client.device_id().unwrap();
                  matrix_client.update_device(device_id.to_owned(), private_endpoint_data.ep_name).await.unwrap_or_default();
@@ -305,8 +299,7 @@ impl NotificationCommandHandler {
 
     async fn handle_device_logout(&self, endpoint_guid : String) {
 
-        let client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
-        let matrix_client = client_repo.find(&self.matrix_token).unwrap();
+        let matrix_client =  MATRIX_CLIENT_LOCATOR.get().unwrap();
 
         let devices = matrix_client.devices().await.unwrap().devices;
         for device in devices {
@@ -320,8 +313,7 @@ impl NotificationCommandHandler {
     }
 
     // async fn handle_all_devices_logout(&self) {
-    //     let client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
-    //     let matrix_client = client_repo.find(&self.matrix_token).unwrap();
+    //     let matrix_client = MATRIX_CLIENT_LOCATOR.get().unwrap();
 
     //     let devices = matrix_client.devices().await.unwrap().devices;
 

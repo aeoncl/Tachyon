@@ -6,17 +6,17 @@ use substring::Substring;
 use async_trait::async_trait;
 use tokio::sync::broadcast::{Sender, Receiver, self};
 use crate::models::errors::{MsnpErrorCode};
-use crate::models::events::switchboard_event::SwitchboardEvent;
 use crate::models::msg_payload::MsgPayload;
 use crate::models::msn_user::MSNUser;
 use crate::models::p2p::p2p_session::P2PSession;
 use crate::models::p2p::p2p_transport_packet::P2PTransportPacket;
 use crate::models::p2p::pending_packet::PendingPacket;
 
-use crate::models::switchboard::Switchboard;
+use crate::models::switchboard::events::switchboard_event::SwitchboardEvent;
+use crate::models::switchboard::switchboard::Switchboard;
 use crate::repositories::repository::Repository;
 use crate::utils::identifiers::{matrix_id_to_msn_addr, msn_addr_to_matrix_user_id, matrix_room_id_to_annoying_matrix_room_id};
-use crate::{MATRIX_CLIENT_REPO, P2P_REPO, MSN_CLIENT_LOCATOR};
+use crate::{P2P_REPO, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
 use crate::models::uuid::UUID;
 use crate::models::msg_payload::factories::{MsgPayloadFactory};
 use super::command_handler::CommandHandler;
@@ -180,7 +180,8 @@ impl CommandHandler for SwitchboardCommandHandler {
                 self.matrix_token = split_token.get(1).unwrap().to_string();
                 self.target_matrix_id = split_token.get(2).unwrap().to_string();
                 self.target_msn_addr = matrix_id_to_msn_addr(&self.target_matrix_id);
-                self.matrix_client = Some(MATRIX_CLIENT_REPO.find(&self.matrix_token).unwrap().clone());
+                
+                self.matrix_client = MATRIX_CLIENT_LOCATOR.get().clone();
 
                 let client_data = MSN_CLIENT_LOCATOR.get().unwrap();
 
@@ -213,7 +214,7 @@ impl CommandHandler for SwitchboardCommandHandler {
                     self.endpoint_guid = endpoint_guid.substring(1, endpoint_guid.len()-1).to_string();
 
                     if let Some(client_data) = MSN_CLIENT_LOCATOR.get(){
-                        if let Some(client) = MATRIX_CLIENT_REPO.find(&self.matrix_token) {
+                        if let Some(client) = MATRIX_CLIENT_LOCATOR.get() {
                             self.matrix_client = Some(client.clone());
                             self.protocol_version = Arc::new(client_data.get_msnp_version());
                             return format!("USR {tr_id} {msn_addr} {msn_addr} OK\r\n", tr_id = tr_id, msn_addr = msn_addr);

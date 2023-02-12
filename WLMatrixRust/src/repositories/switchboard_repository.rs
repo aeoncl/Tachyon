@@ -1,6 +1,7 @@
 use std::{sync::{Arc, Mutex}, collections::HashMap};
 
-use crate::models::{switchboard::Switchboard};
+use crate::models::switchboard::switchboard::Switchboard;
+
 
 pub struct SwitchboardRepository {
     data : Mutex<HashMap<String, Switchboard>>

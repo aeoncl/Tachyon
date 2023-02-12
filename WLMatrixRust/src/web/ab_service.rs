@@ -6,7 +6,7 @@ use log::info;
 use substring::Substring;
 use yaserde::{ser::to_string, de::from_str};
 
-use crate::{web::error::WebError, generated::msnab_sharingservice::{bindings::{AbgroupAddMessageSoapEnvelope, AbfindContactsPagedMessageSoapEnvelope, AbfindContactsPagedResponseMessageSoapEnvelope}, factories::{ABGroupAddResponseFactory, FindContactsPagedResponseFactory, UpdateDynamicItemResponseFactory}}, repositories::{repository::Repository}, utils::identifiers::msn_addr_to_matrix_id, models::uuid::UUID, AB_DATA_REPO, MATRIX_CLIENT_REPO, MSN_CLIENT_LOCATOR};
+use crate::{web::error::WebError, generated::msnab_sharingservice::{bindings::{AbgroupAddMessageSoapEnvelope, AbfindContactsPagedMessageSoapEnvelope, AbfindContactsPagedResponseMessageSoapEnvelope}, factories::{ABGroupAddResponseFactory, FindContactsPagedResponseFactory, UpdateDynamicItemResponseFactory}}, repositories::{repository::Repository}, utils::identifiers::msn_addr_to_matrix_id, models::uuid::UUID, AB_DATA_REPO, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
 
 use super::webserver::DEFAULT_CACHE_KEY;
 
@@ -75,7 +75,7 @@ async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest) -> Resul
     
     let response : AbfindContactsPagedResponseMessageSoapEnvelope;
     
-    let matrix_client = MATRIX_CLIENT_REPO.find(&matrix_token).ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    let matrix_client =  MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let me_mtx_id = msn_client.get_user().get_matrix_id();
     let me_display_name = matrix_client.account().get_display_name().await?.unwrap_or(msn_client.get_user_msn_addr());

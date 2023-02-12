@@ -6,14 +6,13 @@ use log::info;
 use matrix_sdk::{config::SyncSettings, Client, ruma::{OwnedUserId, events::{room::{member::{MembershipState, RoomMemberEventContent, RoomMemberEvent, SyncRoomMemberEvent, StrippedRoomMemberEvent}, message::{SyncRoomMessageEvent, MessageType, RoomMessageEventContent}}, presence::PresenceEvent, OriginalSyncMessageLikeEvent, SyncEphemeralRoomEvent, EphemeralRoomEvent, typing::{TypingEventContent, SyncTypingEvent}, direct::{DirectEventContent, DirectEvent}, OriginalSyncStateEvent, GlobalAccountDataEventType, AnyGlobalAccountDataEvent, GlobalAccountDataEvent}, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, GlobalAccountData}}, presence::PresenceState, RoomId}, room::Room};
 use tokio::{join, sync::broadcast::{Sender, self}};
 
-use crate::{MATRIX_CLIENT_REPO, repositories::{matrix_client_repository::MatrixClientRepository, repository::Repository, msn_user_repository::MSNUserRepository}, generated::{msnab_sharingservice::factories::{ContactFactory, MemberFactory, AnnotationFactory}, msnab_datatypes::types::{MemberState, RoleId, ContactTypeEnum, ArrayOfAnnotation}, payloads::{factories::NotificationFactory, PresenceStatus}}, models::{uuid::UUID, msg_payload::factories::MsgPayloadFactory, ab_data::AbData, capabilities::ClientCapabilitiesFactory, msn_user::MSNUser, switchboard::Switchboard}, AB_DATA_REPO, MSN_CLIENT_LOCATOR};
+use crate::{repositories::{repository::Repository, msn_user_repository::MSNUserRepository}, generated::{msnab_sharingservice::factories::{ContactFactory, MemberFactory, AnnotationFactory}, msnab_datatypes::types::{MemberState, RoleId, ContactTypeEnum, ArrayOfAnnotation}, payloads::{factories::NotificationFactory, PresenceStatus}}, models::{uuid::UUID, msg_payload::factories::MsgPayloadFactory, ab_data::AbData, capabilities::ClientCapabilitiesFactory, msn_user::MSNUser, switchboard::switchboard::Switchboard}, AB_DATA_REPO, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
 
 use super::{identifiers::matrix_id_to_msn_addr, matrix::get_direct_target_that_isnt_me, emoji::emoji_to_smiley};
 
 pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<String>) -> Sender<String> {
     
-    let matrix_client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
-    let matrix_client = matrix_client_repo.find(&token).unwrap().clone();
+    let matrix_client =  MATRIX_CLIENT_LOCATOR.get().unwrap().clone();
 
         matrix_client.add_event_handler({
             let token = token.clone();

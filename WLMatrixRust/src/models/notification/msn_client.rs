@@ -1,8 +1,9 @@
-use std::{sync::{RwLock, Arc, RwLockWriteGuard, atomic::{AtomicI16, Ordering}}};
+use std::{sync::{RwLock, Arc, RwLockWriteGuard, atomic::{AtomicI16, Ordering}, Mutex}, mem};
 
-use crate::repositories::switchboard_repository::SwitchboardRepository;
+use tokio::sync::broadcast::{Receiver, Sender, self};
 
-use super::msn_user::MSNUser;
+use crate::{repositories::switchboard_repository::SwitchboardRepository, models::msn_user::MSNUser};
+
 
 
 #[derive(Clone)]
@@ -14,16 +15,22 @@ pub struct MSNClient {
 pub(crate) struct MSNClientInner {
     user: RwLock<MSNUser>,
     msnp_version: AtomicI16,
-    switchboards : SwitchboardRepository
+    switchboards : SwitchboardRepository,
+    notification_sender: Sender<String>,
+    notification_receiver: Mutex<Option<Receiver<String>>>
 }
 
 impl MSNClient {
     pub fn new(user: MSNUser, msnp_version: i16) -> Self {
 
+        let (notification_sender, notification_receiver) = broadcast::channel::<String>(30);
+
         let inner = Arc::new(MSNClientInner {
             user: RwLock::new(user),
             msnp_version: AtomicI16::new(msnp_version),
             switchboards: SwitchboardRepository::new(),
+            notification_sender,
+            notification_receiver: Mutex::new(Some(notification_receiver)),
         });
 
         return MSNClient { inner };
@@ -51,6 +58,16 @@ impl MSNClient {
 
     pub fn get_switchboards(&self) -> &SwitchboardRepository{
         return &self.inner.switchboards;
+    }
+
+    pub fn get_receiver(&mut self) -> Receiver<String> {
+        let mut lock = self.inner.notification_receiver.lock().unwrap();
+        if lock.is_none() {
+            return self.inner.notification_sender.subscribe();
+        } else {
+            let receiver = mem::replace(&mut *lock, None).unwrap();
+            return receiver;
+        }
     }
 
 }

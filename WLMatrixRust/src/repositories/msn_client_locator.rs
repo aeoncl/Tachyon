@@ -1,8 +1,6 @@
 use std::{sync::{Arc, Mutex}, collections::HashMap};
 
-use crate::models::msn_client::MSNClient;
-
-
+use crate::models::notification::msn_client::MSNClient;
 pub struct MSNClientLocator {
     data : Mutex<Option<MSNClient>>
 }
@@ -20,7 +18,7 @@ impl MSNClientLocator {
     }
 
     pub fn set(&self, data: MSNClient) {
-        self.data.lock().unwrap().insert(data);
+        let _result = self.data.lock().unwrap().insert(data);
     }
 
     pub fn remove(&self) {

@@ -8,7 +8,7 @@ use matrix_sdk::{ruma::{MxcUri, events::room::MediaSource, api::client::media::g
 use mime::Mime;
 use substring::Substring;
 use yaserde::{ser::to_string, de::from_str};
-use crate::{web::{error::WebError, webserver::{DEFAULT_CACHE_KEY}}, generated::msnstorage_service::{bindings::{GetProfileMessageSoapEnvelope, DeleteRelationshipsMessageSoapEnvelope, UpdateProfileMessageSoapEnvelope, UpdateDocumentMessageSoapEnvelope}, factories::{GetProfileResponseFactory, UpdateDocumentResponseFactory, DeleteRelationshipsResponseFactory, UpdateProfileResponseFactory}, types::StorageUserHeader}, repositories::{matrix_client_repository::MatrixClientRepository, repository::Repository}, MATRIX_CLIENT_REPO, models::uuid::UUID, utils::identifiers::{msn_addr_to_matrix_id, parse_mxc}, MSN_CLIENT_LOCATOR};
+use crate::{web::{error::WebError, webserver::{DEFAULT_CACHE_KEY}}, generated::msnstorage_service::{bindings::{GetProfileMessageSoapEnvelope, DeleteRelationshipsMessageSoapEnvelope, UpdateProfileMessageSoapEnvelope, UpdateDocumentMessageSoapEnvelope}, factories::{GetProfileResponseFactory, UpdateDocumentResponseFactory, DeleteRelationshipsResponseFactory, UpdateProfileResponseFactory}, types::StorageUserHeader}, repositories::{repository::Repository}, models::uuid::UUID, utils::identifiers::{msn_addr_to_matrix_id, parse_mxc}, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
 
 
 
@@ -94,8 +94,7 @@ async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<H
 
     let msn_client = MSN_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
-    let matrix_client = client_repo.find(&matrix_token).ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    let matrix_client =  MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let profile = matrix_client.account().get_profile().await?;
     let display_name = profile.displayname.ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -125,8 +124,7 @@ async fn storage_update_document(body: web::Bytes, request: HttpRequest) -> Resu
     let matrix_token = extract_token_from_request(&storage_user_header);
 
 
-    let client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
-    let matrix_client = client_repo.find(&matrix_token).ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    let matrix_client = MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let document_streams = request_deserialized.body.body.update_document.document.document_streams.document_stream;
 
@@ -181,9 +179,7 @@ async fn delete_relationships(body: web::Bytes, request: HttpRequest) -> Result<
                 
                 if(current_res_id.ends_with("205") && resource_id.ends_with("118")) {
                     //We are deleting a profile pic
-                    let client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
-                    let matrix_client = client_repo.find(&matrix_token).ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-                    
+                    let matrix_client = MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
                     let mtx_avatar_response = matrix_client.account().set_avatar_url(None).await?;
                 }
             }
@@ -210,8 +206,7 @@ async fn storage_update_profile(body: web::Bytes, request: HttpRequest) -> Resul
 
     let profile = body.body.body.update_profile_request.profile.expression_profile;
 
-    let client_repo : Arc<MatrixClientRepository> = MATRIX_CLIENT_REPO.clone();
-    let matrix_client = client_repo.find(&matrix_token).ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    let matrix_client = MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if let Some(display_name) = profile.display_name {
         matrix_client.account().set_display_name(Some(display_name.as_str())).await?;
