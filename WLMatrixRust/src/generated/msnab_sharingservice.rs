@@ -4978,7 +4978,7 @@ pub mod factories {
 
         pub fn get_blp(value : Option<bool>) -> Annotation {
             let value = value.unwrap_or(false);
-            return Annotation { name: String::from("MSN.IM.GTC"), value: Some(AnnotationFactory::parse_boolean_value(&value)) };
+            return Annotation { name: String::from("MSN.IM.BLP"), value: Some(AnnotationFactory::parse_boolean_value(&value)) };
         }
 
         pub fn get_display(value: Option<bool>) -> Annotation {
