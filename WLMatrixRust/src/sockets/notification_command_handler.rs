@@ -8,37 +8,35 @@ use crate::generated::payloads::{PrivateEndpointData, PresenceStatus};
 use crate::models::ab_data::AbData;
 use crate::models::errors::{MsnpErrorCode};
 
+use crate::models::msn_client::MSNClient;
+use crate::models::msn_user::MSNUser;
 use crate::models::p2p::slp_payload::SlpPayload;
 use crate::models::p2p::slp_payload_handler::SlpPayloadHandler;
 use crate::repositories::matrix_client_repository::MatrixClientRepository;
 use crate::repositories::repository::Repository;
 use crate::utils::identifiers::{msn_addr_to_matrix_id};
 use crate::utils::matrix;
-use crate::{CLIENT_DATA_REPO, MATRIX_CLIENT_REPO, AB_DATA_REPO};
-use crate::models::client_data::ClientData;
+use crate::{MATRIX_CLIENT_REPO, AB_DATA_REPO, MSN_CLIENT_LOCATOR};
 use crate::models::uuid::UUID;
-use crate::repositories::client_data_repository::{ClientDataRepository};
 use crate::models::msg_payload::factories::{MsgPayloadFactory};
 use super::command_handler::CommandHandler;
 use super::msnp_command::MSNPCommand;
 use crate::utils::matrix_sync_helpers::*;
 
 pub struct NotificationCommandHandler {
-    protocol_version: i16,
-    msn_addr: String,
     matrix_token: String,
     sender: Sender<String>,
-    kill_sender: Option<Sender<String>>
+    kill_sender: Option<Sender<String>>,
+    msn_client: MSNClient
 }
 
 impl NotificationCommandHandler {
     pub fn new(sender: Sender<String>) -> NotificationCommandHandler {
         return NotificationCommandHandler {
             sender: sender,
-            protocol_version: -1,
-            msn_addr: String::new(),
             matrix_token: String::new(),
-            kill_sender: None
+            kill_sender: None,
+            msn_client: MSNClient::new(MSNUser::default(), -1)
         };
     }
 }
@@ -56,14 +54,16 @@ impl CommandHandler for NotificationCommandHandler {
                     .substring(4, split[2].chars().count())
                     .parse::<i16>()
                     .unwrap();
-                self.protocol_version = ver;
+                self.msn_client.set_msnp_version(ver);
                 //<=VER 1 MSNP18\r\n
                 return format!("VER {} MSNP{}\r\n", split[1], ver).to_string();
             }
             "CVR" => {
                 //    0  1    2     3     4    5      6          7          8          9
                 //=> CVR 2 0x0409 winnt 6.0.0 i386 MSNMSGR 14.0.8117.0416 msmsgs login@email.com
-                let _msn_login = split[9];
+                let msn_login = split[9];
+                self.msn_client.get_user_mut().set_msn_addr(msn_login.to_string());
+                
                 let tr_id = split[1];
                 let version = split[7];
                 //<= CVR 2 14.0.8117.0416 14.0.8117.0416 14.0.8117.0416 localhost localhost
@@ -90,25 +90,23 @@ impl CommandHandler for NotificationCommandHandler {
                 let phase = split[3];
                 
                 if auth_type == "SHA" {
-                    return format!("USR {tr_id} OK {email} 1 0\r\n", tr_id=tr_id, email=self.msn_addr);
+                    return format!("USR {tr_id} OK {email} 1 0\r\n", tr_id=tr_id, email=self.msn_client.get_user_msn_addr());
                 } else if auth_type == "SSO" {
                     if phase == "I" {
                         let login = split[4];
-                        self.msn_addr = login.to_string();
                         let shields_payload = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"9999\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"200\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
                         return format!("USR {tr_id} SSO S MBI_KEY_OLD LAhAAUzdC+JvuB33nooLSa6Oh0oDFCbKrN57EVTY0Dmca8Reb3C1S1czlP12N8VU\r\nGCF 0 {shields_size}\r\n{shields_payload}", tr_id = tr_id, shields_payload = shields_payload, shields_size = shields_payload.len());
                     } else if phase == "S" {
                         self.matrix_token = split[4][2..split[4].chars().count()].to_string();
-                        let matrix_id = msn_addr_to_matrix_id(&self.msn_addr);
+                        let matrix_id = msn_addr_to_matrix_id(&self.msn_client.get_user_msn_addr());
 
                         if let Ok(client) = matrix::login(matrix_id.clone(), self.matrix_token.clone()).await {
     
                             //Token valid, client authenticated.
-                            let client_data_repo : Arc<ClientDataRepository> = CLIENT_DATA_REPO.clone();
-                            client_data_repo.add(self.matrix_token.clone(), ClientData::new(self.msn_addr.clone(), self.protocol_version.clone(), split[5].to_string(), PresenceStatus::HDN));
-
+                            let client_locator  = MSN_CLIENT_LOCATOR.clone();
+                            client_locator.set(self.msn_client.clone());
     
-                            let msmsgs_profile_msg = MsgPayloadFactory::get_msmsgs_profile(UUID::from_string(&matrix_id).get_puid(), self.msn_addr.clone(), self.matrix_token.clone()).serialize();
+                            let msmsgs_profile_msg = MsgPayloadFactory::get_msmsgs_profile(UUID::from_string(&matrix_id).get_puid(), self.msn_client.get_user_msn_addr(), self.matrix_token.clone()).serialize();
     
                             let oim_payload = MsgPayloadFactory::get_initial_mail_data_notification().serialize();
                             let oim_payload_size = oim_payload.len();
@@ -141,9 +139,9 @@ impl CommandHandler for NotificationCommandHandler {
                             let ab_data_repo  = AB_DATA_REPO.clone();
                             ab_data_repo.add(self.matrix_token.clone(), AbData::new());
 
-                            self.kill_sender = Some(start_matrix_loop(self.matrix_token.clone(), self.msn_addr.clone(), self.sender.clone()).await);
+                            self.kill_sender = Some(start_matrix_loop(self.matrix_token.clone(), self.msn_client.get_user_msn_addr(), self.sender.clone()).await);
 
-                            return format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\nMSG Hotmail Hotmail {msmsgs_profile_payload_size}\r\n{payload}MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", tr_id = tr_id, email=&self.msn_addr, msmsgs_profile_payload_size= msmsgs_profile_msg.len(), payload=msmsgs_profile_msg, oim_payload = oim_payload, oim_payload_size = oim_payload_size, private_endpoint_payload_size = private_endpoint_test.len(), private_endpoint_payload = private_endpoint_test);
+                            return format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\nMSG Hotmail Hotmail {msmsgs_profile_payload_size}\r\n{payload}MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", tr_id = tr_id, email=self.msn_client.get_user_msn_addr(), msmsgs_profile_payload_size= msmsgs_profile_msg.len(), payload=msmsgs_profile_msg, oim_payload = oim_payload, oim_payload_size = oim_payload_size, private_endpoint_payload_size = private_endpoint_test.len(), private_endpoint_payload = private_endpoint_test);
                         } else {
                             //Invalid token. Auth failure.
                             return format!("{error_code} {tr_id}\r\n", error_code = MsnpErrorCode::AuthFail as i32, tr_id= tr_id);
@@ -196,16 +194,14 @@ impl CommandHandler for NotificationCommandHandler {
             "CHG" => {
                 let status = PresenceStatus::from_str(split[2]).unwrap_or(PresenceStatus::NLN);
 
+                let msn_client_locator = MSN_CLIENT_LOCATOR.clone();
+                if let Some(mut client_data) = msn_client_locator.get() {
+                    client_data.get_user_mut().set_status(status.clone())
+                }
+
                 if let Some(matrix_client) = MATRIX_CLIENT_REPO.clone().find(&self.matrix_token){
                     matrix_client.account().set_presence(status.clone().into(), None).await;
                 }
-
-                let client_data_repo : Arc<ClientDataRepository> = CLIENT_DATA_REPO.clone();
-
-                if let Some(mut client_data) = client_data_repo.find_mut(&self.matrix_token) {
-                    client_data.presence_status = status;
-                }
-
 
                 // >>> CHG 11 NLN 2789003324:48 0
                 // <<< CHG 11 NLN 2789003324:48 0
@@ -226,7 +222,7 @@ impl CommandHandler for NotificationCommandHandler {
                 let receiver_msn_addr = receiver_split.get(0).unwrap_or(&receiver.as_str()).to_string();
                 let endpoint_guid = self.parse_endpoint_guid(receiver_split.get(1));
 
-                if receiver_msn_addr == self.msn_addr {
+                if receiver_msn_addr == self.msn_client.get_user_msn_addr() {
                     //this for me
                     if command.payload.as_str() == "goawyplzthxbye" {
                         self.handle_device_logout(endpoint_guid).await;
@@ -283,9 +279,9 @@ impl CommandHandler for NotificationCommandHandler {
         }
 
         let token = &self.get_matrix_token();
-        if(!token.is_empty()) {
+        if !token.is_empty()  {
             MATRIX_CLIENT_REPO.remove(token);
-            CLIENT_DATA_REPO.remove(token);
+            MSN_CLIENT_LOCATOR.remove();
             AB_DATA_REPO.remove(token);
         }
     }

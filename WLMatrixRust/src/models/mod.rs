@@ -1,4 +1,3 @@
-pub mod client_data;
 pub mod uuid;
 pub mod msg_payload;
 pub mod errors;
@@ -9,3 +8,4 @@ pub mod p2p;
 pub mod switchboard;
 pub mod events;
 pub mod switchboard_error;
+pub mod msn_client;

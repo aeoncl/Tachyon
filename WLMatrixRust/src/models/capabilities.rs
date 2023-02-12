@@ -83,6 +83,7 @@ pub enum ExtendedCapabilities {
     // Supports P2PV2
     SupportsP2PV2 = 0x20,
 }
+#[derive(Clone, Debug)]
 
 pub struct ClientCapabilities {
     capabilities: u32,
