@@ -3,9 +3,9 @@ use std::{str::{from_utf8_unchecked, FromStr}, fmt::Display};
 use byteorder::{BigEndian, ByteOrder};
 use log::info;
 
-use crate::{models::errors::Errors, utils::buffer::extract_tlvs};
+use crate::{models::errors::Errors};
 
-use super::{p2p_payload::P2PPayload, opcode::OperationCode, factories::TLVFactory, tlv::{ValueType, TLV}};
+use super::{p2p_payload::P2PPayload, opcode::OperationCode, factories::TLVFactory, tlv::{ValueType, TLV, extract_tlvs}};
 
 
 /* P2PHeaderV2 */

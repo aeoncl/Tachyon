@@ -1,6 +1,5 @@
 use std::{collections::HashMap, str::FromStr};
 use lazy_static::lazy_static;
-use regex::Regex;
 
 use crate::models::errors::Errors;
 
@@ -10,7 +9,8 @@ lazy_static! {
     static ref TEMPLATE : String = String::from("MIME-Version: 1.0\r\nContent-Type: ");
     static ref CHARSET : String = String::from("; charset=UTF-8");
 }
- 
+#[derive(Clone, Debug)]
+
 pub struct MsgPayload {
 
     pub content_type: String,
@@ -197,8 +197,8 @@ pub mod factories {
 
         pub fn get_p2p(source: &MSNUser, destination: &MSNUser, payload: &P2PTransportPacket) -> MsgPayload {
             let mut out = MsgPayload::new("application/x-msnmsgrp2p");
-            out.add_header(String::from("P2P-Dest"), format!("{msn_addr};{{{endpoint_guid}}}", msn_addr = &destination.msn_addr, endpoint_guid = &destination.endpoint_guid));
-            out.add_header(String::from("P2P-Src"), format!("{msn_addr};{{{endpoint_guid}}}", msn_addr = &source.msn_addr, endpoint_guid = &source.endpoint_guid));
+            out.add_header(String::from("P2P-Dest"), format!("{msn_addr};{{{endpoint_guid}}}", msn_addr = &destination.get_msn_addr(), endpoint_guid = &destination.get_endpoint_guid()));
+            out.add_header(String::from("P2P-Src"), format!("{msn_addr};{{{endpoint_guid}}}", msn_addr = &source.get_msn_addr(), endpoint_guid = &source.get_endpoint_guid()));
 
             out.body = payload.to_string();
             out.disable_charset();

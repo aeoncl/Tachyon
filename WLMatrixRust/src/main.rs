@@ -21,8 +21,8 @@ use lazy_static::lazy_static;
 #[macro_use] extern crate serde_derive;
 
 use crate::repositories::ab_data_repository::AbDataRepository;
-use crate::repositories::client_data_repository::ClientDataRepository;
-use crate::repositories::matrix_client_repository::MatrixClientRepository;
+use crate::repositories::matrix_client_locator::MatrixClientLocator;
+use crate::repositories::msn_client_locator::MSNClientLocator;
 use crate::repositories::p2p_repository::P2PRepository;
 use crate::repositories::repository::Repository;
 use crate::sockets::notification_server::NotificationServer;
@@ -30,11 +30,10 @@ use crate::sockets::switchboard_server::SwitchboardServer;
 use crate::sockets::tcpserver::TCPServer;
 
 lazy_static! {
-    static ref MATRIX_CLIENT_REPO: Arc<MatrixClientRepository> = Arc::new(MatrixClientRepository::new());
-    static ref CLIENT_DATA_REPO : Arc<ClientDataRepository> = Arc::new(ClientDataRepository::new());
+    static ref MSN_CLIENT_LOCATOR: Arc<MSNClientLocator> = Arc::new(MSNClientLocator::new());
+    static ref MATRIX_CLIENT_LOCATOR: Arc<MatrixClientLocator> = Arc::new(MatrixClientLocator::new());
     static ref AB_DATA_REPO : Arc<AbDataRepository> = Arc::new(AbDataRepository::new());
     static ref P2P_REPO : Arc<P2PRepository> = Arc::new(P2PRepository::new());
-
 }
 
 #[tokio::main]

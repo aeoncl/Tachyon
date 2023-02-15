@@ -1,9 +1,10 @@
-pub mod client_data;
 pub mod uuid;
-pub mod msg_payload;
 pub mod errors;
 pub mod ab_data;
-pub mod switchboard_handle;
 pub mod msn_user;
 pub mod capabilities;
+pub mod notification;
+pub mod switchboard;
 pub mod p2p;
+pub mod msg_payload;
+pub mod msn_object;
