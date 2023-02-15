@@ -4,6 +4,7 @@ use actix_web::{get, post, web, HttpRequest, HttpResponse, HttpResponseBuilder};
 
 use log::info;
 
+use matrix_sdk::ruma::api::client::error::{ErrorBody, ErrorKind};
 use matrix_sdk::{Client};
 
 use regex::Regex;
@@ -52,27 +53,40 @@ pub async fn rst2(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse
     let matrix_id = msn_addr_to_matrix_id(&username_token.username);
     let matrix_id_str = matrix_id.as_str();
     
-    let matrix_user : OwnedUserId = <&UserId>::try_from(matrix_id_str).unwrap().to_owned();
-
-    let path = Path::new("c:\\temp");
+    let matrix_user : OwnedUserId = UserId::parse(matrix_id_str).unwrap();
 
     let client = Client::builder().disable_ssl_verification().server_name(matrix_user.server_name()).build().await?;
     
-    let result = client.login_username(matrix_id_str, username_token.password.as_str()).device_id(get_matrix_device_id().as_str()).initial_device_display_name("WLMatrix").await?;
-
-    let response = RST2ResponseFactory::get_rst2_success_response(
-        result.access_token,
-        username_token.username,
-        UUID::from_string(&matrix_id),
-    );
-
+    match client.login_username(matrix_id_str, username_token.password.as_str()).device_id(get_matrix_device_id().as_str()).initial_device_display_name("WLMatrix").await {
+        Ok(result) => {
+            let response = RST2ResponseFactory::get_rst2_success_response(
+                result.access_token,
+                username_token.username,
+                UUID::from_string(&matrix_id),
+            );
+        
+            
+        
+            let response_serialized = to_string(&response)?;
+            info!("RST2 Response: {}", &response_serialized);
+            return Ok(HttpResponseBuilder::new(StatusCode::OK)
+                .append_header(("Content-Type", "application/soap+xml"))
+                .body(response_serialized));
+        },
+        Err(error) => {
+            if let matrix_sdk::Error::Http(err) = error {
+               if let Some(test) = err.as_client_api_error(){
+               if let ErrorBody::Standard { kind, message } = &test.body {
+                    if &ErrorKind::Forbidden == kind {
+                        return Err(WebError { message: Some(RST2ResponseFactory::get_auth_error_response()), status_code: StatusCode::INTERNAL_SERVER_ERROR });
+                    }
+               }
+            }
+        }
+    }
     
-
-    let response_serialized = to_string(&response)?;
-    info!("RST2 Response: {}", &response_serialized);
-    return Ok(HttpResponseBuilder::new(StatusCode::OK)
-        .append_header(("Content-Type", "application/soap+xml"))
-        .body(response_serialized));
+    }
+    return Err(WebError { message: None, status_code: StatusCode::INTERNAL_SERVER_ERROR });
 }
 
 #[get("/Config/MsgrConfig.asmx")]

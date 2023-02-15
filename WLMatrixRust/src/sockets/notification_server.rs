@@ -62,11 +62,19 @@ impl TCPServer for NotificationServer {
 
                             for command in commands {
                                     println!("NS <= {}", &command);
-                                    let response = command_handler.handle_command(&command).await;
-                                    if !response.is_empty() {
-                                        write.write_all(response.as_bytes()).await;
-                                        println!("NS => {}", &response);
+                                    match command_handler.handle_command(&command).await {
+                                        Ok(response) => {
+                                            if !response.is_empty() {
+                                                write.write_all(response.as_bytes()).await;
+                                                println!("NS => {}", &response);
+                                            }
+                                        },
+                                        Err(err) => {
+                                            write.write_all(format!("{error_code} {tr_id}\r\n", error_code = err.code as i32, tr_id= err.tr_id).as_bytes());
+                                            write.write_all("OUT\r\n".as_bytes());
+                                        }
                                     }
+
                             }
                             buffer = [0u8; 2048];
                         },

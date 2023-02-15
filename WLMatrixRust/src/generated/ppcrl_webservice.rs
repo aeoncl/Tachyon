@@ -597,7 +597,11 @@ pub mod factories {
     use crate::models::uuid::UUID;
     use chrono::{DateTime, Local, Duration};
     use super::*;
+    use lazy_static::lazy_static;
 
+    lazy_static! {
+        pub static ref AUTH_ERROR: String = String::from("<?xml version=\"1.0\" encoding=\"utf-8\" ?><S:Envelope xmlns:S=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\" xmlns:wst=\"http://schemas.xmlsoap.org/ws/2005/02/trust\" xmlns:psf=\"http://schemas.microsoft.com/Passport/SoapServices/SOAPFault\"><S:Header><psf:pp xmlns:psf=\"http://schemas.microsoft.com/Passport/SoapServices/SOAPFault\"><psf:serverVersion>1</psf:serverVersion><psf:authstate>0x80048800</psf:authstate><psf:reqstatus>0x80048821</psf:reqstatus><psf:serverInfo Path=\"Live1\" RollingUpgradeState=\"ExclusiveNew\" LocVersion=\"0\" ServerTime=\"{{server_time}}\" BuildVersion=\"16.0.28426.6\">XYZPPLOGN1A23 2017.09.28.12.44.07</psf:serverInfo><psf:cookies/><psf:response/></psf:pp></S:Header><S:Body><S:Fault><S:Code><S:Value>S:Sender</S:Value><S:Subcode><S:Value>wst:FailedAuthentication</S:Value></S:Subcode></S:Code><S:Reason><S:Text xml:lang=\"en-US\">Authentication Failure</S:Text></S:Reason><S:Detail><psf:error><psf:value>0x80048821</psf:value><psf:internalerror><psf:code>0x80041012</psf:code><psf:text>The entered and stored passwords do not match.&#x000D;&#x000A;</psf:text></psf:internalerror></psf:error></S:Detail></S:Fault></S:Body></S:Envelope>");
+    }
 
     pub struct RST2ResponseFactory;
 
@@ -680,6 +684,17 @@ pub mod factories {
             let requested_proof_token = RequestedProofToken{ binary_secret: String::from("tgoPVK67sU36fQKlGLMgWgTXp7oiaQgE") };
 
             return RequestSecurityTokenResponse {token_type: String::from("urn:passport:compact"), applies_to, lifetime, requested_security_token, requested_token_reference: Some(requested_token_reference), requested_attached_reference, requested_unattached_reference, requested_proof_token };
+        }
+        
+        pub fn get_auth_error_response() -> String {
+            //TODO Use the ps-fault xsd
+
+            let now = Local::now();
+            let server_time = now.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+            let mut out = AUTH_ERROR.clone();
+            out = out.replace("{{server_time}}", server_time.as_str());
+            return out;
         }
 
     }

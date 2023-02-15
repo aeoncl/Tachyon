@@ -1,9 +1,11 @@
 
-use std::{str::FromStr};
+use std::{str::FromStr, fmt::Display};
 
 use byteorder::{ReadBytesExt, LittleEndian, ByteOrder};
 use uuid::{Uuid};
+use crate::models::notification::error::MsnpErrorCode;
 
+#[derive(Clone, Debug)]
 pub struct PUID {
 
     bytes: [u8; 8]
@@ -24,12 +26,17 @@ impl PUID {
         let msb = &self.bytes[0..4];
         return LittleEndian::read_u32(&msb);
     }
-
-    pub fn to_string(&self) -> String {
-        return format!("{}", LittleEndian::read_u64(&self.bytes));
-    }
-
 }
+
+
+impl Display for PUID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let out = format!("{}", LittleEndian::read_u64(&self.bytes));
+        return write!(f, "{}", out);   
+    }
+}
+
+#[derive(Clone, Debug)]
 
 pub struct UUID {
 
@@ -45,6 +52,10 @@ impl UUID {
 
     pub fn from_string(s: &String) -> UUID {
         return UUID { uuid: Uuid::new_v5(&Uuid::NAMESPACE_OID, s.as_bytes()) }
+    }
+
+    pub fn parse(s: &str) -> Result<UUID, MsnpErrorCode> {
+        return Ok(Self::from_uuid(Uuid::parse_str(s)?));
     }
 
     pub fn from_uuid(uuid: Uuid) -> UUID{
@@ -91,10 +102,6 @@ impl UUID {
         return PUID::new(self.get_least_significant_bytes_as_array());
     }
 
-    pub fn to_string(&self) -> String {
-        return self.uuid.to_string();
-    }
-
     pub fn to_hex_string(&self) -> String {
         return format!("{:x}", self.uuid.as_u128());
     }
@@ -122,6 +129,15 @@ impl FromStr for UUID {
     }
 }
 
+impl Display for UUID {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+
+            let out = self.uuid.to_string().to_uppercase();
+
+            return write!(f, "{}", out);
+    }
+}
 
 
 #[cfg(test)]
@@ -142,5 +158,15 @@ mod tests {
         let test7 = test5.get_most_significant_bytes();
 
         let testfinal = 0;
+    }
+
+    #[test]
+    fn parse_machine_guid() {
+
+        let machine_guid = String::from("F52973B6-C926-4BAD-9BA8-7C1E840E4AB0");
+        let uuid = UUID::parse(machine_guid.as_str()).unwrap();
+        let uuid_serialied = uuid.to_string();
+
+        assert_eq!(machine_guid, uuid_serialied);
     }
 }

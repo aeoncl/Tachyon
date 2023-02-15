@@ -304,6 +304,8 @@ pub async fn start_matrix_loop(token: String, msn_addr: String, sender: Sender<S
                   // sender.send(format!("RFS\r\n")).unwrap();
                 }
             }
+
+            
     
             tokio::select! {
                 sync_result = matrix_client.sync_once(settings.clone()) => {

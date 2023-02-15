@@ -5,28 +5,28 @@ use substring::Substring;
 use async_trait::async_trait;
 use tokio::sync::broadcast::{Sender};
 use crate::generated::payloads::{PrivateEndpointData, PresenceStatus};
-use crate::models::ab_data::AbData;
-use crate::models::errors::{MsnpErrorCode};
 
+use crate::models::ab_data::AbData;
 use crate::models::msn_user::MSNUser;
+use crate::models::notification::error::{MsnpError, MsnpErrorCode};
 use crate::models::notification::msn_client::MSNClient;
 use crate::models::p2p::slp_payload::SlpPayload;
 use crate::models::p2p::slp_payload_handler::SlpPayloadHandler;
 use crate::repositories::repository::Repository;
 use crate::utils::identifiers::{msn_addr_to_matrix_id};
-use crate::utils::matrix;
 use crate::{AB_DATA_REPO, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
 use crate::models::uuid::UUID;
 use crate::models::msg_payload::factories::{MsgPayloadFactory};
 use super::command_handler::CommandHandler;
 use super::msnp_command::MSNPCommand;
-use crate::utils::matrix_sync_helpers::*;
 
 pub struct NotificationCommandHandler {
     matrix_token: String,
+    msn_addr: String,
     sender: Sender<String>,
+    msnp_version: i16,
     kill_sender: Option<Sender<String>>,
-    msn_client: MSNClient,
+    msn_client: Option<MSNClient>,
     matrix_client: Option<Client>
 }
 
@@ -36,15 +36,17 @@ impl NotificationCommandHandler {
             sender: sender,
             matrix_token: String::new(),
             kill_sender: None,
-            msn_client: MSNClient::new(MSNUser::default(), -1),
-            matrix_client: None
+            msn_client: None,
+            matrix_client: None,
+            msnp_version: -1,
+            msn_addr: String::new(),
         };
     }
 }
 
 #[async_trait]
 impl CommandHandler for NotificationCommandHandler {
-    async fn handle_command(&mut self, command: &MSNPCommand) -> String {
+    async fn handle_command(&mut self, command: &MSNPCommand) -> Result<String, MsnpError> {
         let split = command.split();
         match command.operand.as_str() {
             "VER" => {
@@ -55,25 +57,24 @@ impl CommandHandler for NotificationCommandHandler {
                     .substring(4, split[2].chars().count())
                     .parse::<i16>()
                     .unwrap();
-                self.msn_client.set_msnp_version(ver);
+
+                self.msnp_version = ver;
                 //<=VER 1 MSNP18\r\n
-                return format!("VER {} MSNP{}\r\n", split[1], ver).to_string();
+                return Ok(format!("VER {} MSNP{}\r\n", split[1], ver).to_string());
             }
             "CVR" => {
                 //    0  1    2     3     4    5      6          7          8          9
                 //=> CVR 2 0x0409 winnt 6.0.0 i386 MSNMSGR 14.0.8117.0416 msmsgs login@email.com
-                let msn_login = split[9];
-                self.msn_client.get_user_mut().set_msn_addr(msn_login.to_string());
-                
+                self.msn_addr = split[9].to_string();                
                 let tr_id = split[1];
                 let version = split[7];
                 //<= CVR 2 14.0.8117.0416 14.0.8117.0416 14.0.8117.0416 localhost localhost
-                return format!(
+                return Ok(format!(
                     "CVR {tr_id} {version} {version} {version} {host} {host}\r\n",
                     tr_id = tr_id,
                     version = version,
                     host = "localhost"
-                );
+                ));
             }
             "USR" => {
                 /*
@@ -91,68 +92,70 @@ impl CommandHandler for NotificationCommandHandler {
                 let phase = split[3];
                 
                 if auth_type == "SHA" {
-                    return format!("USR {tr_id} OK {email} 1 0\r\n", tr_id=tr_id, email=self.msn_client.get_user_msn_addr());
+                    return Ok(format!("USR {tr_id} OK {email} 1 0\r\n", tr_id=tr_id, email=self.msn_addr));
                 } else if auth_type == "SSO" {
                     if phase == "I" {
                         let login = split[4];
                         let shields_payload = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"9999\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"200\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
-                        return format!("USR {tr_id} SSO S MBI_KEY_OLD LAhAAUzdC+JvuB33nooLSa6Oh0oDFCbKrN57EVTY0Dmca8Reb3C1S1czlP12N8VU\r\nGCF 0 {shields_size}\r\n{shields_payload}", tr_id = tr_id, shields_payload = shields_payload, shields_size = shields_payload.len());
+                        return Ok(format!("USR {tr_id} SSO S MBI_KEY_OLD LAhAAUzdC+JvuB33nooLSa6Oh0oDFCbKrN57EVTY0Dmca8Reb3C1S1czlP12N8VU\r\nGCF 0 {shields_size}\r\n{shields_payload}", tr_id = tr_id, shields_payload = shields_payload, shields_size = shields_payload.len()));
                     } else if phase == "S" {
                         self.matrix_token = split[4][2..split[4].chars().count()].to_string();
-                        let matrix_id = msn_addr_to_matrix_id(&self.msn_client.get_user_msn_addr());
 
-                        if let Ok(client) = matrix::login(matrix_id.clone(), self.matrix_token.clone()).await {
-    
-                            //Token valid, client authenticated.
-                            MSN_CLIENT_LOCATOR.set(self.msn_client.clone());
-    
-                            let msmsgs_profile_msg = MsgPayloadFactory::get_msmsgs_profile(UUID::from_string(&matrix_id).get_puid(), self.msn_client.get_user_msn_addr(), self.matrix_token.clone()).serialize();
-    
-                            let oim_payload = MsgPayloadFactory::get_initial_mail_data_notification().serialize();
-                            let oim_payload_size = oim_payload.len();
-                            
-                            let devices = client.devices().await.unwrap().devices;
-                            
+                        let matrix_id = msn_addr_to_matrix_id(&self.msn_addr);
 
-                            let mut endpoints = String::new();
-                            let this_device_id = client.device_id().unwrap();
+                        let msn_user = MSNUser::new(self.msn_addr.clone());
+                        let mut msn_client = MSNClient::new(msn_user, self.msnp_version);
 
-                            for device in devices {
-                                if device.device_id != this_device_id {
-                                    let machine_guid = UUID::from_string(&device.device_id.to_string());
-                                    let endpoint_name = device.display_name.unwrap_or(device.device_id.to_string());
-                                    let private_endpoint = format!("<EndpointData id=\"{{{machine_guid}}}\"><Capabilities>2789003324:48</Capabilities></EndpointData><PrivateEndpointData id=\"{{{machine_guid}}}\"><EpName>{endpoint_name}</EpName><Idle>false</Idle><ClientType>1</ClientType><State>NLN</State></PrivateEndpointData>", machine_guid = machine_guid.to_string(), endpoint_name = endpoint_name);
-                                    endpoints.push_str(private_endpoint.as_str());
-                                }
-                            }
-
-                            let private_endpoint_test = format!("<Data>{endpoints}</Data>", endpoints = endpoints);
-
-
-                            let test_msg = MsgPayloadFactory::get_system_msg(String::from("1"), String::from("17"));
-                            let serialized = test_msg.serialize();
-                            self.sender.send(format!("MSG Hotmail Hotmail {payload_size}\r\n{payload}", payload_size=serialized.len(), payload=&serialized));
-
-                            self.matrix_client = Some(client.clone());
-                            MATRIX_CLIENT_LOCATOR.set(client);
-
-                            let ab_data_repo  = AB_DATA_REPO.clone();
-                            ab_data_repo.add(self.matrix_token.clone(), AbData::new());
-
-                            self.kill_sender = Some(start_matrix_loop(self.matrix_token.clone(), self.msn_client.get_user_msn_addr(), self.sender.clone()).await);
-
-                            return format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\nMSG Hotmail Hotmail {msmsgs_profile_payload_size}\r\n{payload}MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", tr_id = tr_id, email=self.msn_client.get_user_msn_addr(), msmsgs_profile_payload_size= msmsgs_profile_msg.len(), payload=msmsgs_profile_msg, oim_payload = oim_payload, oim_payload_size = oim_payload_size, private_endpoint_payload_size = private_endpoint_test.len(), private_endpoint_payload = private_endpoint_test);
-                        } else {
-                            //Invalid token. Auth failure.
-                            return format!("{error_code} {tr_id}\r\n", error_code = MsnpErrorCode::AuthFail as i32, tr_id= tr_id);
+                        if let Err(err) = msn_client.login(self.matrix_token.clone()).await {
+                                //Invalid token. Auth failure.
+                                return Err(MsnpError::new(err, tr_id.to_string()));
                         }
+
+                        //Token valid, client authenticated. Initializing shared data structures
+                        self.msn_client = Some(msn_client.clone());
+                        MSN_CLIENT_LOCATOR.set(msn_client.clone());
+                        AB_DATA_REPO.add(self.matrix_token.clone(), AbData::new());
+
+                        self.sender.send(format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\n", tr_id = &tr_id, email=&self.msn_addr));
+
+                        let msmsgs_profile_msg = MsgPayloadFactory::get_msmsgs_profile(&msn_client.get_user().get_puid(), self.msn_addr.clone(), self.matrix_token.clone()).serialize();
+  
+                        self.sender.send(format!("MSG Hotmail Hotmail {profile_payload_size}\r\n{profile_payload}", profile_payload_size=msmsgs_profile_msg.len(), profile_payload=&msmsgs_profile_msg));
+
+                        let oim_payload = MsgPayloadFactory::get_initial_mail_data_notification().serialize();
+                          
+                        self.sender.send(format!("MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}", oim_payload_size=oim_payload.len(), oim_payload=&oim_payload));
+
+                        let mut endpoints_payload = String::new();
+                        match msn_client.get_mpop_endpoints().await {
+                            Ok(mpop_endpoints) => {
+                                let mut endpoints = String::new();
+                                for endpoint in mpop_endpoints {
+                                    endpoints.push_str(endpoint.to_string().as_str());
+                                }
+                               let endpoints_payload = format!("<Data>{endpoints}</Data>", endpoints = endpoints);
+                               self.sender.send(format!("UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", email=self.msn_addr, private_endpoint_payload_size= endpoints_payload.len(), private_endpoint_payload=&endpoints_payload));
+                            }, 
+                            Err(err_code) => {
+                                return Err(MsnpError::new(err_code, tr_id.to_string()));
+                            }
+                        }
+
+                        //   let test_msg = MsgPayloadFactory::get_system_msg(String::from("1"), String::from("17"));
+                        //   let serialized = test_msg.serialize();
+                        //   self.sender.send(format!("MSG Hotmail Hotmail {payload_size}\r\n{payload}", payload_size=serialized.len(), payload=&serialized));
+
+                        self.kill_sender = Some(msn_client.listen(self.sender.clone()).await.unwrap());
+
+                       // return Ok(format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\nMSG Hotmail Hotmail {msmsgs_profile_payload_size}\r\n{payload}MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", tr_id = tr_id, email=&self.msn_addr, msmsgs_profile_payload_size= msmsgs_profile_msg.len(), payload=msmsgs_profile_msg, oim_payload = oim_payload, oim_payload_size = oim_payload.len(), private_endpoint_payload_size = endpoints_payload.len(), private_endpoint_payload = endpoints_payload));
+                        return Ok(String::new());
                     }
                 }
 
-                return String::new();
+                return Ok(String::new());
             },
             "PNG" => {
-                return String::from("QNG 60\r\n");
+                return Ok(String::from("QNG 60\r\n"));
             },
             "ADL" => {
                 /*       0  1  2   payload
@@ -160,7 +163,7 @@ impl CommandHandler for NotificationCommandHandler {
                     <<< ADL 6 OK
                 */
                 let tr_id = split[1];
-                return format!("ADL {tr_id} OK\r\n", tr_id=tr_id);
+                return Ok(format!("ADL {tr_id} OK\r\n", tr_id=tr_id));
             },
             "RML" => {
                  /*       0  1  2   payload
@@ -168,7 +171,7 @@ impl CommandHandler for NotificationCommandHandler {
                     <<< RML 6 OK
                 */
                 let tr_id = split[1];
-                return format!("RML {tr_id} OK\r\n", tr_id=tr_id);
+                return Ok(format!("RML {tr_id} OK\r\n", tr_id=tr_id));
             },
             "UUX" => {
                 /*       0  1  2
@@ -180,19 +183,21 @@ impl CommandHandler for NotificationCommandHandler {
                 if payload.starts_with("<PrivateEndpointData>") {
                     self.handle_device_name_update(payload.as_str()).await;
                 }
-                return format!("UUX {tr_id} 0\r\n", tr_id=tr_id);
+                return Ok(format!("UUX {tr_id} 0\r\n", tr_id=tr_id));
             },
             "BLP" => {
                 /*  
                     >>> BLP 9 AL
                     <<< BLP 9 AL
                 */
-                return format!("{}\r\n", command.command);
+                return Ok(format!("{}\r\n", command.command));
             },
             "CHG" => {
+                let tr_id = split[1];
+
                 let status = PresenceStatus::from_str(split[2]).unwrap_or(PresenceStatus::NLN);
 
-                self.msn_client.get_user_mut().set_status(status.clone());
+                self.msn_client.as_mut().ok_or(MsnpError::internal_server_error(tr_id))?.get_user_mut().set_status(status.clone());
 
                 if let Some(matrix_client) = self.matrix_client.as_ref() {
                     matrix_client.account().set_presence(status.clone().into(), None).await;
@@ -200,13 +205,13 @@ impl CommandHandler for NotificationCommandHandler {
 
                 // >>> CHG 11 NLN 2789003324:48 0
                 // <<< CHG 11 NLN 2789003324:48 0
-                return format!("{}\r\n", command.command);
+                return Ok(format!("{}\r\n", command.command));
             },
             "PRP" => {
                 // >>> PRP 13 MFN display%20name
                 // <<< PRP 13 MFN display%20name
 
-                return format!("{}\r\n", command.command);
+                return Ok(format!("{}\r\n", command.command));
             },
             "UUN" => {
                 // >>> UUN 14 aeoncl@matrix.org;{0ab73364-6ccf-507b-bb66-a967fe281cd0} 4 14 | goawyplzthxbye
@@ -217,7 +222,7 @@ impl CommandHandler for NotificationCommandHandler {
                 let receiver_msn_addr = receiver_split.get(0).unwrap_or(&receiver.as_str()).to_string();
                 let endpoint_guid = self.parse_endpoint_guid(receiver_split.get(1));
 
-                if receiver_msn_addr == self.msn_client.get_user_msn_addr() {
+                if receiver_msn_addr == self.msn_addr {
                     //this for me
                     if command.payload.as_str() == "goawyplzthxbye" {
                         self.handle_device_logout(endpoint_guid).await;
@@ -233,17 +238,17 @@ impl CommandHandler for NotificationCommandHandler {
                         let slp_response = SlpPayloadHandler::handle(&slp_request).unwrap();
 
                         let payload = slp_response.to_string();
-                        return format!("UUN {tr_id} OK\r\nUBN {msn_addr} 5 {payload_size}\r\n{payload}", tr_id = tr_id, msn_addr= &receiver_msn_addr, payload=&payload, payload_size = payload.len());
+                        return Ok(format!("UUN {tr_id} OK\r\nUBN {msn_addr} 5 {payload_size}\r\n{payload}", tr_id = tr_id, msn_addr= &receiver_msn_addr, payload=&payload, payload_size = payload.len()));
                     }
 
 
-                    return format!("UUN {tr_id} OK\r\n", tr_id = tr_id);                
+                    return Ok(format!("UUN {tr_id} OK\r\n", tr_id = tr_id));                
                 }
 
 
                 let payload = command.payload.as_str();
                 //return format!("UUN {tr_id} OK\r\nUBN {msn_addr} 5 {payload_size}\r\n{payload}", tr_id = tr_id, msn_addr= &receiver_msn_addr, payload=&payload, payload_size = payload.len());
-                return format!("UUN {tr_id} OK\r\n", tr_id = tr_id);
+                return Ok(format!("UUN {tr_id} OK\r\n", tr_id = tr_id));
             },
             "XFR" => {
                 // >>> XFR 17 SB
@@ -251,15 +256,15 @@ impl CommandHandler for NotificationCommandHandler {
                 let tr_id = split[1];
                 let request_type = split[2];
                 if request_type == "SB" {
-                    return format!("XFR {tr_id} {req_type} 127.0.0.1:1864 CKI {token}\r\n", 
+                    return Ok(format!("XFR {tr_id} {req_type} 127.0.0.1:1864 CKI {token}\r\n", 
                         tr_id = tr_id,
                         req_type = request_type, 
-                        token = &self.matrix_token);
+                        token = &self.matrix_token));
                 }
-                return format!("{error_code} {tr_id}\r\n", error_code=MsnpErrorCode::InternalServerError as i32, tr_id=tr_id);
+                return Ok(format!("{error_code} {tr_id}\r\n", error_code=MsnpErrorCode::InternalServerError as i32, tr_id=tr_id));
             },
             _ => {
-                return String::new();
+                return Ok(String::new());
             }
         }
     }

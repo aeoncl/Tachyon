@@ -1,4 +1,4 @@
-use std::{str::{from_utf8, FromStr}, sync::Arc};
+use std::{str::{from_utf8, FromStr}};
 
 use actix_web::{post, HttpRequest, HttpResponseBuilder, HttpResponse, web};
 use http::{header::HeaderName, StatusCode};
@@ -6,7 +6,7 @@ use log::info;
 use substring::Substring;
 use yaserde::{ser::to_string, de::from_str};
 
-use crate::{web::error::WebError, generated::msnab_sharingservice::{bindings::{AbgroupAddMessageSoapEnvelope, AbfindContactsPagedMessageSoapEnvelope, AbfindContactsPagedResponseMessageSoapEnvelope}, factories::{ABGroupAddResponseFactory, FindContactsPagedResponseFactory, UpdateDynamicItemResponseFactory}}, repositories::{repository::Repository}, utils::identifiers::msn_addr_to_matrix_id, models::uuid::UUID, AB_DATA_REPO, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
+use crate::{web::error::WebError, generated::msnab_sharingservice::{bindings::{AbgroupAddMessageSoapEnvelope, AbfindContactsPagedMessageSoapEnvelope, AbfindContactsPagedResponseMessageSoapEnvelope}, factories::{ABGroupAddResponseFactory, FindContactsPagedResponseFactory, UpdateDynamicItemResponseFactory}}, repositories::{repository::Repository}, models::uuid::UUID, AB_DATA_REPO, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
 
 use super::webserver::DEFAULT_CACHE_KEY;
 

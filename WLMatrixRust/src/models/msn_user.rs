@@ -1,6 +1,6 @@
 use crate::{utils::identifiers::{msn_addr_to_matrix_id, matrix_id_to_msn_addr}, generated::payloads::PresenceStatus};
 
-use super::{uuid::UUID, capabilities::{ClientCapabilitiesFactory, ClientCapabilities}, errors::Errors, msn_object::MSNObject};
+use super::{uuid::{UUID, PUID}, capabilities::{ClientCapabilitiesFactory, ClientCapabilities}, errors::Errors, msn_object::MSNObject};
 
 #[derive(Clone, Debug)]
 
@@ -112,7 +112,12 @@ impl MSNUser {
         return self.psm.clone();
     }
 
+    pub fn get_uuid(&self) -> UUID {
+       return UUID::from_string(&self.matrix_id);
+    }
 
-
-
+    pub fn get_puid(&self) -> PUID {
+        return self.get_uuid().get_puid();
+    }
+    
 }

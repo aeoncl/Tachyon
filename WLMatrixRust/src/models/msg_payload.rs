@@ -120,7 +120,7 @@ pub mod factories {
     pub struct MsgPayloadFactory;
 
     impl MsgPayloadFactory {
-        pub fn get_msmsgs_profile(puid: PUID, msn_addr: String, matrix_token: String) -> MsgPayload {
+        pub fn get_msmsgs_profile(puid: &PUID, msn_addr: String, matrix_token: String) -> MsgPayload {
             let mut out = MsgPayload::new("text/x-msmsgsprofile");
             let now = Local::now().timestamp_millis();
             out.add_header(String::from("LoginTime"), now.to_string());

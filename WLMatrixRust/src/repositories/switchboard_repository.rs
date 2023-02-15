@@ -1,4 +1,4 @@
-use std::{sync::{Arc, Mutex}, collections::HashMap};
+use std::{sync::{Mutex}, collections::HashMap};
 
 use crate::models::switchboard::switchboard::Switchboard;
 

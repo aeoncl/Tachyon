@@ -21,7 +21,7 @@ pub fn msn_addr_to_matrix_id(msn_addr: &String) -> String {
 
 pub fn msn_addr_to_matrix_user_id(msn_addr: &String) -> OwnedUserId {
     let matrix_user_id_string =  msn_addr_to_matrix_id(msn_addr);
-    let matrix_user_id : OwnedUserId = <&UserId>::try_from(matrix_user_id_string.as_str()).unwrap().to_owned();
+    let matrix_user_id : OwnedUserId = UserId::parse(matrix_user_id_string.as_str()).unwrap();
     return matrix_user_id;
 }
 
