@@ -74,6 +74,7 @@ pub async fn rst2(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse
                 .body(response_serialized));
         },
         Err(error) => {
+            log::error!("Unable to login to homeserver: {}", &error);
             if let matrix_sdk::Error::Http(err) = error {
                if let Some(test) = err.as_client_api_error(){
                if let ErrorBody::Standard { kind, message } = &test.body {

@@ -2,7 +2,7 @@ use std::{sync::{Mutex}, collections::HashMap};
 
 use crate::models::switchboard::switchboard::Switchboard;
 
-
+#[derive(Debug)]
 pub struct SwitchboardRepository {
     data : Mutex<HashMap<String, Switchboard>>
 }

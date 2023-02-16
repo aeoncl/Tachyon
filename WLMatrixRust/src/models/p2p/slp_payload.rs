@@ -5,6 +5,7 @@
 
 use std::{str::{FromStr, from_utf8}, fmt::Display};
 
+use base64::{Engine, engine::general_purpose};
 use linked_hash_map::LinkedHashMap;
 use log::warn;
 use substring::Substring;
@@ -64,7 +65,7 @@ impl SlpPayload {
 
     pub fn get_context_as_preview_data(&self) -> Option<Box<PreviewData>> {
         if let Some(context) = self.get_body_property(&String::from("Context")) {
-            if let Ok(decoded) = base64::decode(context) {
+            if let Ok(decoded) = general_purpose::STANDARD.decode(context) {
                 return PreviewData::from_slp_context(decoded);
             } else {
                 warn!("Couldn't decode base64 slp context: {}", context);

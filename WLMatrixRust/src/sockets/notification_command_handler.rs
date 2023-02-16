@@ -9,7 +9,7 @@ use crate::generated::payloads::{PrivateEndpointData, PresenceStatus};
 use crate::models::ab_data::AbData;
 use crate::models::msn_user::MSNUser;
 use crate::models::notification::error::{MsnpError, MsnpErrorCode};
-use crate::models::notification::msn_client::MSNClient;
+use crate::models::notification::msn_client::{MSNClient, self};
 use crate::models::p2p::slp_payload::SlpPayload;
 use crate::models::p2p::slp_payload_handler::SlpPayloadHandler;
 use crate::repositories::repository::Repository;
@@ -25,7 +25,6 @@ pub struct NotificationCommandHandler {
     msn_addr: String,
     sender: Sender<String>,
     msnp_version: i16,
-    kill_sender: Option<Sender<String>>,
     msn_client: Option<MSNClient>,
     matrix_client: Option<Client>
 }
@@ -35,7 +34,6 @@ impl NotificationCommandHandler {
         return NotificationCommandHandler {
             sender: sender,
             matrix_token: String::new(),
-            kill_sender: None,
             msn_client: None,
             matrix_client: None,
             msnp_version: -1,
@@ -145,7 +143,7 @@ impl CommandHandler for NotificationCommandHandler {
                         //   let serialized = test_msg.serialize();
                         //   self.sender.send(format!("MSG Hotmail Hotmail {payload_size}\r\n{payload}", payload_size=serialized.len(), payload=&serialized));
 
-                        self.kill_sender = Some(msn_client.listen(self.sender.clone()).await.unwrap());
+                        let _result = msn_client.listen(self.sender.clone()).await;
 
                        // return Ok(format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\nMSG Hotmail Hotmail {msmsgs_profile_payload_size}\r\n{payload}MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", tr_id = tr_id, email=&self.msn_addr, msmsgs_profile_payload_size= msmsgs_profile_msg.len(), payload=msmsgs_profile_msg, oim_payload = oim_payload, oim_payload_size = oim_payload.len(), private_endpoint_payload_size = endpoints_payload.len(), private_endpoint_payload = endpoints_payload));
                         return Ok(String::new());
@@ -274,10 +272,6 @@ impl CommandHandler for NotificationCommandHandler {
     }
 
     fn cleanup(&self) {
-        if let Some(kill_sender) = &self.kill_sender {
-            kill_sender.send(String::from("STOP"));
-        }
-
         let token = &self.get_matrix_token();
         if !token.is_empty()  {
             MATRIX_CLIENT_LOCATOR.remove();

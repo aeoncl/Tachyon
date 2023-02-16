@@ -2,7 +2,7 @@ use std::{
     mem,
     path::Path,
     sync::{
-        atomic::{AtomicI16, Ordering},
+        atomic::{AtomicI16, Ordering, AtomicBool},
         Arc, Mutex, RwLock, RwLockWriteGuard,
     },
 };
@@ -11,7 +11,7 @@ use matrix_sdk::{
     ruma::{device_id, DeviceId, OwnedUserId, UserId},
     Client, Session,
 };
-use tokio::sync::broadcast::{self, Receiver, Sender};
+use tokio::sync::{broadcast::{self, Receiver, Sender}, oneshot};
 
 use crate::{
     models::{msn_user::MSNUser, uuid::UUID, capabilities::{ClientCapabilities, ClientCapabilitiesFactory}},
@@ -21,12 +21,14 @@ use crate::{
 
 use super::error::{MsnpError, MsnpErrorCode};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 
 pub struct MSNClient {
     matrix_client: Option<Client>,
     pub(crate) inner: Arc<MSNClientInner>,
 }
+
+#[derive(Debug)]
 
 pub(crate) struct MSNClientInner {
     user: RwLock<MSNUser>,
@@ -34,11 +36,19 @@ pub(crate) struct MSNClientInner {
     switchboards: SwitchboardRepository,
     notification_sender: Sender<String>,
     notification_receiver: Mutex<Option<Receiver<String>>>,
+    stop_listen_sender: Mutex<Option<oneshot::Sender::<()>>>
+}
+
+impl Drop for MSNClientInner {
+    fn drop(&mut self) {
+        log::info!("MSN Client Inner Dropped!");
+    }
 }
 
 impl MSNClient {
     pub fn new(user: MSNUser, msnp_version: i16) -> Self {
         let (notification_sender, notification_receiver) = broadcast::channel::<String>(30);
+
 
         let inner = Arc::new(MSNClientInner {
             user: RwLock::new(user),
@@ -46,6 +56,7 @@ impl MSNClient {
             switchboards: SwitchboardRepository::new(),
             notification_sender,
             notification_receiver: Mutex::new(Some(notification_receiver)),
+            stop_listen_sender: Mutex::new(None)
         });
 
         return MSNClient {
@@ -157,14 +168,26 @@ impl MSNClient {
                 return Ok(());
             }
             Err(_err) => {
+                log::error!("An error has occured building the client: {}", _err);
                 return Err(MsnpErrorCode::AuthFail);
             }
         }
     }
 
-    pub async fn listen(&self, todoRemoveThis: Sender<String>) -> Result<(Sender<String>),()> {
-        let out = start_matrix_loop(self.matrix_client.as_ref().ok_or(())?.access_token().ok_or(())?, self.get_user_msn_addr(), todoRemoveThis).await;
-        Ok(out)
+    pub async fn listen(&self, todoRemoveThis: Sender<String>) -> Result<(),()> {
+        let kill_sender = start_matrix_loop(self.matrix_client.as_ref().ok_or(())?.clone(), self.get_user(), todoRemoveThis).await;
+        self.inner.stop_listen_sender.lock().unwrap().insert(kill_sender);
+        Ok(())
     }
+}
 
+impl Drop for MSNClient {
+    fn drop(&mut self) {
+        let mut lock = self.inner.stop_listen_sender.lock().unwrap();
+        if lock.is_some() { 
+           let sender = lock.take().unwrap();
+           sender.send(());
+        }
+
+    }
 }

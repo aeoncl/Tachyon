@@ -70,8 +70,8 @@ impl TCPServer for NotificationServer {
                                             }
                                         },
                                         Err(err) => {
-                                            write.write_all(format!("{error_code} {tr_id}\r\n", error_code = err.code as i32, tr_id= err.tr_id).as_bytes());
-                                            write.write_all("OUT\r\n".as_bytes());
+                                            write.write_all(format!("{error_code} {tr_id}\r\n", error_code = err.code as i32, tr_id= err.tr_id).as_bytes()).await;
+                                            write.write_all("OUT\r\n".as_bytes()).await;
                                         }
                                     }
 

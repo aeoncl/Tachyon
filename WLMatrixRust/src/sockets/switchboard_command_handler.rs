@@ -1,5 +1,6 @@
 use std::str::{FromStr};
 use std::sync::{Arc};
+use base64::{Engine, engine::general_purpose};
 use log::info;
 use matrix_sdk::Client;
 use substring::Substring;
@@ -14,7 +15,6 @@ use crate::models::p2p::pending_packet::PendingPacket;
 
 use crate::models::switchboard::events::switchboard_event::SwitchboardEvent;
 use crate::models::switchboard::switchboard::Switchboard;
-use crate::repositories::repository::Repository;
 use crate::utils::identifiers::{matrix_id_to_msn_addr, msn_addr_to_matrix_user_id, matrix_room_id_to_annoying_matrix_room_id};
 use crate::{P2P_REPO, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
 use crate::models::uuid::UUID;
@@ -166,7 +166,7 @@ impl CommandHandler for SwitchboardCommandHandler {
             "ANS" => {
                 // >>> ANS 3 aeontest@shl.local;{F52973B6-C926-4BAD-9BA8-7C1E840E4AB0} base64token 4060759068338340280
                 // <<< 
-                let token = String::from_utf8(base64::decode(split[3]).unwrap()).unwrap();
+                let token = String::from_utf8(general_purpose::STANDARD.decode(split[3]).unwrap()).unwrap();
                 let split_token : Vec<&str> = token.split(";").collect();
                 let tr_id = split[1];
                 let endpoint = split[2];
