@@ -81,12 +81,12 @@ async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest) -> Resul
     let me_display_name = matrix_client.account().get_display_name().await?.unwrap_or(msn_client.get_user_msn_addr());
 
     if header.application_header.partner_scenario.as_str() == "Initial" {
-        response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, Vec::new());
+        response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, Vec::new());
     } else {
         let ab_data_repo  = AB_DATA_REPO.clone();
         let mut ab_data = ab_data_repo.find_mut(&matrix_token).unwrap();
         let contact_list = ab_data.consume_contact_list();
-        response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, contact_list);
+        response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, contact_list);
     }
 
     let response_serialized = to_string(&response)?;

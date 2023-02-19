@@ -3,19 +3,21 @@ use std::sync::{Arc};
 use base64::{Engine, engine::general_purpose};
 use log::info;
 use matrix_sdk::Client;
+use matrix_sdk::ruma::{OwnedUserId, UserId};
 use substring::Substring;
 use async_trait::async_trait;
 use tokio::sync::broadcast::{Sender, Receiver, self};
 use crate::models::msg_payload::MsgPayload;
 use crate::models::msn_user::MSNUser;
 use crate::models::notification::error::{MsnpError, MsnpErrorCode};
+use crate::models::owned_user_id_traits::{ToMsnAddr, FromMsnAddr};
 use crate::models::p2p::p2p_session::P2PSession;
 use crate::models::p2p::p2p_transport_packet::P2PTransportPacket;
 use crate::models::p2p::pending_packet::PendingPacket;
 
 use crate::models::switchboard::events::switchboard_event::SwitchboardEvent;
 use crate::models::switchboard::switchboard::Switchboard;
-use crate::utils::identifiers::{matrix_id_to_msn_addr, msn_addr_to_matrix_user_id, matrix_room_id_to_annoying_matrix_room_id};
+use crate::utils::identifiers::{matrix_room_id_to_annoying_matrix_room_id};
 use crate::{P2P_REPO, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
 use crate::models::uuid::UUID;
 use crate::models::msg_payload::factories::{MsgPayloadFactory};
@@ -28,12 +30,20 @@ pub struct SwitchboardCommandHandler {
     endpoint_guid: String,
     matrix_token: String,
     target_room_id: String,
-    target_matrix_id: String,
+    target_matrix_id: Option<OwnedUserId>,
     target_msn_addr: String,
     matrix_client: Option<Client>,
     sender: Sender<String>,
     switchboard: Option<Switchboard>,
     p2p_session: Option<P2PSession>
+}
+
+impl Drop for SwitchboardCommandHandler {
+    fn drop(&mut self) {
+        if let Some(client_data) = MSN_CLIENT_LOCATOR.get() {
+            client_data.get_switchboards().remove(&self.target_room_id);
+        }
+    }
 }
 
 impl SwitchboardCommandHandler {
@@ -45,7 +55,7 @@ impl SwitchboardCommandHandler {
             matrix_token: String::new(),
             target_room_id: String::new(),
             matrix_client: None,
-            target_matrix_id: String::new(),
+            target_matrix_id: None,
             target_msn_addr: String::new(),
             sender: sender,
             p2p_session: None,
@@ -111,7 +121,7 @@ impl SwitchboardCommandHandler {
             let count = members.len() - 1;
 
             for member in members {
-                let msn_user = MSNUser::from_matrix_id(member.user_id().to_string());
+                let msn_user = MSNUser::from_matrix_id(member.user_id().to_owned());
                 if msn_user.get_msn_addr() != self.msn_addr {
                     self.send_initial_roster_member(tr_id, index, count as i32, &msn_user);
                     index += 2;
@@ -178,8 +188,8 @@ impl CommandHandler for SwitchboardCommandHandler {
                 self.endpoint_guid = endpoint_guid.substring(1, endpoint_guid.len()-1).to_string();
                 self.target_room_id = split_token.get(0).unwrap().to_string();
                 self.matrix_token = split_token.get(1).unwrap().to_string();
-                self.target_matrix_id = split_token.get(2).unwrap().to_string();
-                self.target_msn_addr = matrix_id_to_msn_addr(&self.target_matrix_id);
+                self.target_matrix_id = Some(UserId::parse(split_token.get(2).unwrap()).or(Err(MsnpError::internal_server_error(&tr_id)))?);
+                self.target_msn_addr = self.target_matrix_id.as_ref().unwrap().to_msn_addr();
                 
                 self.matrix_client = MATRIX_CLIENT_LOCATOR.get().clone();
 
@@ -240,7 +250,7 @@ impl CommandHandler for SwitchboardCommandHandler {
 
                     //that's me !
                 } else {
-                    let user_to_add = msn_addr_to_matrix_user_id(&msn_addr_to_add);
+                    let user_to_add = OwnedUserId::from_msn_addr(&msn_addr_to_add);
 
 
                     let mut client = self.matrix_client.as_ref().unwrap().clone();
@@ -328,13 +338,5 @@ impl CommandHandler for SwitchboardCommandHandler {
 
     fn get_matrix_token(&self) -> String {
         return String::new();
-    }
-
-    fn cleanup(&self) {
-        if let Some(client_data) = MSN_CLIENT_LOCATOR.get() {
-            client_data.get_switchboards().remove(&self.target_room_id);
-        }
-
-        //TODO Break the listening loop
     }
 }

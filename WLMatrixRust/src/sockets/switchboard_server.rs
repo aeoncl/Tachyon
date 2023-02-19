@@ -96,8 +96,6 @@ impl TCPServer for SwitchboardServer {
                         }
                     }
                 }
-                //Cleanup
-                command_handler.cleanup();
             });
 
 

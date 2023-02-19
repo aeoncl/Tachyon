@@ -10,6 +10,4 @@ pub trait CommandHandler : Send {
     async fn handle_command(&mut self, command: &MSNPCommand) -> Result<String, MsnpError>;
 
     fn get_matrix_token(&self) -> String;
-
-    fn cleanup(&self);
 }

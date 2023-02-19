@@ -424,7 +424,7 @@ mod tests {
     use chrono::Local;
     use yaserde::ser::to_string;
 
-    use crate::{generated::payloads::{PrivateEndpointData, ClientType, PresenceStatus, EndpointData}, models::capabilities::ClientCapabilities};
+    use crate::{generated::payloads::{PrivateEndpointData, ClientType, PresenceStatus, EndpointData, factories::NotificationFactory}, models::{capabilities::ClientCapabilities, msn_user::MSNUser}};
 
     use super::{NotificationPayload, Recipient, Via, Message, Url, NotificationData};
 
@@ -474,23 +474,10 @@ mod tests {
 
     #[test]
     fn ab_notification_test() {
+        let msn_user = MSNUser::new("aeon.shl@shl.local".to_string());
+        let notif = NotificationFactory::get_abch_updated(&msn_user.get_uuid(), msn_user.get_msn_addr());
 
-        let recipient_pid = format!("0x{}:0x{}", "0001", "0002");
-        let recipient = Recipient{ pid: recipient_pid, name: String::from("test@test.fr"), via: Via{ agent: String::from("messenger") } };
-
-        let now = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-
-        let body = NotificationData{ service: String::from("ABCHInternal"), cid: 0, last_modified_date: now, has_new_item: true };
-
-        let body_serialized = html_escape::encode_text(to_string(&body).unwrap().as_str()).into_owned();
-
-        let message = Message{ id: 0, subscriber: Url{ url: String::from("s.htm")}, action: Url{ url: String::from("a.htm")}, body: body_serialized };
-
-        let test = NotificationPayload{ id: 0, site_id: 45705, site_url: String::from("http://contacts.msn.com"), to: recipient, message: message };
-
-        let serialized = to_string(&test).unwrap();
-        print!("DEBUG: {}", serialized);
-
-
+        let notif_legacy = NotificationFactory::test(&msn_user.get_uuid(), msn_user.get_msn_addr());
+        assert_eq!(notif.to_string(), notif_legacy);
     }
 }

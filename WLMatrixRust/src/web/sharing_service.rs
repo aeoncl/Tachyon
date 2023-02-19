@@ -7,7 +7,7 @@ use substring::Substring;
 use yaserde::{ser::to_string, de::from_str};
 
 
-use crate::{web::{error::WebError, webserver::DEFAULT_CACHE_KEY}, generated::msnab_sharingservice::{bindings::{FindMembershipMessageSoapEnvelope, FindMembershipResponseMessageSoapEnvelope}, factories::FindMembershipResponseFactory}, repositories::{repository::Repository}, utils::identifiers::msn_addr_to_matrix_id, models::uuid::UUID, AB_DATA_REPO, MSN_CLIENT_LOCATOR};
+use crate::{web::{error::WebError, webserver::DEFAULT_CACHE_KEY}, generated::msnab_sharingservice::{bindings::{FindMembershipMessageSoapEnvelope, FindMembershipResponseMessageSoapEnvelope}, factories::FindMembershipResponseFactory}, repositories::{repository::Repository}, models::uuid::UUID, AB_DATA_REPO, MSN_CLIENT_LOCATOR};
 
 
 
@@ -44,13 +44,13 @@ async fn ab_sharing_find_membership(body: web::Bytes, request: HttpRequest) -> R
     let cache_key = &header.application_header.cache_key .unwrap_or(DEFAULT_CACHE_KEY.to_string());
 
     let msn_client = MSN_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-
+    let me = msn_client.get_user();
     let response: FindMembershipResponseMessageSoapEnvelope;
     
     if header.application_header.partner_scenario.as_str() == "Initial" {
         response = FindMembershipResponseFactory::get_empty_response(
-            UUID::from_string(&msn_addr_to_matrix_id(&msn_client.get_user_msn_addr())),
-            msn_client.get_user_msn_addr(),
+            me.get_uuid(),
+            me.get_msn_addr(),
             cache_key.clone(), deltas_only);
     } else {
         let ab_data_repo  = AB_DATA_REPO.clone();
@@ -60,8 +60,8 @@ async fn ab_sharing_find_membership(body: web::Bytes, request: HttpRequest) -> R
         
         //Check if we need to use the UUID from the client here ?? seems important for dedup in the contact folder !
         response = FindMembershipResponseFactory::get_response(
-            UUID::from_string(&msn_addr_to_matrix_id(&msn_client.get_user_msn_addr())),
-            msn_client.get_user_msn_addr(),
+            me.get_uuid(),
+            me.get_msn_addr(),
             cache_key.clone(), msg_service);
     }
 

@@ -33,7 +33,6 @@ impl TCPServer for NotificationServer {
         loop {
             let (mut socket, _addr) = listener.accept().await.unwrap();
             let (tx, mut rx) = broadcast::channel::<String>(10);
-            let mut incomplete_command: Option<MSNPCommand> = None;
             let mut parser = MSNPCommandParser::new();
             let mut command_handler = self.get_command_handler(tx.clone());
 
@@ -85,10 +84,7 @@ impl TCPServer for NotificationServer {
                         }
                     }
                 }
-                command_handler.cleanup();
             }).await;
-
-
         }
     }
 }

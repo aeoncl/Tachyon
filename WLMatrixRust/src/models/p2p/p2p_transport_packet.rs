@@ -237,8 +237,6 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
                 payload = Some(P2PPayload::deserialize(&bytes[8+tlvs_length..bytes.len()], payload_length)?);
             } 
     
-    
-            let stop = true;
             return Ok(P2PTransportPacket{ header_length, op_code, payload_length, sequence_number, tlvs, payload});    
         }
 

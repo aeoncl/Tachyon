@@ -9,7 +9,7 @@ use matrix_sdk::{ruma::{MxcUri, events::room::MediaSource, api::client::media::g
 use mime::Mime;
 use substring::Substring;
 use yaserde::{ser::to_string, de::from_str};
-use crate::{web::{error::WebError, webserver::{DEFAULT_CACHE_KEY}}, generated::msnstorage_service::{bindings::{GetProfileMessageSoapEnvelope, DeleteRelationshipsMessageSoapEnvelope, UpdateProfileMessageSoapEnvelope, UpdateDocumentMessageSoapEnvelope}, factories::{GetProfileResponseFactory, UpdateDocumentResponseFactory, DeleteRelationshipsResponseFactory, UpdateProfileResponseFactory}, types::StorageUserHeader}, repositories::{repository::Repository}, models::uuid::UUID, utils::identifiers::{msn_addr_to_matrix_id, parse_mxc}, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
+use crate::{web::{error::WebError, webserver::{DEFAULT_CACHE_KEY}}, generated::msnstorage_service::{bindings::{GetProfileMessageSoapEnvelope, DeleteRelationshipsMessageSoapEnvelope, UpdateProfileMessageSoapEnvelope, UpdateDocumentMessageSoapEnvelope}, factories::{GetProfileResponseFactory, UpdateDocumentResponseFactory, DeleteRelationshipsResponseFactory, UpdateProfileResponseFactory}, types::StorageUserHeader}, repositories::{repository::Repository}, models::uuid::UUID, utils::identifiers::{parse_mxc}, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
 
 
 
@@ -95,6 +95,8 @@ async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<H
 
     let msn_client = MSN_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let me = msn_client.get_user();
+
     let matrix_client =  MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let profile = matrix_client.account().get_profile().await?;
@@ -107,7 +109,9 @@ async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<H
         img_mx_id = Some(general_purpose::STANDARD.encode(avatar_url.to_string()));
     }
 
-    let response = GetProfileResponseFactory::get_response(UUID::from_string(&msn_addr_to_matrix_id(&msn_client.get_user_msn_addr())), DEFAULT_CACHE_KEY.to_string(), matrix_token, display_name, psm, img_mx_id);
+
+
+    let response = GetProfileResponseFactory::get_response(me.get_uuid(), DEFAULT_CACHE_KEY.to_string(), matrix_token, display_name, psm, img_mx_id);
 
     let response_serialized = to_string(&response)?;
     info!("get_profile_response: {}", response_serialized);
