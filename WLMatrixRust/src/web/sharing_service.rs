@@ -7,7 +7,7 @@ use substring::Substring;
 use yaserde::{ser::to_string, de::from_str};
 
 
-use crate::{web::{error::WebError, webserver::DEFAULT_CACHE_KEY}, generated::msnab_sharingservice::{bindings::{FindMembershipMessageSoapEnvelope, FindMembershipResponseMessageSoapEnvelope}, factories::FindMembershipResponseFactory}, repositories::{repository::Repository}, models::uuid::UUID, AB_DATA_REPO, MSN_CLIENT_LOCATOR};
+use crate::{web::{error::WebError, webserver::DEFAULT_CACHE_KEY}, generated::{msnab_sharingservice::{bindings::{FindMembershipMessageSoapEnvelope, FindMembershipResponseMessageSoapEnvelope}, factories::FindMembershipResponseFactory}, msnab_datatypes::types::{BaseMember, RoleId}}, repositories::{repository::Repository}, models::{uuid::UUID, abch::events::AddressBookEvent}, MSN_CLIENT_LOCATOR, AB_LOCATOR};
 
 
 
@@ -53,11 +53,11 @@ async fn ab_sharing_find_membership(body: web::Bytes, request: HttpRequest) -> R
             me.get_msn_addr(),
             cache_key.clone(), deltas_only);
     } else {
-        let ab_data_repo  = AB_DATA_REPO.clone();
-        let mut ab_data = ab_data_repo.find_mut(&matrix_token).unwrap();
-        let (allow_list, reverse_list, block_list, pending_list) = ab_data.consume_messenger_service();
+
+        let membership_events = AB_LOCATOR.get_membership_events(&matrix_token).await.unwrap();
+        let (allow_list, reverse_list, block_list, pending_list) = get_messenger_service(&membership_events);
         let msg_service = FindMembershipResponseFactory::get_messenger_service(allow_list, block_list, reverse_list, pending_list, false);
-        
+
         //Check if we need to use the UUID from the client here ?? seems important for dedup in the contact folder !
         response = FindMembershipResponseFactory::get_response(
             me.get_uuid(),
@@ -68,4 +68,31 @@ async fn ab_sharing_find_membership(body: web::Bytes, request: HttpRequest) -> R
     let response_serialized = to_string(&response)?;
     info!("find_membership_response: {}", response_serialized);
     return Ok(HttpResponseBuilder::new(StatusCode::OK).append_header(("Content-Type", "application/soap+xml")).body(response_serialized));
+}
+
+fn get_messenger_service(membership_events: &Vec<AddressBookEvent>) -> (Vec<BaseMember>, Vec<BaseMember>, Vec<BaseMember>, Vec<BaseMember>) {
+    let mut allow_list = Vec::new();
+    let mut reverse_list = Vec::new();
+    let mut block_list = Vec::new();
+    let mut pending_list = Vec::new();
+
+    for ev in membership_events {
+        if let AddressBookEvent::MembershipEvent(content) = ev {
+            match &content.list {
+                &RoleId::Allow => {
+                    allow_list.push(content.member.clone())
+                },
+                &RoleId::Reverse => {
+                    reverse_list.push(content.member.clone())
+                },
+                &RoleId::Block => {
+                    block_list.push(content.member.clone())
+                },
+                &RoleId::Pending => {
+                    pending_list.push(content.member.clone())
+                }
+            }
+        }
+    }
+    return (allow_list, reverse_list, block_list, pending_list);
 }

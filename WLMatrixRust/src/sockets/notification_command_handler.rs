@@ -8,7 +8,6 @@ use async_trait::async_trait;
 use tokio::sync::broadcast::{Sender, self, Receiver};
 use crate::generated::payloads::{PrivateEndpointData, PresenceStatus};
 
-use crate::models::ab_data::AbData;
 use crate::models::msn_user::MSNUser;
 use crate::models::notification::error::{MsnpError, MsnpErrorCode};
 use crate::models::notification::events::notification_event::NotificationEvent;
@@ -17,7 +16,7 @@ use crate::models::p2p::slp_payload::SlpPayload;
 use crate::models::p2p::slp_payload_handler::SlpPayloadHandler;
 use crate::models::wlmatrix_client::WLMatrixClient;
 use crate::repositories::repository::Repository;
-use crate::{AB_DATA_REPO, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
+use crate::{MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
 use crate::models::uuid::UUID;
 use crate::models::msg_payload::factories::{MsgPayloadFactory};
 use super::command_handler::CommandHandler;
@@ -171,7 +170,6 @@ impl CommandHandler for NotificationCommandHandler {
                         self.msn_client = Some(msn_client.clone());
                         MATRIX_CLIENT_LOCATOR.set(matrix_client.clone());
                         MSN_CLIENT_LOCATOR.set(msn_client.clone());
-                        AB_DATA_REPO.add(self.matrix_token.clone(), AbData::new());
 
                         self.sender.send(format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\n", tr_id = &tr_id, email=&self.msn_addr));
 
@@ -340,7 +338,6 @@ impl Drop for NotificationCommandHandler {
         if !token.is_empty()  {
             MATRIX_CLIENT_LOCATOR.remove();
             MSN_CLIENT_LOCATOR.remove();
-            AB_DATA_REPO.remove(token);
         }
     }
 }

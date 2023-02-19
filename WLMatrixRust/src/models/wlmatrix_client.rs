@@ -1,11 +1,11 @@
-use std::{path::Path};
+use std::{path::Path, collections::HashSet, time::Duration, f32::consts::E};
 
 use base64::{engine::general_purpose, Engine};
 use log::{info, warn};
-use matrix_sdk::{Client, Session, config::SyncSettings, ruma::{device_id, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::Filter}, presence::PresenceState, events::{presence::PresenceEvent, room::{member::{StrippedRoomMemberEvent, SyncRoomMemberEvent, RoomMemberEventContent, MembershipState}, message::{SyncRoomMessageEvent, RoomMessageEventContent, MessageType}}, direct::{DirectEvent, DirectEventContent}, typing::SyncTypingEvent, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, GlobalAccountDataEvent, GlobalAccountDataEventType}, RoomId, OwnedUserId}, room::Room, event_handler::Ctx};
+use matrix_sdk::{Client, Session, config::SyncSettings, ruma::{device_id, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, JoinedRoom}}, presence::PresenceState, events::{presence::PresenceEvent, room::{member::{StrippedRoomMemberEvent, SyncRoomMemberEvent, RoomMemberEventContent, MembershipState}, message::{SyncRoomMessageEvent, RoomMessageEventContent, MessageType}}, direct::{DirectEvent, DirectEventContent}, typing::SyncTypingEvent, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, GlobalAccountDataEvent, GlobalAccountDataEventType}, RoomId, OwnedUserId, UserId}, room::{Room, RoomMember}, event_handler::Ctx};
 use tokio::sync::{broadcast::Sender, oneshot};
 
-use crate::{utils::{identifiers::{get_matrix_device_id}, emoji::emoji_to_smiley, matrix::get_direct_target_that_isnt_me}, AB_DATA_REPO, generated::{payloads::{factories::NotificationFactory, PresenceStatus}, msnab_sharingservice::factories::{MemberFactory, ContactFactory, AnnotationFactory}, msnab_datatypes::types::{ArrayOfAnnotation, RoleId, MemberState, ContactTypeEnum}}, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, models::{msg_payload::factories::MsgPayloadFactory, uuid::UUID, owned_user_id_traits::ToMsnAddr}, MSN_CLIENT_LOCATOR};
+use crate::{utils::{identifiers::{get_matrix_device_id}, emoji::emoji_to_smiley}, generated::{payloads::{factories::NotificationFactory, PresenceStatus}, msnab_sharingservice::factories::{MemberFactory, ContactFactory, AnnotationFactory}, msnab_datatypes::types::{ArrayOfAnnotation, RoleId, MemberState, ContactTypeEnum}}, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, models::{msg_payload::factories::MsgPayloadFactory, uuid::UUID, owned_user_id_traits::ToMsnAddr, abch::events::AddressBookEventFactory}, MSN_CLIENT_LOCATOR, AB_LOCATOR};
 
 use super::{notification::{error::MsnpErrorCode,  events::notification_event::{NotificationEvent, NotificationEventFactory}}, msn_user::MSNUser, switchboard::switchboard::Switchboard, capabilities::ClientCapabilitiesFactory};
 
@@ -121,7 +121,7 @@ fn get_sync_settings() -> SyncSettings {
     let mut room_filters = RoomFilter::default();
     room_filters.include_leave = true;
     filters.room = room_filters;
-    return SyncSettings::new().filter(Filter::FilterDefinition(filters)).set_presence(PresenceState::Offline);
+    return SyncSettings::new().timeout(Duration::from_secs(5)).filter(Filter::FilterDefinition(filters)).set_presence(PresenceState::Offline);
 }
 
 fn register_events(matrix_client: &Client, msn_user: &MSNUser, event_sender: Sender<NotificationEvent>) {
@@ -138,8 +138,10 @@ fn register_events(matrix_client: &Client, msn_user: &MSNUser, event_sender: Sen
 
     matrix_client.add_event_handler({
         |ev: StrippedRoomMemberEvent, room: Room, client: Client, context: Ctx<WLMatrixContext>| async move {
-            Self::handle_stripped_room_member_event(ev, client, context.me.clone(), context.event_sender.clone()).await;
-            
+            let notify_ab = Self::handle_stripped_room_member_event(ev, room, client, context.me.clone(), context.event_sender.clone()).await;
+            if notify_ab {
+                context.event_sender.send(NotificationEventFactory::get_ab_updated(context.me.clone()));
+            }
         }
     });
 
@@ -196,7 +198,7 @@ async fn handle_directs(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, roo
     if joined_members.len() >= 0 && joined_members.len() <= 2 {
         //1O1 DM Room
         info!("Room is One on One Direct !!");
-        notify_ab = notify_ab || Self::handle_1v1_dm(ev, room, client, mtx_token, msn_addr).await;
+        notify_ab = notify_ab || Self::handle_1v1_dm2(ev, room, client, mtx_token, msn_addr, joined_members).await;
     } else {
         info!("Room is Group DM!!");
         //Group DMs
@@ -206,93 +208,86 @@ async fn handle_directs(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, roo
     return notify_ab;
 }
 
-async fn handle_1v1_dm(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, room: &Room, client: &Client, mtx_token: &String, msn_addr: &String) -> bool {
-
-    let ab_data_repo  = AB_DATA_REPO.clone();
-    let ab_data = ab_data_repo.find_mut(&mtx_token).unwrap();
-
-    let me = client.user_id().unwrap();
+async fn handle_1v1_dm2(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, room: &Room, client: &Client, mtx_token: &String, msn_addr: &String, joined_members: Vec<RoomMember>) -> bool {
     let mut notify_ab = false;
+    let ab_sender = AB_LOCATOR.get_sender();
+    let matrix_token = client.access_token().unwrap();
+    let me = client.user_id().unwrap().to_owned();
 
-    if let Some(target) = get_direct_target_that_isnt_me(&room.direct_targets(), &me){
-        
-        let usr_repo = MSNUserRepository::new(client.clone());
 
-        let target_usr = usr_repo.get_msnuser(room.room_id(), &target, false).await.unwrap();
-        let target_msn_addr = target_usr.get_msn_addr();
-        let target_uuid = target_usr.get_uuid();
-        let target_display_name = target_usr.get_display_name();
+    let target = Self::get_direct_target_that_isnt_me(&room.direct_targets(), &room, &me).await.unwrap();
+    let target_usr = MSNUser::from_matrix_id(target.clone());
+    let target_uuid = target_usr.get_uuid();
+    let target_msn_addr = target_usr.get_msn_addr();
 
-        info!("Direct Target: {}", &target_msn_addr);
+    log::info!("AB DEBUG - State_key: {}, sender: {}, membership: {}", &ev.state_key, &ev.sender, &ev.content.membership);
 
-        match &room {
-            Room::Joined(room) => {
-                if ev.sender == target {
-
-                    if ev.content.membership == MembershipState::Leave || ev.content.membership == MembershipState::Ban {
-                        // my friend is in reverse list and gone from the allow list.
-                        let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, true);
-                        ab_data.add_to_messenger_service(target.to_string(), current_reverse_member, RoleId::Reverse);
-                        notify_ab = true;
-                    } else if ev.content.membership == MembershipState::Join {
-                                            // my friend is in reverse list and allow list.
-
-                        let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_display_name, ContactTypeEnum::Live, false);
-                        let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
-                        let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, false);
-    
-                        ab_data.add_to_contact_list(target.to_string(), current_contact);
-                        ab_data.add_to_messenger_service(target.to_string(), current_allow_member, RoleId::Allow);
-                        ab_data.add_to_messenger_service(target.to_string(), current_reverse_member, RoleId::Reverse);
-                        notify_ab = true;
-                      //  if ev.sender == me {
-                            //I Accepted an invite
-                      //      let current_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true);
-                      //      ab_data.add_to_messenger_service(ev.sender.to_string(), current_pending_member, RoleId::Pending);
-                       // }
-                    }
-                
+    match &room {
+        Room::Joined(room) => {
+            if &ev.state_key == &target {
+                let display_name = ev.content.displayname.as_ref().unwrap_or(&target_msn_addr).to_owned();
+                if ev.content.membership == MembershipState::Invite && &ev.sender == &me {
+                    //I Invited him, Add to allow list, add to contact pending.
+                    log::info!("AB - Send invitation to: {}", &target_msn_addr);
+                    let invited_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::LivePending, false);
+                    let invited_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
+                    ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), invited_contact));
+                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), invited_allow_member, RoleId::Allow));
+                    notify_ab = true;
+                } else if ev.content.membership == MembershipState::Join {
+                    //He accepted my invitation, ADD TO REVERSE LIST, CHANGE CONTACT TO NOT PENDING
+                    log::info!("AB - Invitation Accepted from: {}", &target_msn_addr);
+                    let invited_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::Live, false);
+                    let invited_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, false);
+                    ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), invited_contact));
+                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), invited_reverse_member, RoleId::Reverse));
+                    notify_ab = true;
+                } else if ev.content.membership == MembershipState::Leave || ev.content.membership == MembershipState::Ban {
+                    log::info!("AB - Contact left: {}", &target_msn_addr);
+                    //He left the room, Remove from Reverse List, Set to contact pending
+                    let left_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::LivePending, false);
+                    let left_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, true);
+                    ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), left_contact));
+                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), left_reverse_member, RoleId::Reverse));
+                    notify_ab = true;
                 }
-            },
-            Room::Left(room) => {
-                //TODO left room not working when user is already gone before us.
-                if ev.sender == me && ev.content.membership == MembershipState::Leave || ev.content.membership == MembershipState::Ban { 
-                  if Self::should_i_really_delete_contact(client, target.clone()).await {
+            } else if &ev.state_key == &me {
+                if &ev.content.membership == &MembershipState::Invite && &ev.sender == &target {
+                    //This is strange, i should get a join membership when i accept an invite, but i get an invite
+                             //I Accepted his invitation, REMOVE FROM PENDING LIST, ADD TO ALLOW LIST, ADD TO CONTACT LIST
+                    log::info!("AB - I Accepted an invite from: {}", &target_msn_addr);
 
-                    let msn_addr = target.to_msn_addr();
-                    let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_display_name, ContactTypeEnum::Live, true);
-                    let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, true);
-                    ab_data.add_to_contact_list(target.to_string(), current_contact);
-                    ab_data.add_to_messenger_service(target.to_string(), current_allow_member, RoleId::Allow);
+                    let inviter_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, false);
+                    let inviter_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
+                    let inviter_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true); 
+                    ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), inviter_contact));
+                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), inviter_allow_member, RoleId::Allow));
+                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), inviter_pending_member, RoleId::Pending));
                     notify_ab = true;
 
-        
-                  }
                 }
-            },
-            _ => {
-
             }
-        }
+        },
+        Room::Left(room) => {
+            log::info!("AB - I Deleted: {}", &target_msn_addr);
+            //I Left the room, remove member from PENDING_LIST, ALLOW_LIST, REVERSE_LIST. Remove Contact from Contact List
+            let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, true);
+            let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, true);
+            let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, true);
+            let current_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true);
 
+            ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), current_contact));
+            ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_allow_member, RoleId::Allow));
+            ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_reverse_member, RoleId::Reverse));
+            ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_pending_member, RoleId::Pending));
+            notify_ab = true;
+        },
+        _=> {
+
+        }
     }
 
-    let target = ev.state_key.clone();
-    let target_uuid = UUID::from_string(&target.to_string());
-    let target_msn_addr = target.to_msn_addr();
-    let display_name = &ev.content.displayname.as_ref().unwrap_or(&target_msn_addr);
-
-    if ev.sender == me && ev.content.membership == MembershipState::Invite {
-        // C'est mon poto pending seulement dans l'allowlist
-         let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, display_name, ContactTypeEnum::LivePending, false);
-         let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
-     
-         ab_data.add_to_contact_list(target.to_string(), current_contact);
-         ab_data.add_to_messenger_service(target.to_string(), current_allow_member, RoleId::Allow);
-         notify_ab = true;
-     }
-
-     return notify_ab;
+    return notify_ab;
 }
 
 async fn handle_group_dm(ev: &SyncRoomMemberEvent, room: &Room, client: &Client, mtx_token: &String, msn_addr: &String) {
@@ -369,32 +364,78 @@ async fn handle_presence_event(ev: PresenceEvent, client: Client, me: MSNUser, n
     }
 }
 
-async fn handle_stripped_room_member_event(ev: StrippedRoomMemberEvent, client: Client, me: MSNUser, event_sender: Sender<NotificationEvent>) {
-    let ab_data_repo  = AB_DATA_REPO.clone();
-    let ab_data = ab_data_repo.find_mut(&client.access_token().unwrap()).unwrap();
+async fn handle_stripped_room_member_event(ev: StrippedRoomMemberEvent, room: Room, client: Client, me: MSNUser, event_sender: Sender<NotificationEvent>) -> bool {
+    let mut notify_ab = false;
+    let ab_sender = AB_LOCATOR.get_sender();
+    let matrix_token = client.access_token().unwrap();
 
-    if ev.content.membership == MembershipState::Invite && ev.state_key == client.user_id().unwrap() && ev.content.is_direct.unwrap_or(false) { 
 
-        let target_uuid = UUID::from_string(&ev.sender.to_string());
-        let target_msn_addr = ev.sender.to_msn_addr();
+    let me_matrix_id = me.get_matrix_id();
 
-        let mut current_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, false);
-        current_pending_member.display_name = None;
-        let annotation = AnnotationFactory::get_invite(ev.content.reason.unwrap_or(String::new()));
-        let mut annotations = Vec::new();
-        annotations.push(annotation);
-        current_pending_member.annotations=Some(ArrayOfAnnotation{ annotation: annotations });
-        ab_data.add_to_messenger_service(ev.sender.to_string(), current_pending_member, RoleId::Pending);
+    log::info!("AB DEBUG - STRIPPED: state_key: {}, sender: {}, membership: {}", &ev.state_key, &ev.sender, &ev.content.membership);
 
-    } else if ev.content.membership == MembershipState::Leave {
+    if room.is_direct() || ev.content.is_direct.unwrap_or(false) {
+        log::info!("AB DEBUG - STRIPPED: DIRECT");
+        //This is a direct
 
-        let target_uuid = UUID::from_string(&ev.sender.to_string());
-        let target_msn_addr = ev.sender.to_msn_addr();
+            match &room {
+                Room::Joined(joined_room) => {
 
-        let mut current_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true);
-        current_pending_member.display_name = None;
-        ab_data.add_to_messenger_service(ev.sender.to_string(), current_pending_member, RoleId::Pending);
+                    // COMMENTED BECAUSE WE NEVER RECEIVE THIS EVENT, MAYBE A BUG OF SYNAPSE OR RUST SDK
+                    // if ev.content.membership == MembershipState::Join && &ev.state_key == &me_matrix_id && &ev.sender == &me_matrix_id {
+                    //     //I Accepted his invitation, REMOVE FROM PENDING LIST, ADD TO ALLOW LIST, ADD TO CONTACT LIST
+                    //     let target = Self::get_direct_target_that_isnt_me(&room.direct_targets(), &room, &me_matrix_id).await.unwrap();
+                    //     let target_usr = MSNUser::from_matrix_id(target.clone());
+                    //     let target_uuid = target_usr.get_uuid();
+                    //     let target_msn_addr = target_usr.get_msn_addr();
+
+                    //     log::info!("AB - I Accepted an invite from: {}", &target_msn_addr);
+                    //     let inviter_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, false);
+                    //     let inviter_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
+                    //     let inviter_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true);
+
+                    //     ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), inviter_contact));
+                    //     ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), inviter_allow_member, RoleId::Allow));
+                    //     ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), inviter_pending_member, RoleId::Pending));
+                    //     notify_ab = true;
+                    // }
+                },
+                Room::Invited(room) => {
+                    if &ev.content.membership == &MembershipState::Invite && &ev.state_key == &me_matrix_id {
+                        //I've been invited ! ADD TO PENDING LIST WITH INVITE MSG, ADD TO REVERSE LIST
+
+                        let usr_repo = MSNUserRepository::new(client.clone());
+                        log::info!("AB - I received an invite DEBUG");
+                        let target_usr = usr_repo.get_msnuser(room.room_id(), &ev.sender, false).await.unwrap();
+                        let target_uuid = target_usr.get_uuid();
+                        let target_msn_addr = target_usr.get_msn_addr();
+                        let target_display_name = target_usr.get_display_name();
+                        log::info!("AB - I received an invite from: {}", &target_msn_addr);
+
+                        let mut current_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, false);
+                        current_pending_member.display_name = Some(target_display_name);
+                        let annotation = AnnotationFactory::get_invite(ev.content.reason.unwrap_or(String::new()));
+                        let mut annotations = Vec::new();
+                        annotations.push(annotation);
+                        current_pending_member.annotations=Some(ArrayOfAnnotation{ annotation: annotations });
+                
+                
+                        let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, false);
+                        
+                        ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_pending_member, RoleId::Pending));
+                        ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_reverse_member, RoleId::Reverse));
+                        notify_ab = true;
+
+                    }   
+                },
+                Room::Left(room) => {
+                    log::info!("AB DEBUG 1o1DM - STRIPPED: LEFT ROOM");
+                }
+            }
+    } else {
+        log::info!("AB DEBUG - STRIPPED: NON DIRECT")
     }
+    return notify_ab;
 }
 
 async fn handle_sync_room_member_event(ev: SyncRoomMemberEvent, room: Room, client: Client, me: MSNUser, event_sender: Sender<NotificationEvent>) {
@@ -427,7 +468,7 @@ async fn handle_sync_room_member_event(ev: SyncRoomMemberEvent, room: Room, clie
                         info!("ABDEBUG: Redacted event !!");
                     }
 
-    if notify_ab == true {
+    if notify_ab {
         event_sender.send(NotificationEventFactory::get_ab_updated(me.clone()));
     }
 }
@@ -468,7 +509,7 @@ async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, room: Room, cl
         if room.is_direct() && joined_members.len() > 0 && joined_members.len() <= 2 {
             let me_user_id =  client.user_id().unwrap();
 
-            if let Some(target) = get_direct_target_that_isnt_me(&room.direct_targets(), &me_user_id){
+            if let Some(target) = Self::get_direct_target_that_isnt_me(&room.direct_targets(), &room, &me_user_id).await{
 
                 let room_id = room.room_id().to_string();
                 let target_msn_user = MSNUser::from_matrix_id(target.clone());
@@ -498,6 +539,34 @@ async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, room: Room, cl
             }
         }
     }
+}
+
+
+fn try_fetch_in_direct_targets(direct_targets: &HashSet<OwnedUserId>, me: &UserId) -> Option<OwnedUserId> {
+    log::info!("TryGetDirectTarget - target count: {}, me: {}", direct_targets.len(), &me);
+    for direct_target in direct_targets {
+        if(direct_target != me) {
+            log::info!("TryGetDirectTarget - found {}", &direct_target);
+            return Some(direct_target.clone());
+        }
+    }
+    log::info!("TryGetDirectTarget - found none");
+    return None;
+}
+
+async fn get_direct_target_that_isnt_me(direct_targets: &HashSet<OwnedUserId>, room: &Room, me: &UserId) -> Option<OwnedUserId> {
+   let mut maybe = Self::try_fetch_in_direct_targets(direct_targets, me);
+    if maybe.is_none() {
+       let members = room.members_no_sync().await.unwrap();
+       log::info!("TryGetDirectTarget2 - members count: {}, me: {}", members.len(), &me);
+       for member in members {
+        if member.user_id() != me {
+            maybe = Some(member.user_id().to_owned());
+            log::info!("TryGetDirectTarget2 - members found: {}", &member.user_id());
+        }
+       }
+    }
+   return maybe;
 }
 
 }
