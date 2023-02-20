@@ -162,7 +162,7 @@ impl CommandHandler for NotificationCommandHandler {
 
                         let msn_user = MSNUser::new(self.msn_addr.clone());
 
-                        let matrix_client = WLMatrixClient::login(msn_user.get_matrix_id(), self.matrix_token.clone(), &Path::new("C:\\temp")).await.or(Err(MsnpError::auth_fail(&tr_id)))?;
+                        let matrix_client = WLMatrixClient::login(msn_user.get_matrix_id(), self.matrix_token.clone(), &Path::new(format!("C:\\temp\\{}", &self.msn_addr).as_str())).await.or(Err(MsnpError::auth_fail(&tr_id)))?;
 
                         let mut msn_client = MSNClient::new(matrix_client.clone(), msn_user.clone(), self.msnp_version);
 

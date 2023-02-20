@@ -53,6 +53,7 @@ impl WLMatrixClient {
                     })
                     .await
                 {
+                    log::error!("An error has occured logging in via token: {}", err);
                     return Err(MsnpErrorCode::AuthFail);
                 }
 
@@ -121,7 +122,7 @@ fn get_sync_settings() -> SyncSettings {
     let mut room_filters = RoomFilter::default();
     room_filters.include_leave = true;
     filters.room = room_filters;
-    return SyncSettings::new().timeout(Duration::from_secs(5)).filter(Filter::FilterDefinition(filters)).set_presence(PresenceState::Offline);
+    return SyncSettings::new().timeout(Duration::from_secs(5)).filter(Filter::FilterDefinition(filters)).set_presence(PresenceState::Online);
 }
 
 fn register_events(matrix_client: &Client, msn_user: &MSNUser, event_sender: Sender<NotificationEvent>) {

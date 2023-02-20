@@ -69,8 +69,13 @@ impl TCPServer for NotificationServer {
                                             }
                                         },
                                         Err(err) => {
-                                            write.write_all(format!("{error_code} {tr_id}\r\n", error_code = err.code as i32, tr_id= err.tr_id).as_bytes()).await;
-                                            write.write_all("OUT\r\n".as_bytes()).await;
+
+                                            let error = format!("{error_code} {tr_id}\r\n", error_code = err.code as i32, tr_id= err.tr_id);
+                                            let out = "OUT\r\n";
+                                            log::error!("NS => {}", &error);
+                                            log::error!("NS => {}", &out);
+                                            write.write_all(error.as_bytes()).await;
+                                            write.write_all(out.as_bytes()).await;
                                         }
                                     }
 
