@@ -27,7 +27,7 @@ impl ResponseError for WebError {
     fn error_response(&self) -> HttpResponse {
         HttpResponse::build(self.status_code())
             .insert_header(("Content-Type", "application/soap+xml"))
-            .body(self.to_string())
+            .body(self.message())
     }
 
     fn status_code(&self) -> StatusCode {

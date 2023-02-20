@@ -5,10 +5,56 @@ use strum_macros::{ToString, EnumString};
 use substring::Substring;
 use yaserde::{de::{self, from_str}, ser::to_string};
 use yaserde_derive::{YaSerialize, YaDeserialize};
-use crate::models::errors::Errors;
+use crate::models::{errors::Errors, capabilities::ClientCapabilities};
 
 
-#[derive(Default, YaSerialize, YaDeserialize)]
+#[derive(Debug, Clone, Default, YaSerialize, YaDeserialize)]
+
+pub struct EndpointData {
+
+    #[yaserde(rename = "id", attribute)]
+    pub machine_guid: Option<String>,
+    #[yaserde(rename = "Capabilities")]
+    pub capabilities: ClientCapabilities,
+
+}
+
+impl EndpointData{
+    pub fn new(machine_guid: Option<String>, capabilities: ClientCapabilities) -> Self {
+        return EndpointData{
+            machine_guid,
+            capabilities,
+        };
+    }
+}
+
+impl FromStr for EndpointData {
+    type Err = Errors;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+      if let Ok(deserialized) = from_str::<EndpointData>(s) {
+        return Ok(deserialized);
+      } else {
+          return Err(Errors::PayloadDeserializeError);
+      }
+    }
+}
+
+impl Display for EndpointData {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Ok(serialized) = to_string(self) {
+            let wesh = serialized.substring(38, serialized.len());
+            return write!(f, "{}", wesh);
+        } else {
+            return Err(std::fmt::Error);
+        }
+     
+    }
+}
+
+
+#[derive(Debug, Clone, Default, YaSerialize, YaDeserialize)]
 
 pub struct PrivateEndpointData {
 
@@ -22,8 +68,14 @@ pub struct PrivateEndpointData {
     pub client_type: ClientType,
     #[yaserde(rename = "State")]
     pub state: PresenceStatus
-
 }
+
+impl PrivateEndpointData {
+    pub fn new(machine_guid: Option<String>, ep_name: String, idle: bool, client_type: ClientType, state: PresenceStatus) -> Self {
+        return PrivateEndpointData { machine_guid, ep_name, idle, client_type, state };
+    }
+}
+
 
 impl FromStr for PrivateEndpointData {
     type Err = Errors;
@@ -49,6 +101,33 @@ impl Display for PrivateEndpointData {
      
     }
 }
+
+#[derive(Debug, Clone)]
+
+pub struct MPOPEndpoint {
+    pub endpoint_data: EndpointData,
+    pub private_endpoint_data: PrivateEndpointData
+}
+
+impl MPOPEndpoint {
+    pub fn new(endpoint_data: EndpointData, private_endpoint_data: PrivateEndpointData) -> Self {
+        return MPOPEndpoint {
+            endpoint_data,
+            private_endpoint_data,
+        };
+    }
+}
+
+impl Display for MPOPEndpoint {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+
+        let endpoint_data = self.endpoint_data.to_string();
+        let private_endpoint_data = self.private_endpoint_data.to_string();
+        return write!(f, "{}{}", endpoint_data, private_endpoint_data);
+    }
+}
+
 
 #[derive(Debug, Clone)]
 pub enum ClientType {
@@ -345,7 +424,7 @@ mod tests {
     use chrono::Local;
     use yaserde::ser::to_string;
 
-    use crate::generated::payloads::{PrivateEndpointData, ClientType, PresenceStatus};
+    use crate::{generated::payloads::{PrivateEndpointData, ClientType, PresenceStatus, EndpointData, factories::NotificationFactory}, models::{capabilities::ClientCapabilities, msn_user::MSNUser}};
 
     use super::{NotificationPayload, Recipient, Via, Message, Url, NotificationData};
 
@@ -368,6 +447,19 @@ mod tests {
     }
 
     #[test]
+    fn test_endpoint_data() {
+        //Arrange
+        let command = "<EndpointData id=\"machine_guid\"><Capabilities>2789003324:48</Capabilities></EndpointData>";
+
+        //Act
+        let parsed = EndpointData::from_str(command).unwrap();
+
+        //Assert
+        assert_eq!(parsed.machine_guid, Some("machine_guid".to_string()));
+        assert_eq!(parsed.capabilities.to_string(), String::from("2789003324:48"));
+    }
+
+    #[test]
     fn test_serialize_private_endpoint_data() {
            //Arrange
            let command = PrivateEndpointData{ machine_guid: None, ep_name: String::from("M1CROW8Vl"), idle: true, client_type: ClientType::Website, state: PresenceStatus::AWY };
@@ -382,23 +474,10 @@ mod tests {
 
     #[test]
     fn ab_notification_test() {
+        let msn_user = MSNUser::new("aeon.shl@shl.local".to_string());
+        let notif = NotificationFactory::get_abch_updated(&msn_user.get_uuid(), msn_user.get_msn_addr());
 
-        let recipient_pid = format!("0x{}:0x{}", "0001", "0002");
-        let recipient = Recipient{ pid: recipient_pid, name: String::from("test@test.fr"), via: Via{ agent: String::from("messenger") } };
-
-        let now = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-
-        let body = NotificationData{ service: String::from("ABCHInternal"), cid: 0, last_modified_date: now, has_new_item: true };
-
-        let body_serialized = html_escape::encode_text(to_string(&body).unwrap().as_str()).into_owned();
-
-        let message = Message{ id: 0, subscriber: Url{ url: String::from("s.htm")}, action: Url{ url: String::from("a.htm")}, body: body_serialized };
-
-        let test = NotificationPayload{ id: 0, site_id: 45705, site_url: String::from("http://contacts.msn.com"), to: recipient, message: message };
-
-        let serialized = to_string(&test).unwrap();
-        print!("DEBUG: {}", serialized);
-
-
+        let notif_legacy = NotificationFactory::test(&msn_user.get_uuid(), msn_user.get_msn_addr());
+        assert_eq!(notif.to_string(), notif_legacy);
     }
 }

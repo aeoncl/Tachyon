@@ -1,6 +1,5 @@
 pub mod uuid;
 pub mod errors;
-pub mod ab_data;
 pub mod msn_user;
 pub mod capabilities;
 pub mod notification;
@@ -8,3 +7,6 @@ pub mod switchboard;
 pub mod p2p;
 pub mod msg_payload;
 pub mod msn_object;
+pub mod wlmatrix_client;
+pub mod owned_user_id_traits;
+pub mod abch;

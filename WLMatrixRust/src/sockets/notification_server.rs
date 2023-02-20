@@ -33,7 +33,6 @@ impl TCPServer for NotificationServer {
         loop {
             let (mut socket, _addr) = listener.accept().await.unwrap();
             let (tx, mut rx) = broadcast::channel::<String>(10);
-            let mut incomplete_command: Option<MSNPCommand> = None;
             let mut parser = MSNPCommandParser::new();
             let mut command_handler = self.get_command_handler(tx.clone());
 
@@ -62,11 +61,24 @@ impl TCPServer for NotificationServer {
 
                             for command in commands {
                                     println!("NS <= {}", &command);
-                                    let response = command_handler.handle_command(&command).await;
-                                    if !response.is_empty() {
-                                        write.write_all(response.as_bytes()).await;
-                                        println!("NS => {}", &response);
+                                    match command_handler.handle_command(&command).await {
+                                        Ok(response) => {
+                                            if !response.is_empty() {
+                                                write.write_all(response.as_bytes()).await;
+                                                println!("NS => {}", &response);
+                                            }
+                                        },
+                                        Err(err) => {
+
+                                            let error = format!("{error_code} {tr_id}\r\n", error_code = err.code as i32, tr_id= err.tr_id);
+                                            let out = "OUT\r\n";
+                                            log::error!("NS => {}", &error);
+                                            log::error!("NS => {}", &out);
+                                            write.write_all(error.as_bytes()).await;
+                                            write.write_all(out.as_bytes()).await;
+                                        }
                                     }
+
                             }
                             buffer = [0u8; 2048];
                         },
@@ -77,10 +89,7 @@ impl TCPServer for NotificationServer {
                         }
                     }
                 }
-                command_handler.cleanup();
             }).await;
-
-
         }
     }
 }

@@ -1,6 +1,7 @@
 use std::{str::FromStr, fmt::Display};
 
 use super::errors;
+use yaserde_derive::{YaSerialize, YaDeserialize};
 
 /** Source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/Client_Capabilities */
 
@@ -83,7 +84,7 @@ pub enum ExtendedCapabilities {
     // Supports P2PV2
     SupportsP2PV2 = 0x20,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 
 pub struct ClientCapabilities {
     capabilities: u32,
@@ -129,6 +130,60 @@ impl Display for ClientCapabilities {
     }
 
 }
+
+impl yaserde::YaDeserialize for ClientCapabilities {
+    
+    fn deserialize<R: std::io::Read>(reader: &mut yaserde::de::Deserializer<R>) -> Result<Self, String> {
+        if let xml::reader::XmlEvent::StartElement { name, .. } = reader.peek()?.to_owned() {
+            let expected_name = "Capabilities".to_owned();
+            if name.local_name != expected_name {
+              return Err(format!(
+                "Wrong StartElement name: {}, expected: {}",
+                name, expected_name
+              ));
+            }
+            let _next = reader.next_event();
+          } else {
+            return Err("StartElement missing".to_string());
+          }    
+
+          if let xml::reader::XmlEvent::Characters(text) = reader.peek()?.to_owned() {
+
+            let text_parsed : ClientCapabilities = FromStr::from_str(text.as_str()).or(Err("Couldn't deserialize capabilities"))?;
+  
+            Ok(text_parsed)
+          } else {
+            Err("Characters missing".to_string())
+          }
+        }
+
+}
+
+impl yaserde::YaSerialize for ClientCapabilities {
+    fn serialize<W: std::io::Write>(&self, writer: &mut yaserde::ser::Serializer<W>) -> Result<(), String> {
+        let _ret = writer.write(xml::writer::XmlEvent::start_element("Capabilities"));
+        let _ret = writer.write(xml::writer::XmlEvent::characters(
+          &self.to_string(),
+        ));
+        let _ret = writer.write(xml::writer::XmlEvent::end_element());
+        Ok(())    
+    }
+
+    fn serialize_attributes(
+    &self,
+    attributes: Vec<xml::attribute::OwnedAttribute>,
+    namespace: xml::namespace::Namespace,
+  ) -> Result<
+    (
+      Vec<xml::attribute::OwnedAttribute>,
+      xml::namespace::Namespace,
+    ),
+    String,
+  > {
+    Ok((attributes, namespace))
+    }
+}
+
 
 pub struct ClientCapabilitiesFactory;
 

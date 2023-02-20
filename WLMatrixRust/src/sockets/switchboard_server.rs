@@ -81,7 +81,7 @@ impl TCPServer for SwitchboardServer {
 
                            for command in commands {
                                 info!("SW {}<= {}", &uuid.to_string(), &command);
-                                   let response = command_handler.handle_command(&command).await;
+                                   let response = command_handler.handle_command(&command).await.unwrap();
                                    if !response.is_empty() {
                                        write.write_all(response.as_bytes()).await;
                                        info!("SW {}=> {}",&uuid.to_string(), &response);
@@ -96,8 +96,6 @@ impl TCPServer for SwitchboardServer {
                         }
                     }
                 }
-                //Cleanup
-                command_handler.cleanup();
             });
 
 

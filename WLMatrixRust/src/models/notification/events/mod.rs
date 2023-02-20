@@ -1,2 +1,2 @@
 pub mod content;
-pub mod notification_events;
+pub mod notification_event;

@@ -1,6 +1,7 @@
 use std::{str::{from_utf8, FromStr}, sync::Arc};
 
 use actix_web::{post, web, HttpRequest, HttpResponse, HttpResponseBuilder, get};
+use base64::{Engine, engine::general_purpose};
 use http::{header::HeaderName, StatusCode};
 use js_int::UInt;
 use log::info;
@@ -8,7 +9,7 @@ use matrix_sdk::{ruma::{MxcUri, events::room::MediaSource, api::client::media::g
 use mime::Mime;
 use substring::Substring;
 use yaserde::{ser::to_string, de::from_str};
-use crate::{web::{error::WebError, webserver::{DEFAULT_CACHE_KEY}}, generated::msnstorage_service::{bindings::{GetProfileMessageSoapEnvelope, DeleteRelationshipsMessageSoapEnvelope, UpdateProfileMessageSoapEnvelope, UpdateDocumentMessageSoapEnvelope}, factories::{GetProfileResponseFactory, UpdateDocumentResponseFactory, DeleteRelationshipsResponseFactory, UpdateProfileResponseFactory}, types::StorageUserHeader}, repositories::{repository::Repository}, models::uuid::UUID, utils::identifiers::{msn_addr_to_matrix_id, parse_mxc}, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
+use crate::{web::{error::WebError, webserver::{DEFAULT_CACHE_KEY}}, generated::msnstorage_service::{bindings::{GetProfileMessageSoapEnvelope, DeleteRelationshipsMessageSoapEnvelope, UpdateProfileMessageSoapEnvelope, UpdateDocumentMessageSoapEnvelope}, factories::{GetProfileResponseFactory, UpdateDocumentResponseFactory, DeleteRelationshipsResponseFactory, UpdateProfileResponseFactory}, types::StorageUserHeader}, repositories::{repository::Repository}, models::uuid::UUID, utils::identifiers::{parse_mxc}, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
 
 
 
@@ -55,7 +56,7 @@ struct Info {
 #[get("/storage/usertile/{mxc}/{img_type}")]
 pub async fn get_profile_pic(path: web::Path<(String, String)>, request: HttpRequest) -> Result<HttpResponse, WebError> {
     let (mxc, img_type) = path.into_inner();
-    let mxc = from_utf8(&base64::decode(mxc.as_bytes())?)?.to_string();
+    let mxc = from_utf8(&general_purpose::STANDARD.decode(mxc.as_bytes())?)?.to_string();
     let mxc_as_str = mxc.as_str();
     let parsed_mxc = <&MxcUri>::try_from(mxc_as_str).unwrap().to_owned();
 
@@ -94,6 +95,8 @@ async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<H
 
     let msn_client = MSN_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let me = msn_client.get_user();
+
     let matrix_client =  MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let profile = matrix_client.account().get_profile().await?;
@@ -103,10 +106,12 @@ async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<H
 
     let mut img_mx_id : Option<String> = None;
     if let Some(avatar_url) = &matrix_client.account().get_avatar_url().await?{
-        img_mx_id = Some(base64::encode(avatar_url.to_string()));
+        img_mx_id = Some(general_purpose::STANDARD.encode(avatar_url.to_string()));
     }
 
-    let response = GetProfileResponseFactory::get_response(UUID::from_string(&msn_addr_to_matrix_id(&msn_client.get_user_msn_addr())), DEFAULT_CACHE_KEY.to_string(), matrix_token, display_name, psm, img_mx_id);
+
+
+    let response = GetProfileResponseFactory::get_response(me.get_uuid(), DEFAULT_CACHE_KEY.to_string(), matrix_token, display_name, psm, img_mx_id);
 
     let response_serialized = to_string(&response)?;
     info!("get_profile_response: {}", response_serialized);
@@ -131,7 +136,7 @@ async fn storage_update_document(body: web::Bytes, request: HttpRequest) -> Resu
     for document_stream in document_streams {
         if document_stream.document_stream_type == "UserTileStatic" {
             //We need to figure out the filetype from the content, because msn always sends png.
-            let data_vector = base64::decode(document_stream.data.ok_or(StatusCode::BAD_REQUEST)?)?;
+            let data_vector = general_purpose::STANDARD.decode(document_stream.data.ok_or(StatusCode::BAD_REQUEST)?)?;
             let mime = get_mime_type(&data_vector);
 
             let mtx_upload_response = matrix_client.account().upload_avatar(&mime, data_vector).await?;

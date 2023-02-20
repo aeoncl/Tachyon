@@ -1,6 +1,4 @@
 use byteorder::{LittleEndian, ByteOrder};
-use substring::Substring;
-
 use crate::models::{msn_user::MSNUser, errors::Errors};
 
 use super::p2p_transport_packet::P2PTransportPacket;
