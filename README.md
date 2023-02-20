@@ -11,7 +11,7 @@ WLMatrix is a **translation layer** between **MSNP18** & **the Matrix API**. The
  - Text messages
  - File upload (only upload from WLM to Matrix currently, no receive yet)
  - Multiple Points of Presence (showing all your logged in sessions)
- - E2E encryption (thanks to the SDK heeheehee, WLM more secure than facebook messenger, what a time to be alive) :B
+ - E2E encryption (kinda, no key refresh mechanism yet)
 
 ## What's next
 
