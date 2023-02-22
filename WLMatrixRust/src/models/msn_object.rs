@@ -1,9 +1,11 @@
 use std::{fmt::Display, convert::Infallible};
 
+use byteorder::{LittleEndian, ByteOrder};
 use sha1::{Sha1, Digest};
 use base64::{Engine, engine::general_purpose};
 use strum_macros::EnumString;
-
+use yaserde::{de::{self, from_str}, ser::to_string};
+use yaserde_derive::{YaSerialize, YaDeserialize};
 use super::errors::Errors;
 
 // Documentation source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/MSN_Object
@@ -22,9 +24,9 @@ pub struct MSNObject {
     location: String,
     /*This field contains the name of the picture in Unicode (UTF-16 Little Endian) format. 
     The string is then encoded with Base64. For most types of descriptors this field is a null character, 
-    or AAA= when encoded.*/ 
+    or AAA= when encoded.*/
     friendly: Option<String>,
-    //The SHA1D field contains a SHA1 hash of the images data encoded in Base64. It is also known as the Data Hash or the SHA1 Data Field. 
+    //The SHA1D field contains a SHA1 hash of the images data encoded in Base64. It is also known as the Data Hash or the SHA1 Data Field.
     sha1d: String,
 
     /* The following fields are not included in the sha1c */
@@ -58,6 +60,37 @@ pub struct MSNObject {
 
 }
 
+impl yaserde::YaSerialize for MSNObject {
+    fn serialize<W: std::io::Write>(&self, writer: &mut yaserde::ser::Serializer<W>) -> Result<(), String> {
+        let size = self.size.to_string();
+        let obj_type = self.obj_type.to_string();
+        let friendly = self.get_friendly_base64_or_default();
+        let mut elem = xml::writer::XmlEvent::start_element("msnobj").attr("Creator", &self.creator).attr("Size", &size).attr("Type", &obj_type).attr("Location", &self.location).attr("Friendly", &friendly).attr("SHA1D", &self.sha1d);
+        let sha1c = self.get_sha1c();
+        if self.computeSha1c {
+            elem = elem.attr("SHA1C", &sha1c);
+        }
+
+        let _ret = writer.write(elem);
+        let _ret = writer.write(xml::writer::XmlEvent::end_element());
+        return Ok(());
+    }
+
+    fn serialize_attributes(
+    &self,
+    attributes: Vec<xml::attribute::OwnedAttribute>,
+    namespace: xml::namespace::Namespace,
+  ) -> Result<
+    (
+      Vec<xml::attribute::OwnedAttribute>,
+      xml::namespace::Namespace,
+    ),
+    String,
+  > {
+    Ok((attributes, namespace))
+    }
+}
+
 impl MSNObject {
     pub fn new(creator: String, obj_type: MSNObjectType, location: String, sha1d: String, size: usize, friendly: Option<String>, contenttype: Option<MSNObjectContentType>, computeSha1c: bool) -> Self {
         return Self{ creator, size, obj_type, location, friendly, sha1d, contenttype, contentid: None, partnerid: None, stamp: None, avatarid: None, avatarcontentid: None, computeSha1c };
@@ -67,7 +100,27 @@ impl MSNObject {
         if self.friendly.is_none() {
             return String::from("AAA=");
         }
-        return general_purpose::STANDARD.encode(&self.friendly.unwrap().as_bytes());
+
+        let utf8_friendly = self.friendly.as_ref().unwrap();
+        
+        if utf8_friendly.is_empty() {
+            return String::from("AAA=");
+        }
+
+        let utf16 : Vec<u16> = utf8_friendly.encode_utf16().collect();
+
+        let mut out: Vec<u8> = Vec::with_capacity((utf16.len()*2) + 2);
+        for current in utf16 {
+            let utf8_array = current.to_le_bytes();
+            for current_utf8 in utf8_array {
+                out.push(current_utf8);
+            }
+        }
+
+        //Padding
+        out.push(0);
+        out.push(0);
+        return general_purpose::STANDARD.encode(&out);
     }
 
     fn get_sha1c(&self) -> String {
@@ -84,11 +137,12 @@ impl Display for MSNObject {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!("use yaserde");
+        let out = "";
         return write!(f, "{}", out);
     }
 }
 
-#[derive(Clone, Debug, EnumString)]
+#[derive(Clone, Debug, EnumString, YaSerialize, YaDeserialize)]
 pub enum MSNObjectContentType {
     /* Paid, prevents other users to add it */
     P,
@@ -96,8 +150,14 @@ pub enum MSNObjectContentType {
     D
 }
 
+impl Default for MSNObjectContentType {
+    fn default() -> Self {
+        return Self::D;
+    }
+}
 
-#[derive(Clone, Debug)]
+
+#[derive(Clone, Debug, YaSerialize)]
 pub enum MSNObjectType {
     //Unknown but present since MSN 6.0
     Avatar = 1,
@@ -120,6 +180,12 @@ pub enum MSNObjectType {
     UnknownYet=15,
     Scene=16,
     WebcamDynamicDisplayPicture=17
+}
+
+impl Display for MSNObjectType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return write!(f, "{}", self.clone() as i32);   
+    }
 }
 
 impl TryFrom<i32> for MSNObjectType {
@@ -155,9 +221,10 @@ pub struct MSNObjectFactory;
 
 impl MSNObjectFactory {
 
-    pub fn get_display_picture(image: &[u8], creator_msn_addr: String, location: String) -> MSNObject {
+    pub fn get_display_picture(image: &[u8], creator_msn_addr: String, location: String, friendly: Option<String>) -> MSNObject {
         let sha1d = Self::compute_sha1(&image);
-        todo!();
+
+        return MSNObject::new(creator_msn_addr, MSNObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MSNObjectContentType::D), true);
     }
 
     pub(self) fn compute_sha1(data: &[u8]) -> String {
@@ -171,6 +238,8 @@ impl MSNObjectFactory {
 }
 
 mod tests {
+    use crate::models::msn_object::{MSNObject, MSNObjectType};
+
     use super::MSNObjectFactory;
 
 
@@ -189,9 +258,31 @@ mod tests {
     }
 
     #[test]
-    fn get_display_picture() {
+    fn friendly_not_empty() {
+
+        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), Some(String::from("Flare")));
+        let friendly_b64 = obj.get_friendly_base64_or_default();
+        
+        assert_eq!(&friendly_b64, "RgBsAGEAcgBlAAAA");
+
         let str = "%3Cmsnobj%20Creator%3D%22aeoncl1%40shlasouf.local%22%20Type%3D%223%22%20SHA1D%3D%221u3ees4vbHswj%2B6ud7vJ1g24Lz0%3D%22%20Size%3D%2225810%22%20Location%3D%220%22%20Friendly%3D%22RgBsAGEAcgBlAAAA%22%20contenttype%3D%22D%22%2F%3E";
-        todo!();
+    }
+
+    #[test]
+    fn friendly_empty() {
+        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), Some(String::new()));
+        let friendly_b64 = obj.get_friendly_base64_or_default();
+        
+        assert_eq!(&friendly_b64, "AAA=");
+    }
+
+    #[test]
+    fn friendly_none() {
+
+        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), None);
+        let friendly_b64 = obj.get_friendly_base64_or_default();
+        
+        assert_eq!(&friendly_b64, "AAA=");
     }
 
 }
