@@ -52,7 +52,11 @@ impl NotificationCommandHandler {
                                 },
                                 NotificationEvent::PresenceEvent(content) => {
                                     let user = &content.user;
-                                    let _result = sender.send(format!("NLN {status} 1:{msn_addr} {nickname} {client_capabilities} {msn_obj}\r\n", client_capabilities= &user.get_capabilities() ,msn_addr= &user.get_msn_addr(), status = &user.get_status().to_string(), nickname= &user.get_display_name(), msn_obj = ""));
+                                    let mut msn_obj = String::new();
+                                    if let Some(display_pic) = user.get_display_picture().as_ref() {
+                                        msn_obj = display_pic.to_string();
+                                    }
+                                    let _result = sender.send(format!("NLN {status} 1:{msn_addr} {nickname} {client_capabilities} {msn_obj}\r\n", client_capabilities= &user.get_capabilities() ,msn_addr= &user.get_msn_addr(), status = &user.get_status().to_string(), nickname= &user.get_display_name(), msn_obj = &msn_obj));
                                     //msn_ns_sender.send(format!("NLN {status} 1:{msn_addr} {nickname} 2788999228:48 {msn_obj}\r\n", msn_addr= &sender_msn_addr, status = presence_status.to_string(), nickname= test3, msn_obj = msn_obj));
                             
                                     let ubx_payload = format!("<PSM>{status_msg}</PSM><CurrentMedia></CurrentMedia><EndpointData id=\"{{{machine_guid}}}\"><Capabilities>{client_capabilities}</Capabilities></EndpointData>", status_msg = &user.get_psm(), client_capabilities= &user.get_capabilities(), machine_guid = &user.get_endpoint_guid());

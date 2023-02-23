@@ -270,18 +270,21 @@ async fn handle_1v1_dm2(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, roo
             }
         },
         Room::Left(room) => {
-            log::info!("AB - I Deleted: {}", &target_msn_addr);
-            //I Left the room, remove member from PENDING_LIST, ALLOW_LIST, REVERSE_LIST. Remove Contact from Contact List
-            let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, true);
-            let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, true);
-            let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, true);
-            let current_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true);
 
-            ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), current_contact));
-            ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_allow_member, RoleId::Allow));
-            ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_reverse_member, RoleId::Reverse));
-            ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_pending_member, RoleId::Pending));
-            notify_ab = true;
+            if Self::should_i_really_delete_contact(&client, target.clone()).await {
+                log::info!("AB - I Deleted: {}", &target_msn_addr);
+                //I Left the room, remove member from PENDING_LIST, ALLOW_LIST, REVERSE_LIST. Remove Contact from Contact List
+                let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, true);
+                let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, true);
+                let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, true);
+                let current_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true);
+    
+                ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), current_contact));
+                ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_allow_member, RoleId::Allow));
+                ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_reverse_member, RoleId::Reverse));
+                ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_pending_member, RoleId::Pending));
+                notify_ab = true;
+            }
         },
         _=> {
 
@@ -357,7 +360,6 @@ async fn handle_presence_event(ev: PresenceEvent, client: Client, me: MSNUser, n
             }
             //TODO handle avatar & msnobj
             //let msn_obj = "<msnobj/>";
-
             ns_sender.send(NotificationEventFactory::get_presence(user));
         } else {
             warn!("Could not find user in repo (presence) {} - {}", &room.room_id(), &event_sender);

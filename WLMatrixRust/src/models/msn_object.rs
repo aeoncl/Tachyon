@@ -1,9 +1,11 @@
-use std::{fmt::Display, convert::Infallible};
+use std::{fmt::{Display, self}, convert::Infallible};
 
 use byteorder::{LittleEndian, ByteOrder};
+use matrix_sdk::ruma::serde::json_string::serialize;
 use sha1::{Sha1, Digest};
 use base64::{Engine, engine::general_purpose};
 use strum_macros::EnumString;
+use substring::Substring;
 use yaserde::{de::{self, from_str}, ser::to_string};
 use yaserde_derive::{YaSerialize, YaDeserialize};
 use super::errors::Errors;
@@ -60,15 +62,21 @@ pub struct MSNObject {
 
 }
 
-impl yaserde::YaSerialize for MSNObject {
+impl yaserde::YaSerialize for &MSNObject {
     fn serialize<W: std::io::Write>(&self, writer: &mut yaserde::ser::Serializer<W>) -> Result<(), String> {
         let size = self.size.to_string();
         let obj_type = self.obj_type.to_string();
         let friendly = self.get_friendly_base64_or_default();
-        let mut elem = xml::writer::XmlEvent::start_element("msnobj").attr("Creator", &self.creator).attr("Size", &size).attr("Type", &obj_type).attr("Location", &self.location).attr("Friendly", &friendly).attr("SHA1D", &self.sha1d);
+        let mut elem = xml::writer::XmlEvent::start_element("msnobj").attr("Creator", &self.creator).attr("Type", &obj_type).attr("SHA1D", &self.sha1d).attr("Size", &size).attr("Location", &self.location).attr("Friendly", &friendly);
         let sha1c = self.get_sha1c();
         if self.computeSha1c {
             elem = elem.attr("SHA1C", &sha1c);
+        }
+
+        let content_type = self.contenttype.as_ref().unwrap().to_string();
+
+        if self.contenttype.is_some() {
+            elem = elem.attr("contenttype", &content_type);
         }
 
         let _ret = writer.write(elem);
@@ -124,10 +132,11 @@ impl MSNObject {
     }
 
     fn get_sha1c(&self) -> String {
-        let sha1Input = format!("Creator{creator}Size{size}Type{obj_type}Location{location}Friendly{friendly}SHA1D{sha1d}", creator = &self.creator, size = &self.size, obj_type = self.obj_type.clone() as i32, location = &self.location, friendly = self.get_friendly_base64_or_default(), sha1d = &self.sha1d);
+        let sha1Input = format!("Creator{creator}Type{obj_type}SHA1D{sha1d}Size{size}Location{location}Friendly{friendly}", creator = &self.creator, size = &self.size, obj_type = self.obj_type.clone() as i32, location = &self.location, friendly = self.get_friendly_base64_or_default(), sha1d = &self.sha1d);
         return MSNObjectFactory::compute_sha1(sha1Input.as_bytes());
     }
 }
+
 
     /**
      * <msnobj Creator="aeoncl1@shlasouf.local" Type="3" SHA1D="1u3ees4vbHswj+6ud7vJ1g24Lz0=" Size="25810" Location="0" Friendly="RgBsAGEAcgBlAAAA" contenttype="D"/>     * 
@@ -136,9 +145,9 @@ impl MSNObject {
 impl Display for MSNObject {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!("use yaserde");
-        let out = "";
-        return write!(f, "{}", out);
+        let serialized = to_string(&self).unwrap();
+        let out = serialized.substring(38, serialized.len());
+        return write!(f, "{}", urlencoding::encode(out));
     }
 }
 
@@ -148,6 +157,12 @@ pub enum MSNObjectContentType {
     P,
     /* Downloadable, Free */
     D
+}
+
+impl fmt::Display for MSNObjectContentType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 impl Default for MSNObjectContentType {
@@ -224,7 +239,13 @@ impl MSNObjectFactory {
     pub fn get_display_picture(image: &[u8], creator_msn_addr: String, location: String, friendly: Option<String>) -> MSNObject {
         let sha1d = Self::compute_sha1(&image);
 
-        return MSNObject::new(creator_msn_addr, MSNObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MSNObjectContentType::D), true);
+        return MSNObject::new(creator_msn_addr, MSNObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MSNObjectContentType::D), false);
+    }
+
+    pub fn get_contact_display_picture(image: &[u8], creator_msn_addr: String, location: String, friendly: Option<String>) -> MSNObject {
+        let sha1d = Self::compute_sha1(&image);
+
+        return MSNObject::new(creator_msn_addr, MSNObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MSNObjectContentType::D), false);
     }
 
     pub(self) fn compute_sha1(data: &[u8]) -> String {
@@ -255,6 +276,20 @@ mod tests {
     fn compute_sha1d() {
         let sha1d = MSNObjectFactory::compute_sha1(&AVATAR_BYTES);
         assert_eq!("1u3ees4vbHswj+6ud7vJ1g24Lz0=", &sha1d);
+    }
+
+
+    #[test]
+    fn get_display_picture() {
+
+        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), Some(String::from("Flare")));
+        let friendly_b64 = obj.get_friendly_base64_or_default();
+        
+        let test = obj.to_string();
+
+        let obj_serialized = urlencoding::encode(&test);
+        let str = "%3Cmsnobj%20Creator%3D%22aeoncl1%40shlasouf.local%22%20Type%3D%223%22%20SHA1D%3D%221u3ees4vbHswj%2B6ud7vJ1g24Lz0%3D%22%20Size%3D%2225810%22%20Location%3D%220%22%20Friendly%3D%22RgBsAGEAcgBlAAAA%22%20contenttype%3D%22D%22%2F%3E";
+        assert_eq!(obj_serialized, str);
     }
 
     #[test]
