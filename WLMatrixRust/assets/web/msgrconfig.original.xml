@@ -1,0 +1,967 @@
+<MsgrConfig>
+    <Brands>
+        <Client v="2" CDNVER="http://cba.domains.live.com/cdn1"
+            CDNCAB="http://cba.domains.live.com/cdn3" CDNPRV="http://cba.domains.live.com/prvw" />
+        <Client v="3" CDNVER="http://cba.domains.live.com/cdn1"
+            CDNCAB="http://cba.domains.live.com/cdn3" CDNPRV="http://cba.domains.live.com/prvw" />
+    </Brands>
+    <Simple>
+        <Config>
+            <ExpiresInDays>2</ExpiresInDays>
+        </Config>
+        <P2PConfig>
+            <ObjectStore>
+                <SendDelay>1</SendDelay>
+            </ObjectStore>
+        </P2PConfig>
+        <DisablePhoneDialer>1</DisablePhoneDialer>
+        <GetItemVersionForUnknown>false</GetItemVersionForUnknown>
+        <Logitech>
+            <PremiumAVConfigServer>http://mplocate.spotlife.net/locate.sxml</PremiumAVConfigServer>
+            <PreRollEnabled>1</PreRollEnabled>
+            <WebcamConfigServer>http://mlocate.spotlife.net/locate.sxml</WebcamConfigServer>
+        </Logitech>
+        <MinFlashPlayer BuildNumber="28" MajorVersion="9" MinorVersion="0" />
+        <RadUrl Tracking="http://global.msads.net/ads/abuimg/%PACKID%.xml">
+            http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=</RadUrl>
+        <ComScoreUrlFormat> http://b.scorecardresearch.com/p?c1=7&c2=3000001&c3=%1!d!&cj=1 </ComScoreUrlFormat>
+        <Relay>
+            <Enabled>1</Enabled>
+            <MaxCallLength>0</MaxCallLength>
+            <RegistrationDomain>4.68.251.254</RegistrationDomain>
+            <RelayDNS>avrelay.msn.com</RelayDNS>
+            <TimeoutToFallback>7000</TimeoutToFallback>
+        </Relay>
+        <Contacts>
+            <Client ZombieServerDetectDelay="1800" ZombieServerDetectInterval="30"
+                ZombieServerDetectResumeDelay="1800" ZombieServerDetectDelayW4="180"
+                ZombieServerDetectIntervalW4="30" ZombieServerDetectResumeDelayW4="180" />
+            <Server ZombieServerDetectDelay="900" ZombieServerDetectResumeDelay="900"
+                ZombieServerDetectConnectDelay="900" ZombieServerDetectLongDelay="900"
+                ZombieServerDetectDelayW4="45" ZombieServerDetectResumeDelayW4="600"
+                ZombieServerDetectConnectDelayW4="135" ZombieServerDetectLongDelayW4="450" />
+        </Contacts>
+        <TrustedDomains>
+            <domain name="bluemountaincards.co.uk" />
+            <domain name="bluemountaincards.com.au" />
+            <domain name="bmamessenger.com" />
+            <domain name="gmarket.co.kr" />
+            <domain name="hotmail.com" />
+            <domain name="imgag.com" />
+            <domain name="meegos.com" />
+            <domain name="msn.com" />
+            <domain name="msads.net" />
+            <domain name="imagine-msn.com" />
+            <domain name="imagine-windowslive.com" />
+            <domain name="kiwee.com" />
+            <domain name="live.com" />
+            <domain name="msnplus.co.kr" />
+            <domain name="wee-mee.com" />
+            <domain name="mypersonalexpression.com" />
+            <domain name="mobilemoney.com" />
+            <domain name="hotmail.co.jp" />
+            <domain name="hotmail.de" />
+            <domain name="hotmail.it" />
+            <domain name="hotmail.fr" />
+            <domain name="hotmail.co.uk" />
+            <domain name="hotmail.com.tr" />
+            <domain name="hotmail.com.ar" />
+            <domain name="hotmail.co.th" />
+            <domain name="ninemsn.com" />
+            <domain name="ninemsn.com.au" />
+            <domain name="joyinter.net" />
+            <domain name="messengervibe.com" />
+            <domain name="messengervibe.net" />
+            <domain name="messengervibe.org" />
+            <domain name="meezone.com" />
+            <domain name="live.jp" />
+            <domain name="excite.co.jp" />
+            <domain name="start.com" />
+            <domain name="msn.com.hk" />
+            <domain name="msn.co.il" />
+            <domain name="msn.co.kr" />
+            <domain name="event-information.jp" />
+            <domain name="msn.mydrivers.com" />
+            <domain name="msn.com.br" />
+            <domain name="im.live.cn" />
+            <domain name="sc.imp.live.com" />
+            <domain name="origindigital.net" />
+            <domain name="laughabits.com" />
+            <domain name="laughabits.net" />
+            <domain name="windowslive.com" />
+            <domain name="gowindowslive.com" />
+            <domain name="msn.com.tw" />
+            <domain name="msn.co.in" />
+            <domain name="www.mobilemoney.com" />
+            <domain name="wall-e.msn.co.uk" />
+            <domain name="walle.msn.co.uk" />
+            <domain name="wall-e.msn.fr" />
+            <domain name="walle.msn.fr" />
+            <domain name="wall-e.msn.be" />
+            <domain name="walle.msn.be" />
+            <domain name="wall-e.fr.msn.be" />
+            <domain name="walle.fr.msn.be" />
+            <domain name="wall-e.msn.nl" />
+            <domain name="walle.msn.nl" />
+            <domain name="wall-e.msn.es" />
+            <domain name="walle.msn.es" />
+            <domain name="wall-e.msn.dk" />
+            <domain name="walle.msn.dk" />
+            <domain name="wall-e.msn.fi" />
+            <domain name="walle.msn.fi" />
+            <domain name="wall-e.msn.no" />
+            <domain name="walle.msn.no" />
+            <domain name="wall-e.msn.se" />
+            <domain name="walle.msn.se" />
+            <domain name="wall-e.msn.de" />
+            <domain name="walle.msn.de" />
+            <domain name="wall-e.msn.it" />
+            <domain name="walle.msn.it" />
+            <domain name="msbrandent.vo.llnwd.net" />
+            <domain name="www.messengerexpressions.com" />
+            <domain name="www.sunsilkgangofgirls.com" />
+            <domain name="messenger.live.de" />
+            <domain name="themepackchooser.windowslivehosting.de" />
+            <domain name="messengermakeover.com" />
+            <domain name="microsoft.com" />
+            <domain name="windowslive.se" />
+            <domain name="messenger-themes.com" />
+            <domain name="visualsearch.msn.com" />
+            <domain name="xbox.com" />
+            <domain name="quebles.com" />
+            <domain name="technodesignip.com" />
+            <domain name="promotion.hk.msn.com" />
+            <domain name="promotion.msn.com.tw" />
+            <domain name="18design.com" />
+            <domain name="egreetings.com" />
+            <domain name="kiwee.com" />
+            <domain name="live.mundijuegos.com" />
+            <domain name="skype.com" />
+        </TrustedDomains>
+        <ErrorResponseTable>
+            <Feature type="0" name="Login">
+                <Entry hr="*" action="3" />
+                <Entry hr="0x81000605" action="3" />
+                <Entry hr="0x80048849" action="5" />
+                <Entry hr="0x8004882A" action="5" />
+                <Entry hr="0x80048800" action="5" />
+                <Entry hr="0x8004889C" action="5" />
+                <Entry hr="0x80048831" action="5" />
+                <Entry hr="0x81000306" action="5" />
+                <Entry hr="0x80048862" action="5" />
+                <Entry hr="0x800488EB" action="5" />
+                <Entry hr="0x80048848" action="5" />
+                <Entry hr="0x80004002" action="3" />
+                <Entry hr="0x80004004" action="3" />
+                <Entry hr="0x80004005" action="3" />
+                <Entry hr="0x8000402A" action="3" />
+                <Entry hr="0x8000FFFF" action="3" />
+                <Entry hr="0x8001012E" action="3" />
+                <Entry hr="0x80040200" action="3" />
+                <Entry hr="0x80048051" action="3" />
+                <Entry hr="0x80048820" action="5" />
+                <Entry hr="0x80048823" action="3" />
+                <Entry hr="0x80070002" action="3" />
+                <Entry hr="0x80070005" action="3" />
+                <Entry hr="0x8007000E" action="3" />
+                <Entry hr="0x80070057" action="3" />
+                <Entry hr="0x8007007E" action="3" />
+                <Entry hr="0x800702E4" action="3" />
+                <Entry hr="0x800706BA" action="3" />
+                <Entry hr="0x800706BE" action="3" />
+                <Entry hr="0x80071392" action="3" />
+                <Entry hr="0x80072745" action="3" />
+                <Entry hr="0x80072746" action="3" />
+                <Entry hr="0x80072EE2" action="3" />
+                <Entry hr="0x80072EF3" action="3" />
+                <Entry hr="0x80072EFD" action="3" />
+                <Entry hr="0x80072EFF" action="3" />
+                <Entry hr="0x80072F06" action="3" />
+                <Entry hr="0x80072F7D" action="3" />
+                <Entry hr="0x800C013E" action="3" />
+                <Entry hr="0x80191002" action="3" />
+                <Entry hr="0x8100030D" action="3" />
+                <Entry hr="0x81000314" action="3" />
+                <Entry hr="0x81000362" action="3" />
+                <Entry hr="0x81000378" action="3" />
+                <Entry hr="0x81000395" action="3" />
+                <Entry hr="0x85AE000B" action="3" />
+                <Entry hr="0x85AE000F" action="3" />
+                <Entry hr="0x85AE001D" action="3" />
+                <Entry hr="0x85AE0022" action="3" />
+                <Entry hr="0x85AE0024" action="3" />
+                <Entry hr="0x85AE0027" action="3" />
+                <Entry hr="0x85AE003C" action="3" />
+                <Entry hr="0x85AE0053" action="3" />
+                <Entry hr="0x8E5E0152" action="3" />
+                <Entry hr="0x8E5E0158" action="3" />
+                <Entry hr="0x8E5E0211" action="3" />
+                <Entry hr="0x8E5E0220" action="3" />
+                <Entry hr="0x8E5E0226" action="3" />
+                <Entry hr="0x8E5E03FE" action="3" />
+                <Entry hr="0x8E5E0408" action="3" />
+                <Entry hr="0x8E5E05F6" action="3" />
+                <Entry hr="0x8E5E0710" action="3" />
+                <Entry hr="0x8E5E0713" action="3" />
+            </Feature>
+            <Feature type="2" name="MapFile">
+                <Entry hr="0x810003F1" action="3" />
+                <Entry hr="0x810003F6" action="3" />
+            </Feature>
+            <Feature type="3" name="P2P">
+                <Entry hr="0x82000016" action="3" />
+                <Entry hr="0x82000017" action="3" />
+                <Entry hr="0x82000019" action="3" />
+                <Entry hr="0x8200001b" action="3" />
+                <Entry hr="0x8200001d" action="3" />
+                <Entry hr="0x8200001e" action="3" />
+                <Entry hr="0x82000024" action="3" />
+                <Entry hr="0x82000026" action="3" />
+            </Feature>
+            <Feature type="5" name="VoiceVideo">
+                <Entry hr="*" action="3" />
+            </Feature>
+        </ErrorResponseTable>
+        <USBDevices>
+            <Device VID="0x045e" PID="0x0719" />
+            <Device VID="0x045e" PID="0x070F" />
+            <Device VID="0x045e" PID="0x0772" />
+            <Device VID="0x041e" PID="0x4080" />
+            <Device VID="0x041e" PID="0x4083" />
+            <Device VID="0x041e" PID="0x4088" />
+            <Device VID="0x041e" PID="0x4087" />
+            <Device VID="0x041e" PID="0x4086" />
+        </USBDevices>
+        <VoiceVideo>
+            <Log PeerLogDisable="1" />
+        </VoiceVideo>
+        <CirclesWeb General="http://cid-$CIRCLECID$.groups.live.com/" General-SiteId="73625"
+            Files="http://cid-$CIRCLECID$.groups.skydrive.live.com/home.aspx" Files-SiteId="250206"
+            Photos="http://cid-$CIRCLECID$.groups.skydrive.live.com/albums.aspx"
+            Photos-SiteId="250206" Disc="http://cid-$CIRCLECID$.groups.live.com/discussions/"
+            Disc-SiteId="73625" Management="http://cid-$CIRCLECID$.groups.live.com/options/"
+            Management-SiteId="73625"
+            Membership="http://cid-$CIRCLECID$.groups.live.com/membership/"
+            Membership-SiteId="73625"
+            Leave="http://cid-$CIRCLECID$.groups.live.com/options/leavegroup/" Leave-SiteId="73625" />
+        <AnonymousIMSettings>
+            <SettingsPage URL="http://settings.messenger.live.com/applications/WebSettings.aspx"
+                SiteID="76215" />
+        </AnonymousIMSettings>
+        <SocialNews>
+            <ActivityDisplay PageSize="50" MaxItems="100" />
+            <AlbumDisplay UnderlayImages="2" LeadUnderlayImages="2" />
+            <IdleRefreshSecs Typing="180" Scrolling="10" />
+            <Comments MaxDisplayItems="20" MaxInputLen="512" />
+            <MainWindow>
+                <AskIfLessThanXContacts>5</AskIfLessThanXContacts>
+                <MaxSecsToShowSyncHint>10</MaxSecsToShowSyncHint>
+            </MainWindow>
+            <ServerSync>
+                <FetchImagesForActivities Minimized="10" Visible="1000" />
+            </ServerSync>
+            <EXP_URL>http://ro-test.exp.glbdns.microsoft.com/</EXP_URL>
+        </SocialNews>
+        <SAC SiteID="73625" />
+        <InlineFlashEnabled>1</InlineFlashEnabled>
+        <Badgewhitelist>
+            <Badge hash="9lfw5+i0VZl9Vg7y5Un2OlJmtfs=" />
+            <Badge hash="37ryp9MdaDZjOiv4goIAeWK0EX8=" />
+            <Badge hash="bg4dyWk7FEhW5vh3FrGxr7xw+mg=" />
+            <Badge hash="h8tLlwWUls1wgiFYbjVZBzs5mW0=" />
+            <Badge hash="4rzC8sYjtzAbzVYZcB4wvxMhbVg=" />
+            <Badge hash="vVenvAzv1l+nEMf62r5+n6DCIn0=" />
+            <Badge hash="vjJ3jVT690ORqHHhBgrYsMK5DOw=" />
+            <Badge hash="Yxv7pB8BkosiGNn0oGsXryPkGwk=" />
+            <Badge hash="mChdOIxTCBtxBPa+jrB8wwUs5gw=" />
+            <Badge hash="4Dyw5JiNMjquWPruSAHEFwYq/Gs=" />
+            <Badge hash="D9vI4Cg6dxswaI8CWe4OyBnLe9I=" />
+            <Badge hash="ZPa3APVAtDXHZWkXMuqvHJ7d1Oc=" />
+            <Badge hash="6on/QiZ+oCinkJoZ46kJUUuOJOU=" />
+            <Badge hash="m1RNenPjuuPi5K9J8URF+s1t1RA=" />
+            <Badge hash="IOGiVO3tySKcci62UN5cm3HWpu8=" />
+            <Badge hash="BozySP9KXMkBFD7yhU5dtFk7uhY=" />
+            <Badge hash="QvaYObfDCYnqJ7PY1xehXK1h7Vg=" />
+            <Badge hash="ev1TxfBsXT71YaxkwJ1qLWxTvqM=" />
+            <Badge hash="AVL5/uKTExH58MBBif46FwDeIlI=" />
+            <Badge hash="zI4RpERkOV8EIPe8GgVuMP/zsAU=" />
+            <Badge hash="w+OPDFW9zUCophcUHzCD9vJkWPo=" />
+            <Badge hash="LTSltKJuhiAXwEnYnhdhlGwCeh4=" />
+            <Badge hash="Q35ITEMaQZoU6HaJ1O0f/B0t9gs=" />
+            <Badge hash="4MFANR59I364LscZCocBADKMaUU=" />
+            <Badge hash="XnMhTovzcp1yO7TI5IVKLHJPZno=" />
+            <Badge hash="qt7d1rBxs8dAOn7iY0HsxITbLXw=" />
+            <Badge hash="d5Z7ZpzFS2lWJprExnYdZdH0vn4=" />
+            <Badge hash="UT1nTu3LYZwfa2TFnZCKrn+vaFU=" />
+            <Badge hash="nJsMh4U2loNkfYmdB7TEMdLieu8=" />
+            <Badge hash="XA9SbvUp+iqzFEUWtQpqna7PrC8=" />
+            <Badge hash="BazH3YqwlvzyhcUkjYGCf+qIyKg=" />
+            <Badge hash="M8xU6J839spw4iyQFJjTTs6WB84=" />
+            <Badge hash="8CLDN2ByqlbeiGHlwQyaAytHQ58=" />
+            <Badge hash="0qbNS31d6WpD5MMMzlWqAOnuo2U=" />
+            <Badge hash="4RvEU8H6/wZVf9EcET7lqDkFtT4=" />
+            <Badge hash="egsg4TWsu8qDnSCgvr7iugcG0LM=" />
+            <Badge hash="YpzN8KhlfuhKwFPJ/7EsMmLAbuk=" />
+            <Badge hash="MgAjD7JMuFyNFfd4NnZ1Ki+o2pU=" />
+            <Badge hash="uiJWWP/ub6TK98UTEQ5qcDboodo=" />
+            <Badge hash="WPaadPRXlBRaxt3hOp2NlM6qbMg=" />
+            <Badge hash="cDbb4pvKRfY4rMrQ5nkYrWzRgGA=" />
+            <Badge hash="W5oSJU3k59GI5RbJnZl6Qf6pH08=" />
+            <Badge hash="/PU6/QRwosJ7qr6KmYsrqehvrJ0=" />
+            <Badge hash="v9sMUux76smDtxJVy1LeUEhLHRc=" />
+            <Badge hash="OKXA2XP1372wcWRDsIccDfLu4sw=" />
+            <Badge hash="7EqLZG50DDPN8wrbo5cZRylxbxA=" />
+            <Badge hash="C7sxFpDuIksjfGHUeJ8VCT0skuk=" />
+            <Badge hash="ZVsu2eb55OvHBb8vMaqJuTk04bM=" />
+            <Badge hash="eCdqiMJSKjhAk4DAnyual0GTEao=" />
+            <Badge hash="br3uGnBy/3iFUXzRXYcV83k0YEo=" />
+            <Badge hash="LNYcLtJv0uzfOzGqdGeahV6K6M8=" />
+            <Badge hash="f9T6bHBmsNSDBA6YXUI+Ev1d1a8=" />
+            <Badge hash="iAwbvV2Fpl2B1atHWSCeqUxBuQ0=" />
+            <Badge hash="rSWxtjTwQuOGdQ6icpgCygnC3Cw=" />
+            <Badge hash="vtFONiM9ZzlcBs6vCdFe0MvAbvM=" />
+            <Badge hash="3Y6LxMK+gDrjna/wbB1YJhjpgSw=" />
+            <Badge hash="zQsxtCr0XMSO5uR0Sw+qc+bVwmk=" />
+            <Badge hash="9WqtJjDlJNleDRs5270wA941Sn0=" />
+            <Badge hash="hib0Cd2LaqUCE2GhKLZSKuK4Vd4=" />
+            <Badge hash="e6aj74s8QJdxk8j7sVFNGpjISUM=" />
+            <Badge hash="BsOFlAwMS+33I7XUYZ8GtyAKbpw=" />
+            <Badge hash="rYUDkUnRKKhT1fYVQ+HYTGSR0f0=" />
+            <Badge hash="mt/zjgXkxyAAsuysl7dwQJrtCCs=" />
+            <Badge hash="9QWMRHSWliBE0Nml7izqsmQueuI=" />
+            <Badge hash="Af4UlxCI9Q4E69cu3gSnT8QM+J0=" />
+            <Badge hash="vs+XlfnMXk9XW2h36X2h3B6revc=" />
+            <Badge hash="XyqywanZEWiRA5lm9qkkoVgvQ0E=" />
+            <Badge hash="QAJsPE15szOII/tSxPpAFrxNk1Y=" />
+            <Badge hash="STIkOlYxsAG60k6tfzFrKZ0OEZc=" />
+            <Badge hash="ddNPDt8PhYnlMZ40k9vCY0ykABM=" />
+            <Badge hash="PeQELvXViAhtZ/zoTsPdAkD+Q4M=" />
+            <Badge hash="T62weZK79pgV7mlqdbitG/Dy454=" />
+            <Badge hash="wil7kcephpQDw1uT4vHaeTBWRlc=" />
+            <Badge hash="xqrldsPAEO0CER+ThpPWeU6yFIw=" />
+            <Badge hash="XIcOrK2whUy08x/Qv1WI76a6BPA=" />
+            <Badge hash="rAakWEDEg7wQcYCBGq7/bIjYao8=" />
+            <Badge hash="B6X7uu8jrk2SBzS+8Q0Ipl4hS3k=" />
+            <Badge hash="93YzxkXPI9HYwFsbUndZtkMbWe0=" />
+            <Badge hash="+nApQVaEOLh3BAnltLW3JNaExcw=" />
+            <Badge hash="qJ6iPKlEjUoZseAbwTxNKlS+DQA=" />
+            <Badge hash="wdp3RGOgtGQ+5sq1c4hVU1MB1dI=" />
+            <Badge hash="+TIl/KYEVwr+JF/nNFGXEWvhp9I=" />
+            <Badge hash="/O6no1Wc+VwDvk1V4tneT1rVN68=" />
+            <Badge hash="zbfGlhssMmB5IPvhBQMzK7n6PK4=" />
+            <Badge hash="KQceiyW0oVyLz2x3aw6ccEKHrcQ=" />
+            <Badge hash="+s2/b8lxTyuJ9fydnis5szl9mmI=" />
+            <Badge hash="Hu4DE0KpCc/QcWniA7YsZaIbd4E=" />
+            <Badge hash="PWNqw7+xphOvbi1hPgTgKuGL5Ds=" />
+            <Badge hash="wQA4IOu5eFhYnrOz/jpZ3mf10Vw=" />
+            <Badge hash="sU1+y0KfjoeDQq7Ilk2d/Sltoc8=" />
+            <Badge hash="3pViUUmJ6Qngao9ZBz0iJGW05W8=" />
+        </Badgewhitelist>
+        <HotmailUrls>
+            <BaseUrlFormat>http://mail.live.com/?rru=%1</BaseUrlFormat>
+            <InboxTarget>inbox</InboxTarget>
+            <SendMailTarget>compose</SendMailTarget>
+            <SendMailFormat>?to=%1</SendMailFormat>
+            <ViewMessageTarget>getmsg</ViewMessageTarget>
+            <ViewMessageFormat>?msg=%1</ViewMessageFormat>
+        </HotmailUrls>
+        <HwBlockList Version="9">
+            <List Application="0" Version="0">
+                <Entry Flags="1" Options="1" VendorId="8086" DeviceId="8108" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="00FA" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="00FB" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="00FC" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="00FD" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="00FE" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0301" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0302" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0308" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0309" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0311" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0312" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0314" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="031A" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="031B" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="031C" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0320" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0321" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0322" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0323" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0324" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0325" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0326" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0327" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0328" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="032A" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="032B" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="032C" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="032D" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0330" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0331" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0332" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0333" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0334" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0338" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="033F" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0341" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0342" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0343" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0344" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0347" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0348" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="034C" />
+                <Entry Flags="1" Options="1" VendorId="10DE" DeviceId="034E" />
+                <Entry Flags="0" Options="2" VendorId="1002" />
+                <Entry Flags="1" Options="4" VendorId="8086" DeviceId="2992" />
+                <Entry Flags="1" Options="8" VendorId="8086" DeviceId="2A42" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="3154" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="3e54" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="4147" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="3154" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="4147" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="414b" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="4154" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="4155" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="4156" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="4157" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="4a4d" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="4c58" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="4c66" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="4e47" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="4e4b" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="4e54" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="4e56" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="4e67" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="5148" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="5464" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="5550" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="5551" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="5552" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="5554" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="5571" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="564a" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="564b" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="5b64" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="5b65" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="5b74" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="5b75" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="5d49" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="5d50" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="5e48" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="5e49" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="7103" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="7104" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="7105" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="7106" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="7124" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="7152" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="7153" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="7172" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="7173" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="71c4" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="71d2" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="71d4" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="71f2" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="940a" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="940b" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="940f" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="9489" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="9511" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="958c" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="958d" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="9595" />
+                <Entry Flags="1" Options="1" VendorId="1002" DeviceId="95cc" />
+                <Entry Flags="2" Options="1" VendorId="8086" Version="8.15.10.1749" />
+                <Entry Flags="4" Options="1" VendorId="10DE" Version="8.17.12.8026" />
+                <Entry Flags="10" Options="1" VendorId="8086" Minimum="8.15.10.2104"
+                    Version="8.15.10.2142" />
+                <Entry Flags="1" Options="1" VendorId="1414" DeviceId="008c" />
+            </List>
+            <List Application="1" Version="0">
+                <Entry Flags="0" Options="2" VendorId="1002" />
+                <Entry Flags="1" Options="1" VendorId="8086" DeviceId="8108" />
+                <Entry Flags="1" Options="4" VendorId="8086" DeviceId="2992" />
+                <Entry Flags="3" Options="1" VendorId="8086" DeviceId="0116" Version="8.15.10.2321" />
+                <Entry Flags="3" Options="1" VendorId="8086" DeviceId="0106" Version="8.15.10.2321" />
+                <Entry Flags="3" Options="1" VendorId="8086" DeviceId="0102" Version="8.15.10.2321" />
+                <Entry Flags="3" Options="1" VendorId="8086" DeviceId="0126" Version="8.15.10.2321" />
+                <Entry Flags="3" Options="1" VendorId="8086" DeviceId="0122" Version="8.15.10.2321" />
+                <Entry Flags="3" Options="1" VendorId="8086" DeviceId="0112" Version="8.15.10.2321" />
+                <Entry Flags="3" Options="1" VendorId="8086" DeviceId="010a" Version="8.15.10.2321" />
+                <Entry Flags="4" Options="1" VendorId="10DE" Version="8.17.12.8562" />
+                <Entry Flags="10" Options="1" VendorId="8086" Minimum="8.15.10.2104"
+                    Version="8.15.10.2142" />
+            </List>
+        </HwBlockList>
+    </Simple>
+    <AbchCfg>
+        <abchconfig>
+            <url>http://contacts.msn.com/abservice/abservice.asmx</url>
+        </abchconfig>
+    </AbchCfg>
+    <AdMainConfig>
+        <AdDownloadTimeInMinutes>120</AdDownloadTimeInMinutes>
+        <AdMainCfg> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMSBRR?SC=HF </AdMainCfg>
+    </AdMainConfig>
+    <AdPhoneConfig> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMSRBR?SC=HF </AdPhoneConfig>
+    <LocalizedConfig Market="pt-BR">
+        <AdMainConfig>
+            <AdBanner20URL Refresh=""> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMSPTB&AP=1007 </AdBanner20URL>
+            <AdBanner300URL Refresh="900" FooterPane="AlwaysShown">
+                http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRMA&AP=1089 </AdBanner300URL>
+            <ConvoWinAd AdVisible="180" FooterPane="CollapsibleAndHideable" />
+            <ConvoWinAdBannerURL> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRCH&AP=1007 </ConvoWinAdBannerURL>
+            <StdAd AdVisible="30" VideoVisible="" VideoDldIntvl="">
+                <VideoFeeds FeedsListURL="" />
+            </StdAd>
+            <TextAdRotation>180</TextAdRotation>
+            <TextAdRefresh>1</TextAdRefresh>
+            <TextAdServer> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRX1&LANG=PT </TextAdServer>
+            <Window Size="680" />
+        </AdMainConfig>
+        <AppDirConfig>
+            <AppDirPageURL>
+                http://appdirectory.messenger.msn.com/AppDirectory/Directory.aspx?L=pt-br </AppDirPageURL>
+            <AppDirSeviceURL> http://appdirectory.messenger.msn.com/AppDirectory/AppDirectory.asmx </AppDirSeviceURL>
+            <AppDirVersionURL>
+                http://appdirectory.messenger.msn.com/AppDirectory/GetAppDirVersion.aspx </AppDirVersionURL>
+            <GamesBrowserURL>
+                http://messenger.zone.msn.com/GameBrowser/GameBrowser.aspx?mode=gbp4&locale=pt-br </GamesBrowserURL>
+            <Wave4>
+                <GamesBrowserURL SiteID="">
+                    http://messenger.zone.msn.com/GameBrowser/GameBrowser.aspx?mode=gbp4&locale=pt-br </GamesBrowserURL>
+            </Wave4>
+        </AppDirConfig>
+        <AVPrerollAd FetchTimeout="6900" IntroLength="3000" MinAdLength="7000"
+            URL="http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRV1" />
+        <AVPrerollAd2 FetchTimeout="6900" IntroLength="0" MinAdLength="7000"
+            URL="http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRWI" />
+        <Contacts>
+            <ABPendingRequests>
+                <SiteId>73625</SiteId>
+                <height>672</height>
+                <IncludeSNRequests>true</IncludeSNRequests>
+                <width>808</width>
+                <urlcid>http://profile.live.com/invites</urlcid>
+            </ABPendingRequests>
+            <EditAlertNotificationOptions>
+                <url>http://alerts.live.com/Alerts/MyAlerts.aspx</url>
+            </EditAlertNotificationOptions>
+            <EditMyLiveContactProfile>
+                <url>
+                    http://spaces.live.com/profile.aspx?action=edit&mode=activecontacts&mkt=pt-br&partner=Messenger </url>
+                <SiteId>73625</SiteId>
+            </EditMyLiveContactProfile>
+            <EditMyProfile>
+                <url>http://profile.live.com/details</url>
+                <SiteId>73625</SiteId>
+            </EditMyProfile>
+            <EditMyName>
+                <url>http://profile.live.com/details/edit/name</url>
+                <SiteId>73625</SiteId>
+            </EditMyName>
+            <EditMyPrivacySettings>
+                <url>http://profile.live.com/privacy</url>
+                <SiteId>73625</SiteId>
+            </EditMyPrivacySettings>
+            <EditSocialNotificationOptions>
+                <url> http://cid-%1!16.16I64X!.profile.live.com/options/notifications </url>
+                <SiteId>73625</SiteId>
+            </EditSocialNotificationOptions>
+            <EditWLPersonURL>
+                <url> http://cid-%1!16.16I64X!.profile.live.com/details/Edit </url>
+                <SiteId>73625</SiteId>
+            </EditWLPersonURL>
+            <EditNonWLPersonURL>
+                <url> http://cid-%1!16.16I64X!.profile.live.com/details/Edit/?ContactId=%2 </url>
+                <SiteId>73625</SiteId>
+            </EditNonWLPersonURL>
+            <Export>
+                <url>http://mail.live.com/?rru=options?subsection=26</url>
+                <SiteId>73625</SiteId>
+            </Export>
+            <Import>
+                <url>http://cid-%1!16.16I64X!.profile.live.com/connect</url>
+                <SiteId>73625</SiteId>
+            </Import>
+            <MessengerInvite>
+                <url>https://profile.live.com/%1/connect/send?email=%2</url>
+                <urlcid>https://profile.live.com/%1/connect/send?cid=%2</urlcid>
+                <SiteId>73625</SiteId>
+            </MessengerInvite>
+            <MutualFriends>
+                <url> http://cid-%1!16.16I64X!.profile.live.com/friends/common/</url>
+                <SiteId>73625</SiteId>
+            </MutualFriends>
+            <PeopleSearch>
+                <url>http://home.live.com/search</url>
+                <SiteId>73625</SiteId>
+            </PeopleSearch>
+            <Profile>
+                <url> http://spaces.live.com/Profile.aspx?partner=Messenger&mkt=pt-br&mem=%ls </url>
+                <urlcid> http://spaces.live.com/Profile.aspx?partner=Messenger&mkt=pt-br&cid=%ls </urlcid>
+                <urlcid2>http://cid-%1!16.16I64X!.profile.live.com</urlcid2>
+                <SiteId>73625</SiteId>
+            </Profile>
+            <LimitedAccessHelp>
+                <url> http://explore.live.com/windows-live-privacy-limited-access-ui </url>
+                <SiteId>73625</SiteId>
+            </LimitedAccessHelp>
+            <SNHip>
+                <url> http://cid-%1!16.16I64X!.profile.live.com/SecurityCheck/?
+                    oid=12&usercid=%3&QRCode=SocialNetworkInvites </url>
+                <SiteId>73625</SiteId>
+            </SNHip>
+            <SNInvites>
+                <url> http://cid-%1.profile.live.com/connect/Messenger.aspx?Email=%2 </url>
+                <urlcid> http://cid-%1.profile.live.com/connect/Messenger.aspx?cid=0x%2 </urlcid>
+                <SiteId>73625</SiteId>
+            </SNInvites>
+            <ViewPhotosWLPersonURL>
+                <url>http://cid-%1!16.16I64X!.photos.live.com</url>
+                <SiteId>73625</SiteId>
+            </ViewPhotosWLPersonURL>
+            <ViewMapEnabled>false</ViewMapEnabled>
+        </Contacts>
+        <ContactCard>
+            <AddToMySpaceSiteId>73625</AddToMySpaceSiteId>
+            <AddToMySpaceUrl> http://spaces.live.com/?addblogentry=true&mkt=pt-br </AddToMySpaceUrl>
+            <ContactCardDisabled>false</ContactCardDisabled>
+            <CreateSpaceSiteId>73625</CreateSpaceSiteId>
+            <CreateSpaceUrl>http://spaces.live.com</CreateSpaceUrl>
+            <GetItemVerUrl> http://storage.msn.com/storageservice/schematizedstore.asmx </GetItemVerUrl>
+            <GetXmlFeedUrl> http://cc.services.spaces.msn.com/contactcard/contactcardservice.asmx </GetXmlFeedUrl>
+            <GetXmlFeedRpsUrl>
+                http://cc.services.spaces.live.com/contactcard/contactcardservice.asmx </GetXmlFeedRpsUrl>
+            <GetXmlFeedRpsCidUrl>
+                http://cid-%1!16.16I64X!.cc.services.spaces.live.com/contactcard/contactcardservice.asmx </GetXmlFeedRpsCidUrl>
+            <MySpaceSiteId>73625</MySpaceSiteId>
+            <MySpaceUrl>http://spaces.live.com</MySpaceUrl>
+            <SpaceBaseSiteId>73625</SpaceBaseSiteId>
+            <SpaceBaseUrl>http://spaces.live.com</SpaceBaseUrl>
+            <SpaceIntegrationEnabled>true</SpaceIntegrationEnabled>
+        </ContactCard>
+        <DynamicContent>
+            <merchant>
+                <Badges>
+                    <providersiteid>60971</providersiteid>
+                    <providerurl />
+                    <slots>
+                        <URL id="1"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRBA </URL>
+                        <URL id="2"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRBB </URL>
+                        <URL id="3"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRBC </URL>
+                        <URL id="4"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRBD </URL>
+                        <URL id="5"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRBE </URL>
+                        <URL id="6"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRBF </URL>
+                        <URL id="7"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRBG </URL>
+                        <URL id="8"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRBH </URL>
+                    </slots>
+                </Badges>
+                <scenes>
+                    <providersiteid>60971</providersiteid>
+                    <providerurl />
+                    <slots>
+                        <URL id="1"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRSA </URL>
+                        <URL id="2"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRSB </URL>
+                        <URL id="3"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRSC </URL>
+                        <URL id="4"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRSD </URL>
+                        <URL id="5"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRSE </URL>
+                        <URL id="6"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRSF </URL>
+                        <URL id="7"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRSG </URL>
+                        <URL id="8"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRSH </URL>
+                    </slots>
+                </scenes>
+                <themepacks>
+                    <slots>
+                        <URL id="1"> http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMBRTG </URL>
+                    </slots>
+                </themepacks>
+            </merchant>
+            <mixed>
+                <emoticons2>
+                    <slots>
+                        <URL id="1"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBREA </URL>
+                        <URL id="2"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBREB </URL>
+                        <URL id="3"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBREC </URL>
+                        <URL id="4"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRED </URL>
+                        <URL id="5"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBREE </URL>
+                        <URL id="6"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBREF </URL>
+                        <URL id="7"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBREG </URL>
+                        <URL id="8"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBREH </URL>
+                    </slots>
+                </emoticons2>
+                <bkgrounds>
+                    <slots>
+                        <URL id="1"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRGA </URL>
+                        <URL id="2"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRGB </URL>
+                        <URL id="3"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRGC </URL>
+                        <URL id="4"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRGD </URL>
+                        <URL id="5"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRGE </URL>
+                        <URL id="6"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRGF </URL>
+                        <URL id="7"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRGG </URL>
+                        <URL id="8"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRGH </URL>
+                    </slots>
+                </bkgrounds>
+                <usertiles>
+                    <slots>
+                        <URL id="1"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRAA </URL>
+                        <URL id="2"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRAB </URL>
+                        <URL id="3"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRAC </URL>
+                        <URL id="4"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRAD </URL>
+                        <URL id="5"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRAE </URL>
+                        <URL id="6"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRAF </URL>
+                        <URL id="7"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRAG </URL>
+                        <URL id="8"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRAH </URL>
+                    </slots>
+                </usertiles>
+                <winks2>
+                    <slots>
+                        <URL id="1"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRWA </URL>
+                        <URL id="2"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRWB </URL>
+                        <URL id="3"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRWC </URL>
+                        <URL id="4"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRWD </URL>
+                        <URL id="5"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRWE </URL>
+                        <URL id="6"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRWF </URL>
+                        <URL id="7"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRWG </URL>
+                        <URL id="8"> http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBRWH </URL>
+                    </slots>
+                </winks2>
+            </mixed>
+        </DynamicContent>
+        <EditorialConfig>http://www.msn.com.br/messenger/imtoday.xml</EditorialConfig>
+        <FlashUpgradeURL> http://get.adobe.com/flashplayer/thankyou/activex/?
+            installer=Flash_Player_10_for_Windows_Internet_Explorer </FlashUpgradeURL>
+        <FSS>
+            <SiteID>0</SiteID>
+            <AddBuddyURL>https://fss.live.com/krl/kidsinfo.aspx</AddBuddyURL>
+        </FSS>
+        <GLinkMarket v="pt_br" />
+        <Highlight>
+            <FirstRunURLSet>
+                <FirstRunURL id="1">
+                    <url id="1">
+                        http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/pt-br/7_W3_Both_ImportSN.html </url>
+                </FirstRunURL>
+                <FirstRunURL id="3">
+                    <url id="3">
+                        http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/pt-br/5_W3_Monthly_PhotoSharing.html </url>
+                </FirstRunURL>
+                <FirstRunURL id="4">
+                    <url id="4">
+                        http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/pt-br/35_W3_Both_SocialTab.html </url>
+                </FirstRunURL>
+                <FirstRunURL id="5">
+                    <url id="5">
+                        http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/pt-br/28_W3_Both_VideoConv.html </url>
+                </FirstRunURL>
+                <FirstRunURL id="6">
+                    <url id="6">
+                        http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/pt-br/4_W3_Monthly_WebMessenger.html </url>
+                </FirstRunURL>
+            </FirstRunURLSet>
+            <MinDaysBtwFirstRunLaunches>1</MinDaysBtwFirstRunLaunches>
+            <MinDaysBtwFirstRecurringLaunches>30</MinDaysBtwFirstRecurringLaunches>
+            <RecurringHighlightURL>
+                <url>
+                    http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/pt-br/recurring.html </url>
+            </RecurringHighlightURL>
+            <Wave val="4">
+                <FirstRunURLSet>
+                    <FirstRunURL id="1">
+                        <url id="1">
+                            http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/pt-br/1_W4_New_ImportSN.html </url>
+                    </FirstRunURL>
+                    <FirstRunURL id="2">
+                        <url id="2">
+                            http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/pt-br/2_W4_New_FBChat.html </url>
+                    </FirstRunURL>
+                    <FirstRunURL id="3">
+                        <url id="3">
+                            http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/pt-br/14_W4_Both_Mode.html </url>
+                    </FirstRunURL>
+                    <FirstRunURL id="4">
+                        <url id="4">
+                            http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/pt-br/35_W4_Both_PhotoSharing.html </url>
+                    </FirstRunURL>
+                    <FirstRunURL id="5">
+                        <url id="5">
+                            http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/pt-br/49_W4_Both_Inline.html </url>
+                    </FirstRunURL>
+                    <FirstRunURL id="6">
+                        <url id="6">
+                            http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/pt-br/1_W4_Monthly_HD.html </url>
+                    </FirstRunURL>
+                    <FirstRunURL id="7">
+                        <url id="7">
+                            http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/pt-br/12_W4_Monthly_WebIM.html </url>
+                    </FirstRunURL>
+                </FirstRunURLSet>
+                <RecurringHighlightURL>
+                    <url>
+                        http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/pt-br/recurring.html </url>
+                </RecurringHighlightURL>
+            </Wave>
+        </Highlight>
+        <LiveFolders UpsellMessageId="1" />
+        <MobileMessaging Mode="PPP" CarrierList="" CrossSell="" CharMax="112"
+            MainWindowButton="true"
+            OperatorPage="http://join.msn.com/? ppru=page__3dmessenger__2fmmt__26pgmarket__3dIPT-BR"
+            ValidRoutes="BR" />
+        <MSNSearch>
+            <ImagesURL> http://www.bing.com/images/results.aspx?q=$QUERY$&FORM=$FC$&mkt=pt-br </ImagesURL>
+            <InstantAccessConfig>
+                <SearchMarket>pt-br</SearchMarket>
+                <SearchURL>http://api.search.live.net/xml.aspx</SearchURL>
+                <ImageSearchEnabled>True</ImageSearchEnabled>
+                <VideoSearchEnabled>False</VideoSearchEnabled>
+                <OnlineAlbumsEnabled>True</OnlineAlbumsEnabled>
+                <RecognizerEnabled>True</RecognizerEnabled>
+                <WebVersion>5</WebVersion>
+                <WebPath>
+                    http://secure.wlxrs.com/~Live.SiteContent.BloomFilter/~15.20.11/~/~/~/~/web.xml </WebPath>
+                <ImageVideoVersion>12</ImageVideoVersion>
+                <ImageVideoPath>
+                    http://secure.wlxrs.com/~Live.SiteContent.BloomFilter/~15.20.12/~/~/~/~/imagePT-BR.xml </ImageVideoPath>
+            </InstantAccessConfig>
+            <NewsURL> http://www.bing.com/news/results.aspx?q=$QUERY$&FORM=$FC$&mkt=pt-br </NewsURL>
+            <PeopleSearchURL>http://home.live.com/search?query=$QUERY$</PeopleSearchURL>
+            <PeopleSearchSiteID>73625</PeopleSearchSiteID>
+            <SearchURL> http://www.bing.com/results.aspx?q=$QUERY$&FORM=$FC$&mkt=pt-br </SearchURL>
+            <SharedSearchURL> http://www.bing.com/results.aspx?q=$QUERY$&FORM=$FC$&mkt=pt-br </SharedSearchURL>
+            <SharedSearchURL2> http://www.bing.com/results.aspx?q=$QUERY$&FORM=$FC$&mkt=pt-br </SharedSearchURL2>
+        </MSNSearch>
+        <MsnTodayConfig>
+            <MsnTodaySiteID>1184</MsnTodaySiteID>
+            <MsnTodayURL>http://tdy.br.msn.com/w3/default.aspx</MsnTodayURL>
+            <Flags>2</Flags>
+        </MsnTodayConfig>
+        <MusicIntegration
+            URL="http://www.bing.com/search? q=music+$ARTIST$+$TITLE$+weight:%2B10&Form=MSNMUS&qpvt=$ARTIST$"
+            SiteID="" />
+        <OneCare Enabled="0" />
+        <PartnerFeeds>
+            <Feed Name="MSN" URL="http://tdy.br.msn.com/scf.aspx" Owner="MSN" />
+            <Feed Name="JOGOS" URL="http://windowsphone.xbox.com/pt-BR/MessengerGames/TabConfig"
+                Owner="GAMES" />
+        </PartnerFeeds>
+        <PE Tracking="http://trackingw4.technodesignip.com/? ContentID=$ContentID$&Click=$Click$" />
+        <PremiumAV Visibility="1" />
+        <PSTNOut Hidden="0" />
+        <PublicFederated>
+            <YahooNetwork Enabled="true" OfflineIM="true" />
+        </PublicFederated>
+        <ReportAbuse>
+            <ReportAbuseSID />
+            <ReportAbuseURL>
+                http://support.live.com/default.aspx?productkey=wlmessengerabuse&mkt=pt-br </ReportAbuseURL>
+            <BiciReportAbuseApiUrl>https://home.live.com/handlers/ReportAbuse.mvc</BiciReportAbuseApiUrl>
+            <BiciReportAbuseApiServiceTarget>spaces.live.com</BiciReportAbuseApiServiceTarget>
+        </ReportAbuse>
+        <RL>
+            <ViewProfileURL> http://g.msn.com/5meen_us/106?
+                %1&Plcid=%2!hs!&%3&Country=%4!hs!&BrandID=%5&passport=%6 </ViewProfileURL>
+        </RL>
+        <SDrive Enabled="true" />
+        <ServiceAwareness>
+            <FindMoreUrl> http://cid-%1!16.16I64X!.profile.live.com/Services/</FindMoreUrl>
+            <FindMoreSiteId>73625</FindMoreSiteId>
+            <ManageUrl> http://cid-%1!16.16I64X!.profile.live.com/Services/?view=manage </ManageUrl>
+            <ManageSiteId>73625</ManageSiteId>
+            <ServicePartnerUrl> http://cid-%1!16.16I64X!.profile.live.com/Services/Add.aspx?appid=%2 </ServicePartnerUrl>
+            <ServicePartnerSiteId>73625</ServicePartnerSiteId>
+            <WindowsLiveUrl> http://cid-%1!16.16I64X!.profile.live.com/whatsnewsettings </WindowsLiveUrl>
+            <WindowsLiveSiteId>73625</WindowsLiveSiteId>
+        </ServiceAwareness>
+        <SocialNews>
+            <EventUrl>http://cid-%1!16.16I64X!.events.live.com</EventUrl>
+            <EventSiteID>73625</EventSiteID>
+            <GroupUrl>http://cid-%1!16.16I64X!.groups.live.com</GroupUrl>
+            <GroupSiteID>73625</GroupSiteID>
+            <MainUrl>http://home.live.com/whatsnew.aspx</MainUrl>
+            <MainSiteID>73625</MainSiteID>
+            <OptionsUrl>http://profile.live.com/whatsnewsettings/</OptionsUrl>
+            <OptionsSiteID>73625</OptionsSiteID>
+            <HideUserFirstPartyUrl>
+                http://cid-%1.profile.live.com/WhatsNew/HideUpdates?cid=%2&name=%3 </HideUserFirstPartyUrl>
+            <HideUserFirstPartyUrl2>
+                http://cid-%1.profile.live.com/WhatsNew/HideUpdates?cid=%2&name=%3 </HideUserFirstPartyUrl2>
+            <HideUserFirstPartySiteID>73625</HideUserFirstPartySiteID>
+            <HideUserThirdPartyUrl> http://cid-%1.profile.live.com/WhatsNew/HideUpdates?
+                externalSourceId=%2&externalObjectId=%3&name=%4 </HideUserThirdPartyUrl>
+            <HideUserThirdPartyUrl2> http://cid-%1.profile.live.com/WhatsNew/HideUpdates?
+                externalSourceId=%2&externalObjectId=%3&name=%4 </HideUserThirdPartyUrl2>
+            <HideUserThirdPartySiteID>73625</HideUserThirdPartySiteID>
+            <HideUserEmailUrl> http://cid-%1.profile.live.com/WhatsNew/HideUpdates?email=%2&name=%3 </HideUserEmailUrl>
+            <HideUserEmailUrl2> http://cid-%1.profile.live.com/WhatsNew/HideUpdates?email=%2&name=%3 </HideUserEmailUrl2>
+            <HideUserEmailSiteID>73625</HideUserEmailSiteID>
+            <HideServiceUrl> http://cid-%1.profile.live.com/WhatsNew/HideUpdates?appid=%2 </HideServiceUrl>
+            <HideServiceUrl2> http://cid-%1.profile.live.com/WhatsNew/HideUpdates?appid=%2 </HideServiceUrl2>
+            <HideServiceSiteID>73625</HideServiceSiteID>
+            <UserUrl>http://cid-%1!16.16I64X!.profile.live.com</UserUrl>
+            <UserSiteID>73625</UserSiteID>
+        </SocialNews>
+        <SocialToast>
+            <SuppressedEmailDomain>windowslivemail.com</SuppressedEmailDomain>
+        </SocialToast>
+        <TabConfig>
+            <RowNumber>2</RowNumber>
+            <slots>
+                <URL id="1" wave4Index="1" wave4Hidden="false">
+                    http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBZTA </URL>
+                <URL id="2" wave4Index="2" wave4Hidden="false">
+                    http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBZTB </URL>
+                <URL id="3" wave4Index="3" wave4Hidden="false">
+                    http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBZTC </URL>
+                <URL id="4" wave4Index="4" wave4Hidden="false">
+                    http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBZTD </URL>
+                <URL id="5" wave4Index="5" wave4Hidden="false">
+                    http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBZTE </URL>
+                <URL id="6" wave4Index="6" wave4Hidden="false">
+                    http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBZTF </URL>
+                <URL id="7" wave4Index="7" wave4Hidden="false">
+                    http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBZTG </URL>
+                <URL id="8" wave4Index="8" wave4Hidden="false">
+                    http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBZTH </URL>
+                <URL id="9" wave4Index="9" wave4Hidden="false">
+                    http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBZTI </URL>
+                <URL id="10" wave4Index="10" wave4Hidden="false">
+                    http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBZTJ </URL>
+                <URL id="11" wave4Index="11" wave4Hidden="false">
+                    http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBZTK </URL>
+                <URL id="12" wave4Index="12" wave4Hidden="false">
+                    http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBZTL </URL>
+                <URL id="13" wave4Index="13" wave4Hidden="false">
+                    http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBZTM </URL>
+                <URL id="14" wave4Index="14" wave4Hidden="false">
+                    http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBZTN </URL>
+                <URL id="15" wave4Index="15" wave4Hidden="false">
+                    http://rad.msn.com/ADSAdClient31.dll?GetAd=&PG=IMBZTO </URL>
+            </slots>
+        </TabConfig>
+        <TermsOfUse>
+            <TermsOfUseSID>956</TermsOfUseSID>
+            <TermsOfUseURL>http://messenger.msn.com/Help/Terms.aspx?mkt=pt-br</TermsOfUseURL>
+        </TermsOfUse>
+        <UPUX>
+            <Product id="1" PartnerID="MSN" ProductName="Mobile Messaging">
+                <BillingHelpURL LaunchWindowType="IE" SiteID="71570"
+                    URL="http://mobile.live.com/ruhp.aspx?lc=pt-br" />
+                <BillingURL LaunchWindowType="IE" SiteID="71570"
+                    URL="http://mobile.live.com/ruhp.aspx?lc=pt-br" />
+                <ProductShopURL LaunchWindowType="IE" SiteID="71570"
+                    URL="http://home.mobile.live.com/signup" />
+            </Product>
+            <Product id="97" PartnerID="TD" ProductName="Winks" BrandName="Quebles Winks">
+                <BasePurchaseURL LaunchWindowType="Messenger" SiteID="60025"
+                    URL="http://www.mobilemoney.com/partners/msnmessenger/webshop/winks.asp? pos=chatwindow&contentID=$CONTENTID$" />
+            </Product>
+            <Product id="98" PartnerID="TD" ProductName="Emoticons" BrandName="Quebles Emoticons">
+                <BasePurchaseURL LaunchWindowType="Messenger" SiteID="60025"
+                    URL="http://www.mobilemoney.com/partners/msnmessenger/webshop/emoticons.asp? pos=chatwindow&contentID=$CONTENTID$" />
+            </Product>
+            <Product id="99" PartnerID="VML" ProductName="Winks">...</Product>
+        </UPUX>
+        <VoiceClip Hidden="0" />
+        <VoiceVideo>...</VoiceVideo>
+    </LocalizedConfig>
+</MsgrConfig>
