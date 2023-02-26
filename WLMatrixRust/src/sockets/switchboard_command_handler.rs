@@ -161,6 +161,7 @@ impl SwitchboardCommandHandler {
 
     pub fn send_contact_joined(&self, user: &MSNUser) {
         self.sender.send(format!("JOI {passport} {friendly_name} {capabilities}\r\n", passport=&user.get_msn_addr(), friendly_name = &user.get_msn_addr(), capabilities = &user.get_capabilities().to_string()));
+        self.sender.send(format!("JOI {passport};{{{endpoint_guid}}} {friendly_name} {capabilities}\r\n", passport=&user.get_msn_addr(), endpoint_guid = &user.get_endpoint_guid(), friendly_name = &user.get_msn_addr(), capabilities = &user.get_capabilities().to_string()));
     }
 
 
@@ -246,7 +247,6 @@ impl CommandHandler for SwitchboardCommandHandler {
 
                 if msn_addr_to_add == self.msn_addr {
                     self.send_me_joined();
-                    //self.sender.send(format!("JOI {msn_addr};{{{endpoint_guid}}} {msn_addr} 2788999228:48\r\n", msn_addr= &msn_addr_to_add, endpoint_guid = &self.endpoint_guid));
 
                     //that's me !
                 } else {
