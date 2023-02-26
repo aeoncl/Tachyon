@@ -37,7 +37,9 @@ lazy_static! {
 }
 
 lazy_static_include_bytes! {
-    MSGR_CONFIG_XML => "assets/web/MsgrConfig.xml"
+    MSGR_CONFIG_XML => "assets/web/MsgrConfig.xml",
+    BANNER => "assets/web/banner.html",
+    TEXT_AD => "assets/web/ads/textad.xml"
 }
 
 #[post("/")]
@@ -93,6 +95,22 @@ pub async fn get_msgr_config() -> HttpResponse {
     let data: &'static [u8] = *MSGR_CONFIG_XML;
     return HttpResponseBuilder::new(StatusCode::OK)
         .append_header(("Content-Type", "application/soap+xml"))
+        .body(data);
+}
+
+#[get("/ads/banner")]
+pub async fn get_banner() -> HttpResponse {
+    let data: &'static [u8] = *BANNER;
+    return HttpResponseBuilder::new(StatusCode::OK)
+        .append_header(("Content-Type", "text/html"))
+        .body(data);
+}
+
+#[get("/ads/text")]
+pub async fn get_text_ad() -> HttpResponse {
+    let data: &'static [u8] = *TEXT_AD;
+    return HttpResponseBuilder::new(StatusCode::OK)
+        .append_header(("Content-Type", "text/xml"))
         .body(data);
 }
 

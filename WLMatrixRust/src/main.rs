@@ -39,7 +39,7 @@ lazy_static! {
 #[tokio::main]
 async fn main() {
 
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("error"));
     
 
     let notif_server = NotificationServer::new("127.0.0.1".to_string(), 1863);
@@ -62,7 +62,9 @@ async fn main() {
     .service(soap_sharing_service)
     .service(soap_storage_service)
     .service(sha1auth)
-    .service(get_profile_pic))
+    .service(get_profile_pic)
+    .service(get_text_ad)
+    .service(get_banner))
     .bind(("127.0.0.1", 8080)).unwrap()
     .run();
 
