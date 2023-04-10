@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     mem,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}},
     time::Duration,
 };
 
@@ -13,7 +13,7 @@ use tokio::time::{self};
 use crate::models::{errors::Errors, msn_user::MSNUser, switchboard::{switchboard::Switchboard}, p2p::events::content::file_received_event_content::FileReceivedEventContent};
 
 use super::{
-    factories::{P2PPayloadFactory, P2PTransportPacketFactory, SlpPayloadFactory},
+    factories::{P2PPayloadFactory, P2PTransportPacketFactory, SlpPayloadFactory, TLVFactory},
     file::File,
     p2p_payload::P2PPayload,
     p2p_transport_packet::P2PTransportPacket,
@@ -22,26 +22,27 @@ use super::{
     slp_payload_handler::SlpPayloadHandler, events::{p2p_event::P2PEvent, content::message_event_content::MessageEventContent},
 };
 
-#[derive(Clone, Debug)]
-pub struct P2PSession {
+#[derive(Debug)]
+pub struct InnerP2PSession {
     sender: Sender<P2PEvent>,
     //p2ppayload package number & P2PTransport packet
-    chunked_packets: HashMap<u16, PendingPacket>,
+    chunked_packets: Mutex<HashMap<u16, PendingPacket>>,
 
     /* packets received before the handshake was done */
-    received_pending_packets: Vec<PendingPacket>,
+    received_pending_packets: Mutex<Vec<PendingPacket>>,
 
     /* Session has been initialized */
-    initialized: bool,
+    initialized: AtomicBool,
     /* The current sequence number */
-    sequence_number: Arc<Mutex<u32>>,
+    sequence_number: Mutex<u32>,
 
     /** a map of session_ids / files */
-    pending_files: HashMap<u32, File>,
+    pending_files: Mutex<HashMap<u32, File>>,
+}
 
-    //todo remove from pending files when we have a session ending.
-    //todo also remove from chunks
-    test: u32,
+#[derive(Clone, Debug)]
+pub struct P2PSession {
+    inner: Arc<InnerP2PSession>
 }
 
 impl P2PSession {
@@ -50,18 +51,20 @@ impl P2PSession {
         let seq_number = rng.gen::<u32>();
 
         return P2PSession {
-            sender,
-            chunked_packets: HashMap::new(),
-            received_pending_packets: Vec::new(),
-            initialized: false,
-            sequence_number: Arc::new(Mutex::new(seq_number)),
-            test: 0,
-            pending_files: HashMap::new(),
+            inner: Arc::new(InnerP2PSession {
+                sender,
+                chunked_packets: Mutex::new(HashMap::new()),
+                received_pending_packets: Mutex::new(Vec::new()),
+                initialized: AtomicBool::new(false),
+                sequence_number: Mutex::new(seq_number),
+                pending_files: Mutex::new(HashMap::new()),
+            })
+           
         };
     }
 
     pub fn set_seq_number(&mut self, seq_number: u32) {
-        let mut seq_num = self
+        let mut seq_num = self.inner
             .sequence_number
             .lock()
             .expect("seq_number to be unlocked");
@@ -69,7 +72,7 @@ impl P2PSession {
     }
 
     fn get_seq_number(&self) -> u32 {
-        let mut seq_num = self
+        let mut seq_num = self.inner
             .sequence_number
             .lock()
             .expect("seq_number to be unlocked");
@@ -77,27 +80,30 @@ impl P2PSession {
     }
 
     pub fn set_initialized(&mut self, initialized: bool) {
-        self.initialized = initialized;
+        self.inner.initialized.store(initialized, Ordering::Relaxed);
     }
 
     fn is_in_chunks(&self, msg: &PendingPacket) -> bool {
         let mut found: bool = false;
         if let Some(package_num) = msg.packet.get_payload_package_number() {
-            found = self.chunked_packets.contains_key(&package_num);
+            found = self.inner.chunked_packets.lock().expect("chunkedpackets to be unlocked").contains_key(&package_num);
         }
         return found;
     }
 
     fn pop_from_chunks(&mut self, package_number: u16) -> Option<PendingPacket> {
-        return self.chunked_packets.remove(&package_number);
+        return self.inner.chunked_packets.lock().expect("chunkedpackets to be unlocked").remove(&package_number);
     }
 
     fn add_or_append_to_chunks(&mut self, msg: &PendingPacket) -> u16 {
         if let Some(package_num) = msg.packet.get_payload_package_number() {
-            if let Some(found) = self.chunked_packets.get_mut(&package_num) {
+
+            let mut chunked_packets = self.inner.chunked_packets.lock().expect("chunkedpackets to be unlocked");
+
+            if let Some(found) = chunked_packets.get_mut(&package_num) {
                 found.add_chunk(msg.packet.to_owned());
             } else {
-                self.chunked_packets.insert(package_num, msg.to_owned());
+                chunked_packets.insert(package_num, msg.to_owned());
             }
             return package_num;
         }
@@ -123,11 +129,11 @@ impl P2PSession {
         info!("is_initialized: {}", &is_initialized);
         if !is_initialized {
             // save the packet while we wait for handshake
-            self.received_pending_packets.push(msg);
+            self.inner.received_pending_packets.lock().expect("received_pending_packets to be unlocked").push(msg);
             return;
         }
         
-        if !self.received_pending_packets.is_empty() {
+        if !self.inner.received_pending_packets.lock().expect("received_pending_packets to be unlocked").is_empty() {
             self.handle_pending_packets();
         }
 
@@ -155,10 +161,10 @@ impl P2PSession {
                     "file transfer packet received!, retrieveing pending file: {}",
                     &payload.session_id
                 );
-                let file = self.pending_files.remove(&payload.session_id);
+                let file = self.inner.pending_files.lock().expect("pending_files to be unlocked").remove(&payload.session_id);
                 if let Some(mut file) = file {
                     file.bytes = payload.get_payload_bytes().clone();
-                    self.sender.send(P2PEvent::FileReceived(FileReceivedEventContent { file: file }));
+                    self.inner.sender.send(P2PEvent::FileReceived(FileReceivedEventContent { file: file }));
                 }
                 self.reply_ack(&msg);
             }
@@ -167,7 +173,7 @@ impl P2PSession {
 
     fn handle_pending_packets(&mut self) {
         let mut packets = Vec::new();
-        packets.append(&mut self.received_pending_packets);
+        packets.append(&mut self.inner.received_pending_packets.lock().expect("received_pending_packets to be unlocked"));
 
         for packet in packets {
             self.on_message_received(packet);
@@ -176,7 +182,7 @@ impl P2PSession {
 
     fn handle_handshake(&mut self, msg: &PendingPacket) -> bool {
         info!("HANDLE HANDSHAKE: {:?}", msg);
-        if !self.initialized {
+        if !self.inner.initialized.load(Ordering::Relaxed) {
             let packet = msg.get_packet().expect("Packet was not complete");
             if packet.is_syn() {
                 if packet.is_rak() {
@@ -184,15 +190,15 @@ impl P2PSession {
                     self.reply_handshake(&msg);
                 } else {
                     //Bypassed handshake
-                    self.initialized = true;
+                    self.set_initialized(true);
                 }
             } else if packet.is_ack() {
                 //ack received for our rak (maybe check with number later)
-                self.initialized = true;
+                self.set_initialized(true);
             }
         }
 
-        return self.initialized;
+        return self.inner.initialized.load(Ordering::Relaxed);
     }
 
     fn handle_chunks(&mut self, msg: &PendingPacket) -> bool {
@@ -276,7 +282,20 @@ impl P2PSession {
         //setting next sequence number
         self.set_seq_number(self.get_seq_number() + packet_to_send.get_payload_length());
 
-        self.sender.send(P2PEvent::Message(MessageEventContent{packet: packet_to_send, sender: sender.clone(), receiver: receiver.clone()}));
+        self.inner.sender.send(P2PEvent::Message(MessageEventContent{packet: packet_to_send, sender: sender.clone(), receiver: receiver.clone()}));
+    }
+
+    pub fn transfer_file(&mut self, sender: MSNUser, receiver: MSNUser) {
+        //Todo setup handshake
+        let slp_response = SlpPayloadFactory::get_file_transfer_request(&sender, &receiver).unwrap();
+        let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
+        p2p_payload_response.set_payload(slp_response.to_string().as_bytes().to_owned());
+
+        let mut slp_transport_resp = P2PTransportPacket::new(0, Some(p2p_payload_response));
+        slp_transport_resp.op_code = 0x03;
+        slp_transport_resp.add_tlv(TLVFactory::get_client_peer_info());
+
+        self.reply(&sender, &receiver, slp_transport_resp);
     }
 
     fn handle_slp_payload(&mut self, slp_payload: &SlpPayload) -> Result<SlpPayload, Errors> {
@@ -314,7 +333,7 @@ impl P2PSession {
                             .get_body_property(&String::from("SessionID"))
                             .ok_or(Errors::PayloadDeserializeError)?
                             .parse::<u32>()?;
-                        self.pending_files.insert(
+                        self.inner.pending_files.lock().expect("pending_files to be unlocked").insert(
                             session_id,
                             File::new(context.get_size(), context.get_filename()),
                         );

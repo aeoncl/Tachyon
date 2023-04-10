@@ -146,8 +146,8 @@ impl CommandHandler for NotificationCommandHandler {
                     >>> USR 3 SSO I login@test.com
                     <<< USR 3 SSO S MBI_KEY_OLD LAhAAUzdC+JvuB33nooLSa6Oh0oDFCbKrN57EVTY0Dmca8Reb3C1S1czlP12N8VU
                 S phase :
-                        0   1  2  3     4                    5
-                    >>> USR 4 SSO S t=ssotoken {55192CF5-588E-4ABE-9CDF-395B616ED85B}
+                        0   1  2  3     4      5                          6
+                    >>> USR 4 SSO S t=ssotoken ???charabia {55192CF5-588E-4ABE-9CDF-395B616ED85B}
                     <<< USR 4 OK login@test.com 1 0
                 */
                 let tr_id = split[1];
@@ -163,8 +163,12 @@ impl CommandHandler for NotificationCommandHandler {
                         return Ok(format!("USR {tr_id} SSO S MBI_KEY_OLD LAhAAUzdC+JvuB33nooLSa6Oh0oDFCbKrN57EVTY0Dmca8Reb3C1S1czlP12N8VU\r\nGCF 0 {shields_size}\r\n{shields_payload}", tr_id = tr_id, shields_payload = shields_payload, shields_size = shields_payload.len()));
                     } else if phase == "S" {
                         self.matrix_token = split[4][2..split[4].chars().count()].to_string();
+                        
+                        let endpoint_guid = split[6].to_string();
+                        let trimmed_endpoint_guid = endpoint_guid.trim().strip_prefix("{").ok_or(MsnpError::internal_server_error(tr_id))?.strip_suffix("}").ok_or(MsnpError::internal_server_error(tr_id))?;
 
-                        let msn_user = MSNUser::new(self.msn_addr.clone());
+                        let mut msn_user = MSNUser::new(self.msn_addr.clone());
+                        msn_user.set_endpoint_guid(trimmed_endpoint_guid.to_string());
 
                         let matrix_client = WLMatrixClient::login(msn_user.get_matrix_id(), self.matrix_token.clone(), &Path::new(format!("C:\\temp\\{}", &self.msn_addr).as_str())).await.or(Err(MsnpError::auth_fail(&tr_id)))?;
 

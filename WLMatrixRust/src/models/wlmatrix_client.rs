@@ -2,7 +2,7 @@ use std::{path::Path, collections::HashSet, time::Duration, f32::consts::E};
 
 use base64::{engine::general_purpose, Engine};
 use log::{info, warn};
-use matrix_sdk::{Client, Session, config::SyncSettings, ruma::{device_id, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, JoinedRoom}}, presence::PresenceState, events::{presence::PresenceEvent, room::{member::{StrippedRoomMemberEvent, SyncRoomMemberEvent, RoomMemberEventContent, MembershipState}, message::{SyncRoomMessageEvent, RoomMessageEventContent, MessageType}}, direct::{DirectEvent, DirectEventContent}, typing::SyncTypingEvent, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, GlobalAccountDataEvent, GlobalAccountDataEventType}, RoomId, OwnedUserId, UserId}, room::{Room, RoomMember}, event_handler::Ctx};
+use matrix_sdk::{Client, Session, config::SyncSettings, ruma::{device_id, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, JoinedRoom}}, presence::PresenceState, events::{presence::PresenceEvent, room::{member::{StrippedRoomMemberEvent, SyncRoomMemberEvent, RoomMemberEventContent, MembershipState}, message::{SyncRoomMessageEvent, RoomMessageEventContent, MessageType}, MediaSource}, direct::{DirectEvent, DirectEventContent}, typing::SyncTypingEvent, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, GlobalAccountDataEvent, GlobalAccountDataEventType}, RoomId, OwnedUserId, UserId}, room::{Room, RoomMember}, event_handler::Ctx};
 use tokio::sync::{broadcast::Sender, oneshot};
 
 use crate::{utils::{identifiers::{get_matrix_device_id}, emoji::emoji_to_smiley}, generated::{payloads::{factories::NotificationFactory, PresenceStatus}, msnab_sharingservice::factories::{MemberFactory, ContactFactory, AnnotationFactory}, msnab_datatypes::types::{ArrayOfAnnotation, RoleId, MemberState, ContactTypeEnum}}, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, models::{msg_payload::factories::MsgPayloadFactory, uuid::UUID, owned_user_id_traits::ToMsnAddr, abch::events::AddressBookEventFactory}, MSN_CLIENT_LOCATOR, AB_LOCATOR};
@@ -190,7 +190,13 @@ async fn handle_messages(matrix_client: Client, room_id: &RoomId, switchboard: &
         switchboard.on_message_received(msg, sender, Some(msg_event.event_id.to_string()));
     } else if let MessageType::File(content) = &msg_event.content.msgtype {
         log::info!("Received a file !");
-        switchboard.on_file_received();
+
+
+       if let MediaSource::Plain(uri) = &content.source {
+        switchboard.on_file_received(sender, content.body.clone(), uri.to_string(), msg_event.event_id.to_string());
+       } else {
+        switchboard.on_file_received(sender, content.body.clone(), String::new(), msg_event.event_id.to_string());
+       }
     }
 }
 

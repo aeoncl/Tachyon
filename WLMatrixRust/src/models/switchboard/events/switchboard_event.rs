@@ -1,4 +1,4 @@
-use super::content::{user_joined_event_content::UserJoinedEventContent, initial_roster_event_content::InitialRosterEventContent, typing_user_event_content::TypingUserEventContent, message_event_content::MessageEventContent};
+use super::content::{user_joined_event_content::UserJoinedEventContent, initial_roster_event_content::InitialRosterEventContent, typing_user_event_content::TypingUserEventContent, message_event_content::MessageEventContent, file_upload_event_content::FileUploadEventContent};
 
 #[derive(Clone, Debug)]
 
@@ -7,7 +7,7 @@ pub enum SwitchboardEvent {
     InitialRosterEvent(InitialRosterEventContent),
     MessageEvent(MessageEventContent),
     TypingUserEvent(TypingUserEventContent),
-    FileUploadEvent
+    FileUploadEvent(FileUploadEventContent)
 }
 
 impl From<TypingUserEventContent> for SwitchboardEvent {
@@ -35,5 +35,10 @@ impl From<MessageEventContent> for SwitchboardEvent {
     }
 }
 
+impl From<FileUploadEventContent> for SwitchboardEvent {
+    fn from(v: FileUploadEventContent) -> Self {
+        Self::FileUploadEvent(v)
+    }
+}
 
 
