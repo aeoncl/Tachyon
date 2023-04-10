@@ -178,7 +178,7 @@ impl CommandHandler for SwitchboardCommandHandler {
                 {
                     if let Some(mut sb) = client_data.get_switchboards().find(&self.target_room_id){
                         self.switchboard = Some(sb.clone());
-                        let mut receiver = sb.get_receiver();
+                        let receiver = sb.get_receiver();
                         self.start_receiving(receiver);
                     }
                 };
@@ -241,14 +241,12 @@ impl CommandHandler for SwitchboardCommandHandler {
                     let mut switchboard = Switchboard::new(client.clone(), target_room.room_id().to_owned(), client.user_id().unwrap().to_owned());
                     let mut receiver = switchboard.get_receiver();
                     self.start_receiving(receiver);
+                    self.switchboard = Some(switchboard.clone());
+                    client_data.get_switchboards().add(target_room.room_id().to_string(), switchboard);
 
-                    self.switchboard = Some(switchboard);
                     
                     let user_to_add = MSNUser::new(msn_addr_to_add.clone());
                     self.send_contact_joined(&user_to_add);
-
-                    //Move this out of here, what if we invite more than one person? TODO
-                    client_data.get_switchboards().add(target_room.room_id().to_string(), self.switchboard.as_ref().unwrap().clone());
                 }
 
                 return Ok(String::new());
@@ -262,11 +260,14 @@ impl CommandHandler for SwitchboardCommandHandler {
                 // N: ack only when the message was not received
                 // A + D: always send an ack
                 // U: never ack
-                
+                let client_data = MSN_CLIENT_LOCATOR.get().unwrap();
+                let sb = client_data.get_switchboards().find(&self.target_room_id).unwrap();
+
+
                 if let Ok(payload) = MsgPayload::from_str(command.payload.as_str()){
                         if let Some(sb_handle) = self.switchboard.as_ref() {
                             {
-                                sb_handle.send_message(payload).await;
+                                sb.send_message(payload).await;
                             };
                         }
                 }

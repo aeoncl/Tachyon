@@ -105,7 +105,7 @@ impl P2PSession {
     }
 
     pub fn on_message_received(&mut self, msg: PendingPacket) {
-        debug!("OnMsgReceived: {:?}", &msg);
+        info!("OnMsgReceived: {:?}", &msg);
 
 
 

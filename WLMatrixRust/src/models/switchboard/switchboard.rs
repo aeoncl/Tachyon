@@ -26,9 +26,10 @@ pub(crate) struct SwitchboardInner {
     p2p_stop_sender: Mutex<Option<oneshot::Sender<()>>>
 }
 
-impl Drop for Switchboard {
+impl Drop for SwitchboardInner {
     fn drop(&mut self) {
-        if let Ok(mut sender) = self.inner.p2p_stop_sender.lock() {
+        info!("DROPPING SWITCHBOARDInner");
+        if let Ok(mut sender) = self.p2p_stop_sender.lock() {
             if let Some(sender) = sender.take() {
                 sender.send(());
            }
@@ -36,10 +37,17 @@ impl Drop for Switchboard {
     }
 }
 
+impl SwitchboardInner {
+    pub fn new() {
+
+    }
+}
+
+
 impl Switchboard {
     pub fn new(matrix_client: Client, target_room_id: OwnedRoomId, creator_id: OwnedUserId) -> Self {
         let (sb_event_sender, sb_event_queued_listener) = broadcast::channel::<SwitchboardEvent>(30);
-        let (p2p_sender, mut p2p_listener) = broadcast::channel::<P2PEvent>(30);
+        let (p2p_sender, p2p_listener) = broadcast::channel::<P2PEvent>(30);
         let (p2p_stop_sender, mut p2p_stop_receiver) = oneshot::channel::<()>();
 
         let inner = Arc::new(SwitchboardInner {
@@ -87,6 +95,7 @@ impl Switchboard {
                         }
                     },
                     p2p_stop = &mut p2p_stop_listener => {
+                        info!("STOP LISTENING FOR P2P");
                         break;
                     }
                 }
