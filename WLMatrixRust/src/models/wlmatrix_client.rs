@@ -188,6 +188,9 @@ async fn handle_messages(matrix_client: Client, room_id: &RoomId, switchboard: &
     if let MessageType::Text(content) = &msg_event.content.msgtype {
         let msg = MsgPayloadFactory::get_message(emoji_to_smiley(&content.body));
         switchboard.on_message_received(msg, sender, Some(msg_event.event_id.to_string()));
+    } else if let MessageType::File(content) = &msg_event.content.msgtype {
+        log::info!("Received a file !");
+        switchboard.on_file_received();
     }
 }
 
@@ -509,7 +512,7 @@ async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, room: Room, cl
         let debug = room.is_direct();
         let debug_len = joined_members.len();
 
-        if room.is_direct() && joined_members.len() > 0 && joined_members.len() <= 2 {
+       // if room.is_direct() && joined_members.len() > 0 && joined_members.len() <= 2 {
             let me_user_id =  client.user_id().unwrap();
 
             if let Some(target) = Self::get_direct_target_that_isnt_me(&room.direct_targets(), &room, &me_user_id).await{
@@ -540,7 +543,7 @@ async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, room: Room, cl
                     }  
                 }
             }
-        }
+       // }
     }
 }
 

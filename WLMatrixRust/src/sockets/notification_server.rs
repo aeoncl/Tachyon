@@ -1,5 +1,6 @@
 use std::{str::{from_utf8_unchecked}};
 
+use log::info;
 use tokio::{
     io::{AsyncWriteExt, BufReader, AsyncReadExt},
     net::TcpListener,
@@ -60,12 +61,12 @@ impl TCPServer for NotificationServer {
                             let commands : Vec<MSNPCommand> = parser.parse_message(line);
 
                             for command in commands {
-                                    println!("NS <= {}", &command);
+                                info!("NS <= {}", &command);
                                     match command_handler.handle_command(&command).await {
                                         Ok(response) => {
                                             if !response.is_empty() {
                                                 write.write_all(response.as_bytes()).await;
-                                                println!("NS => {}", &response);
+                                                info!("NS => {}", &response);
                                             }
                                         },
                                         Err(err) => {
@@ -84,7 +85,7 @@ impl TCPServer for NotificationServer {
                         },
                         command_to_send = rx.recv() => {
                             let msg = command_to_send.unwrap();
-                            println!("NS => {}", &msg);
+                            info!("NS => {}", &msg);
                             write.write_all(msg.as_bytes()).await;
                         }
                     }

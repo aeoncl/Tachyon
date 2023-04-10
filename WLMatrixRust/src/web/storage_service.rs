@@ -20,6 +20,10 @@ pub async fn soap_storage_service(body: web::Bytes, request: HttpRequest) -> Res
         .get(HeaderName::from_str("SOAPAction").unwrap())
     {
         if let Ok(soap_action) = from_utf8(soap_action_header.as_bytes()) {
+            let name = soap_action.split("/").last().unwrap_or(soap_action);
+            info!("{}Request: {}", &name, from_utf8(&body)?);
+
+
             match soap_action {
                 "http://www.msn.com/webservices/storage/2008/GetProfile" => {
                     return storage_get_profile(body, request).await;
@@ -39,6 +43,8 @@ pub async fn soap_storage_service(body: web::Bytes, request: HttpRequest) -> Res
 
                 _ => {}
             }
+        } else {
+            info!("StorageService UnknownRequest: {}", from_utf8(&body)?);
         }
     }
     return Ok(HttpResponseBuilder::new(StatusCode::NOT_FOUND)
@@ -84,7 +90,6 @@ pub async fn get_profile_pic(path: web::Path<(String, String)>, request: HttpReq
 
 async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
     let body = from_utf8(&body)?;
-
     let request = from_str::<GetProfileMessageSoapEnvelope>(body)?;
 
     let header = request.header.ok_or(StatusCode::BAD_REQUEST)?;
@@ -120,8 +125,6 @@ async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<H
 
 async fn storage_update_document(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
     let body = from_utf8(&body)?;
-    info!("update_document_request: {}", body);
-
     let request_deserialized = from_str::<UpdateDocumentMessageSoapEnvelope>(body).unwrap();
 
     let header = request_deserialized.header.ok_or(StatusCode::BAD_REQUEST)?;
@@ -167,8 +170,6 @@ fn get_mime_type(data_vector: &Vec<u8>) -> Mime {
 
 async fn delete_relationships(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
     let body = from_utf8(&body)?;
-    info!("delete_relationships_request: {}", body);
-
     let request_deserialized : DeleteRelationshipsMessageSoapEnvelope = from_str(body)?;
 
     let header = request_deserialized.header.ok_or(StatusCode::BAD_REQUEST)?;
@@ -200,8 +201,6 @@ async fn delete_relationships(body: web::Bytes, request: HttpRequest) -> Result<
 
 async fn storage_update_profile(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
     let body = from_utf8(&body)?;
-    info!("update_profile_request: {}", body);
-
     let body : UpdateProfileMessageSoapEnvelope = from_str(body)?;
     
     let header = body.header.ok_or(StatusCode::BAD_REQUEST)?;
@@ -231,7 +230,6 @@ async fn storage_update_profile(body: web::Bytes, request: HttpRequest) -> Resul
 
 async fn share_item(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
     let body = from_utf8(&body)?;
-    info!("share_item_request: {}", body);
     let response = String::from("<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"><soap:Body><soap:Fault><faultcode>soap:Client</faultcode><faultstring>API ShareItem no longer supported</faultstring><faultactor>http://www.msn.com/webservices/AddressBook/ShareItem</faultactor><detail><errorcode xmlns=\"http://www.msn.com/webservices/AddressBook\">Forbidden</errorcode><errorstring xmlns=\"http://www.msn.com/webservices/AddressBook\">API ShareItem no longer supported</errorstring><machineName xmlns=\"http://www.msn.com/webservices/AddressBook\">DM2CDP1011931</machineName><additionalDetails><originalExceptionErrorMessage>API ShareItem no longer supported</originalExceptionErrorMessage></additionalDetails></detail></soap:Fault></soap:Body></soap:Envelope>");
     return Ok(HttpResponseBuilder::new(StatusCode::OK).append_header(("Content-Type", "application/soap+xml")).body(response));
 }

@@ -6,7 +6,8 @@ pub enum SwitchboardEvent {
     UserJoinedEvent(UserJoinedEventContent),
     InitialRosterEvent(InitialRosterEventContent),
     MessageEvent(MessageEventContent),
-    TypingUserEvent(TypingUserEventContent)
+    TypingUserEvent(TypingUserEventContent),
+    FileUploadEvent
 }
 
 impl From<TypingUserEventContent> for SwitchboardEvent {

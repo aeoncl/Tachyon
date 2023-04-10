@@ -49,9 +49,10 @@ pub async fn firewall_test(request: HttpRequest) -> Result<HttpResponse, WebErro
 
 #[post("/RST2.srf")]
 pub async fn rst2(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
-    let test = std::str::from_utf8(&body).unwrap();
+    let request_body_str = std::str::from_utf8(&body).unwrap();
+    info!("RST2 Request: {}", &request_body_str);
 
-    let request_parsed: RST2RequestMessageSoapEnvelope = from_str(test).unwrap();
+    let request_parsed: RST2RequestMessageSoapEnvelope = from_str(request_body_str).unwrap();
     let username_token = request_parsed.header.security.username_token.unwrap();
 
     let matrix_id = OwnedUserId::from_msn_addr(&username_token.username);

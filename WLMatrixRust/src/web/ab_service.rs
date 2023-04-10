@@ -21,6 +21,9 @@ pub async fn soap_adress_book_service(body: web::Bytes, request: HttpRequest) ->
         .get(HeaderName::from_str("SOAPAction").unwrap())
     {
         if let Ok(soap_action) = from_utf8(soap_action_header.as_bytes()) {
+            let name = soap_action.split("/").last().unwrap_or(soap_action);
+            info!("{}Request: {}", &name, from_utf8(&body)?);
+
             match soap_action {
                 "http://www.msn.com/webservices/AddressBook/ABFindContactsPaged" => {
                     return ab_find_contacts_paged(body, request).await;
@@ -34,6 +37,9 @@ pub async fn soap_adress_book_service(body: web::Bytes, request: HttpRequest) ->
 
                 _ => {}
             }
+        } else {
+            info!("AbService UnknownRequest: {}", from_utf8(&body)?);
+
         }
     }
 

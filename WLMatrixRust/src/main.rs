@@ -5,15 +5,21 @@ mod models;
 mod web;
 mod utils;
 
+use std::fs::File;
 use std::sync::Arc;
 
 use actix_web::App;
 use actix_web::HttpServer;
 use actix_web::middleware::Logger;
+use chrono::Local;
+use env_logger::Builder;
+use log::LevelFilter;
+use log::info;
 use web::webserver::*;
 use web::sharing_service::*;
 use web::storage_service::*;
 use web::ab_service::*;
+use std::io::Write;
 
 use tokio::join;
 use lazy_static::lazy_static;
@@ -39,8 +45,7 @@ lazy_static! {
 #[tokio::main]
 async fn main() {
 
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("error"));
-    
+    setup_logs();    
 
     let notif_server = NotificationServer::new("127.0.0.1".to_string(), 1863);
     let switchboard_server = SwitchboardServer::new("127.0.0.1".to_string(), 1864);
@@ -70,4 +75,26 @@ async fn main() {
 
     let _test = join!(notif_server_future, switchboard_server_future, http_server);
     println!("See you next time 👀!");
+}
+
+fn setup_logs() {
+    let target = Box::new(File::create("C:\\temp\\log.txt").expect("Can't create file"));
+
+    Builder::new()
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "{}:{} {} [{}] - {}",
+                record.file().unwrap_or("unknown"),
+                record.line().unwrap_or(0),
+                Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"),
+                record.level(),
+                record.args()
+            )
+        })
+        .target(env_logger::Target::Pipe(target))
+        .filter(None, LevelFilter::Debug)
+        .init();
+    
+    info!("=========NEW LOG SESSION (✿◡‿◡)  - {}=========", Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"));
 }

@@ -11,14 +11,13 @@ use crate::models::msg_payload::MsgPayload;
 use crate::models::msn_user::MSNUser;
 use crate::models::notification::error::{MsnpError, MsnpErrorCode};
 use crate::models::owned_user_id_traits::{ToMsnAddr, FromMsnAddr};
-use crate::models::p2p::p2p_session::P2PSession;
 use crate::models::p2p::p2p_transport_packet::P2PTransportPacket;
 use crate::models::p2p::pending_packet::PendingPacket;
 
 use crate::models::switchboard::events::switchboard_event::SwitchboardEvent;
 use crate::models::switchboard::switchboard::Switchboard;
 use crate::utils::identifiers::{matrix_room_id_to_annoying_matrix_room_id};
-use crate::{P2P_REPO, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
+use crate::{MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
 use crate::models::uuid::UUID;
 use crate::models::msg_payload::factories::{MsgPayloadFactory};
 use super::command_handler::CommandHandler;
@@ -35,7 +34,6 @@ pub struct SwitchboardCommandHandler {
     matrix_client: Option<Client>,
     sender: Sender<String>,
     switchboard: Option<Switchboard>,
-    p2p_session: Option<P2PSession>
 }
 
 impl Drop for SwitchboardCommandHandler {
@@ -58,20 +56,11 @@ impl SwitchboardCommandHandler {
             target_matrix_id: None,
             target_msn_addr: String::new(),
             sender: sender,
-            p2p_session: None,
             switchboard: None
         };
     }
 
     fn start_receiving(&mut self, mut sb_receiver: Receiver<SwitchboardEvent>) {
-
-        let (p2p_sender, mut p2p_receiver) = broadcast::channel::<PendingPacket>(10);
-        let mut p2p_session = P2PSession::new(p2p_sender);
-
-        let sb = self.switchboard.as_ref().unwrap().clone();
-        p2p_session.set_switchboard(sb);
-        self.p2p_session = Some(p2p_session);
-
         let sender = self.sender.clone();
         tokio::spawn(async move {
                 let sender = sender;
@@ -84,6 +73,9 @@ impl SwitchboardCommandHandler {
                                         let payload = content.msg.serialize();
                                         let _result = sender.send(format!("MSG {msn_addr} {display_name} {payload_size}\r\n{payload}", msn_addr = &content.sender.get_msn_addr(), display_name = &content.sender.get_display_name(), payload_size = payload.len(), payload = &payload));
                                     },
+                                    SwitchboardEvent::FileUploadEvent => {
+                                        //Todo move P2P Session to switchboard
+                                    }
                                     _ => {
                                         
                                     }
@@ -92,19 +84,6 @@ impl SwitchboardCommandHandler {
                                 info!("bad message received in sb command handler -> exitting.");
                                 break;
                             }
-                          
-                        },
-                        p2p_packet_to_send_maybe = p2p_receiver.recv() => {
-                            if let Ok(p2p_packet_to_send) = p2p_packet_to_send_maybe {
-                                let msn_sender = &p2p_packet_to_send.sender;
-                                let msn_receiver = &p2p_packet_to_send.receiver;
-
-                                P2P_REPO.set_seq_number(p2p_packet_to_send.packet.get_next_sequence_number());
-
-                                let msg_to_send = MsgPayloadFactory::get_p2p(msn_sender, msn_receiver,  &p2p_packet_to_send.packet);
-                                let serialized_response = msg_to_send.serialize();
-                                let _result = sender.send(format!("MSG {msn_addr} {display_name} {payload_size}\r\n{payload}", msn_addr = &msn_sender.get_msn_addr(), display_name = &msn_sender.get_display_name(), payload_size = serialized_response.len(), payload = &serialized_response));
-                            } 
                         }
                     }
                 }
@@ -251,7 +230,7 @@ impl CommandHandler for SwitchboardCommandHandler {
                     //that's me !
                 } else {
                     let user_to_add = OwnedUserId::from_msn_addr(&msn_addr_to_add);
-
+                    
 
                     let mut client = self.matrix_client.as_ref().unwrap().clone();
 
@@ -260,17 +239,16 @@ impl CommandHandler for SwitchboardCommandHandler {
                     let client_data = MSN_CLIENT_LOCATOR.get().unwrap();
 
                     let mut switchboard = Switchboard::new(client.clone(), target_room.room_id().to_owned(), client.user_id().unwrap().to_owned());
-                    self.switchboard = Some(switchboard.clone());
+                    let mut receiver = switchboard.get_receiver();
+                    self.start_receiving(receiver);
+
+                    self.switchboard = Some(switchboard);
                     
                     let user_to_add = MSNUser::new(msn_addr_to_add.clone());
                     self.send_contact_joined(&user_to_add);
 
-                    {
-                        self.start_receiving(switchboard.get_receiver());
-                    }
-
-
-                    client_data.get_switchboards().add(target_room.room_id().to_string(), switchboard);
+                    //Move this out of here, what if we invite more than one person? TODO
+                    client_data.get_switchboards().add(target_room.room_id().to_string(), self.switchboard.as_ref().unwrap().clone());
                 }
 
                 return Ok(String::new());
@@ -282,41 +260,15 @@ impl CommandHandler for SwitchboardCommandHandler {
                 // <<< NAK 231          on failure
                 // The 2nd parameter is the type of ack the clients wants.
                 // N: ack only when the message was not received
-                // A: always send an ack
+                // A + D: always send an ack
                 // U: never ack
                 
                 if let Ok(payload) = MsgPayload::from_str(command.payload.as_str()){
-
-                    if payload.content_type == "application/x-msnmsgrp2p" {
-                        //P2P packets
-                       if let Ok(mut p2p_packet) = P2PTransportPacket::from_str(&payload.body){
-                           // info!("was a p2p packet: {:?}", &p2p_packet);
-
-                            if let Some(p2p_session) = &mut self.p2p_session {
-
-                                let source = MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Src")).unwrap().to_owned()).unwrap();
-                                let dest = MSNUser::from_mpop_addr_string(payload.get_header(&String::from("P2P-Dest")).unwrap().to_owned()).unwrap();
-                                p2p_session.on_message_received(PendingPacket::new(p2p_packet, source, dest));
-
-                            } else {
-                                info!("P2P: Message received while p2p session wasn't initialized: {}", &payload.body);
-
-                            }
-
-                           
-                        } else {
-                            info!("P2P: Transport packet deserialization failed: {}", &payload.body);
-    
-                        }
-                    } else {
-
                         if let Some(sb_handle) = self.switchboard.as_ref() {
                             {
                                 sb_handle.send_message(payload).await;
                             };
                         }
-                    }
-                  
                 }
 
                 let tr_id = split[1];

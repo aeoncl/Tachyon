@@ -207,8 +207,8 @@
 		<VoiceClip Hidden="0" />
 		<VoiceVideo>
 			<DisableSipProxyInviteTest>0</DisableSipProxyInviteTest>
-			<DisableSipProxyCapability>1</DisableSipProxyCapability>
-			<DisableSipProxyInvite>1</DisableSipProxyInvite>
+			<DisableSipProxyCapability>0</DisableSipProxyCapability>
+			<DisableSipProxyInvite>0</DisableSipProxyInvite>
 			<DisableSipProxyCapability2>0</DisableSipProxyCapability2>
 			<DisableSipProxyInvite2>0</DisableSipProxyInvite2>
 		</VoiceVideo>
