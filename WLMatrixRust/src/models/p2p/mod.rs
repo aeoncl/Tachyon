@@ -163,7 +163,7 @@ SessionID: 2216804035
             out.add_body_property(String::from("EUF-GUID"), EufGUID::FileTransfer.to_string());
 
             let mut rng = rand::thread_rng();
-            let y: i32 = rng.gen();
+            let y: u32 = rng.gen();
             out.add_body_property(String::from("SessionID"), y.to_string());
             out.add_body_property(String::from("AppID"), String::from("2"));
             out.add_body_property(String::from("RequestFlags"), String::from("16"));

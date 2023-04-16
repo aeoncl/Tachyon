@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     mem,
     sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}},
-    time::Duration,
+    time::Duration, f32::consts::E,
 };
 
 use log::{info, debug};
@@ -36,6 +36,8 @@ pub struct InnerP2PSession {
     /* The current sequence number */
     sequence_number: Mutex<u32>,
 
+    package_number: Mutex<u16>,
+
     /** a map of session_ids / files */
     pending_files: Mutex<HashMap<u32, File>>,
 }
@@ -58,6 +60,7 @@ impl P2PSession {
                 initialized: AtomicBool::new(false),
                 sequence_number: Mutex::new(seq_number),
                 pending_files: Mutex::new(HashMap::new()),
+                package_number: Mutex::new(150),
             })
            
         };
@@ -275,14 +278,83 @@ impl P2PSession {
 
     fn reply(&mut self, sender: &MSNUser, receiver: &MSNUser, msg_to_send: P2PTransportPacket) {
 
-        info!("REPLIED!!!");
         let mut packet_to_send = msg_to_send.clone();
+
+        
         packet_to_send.sequence_number = self.get_seq_number();
 
-        //setting next sequence number
-        self.set_seq_number(self.get_seq_number() + packet_to_send.get_payload_length());
+        if let Some(payload) = packet_to_send.get_payload_as_mut() {
+            payload.package_number = self.get_package_number();
+        //setting next package number
+            self.set_package_number(self.get_package_number() + 1);
+        }
 
-        self.inner.sender.send(P2PEvent::Message(MessageEventContent{packet: packet_to_send, sender: sender.clone(), receiver: receiver.clone()}));
+        if packet_to_send.get_payload().is_some() && packet_to_send.get_payload().unwrap().get_payload_bytes().len() > 1222 {
+            //We need to split this joker, he's too big
+            let split = self.split(packet_to_send);
+            for current in split {
+                info!("OnChunkedMsgReply: {:?}", &current);
+                self.inner.sender.send(P2PEvent::Message(MessageEventContent{packet: current, sender: sender.clone(), receiver: receiver.clone()}));
+            }
+        } else {
+
+          info!("OnSingleMsgReply: {:?}", &packet_to_send);
+          //setting next sequence number
+          self.set_seq_number(self.get_seq_number() + packet_to_send.get_payload_length());
+
+          self.inner.sender.send(P2PEvent::Message(MessageEventContent{packet: packet_to_send, sender: sender.clone(), receiver: receiver.clone()}));
+
+        }
+      
+        
+
+    }
+
+    fn split(&mut self, to_split: P2PTransportPacket) -> Vec<P2PTransportPacket> {
+        let payload = to_split.get_payload().expect("A payload should be present when we split");
+        let payload_bytes = payload.get_payload_bytes();
+        
+        let chunks: Vec<&[u8]> = payload_bytes.chunks(1222).collect();
+
+        let mut out = Vec::new();
+        let mut remaining_bytes =  payload_bytes.len();
+
+        for i in 0..chunks.len() {
+            let chunk = chunks[i];
+            remaining_bytes -= chunk.len();
+
+            let mut payloadToAdd = P2PPayload::new(payload.tf_combination, payload.session_id);
+            payloadToAdd.package_number = payload.get_package_number();
+            payloadToAdd.payload = chunk.to_vec();
+            payloadToAdd.session_id = payload.session_id;
+
+            let mut toAdd =  P2PTransportPacket::new(to_split.sequence_number, None);
+
+            if i < chunks.len() - 1 {
+                //We need to add the remaining bytes TLV
+                payloadToAdd.add_tlv(TLVFactory::get_untransfered_data_size(remaining_bytes.try_into().unwrap()));
+                info!("remainingBytes: {}", remaining_bytes);
+            }
+
+
+            if i == 0 {
+                toAdd.op_code = to_split.op_code;
+                toAdd.tlvs = to_split.tlvs.clone();
+                toAdd.set_payload(Some(payloadToAdd));
+                //We are creating the first packet
+            } else {
+                payloadToAdd.tf_combination = payloadToAdd.tf_combination - 1;
+                toAdd.set_payload(Some(payloadToAdd));
+                //We are creating other packets
+            }
+
+            toAdd.sequence_number = self.get_seq_number();
+            self.set_seq_number(self.get_seq_number() + toAdd.get_payload_length());
+
+            out.push(toAdd);
+        }
+
+        return out;
     }
 
     pub fn transfer_file(&mut self, sender: MSNUser, receiver: MSNUser) {
@@ -290,11 +362,11 @@ impl P2PSession {
         let slp_response = SlpPayloadFactory::get_file_transfer_request(&sender, &receiver).unwrap();
         let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
         p2p_payload_response.set_payload(slp_response.to_string().as_bytes().to_owned());
+        p2p_payload_response.tf_combination = 0x01;
+        p2p_payload_response.session_id = 0;
 
         let mut slp_transport_resp = P2PTransportPacket::new(0, Some(p2p_payload_response));
-        slp_transport_resp.op_code = 0x03;
-        slp_transport_resp.add_tlv(TLVFactory::get_client_peer_info());
-
+        slp_transport_resp.op_code = 0x0;
         self.reply(&sender, &receiver, slp_transport_resp);
     }
 
@@ -361,6 +433,16 @@ impl P2PSession {
             }
         }
     }
+
+    fn set_package_number(&mut self, package_number: u16) {
+        let mut package_num = self.inner.package_number.lock().expect("Package number to be unlocked");
+        *package_num = package_number;
+    }
+
+    fn get_package_number(&self) -> u16 {
+        return self.inner.package_number.lock().expect("Package number to be unlocked").clone();
+    }
+
 }
 
 #[cfg(test)]

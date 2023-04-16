@@ -55,6 +55,10 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
             return self.payload.as_ref();
         }
 
+        pub fn get_payload_as_mut(&mut self) -> Option<&mut P2PPayload> {
+            return self.payload.as_mut();
+        }
+
         pub fn set_payload(&mut self, payload: Option<P2PPayload>) {
             self.payload = payload;
         }
@@ -292,3 +296,6 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
             return write!(f, "{}", out_str);
         }
     }
+
+
+    
