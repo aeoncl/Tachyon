@@ -66,7 +66,7 @@ impl SlpPayload {
     pub fn get_context_as_preview_data(&self) -> Option<Box<PreviewData>> {
         if let Some(context) = self.get_body_property(&String::from("Context")) {
             if let Ok(decoded) = general_purpose::STANDARD.decode(context) {
-                return PreviewData::from_slp_context(decoded);
+                return PreviewData::from_slp_context(&decoded);
             } else {
                 warn!("Couldn't decode base64 slp context: {}", context);
             }            

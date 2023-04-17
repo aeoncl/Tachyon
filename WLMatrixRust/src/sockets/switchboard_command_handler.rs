@@ -102,7 +102,7 @@ impl SwitchboardCommandHandler {
                                 },
                                 SwitchboardEvent::FileUploadEvent(content) => {
                                     let client_data = MSN_CLIENT_LOCATOR.get().unwrap();
-                                    sb_bridge.transfer_file(content.sender, client_data.get_user());
+                                    sb_bridge.transfer_file(content.sender, client_data.get_user(), content.filesize, content.filename);
                                 },
                                 _ => {
 

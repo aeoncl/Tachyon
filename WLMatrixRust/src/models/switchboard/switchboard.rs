@@ -107,11 +107,11 @@ impl Switchboard {
         return self.dispatch_event(SwitchboardEvent::MessageEvent(content));
     }
 
-    pub fn on_file_received(&self, sender: MSNUser, filename: String, uri: String, event_id: String) -> Result<usize, SendError<SwitchboardEvent>> {
+    pub fn on_file_received(&self, sender: MSNUser, filename: String, uri: String, filesize: usize, event_id: String) -> Result<usize, SendError<SwitchboardEvent>> {
         if self.is_ignored_event(&event_id) {
             return Ok(0);
         }
-        return self.dispatch_event(FileUploadEventContent::new(sender, filename, uri).into());
+        return self.dispatch_event(FileUploadEventContent::new(sender, filename, uri, filesize).into());
     }
 
     pub fn get_receiver(&mut self) -> Receiver<SwitchboardEvent> {

@@ -1,6 +1,7 @@
 use std::{path::Path, collections::HashSet, time::Duration, f32::consts::E};
 
 use base64::{engine::general_purpose, Engine};
+use js_int::UInt;
 use log::{info, warn};
 use matrix_sdk::{Client, Session, config::SyncSettings, ruma::{device_id, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, JoinedRoom}}, presence::PresenceState, events::{presence::PresenceEvent, room::{member::{StrippedRoomMemberEvent, SyncRoomMemberEvent, RoomMemberEventContent, MembershipState}, message::{SyncRoomMessageEvent, RoomMessageEventContent, MessageType}, MediaSource}, direct::{DirectEvent, DirectEventContent}, typing::SyncTypingEvent, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, GlobalAccountDataEvent, GlobalAccountDataEventType}, RoomId, OwnedUserId, UserId}, room::{Room, RoomMember}, event_handler::Ctx};
 use tokio::sync::{broadcast::Sender, oneshot};
@@ -191,11 +192,18 @@ async fn handle_messages(matrix_client: Client, room_id: &RoomId, switchboard: &
     } else if let MessageType::File(content) = &msg_event.content.msgtype {
         log::info!("Received a file !");
 
+        //Todo make this safe
 
        if let MediaSource::Plain(uri) = &content.source {
-        switchboard.on_file_received(sender, content.body.clone(), uri.to_string(), msg_event.event_id.to_string());
+        
+        let mut size: i32 = 0;
+        if let Some(info) = content.info.as_ref() {
+            size = i32::try_from(info.size.unwrap_or(UInt::new(0).unwrap())).unwrap();
+        }
+
+        switchboard.on_file_received(sender, content.body.clone(), uri.to_string(),usize::try_from(size).unwrap(),  msg_event.event_id.to_string());
        } else {
-        switchboard.on_file_received(sender, content.body.clone(), String::new(), msg_event.event_id.to_string());
+        switchboard.on_file_received(sender, content.body.clone(), String::new(),0,  msg_event.event_id.to_string());
        }
     }
 }

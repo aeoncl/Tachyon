@@ -19,7 +19,7 @@ use super::{
     p2p_transport_packet::P2PTransportPacket,
     pending_packet::PendingPacket,
     slp_payload::SlpPayload,
-    slp_payload_handler::SlpPayloadHandler, events::{p2p_event::P2PEvent, content::message_event_content::MessageEventContent},
+    slp_payload_handler::SlpPayloadHandler, events::{p2p_event::P2PEvent, content::message_event_content::MessageEventContent}, slp_context::PreviewData,
 };
 
 #[derive(Debug)]
@@ -357,9 +357,10 @@ impl P2PSession {
         return out;
     }
 
-    pub fn transfer_file(&mut self, sender: MSNUser, receiver: MSNUser) {
+    pub fn transfer_file(&mut self, sender: MSNUser, receiver: MSNUser, filesize: usize, filename: String) {
         //Todo setup handshake
-        let slp_response = SlpPayloadFactory::get_file_transfer_request(&sender, &receiver).unwrap();
+        let context = PreviewData::new(filesize, filename);
+        let slp_response = SlpPayloadFactory::get_file_transfer_request(&sender, &receiver, &context).unwrap();
         let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
         p2p_payload_response.set_payload(slp_response.to_string().as_bytes().to_owned());
         p2p_payload_response.tf_combination = 0x01;

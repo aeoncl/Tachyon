@@ -16,7 +16,7 @@ pub mod factories {
 
     use crate::models::{errors::Errors, msn_user::MSNUser, uuid::UUID};
 
-    use super::{slp_payload::{SlpPayload, EufGUID}, p2p_transport_packet::P2PTransportPacket, p2p_payload::P2PPayload, tlv::TLV};
+    use super::{slp_payload::{SlpPayload, EufGUID}, p2p_transport_packet::P2PTransportPacket, p2p_payload::P2PPayload, tlv::TLV, slp_context::PreviewData};
 
 
 
@@ -148,11 +148,11 @@ SessionID: 2216804035
             return Ok(out);
         }
 
-        pub fn get_file_transfer_request(sender: &MSNUser, receiver: &MSNUser) -> Result<SlpPayload, Errors> {
+        pub fn get_file_transfer_request(sender: &MSNUser, receiver: &MSNUser, context: &PreviewData) -> Result<SlpPayload, Errors> {
             let mut out = SlpPayload::new();
             out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver.get_mpop_identifier());
-            out.add_header(String::from("To"), receiver.get_mpop_identifier());
-            out.add_header(String::from("From"), sender.get_mpop_identifier());
+            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.get_mpop_identifier()));
+            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = sender.get_mpop_identifier()));
             out.add_header(String::from("Via"), format!("MSNSLP/1.0/TLP ;branch={{{branch_uuid}}}", branch_uuid = UUID::new().to_string()));
 
             out.add_header(String::from("CSeq"), String::from("0"));
@@ -168,8 +168,7 @@ SessionID: 2216804035
             out.add_body_property(String::from("AppID"), String::from("2"));
             out.add_body_property(String::from("RequestFlags"), String::from("16"));
 
-            //Todo use SlpContext
-            out.add_body_property(String::from("Context"), String::from("PgIAAAIAAACHPj4DAAAAAAEAAABnAGgAbwBzAHQALgBwAHMAZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="));
+            out.add_body_property(String::from("Context"), context.to_string());
 
             return Ok(out);
         }
