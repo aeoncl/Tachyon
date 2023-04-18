@@ -68,6 +68,8 @@ impl Switchboard {
         let config = AttachmentConfig::new().generate_thumbnail(None);
         let response = room.send_attachment(file.filename.as_str(), &mime, file.bytes, config).await?;
 
+        info!("Sent file to server: {:?}", &response);
+
         self.add_to_events_sent(response.event_id.to_string());
         Ok(response.event_id)
     }

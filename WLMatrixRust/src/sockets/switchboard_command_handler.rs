@@ -8,7 +8,7 @@ use crate::models::p2p::p2p_transport_packet::P2PTransportPacket;
 use crate::models::p2p::pending_packet::PendingPacket;
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine};
-use log::info;
+use log::{info, error};
 use matrix_sdk::ruma::{OwnedUserId, UserId};
 use matrix_sdk::Client;
 use std::str::FromStr;
@@ -121,7 +121,9 @@ impl SwitchboardCommandHandler {
                                     switchboard.on_message_received(msg, content.sender.clone(), None).unwrap();
                                 },
                                 P2PEvent::FileReceived(content) => {
-                                    switchboard.send_file(content.file).await;
+                                   if let Err(error_resp) = switchboard.send_file(content.file).await {
+                                        error!("An error occured while sending file: {:?}", &error_resp);
+                                   }
                                 },
                                 _ => {
 
