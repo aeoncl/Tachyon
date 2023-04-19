@@ -80,18 +80,18 @@ impl TCPServer for SwitchboardServer {
                             let commands : Vec<MSNPCommand> = parser.parse_message(line);
 
                            for command in commands {
-                                info!("SW {}<= {}", &uuid.to_string(), &command);
+                                info!("SW {} <- {}", &uuid.to_string(), &command);
                                    let response = command_handler.handle_command(&command).await.unwrap();
                                    if !response.is_empty() {
                                        write.write_all(response.as_bytes()).await;
-                                       info!("SW {}=> {}",&uuid.to_string(), &response);
+                                       info!("SW {} -> {}",&uuid.to_string(), &response);
                                    }
                            }
                             buffer = [0u8; 2048];
                         },
                         command_to_send = rx.recv() => {
                             let msg = command_to_send.unwrap();
-                            info!("SW {}=> {}",&uuid.to_string(), &msg);
+                            info!("SW {} -> {}",&uuid.to_string(), &msg);
                             write.write_all(msg.as_bytes()).await;
                         }
                     }

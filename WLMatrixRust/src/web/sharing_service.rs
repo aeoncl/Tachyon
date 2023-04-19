@@ -2,7 +2,7 @@ use std::{str::{from_utf8, FromStr}, sync::Arc};
 
 use actix_web::{post, HttpRequest, web, HttpResponse, HttpResponseBuilder};
 use http::{header::HeaderName, StatusCode};
-use log::info;
+use log::{info, warn};
 use substring::Substring;
 use yaserde::{ser::to_string, de::from_str};
 
@@ -95,6 +95,9 @@ fn get_messenger_service(membership_events: &Vec<AddressBookEvent>) -> (Vec<Base
                 },
                 &RoleId::Pending => {
                     pending_list.push(content.member.clone())
+                },
+                _ => {
+                    warn!("Address Book event contained forbidden list: {}", &content.list)
                 }
             }
         }

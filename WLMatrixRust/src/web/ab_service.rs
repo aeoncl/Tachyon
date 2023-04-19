@@ -6,7 +6,7 @@ use log::info;
 use substring::Substring;
 use yaserde::{ser::to_string, de::from_str};
 
-use crate::{web::error::WebError, generated::msnab_sharingservice::{bindings::{AbgroupAddMessageSoapEnvelope, AbfindContactsPagedMessageSoapEnvelope, AbfindContactsPagedResponseMessageSoapEnvelope}, factories::{ABGroupAddResponseFactory, FindContactsPagedResponseFactory, UpdateDynamicItemResponseFactory}}, repositories::{repository::Repository}, models::uuid::UUID, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR, AB_LOCATOR};
+use crate::{web::error::WebError, generated::{msnab_sharingservice::{bindings::{AbgroupAddMessageSoapEnvelope, AbfindContactsPagedMessageSoapEnvelope, AbfindContactsPagedResponseMessageSoapEnvelope}, factories::{ABGroupAddResponseFactory, FindContactsPagedResponseFactory, UpdateDynamicItemResponseFactory, ContactFactory}}, msnab_datatypes::types::{ContactType, ContactTypeEnum}}, repositories::{repository::Repository, msn_client_locator::MSNClientLocator}, models::{uuid::UUID, msn_user::MSNUser}, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR, AB_LOCATOR};
 
 use super::webserver::DEFAULT_CACHE_KEY;
 
@@ -87,9 +87,14 @@ async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest) -> Resul
     let me_display_name = matrix_client.account().get_display_name().await?.unwrap_or(msn_client.get_user_msn_addr());
 
     if header.application_header.partner_scenario.as_str() == "Initial" {
-        response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, Vec::new());
+            //Fetch contacts from the ADL command
+            let contacts_as_msn_usr = msn_client.get_contacts(false).await;
+            let contact_list = msn_user_to_contact_type(&contacts_as_msn_usr);
+            response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, contact_list);
+        //    let empty_response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name.clone(), Vec::new());
+         //   response = empty_response;
+        
     } else {
-
         let contact_list = AB_LOCATOR.get_contacts(&matrix_token).await.unwrap();
         response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, contact_list);
     }
@@ -98,6 +103,15 @@ async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest) -> Resul
     info!("find_contacts_paged_response: {}", response_serialized);
        
     return Ok(HttpResponseBuilder::new(StatusCode::OK).append_header(("Content-Type", "application/soap+xml")).body(response_serialized));
+}
+
+fn msn_user_to_contact_type(contacts: &Vec<MSNUser>) -> Vec<ContactType> {
+    let mut out = Vec::new();
+    for contact in contacts {
+        let current_contact = ContactFactory::get_contact(&contact.get_uuid(), &contact.get_msn_addr(), &contact.get_display_name(), ContactTypeEnum::Live, false);
+        out.push(current_contact);
+    }
+    return out;
 }
 
 async fn update_dynamic_item(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {

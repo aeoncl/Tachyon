@@ -9,6 +9,7 @@ use tokio::sync::broadcast::{Sender, self, Receiver};
 use crate::generated::payloads::{PrivateEndpointData, PresenceStatus};
 
 use crate::models::msn_user::MSNUser;
+use crate::models::notification::adl_payload::ADLPayload;
 use crate::models::notification::error::{MsnpError, MsnpErrorCode};
 use crate::models::notification::events::notification_event::NotificationEvent;
 use crate::models::notification::msn_client::{MSNClient, self};
@@ -30,6 +31,7 @@ pub struct NotificationCommandHandler {
     msn_client: Option<MSNClient>,
     matrix_client: Option<Client>,
     wlmatrix_client: Option<WLMatrixClient>,
+    needs_initial_presence: bool
 
 }
 
@@ -99,6 +101,7 @@ impl NotificationCommandHandler {
             msnp_version: -1,
             msn_addr: String::new(),
             wlmatrix_client: None,
+            needs_initial_presence: true,
         };
     }
 }
@@ -228,6 +231,14 @@ impl CommandHandler for NotificationCommandHandler {
                     <<< ADL 6 OK
                 */
                 let tr_id = split[1];
+
+                let ad_payload = ADLPayload::from_str(&command.payload).or(Err(MsnpError::internal_server_error(&tr_id)))?;
+                if ad_payload.is_initial() {
+                    info!("Initial Contact List received: {:?}", &ad_payload);
+                    self.msn_client.as_mut().ok_or(MsnpError::internal_server_error(&tr_id))?.init_contact_list(&ad_payload);
+                } else {
+                    info!("Add to Contact List received: {:?}", &ad_payload);
+                }
                 return Ok(format!("ADL {tr_id} OK\r\n", tr_id=tr_id));
             },
             "RML" => {
@@ -236,6 +247,9 @@ impl CommandHandler for NotificationCommandHandler {
                     <<< RML 6 OK
                 */
                 let tr_id = split[1];
+
+                let ad_payload = ADLPayload::from_str(&command.payload).or(Err(MsnpError::internal_server_error(&tr_id)))?;
+                info!("Remove to Contact List received: {:?}", &ad_payload);
                 return Ok(format!("RML {tr_id} OK\r\n", tr_id=tr_id));
             },
             "UUX" => {
@@ -266,6 +280,44 @@ impl CommandHandler for NotificationCommandHandler {
 
                 if let Some(matrix_client) = self.matrix_client.as_ref() {
                     matrix_client.account().set_presence(status.clone().into(), None).await;
+                }
+
+                if self.needs_initial_presence {
+                    self.needs_initial_presence = false;
+
+                    let all_contacts = self.msn_client.as_ref().expect("MSN Client to be present").get_contacts(true).await;
+                   let contacts_chunks: Vec<&[MSNUser]> = all_contacts.chunks(5).collect();
+                    for contacts_chunk in contacts_chunks {
+
+                        let mut iln = String::new();
+                        let mut ubx = String::new();
+
+                        for contact in contacts_chunk {
+                            let mut status = contact.get_status();
+                    
+                            if contact.get_status() == PresenceStatus::FLN {
+                               status = PresenceStatus::HDN;
+                            }
+                            let mut msn_obj = String::new();
+
+
+                            if let Some(display_pic) = contact.get_display_picture().as_ref() {
+                                msn_obj = display_pic.to_string();
+                            }
+
+                            let current_iln = format!("ILN {tr_id} {status} 1:{msn_addr} {nickname} {client_capabilities} {msn_obj}\r\n", tr_id = tr_id, client_capabilities= &contact.get_capabilities() ,msn_addr= &contact.get_msn_addr(), status = status.to_string(), nickname= &contact.get_display_name(), msn_obj = &msn_obj);
+                            iln.push_str(current_iln.as_str());
+
+                            let current_ubx_payload = format!("<PSM>{status_msg}</PSM><CurrentMedia></CurrentMedia><EndpointData id=\"{{{machine_guid}}}\"><Capabilities>{client_capabilities}</Capabilities></EndpointData>", status_msg = &contact.get_psm(), client_capabilities= &contact.get_capabilities(), machine_guid = &contact.get_endpoint_guid());
+                            let current_ubx = format!("UBX 1:{msn_addr} {ubx_payload_size}\r\n{ubx_payload}", msn_addr = &contact.get_msn_addr(), ubx_payload_size= current_ubx_payload.len(), ubx_payload=current_ubx_payload);
+                            ubx.push_str(current_ubx.as_str());
+                        }
+
+                      
+                        let _result: Result<usize, broadcast::error::SendError<String>> = self.sender.send(iln);
+                        let _result = self.sender.send(ubx);
+                    }
+
                 }
 
                 // >>> CHG 11 NLN 2789003324:48 0

@@ -61,20 +61,20 @@ impl TCPServer for NotificationServer {
                             let commands : Vec<MSNPCommand> = parser.parse_message(line);
 
                             for command in commands {
-                                info!("NS <= {}", &command);
+                                info!("NS <- {}", &command);
                                     match command_handler.handle_command(&command).await {
                                         Ok(response) => {
                                             if !response.is_empty() {
                                                 write.write_all(response.as_bytes()).await;
-                                                info!("NS => {}", &response);
+                                                info!("NS -> {}", &response);
                                             }
                                         },
                                         Err(err) => {
 
                                             let error = format!("{error_code} {tr_id}\r\n", error_code = err.code as i32, tr_id= err.tr_id);
                                             let out = "OUT\r\n";
-                                            log::error!("NS => {}", &error);
-                                            log::error!("NS => {}", &out);
+                                            log::error!("NS -> {}", &error);
+                                            log::error!("NS -> {}", &out);
                                             write.write_all(error.as_bytes()).await;
                                             write.write_all(out.as_bytes()).await;
                                         }

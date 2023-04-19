@@ -93,8 +93,9 @@ fn setup_logs() {
             )
         })
         .target(env_logger::Target::Pipe(target))
-        .filter(Some("wlmatrix_rust"), LevelFilter::Debug)
+        .filter(None, LevelFilter::Debug)
         .init();
-    
+
+    //Some("wlmatrix_rust")    
     info!("=========NEW LOG SESSION (✿◡‿◡)  - {}=========", Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"));
 }
