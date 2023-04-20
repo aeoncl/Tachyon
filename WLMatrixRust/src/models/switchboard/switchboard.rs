@@ -1,9 +1,9 @@
 use std::{sync::{Arc, Mutex, atomic::{}}, collections::HashSet, str::FromStr, io::Cursor, mem};
 use log::info;
-use matrix_sdk::{ruma::{OwnedRoomId, OwnedUserId, OwnedEventId, events::room::message::RoomMessageEventContent}, Client, attachment::AttachmentConfig};
+use matrix_sdk::{ruma::{OwnedRoomId, OwnedUserId, OwnedEventId, events::room::{message::RoomMessageEventContent, MediaSource}}, Client, attachment::AttachmentConfig};
 use tokio::sync::{broadcast::{Sender, Receiver, error::SendError, self}};
 
-use crate::{utils::emoji::smiley_to_emoji, models::{p2p::{file::File, events::p2p_event::{self}, p2p_transport_packet::P2PTransportPacket, pending_packet::PendingPacket}, msg_payload::{MsgPayload, factories::MsgPayloadFactory}, msn_user::MSNUser}, P2P_REPO};
+use crate::{utils::emoji::smiley_to_emoji, models::{p2p::{file::File, events::p2p_event::{self}, p2p_transport_packet::P2PTransportPacket, pending_packet::PendingPacket}, msg_payload::{MsgPayload, factories::MsgPayloadFactory}, msn_user::MSNUser}, P2P_REPO, MSN_CLIENT_LOCATOR};
 
 use super::{events::{switchboard_event::SwitchboardEvent, content::{message_event_content::MessageEventContent, file_upload_event_content::FileUploadEventContent}}, switchboard_error::SwitchboardError};
 
@@ -109,11 +109,13 @@ impl Switchboard {
         return self.dispatch_event(SwitchboardEvent::MessageEvent(content));
     }
 
-    pub fn on_file_received(&self, sender: MSNUser, filename: String, uri: String, filesize: usize, event_id: String) -> Result<usize, SendError<SwitchboardEvent>> {
+    pub fn on_file_received(&self, sender: MSNUser, filename: String, source: MediaSource, filesize: usize, event_id: String) -> Result<usize, SendError<SwitchboardEvent>> {
         if self.is_ignored_event(&event_id) {
             return Ok(0);
         }
-        return self.dispatch_event(FileUploadEventContent::new(sender, filename, uri, filesize).into());
+        let client_data = MSN_CLIENT_LOCATOR.get().unwrap();
+
+        return self.dispatch_event(FileUploadEventContent::new(sender,client_data.get_user(), filename, source, filesize).into());
     }
 
     pub fn get_receiver(&mut self) -> Receiver<SwitchboardEvent> {

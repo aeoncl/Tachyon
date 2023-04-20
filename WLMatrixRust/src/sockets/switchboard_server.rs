@@ -48,7 +48,7 @@ impl TCPServer for SwitchboardServer {
 
         loop {
             let (mut socket, _addr) = listener.accept().await.unwrap();
-            let (tx, mut rx) = broadcast::channel::<String>(10);
+            let (tx, mut rx) = broadcast::channel::<String>(100);
             let mut command_handler = self.get_command_handler(tx.clone());
             let mut incomplete_command: Option<MSNPCommand> = None;
             let mut parser = MSNPCommandParser::new();

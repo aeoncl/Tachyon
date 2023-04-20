@@ -148,7 +148,7 @@ SessionID: 2216804035
             return Ok(out);
         }
 
-        pub fn get_file_transfer_request(sender: &MSNUser, receiver: &MSNUser, context: &PreviewData) -> Result<SlpPayload, Errors> {
+        pub fn get_file_transfer_request(sender: &MSNUser, receiver: &MSNUser, context: &PreviewData) -> Result<(SlpPayload, u32), Errors> {
             let mut out = SlpPayload::new();
             out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver.get_mpop_identifier());
             out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.get_mpop_identifier()));
@@ -163,14 +163,14 @@ SessionID: 2216804035
             out.add_body_property(String::from("EUF-GUID"), EufGUID::FileTransfer.to_string());
 
             let mut rng = rand::thread_rng();
-            let y: u32 = rng.gen();
-            out.add_body_property(String::from("SessionID"), y.to_string());
+            let session_id: u32 = rng.gen();
+            out.add_body_property(String::from("SessionID"), session_id.to_string());
             out.add_body_property(String::from("AppID"), String::from("2"));
             out.add_body_property(String::from("RequestFlags"), String::from("16"));
 
             out.add_body_property(String::from("Context"), context.to_string());
 
-            return Ok(out);
+            return Ok((out, session_id));
         }
 
         pub fn get_200_ok_indirect_connect(invite: &SlpPayload) -> Result<SlpPayload, Errors> {
@@ -336,6 +336,11 @@ SessionID: 2216804035
     impl P2PPayloadFactory {
         pub fn get_sip_text_message() -> P2PPayload {
             return P2PPayload::new(0x01, 0x0);
+        }
+
+        pub fn get_file_transfer(session_id: u32) -> P2PPayload {
+            return P2PPayload::new(0x07, session_id);
+
         }
     }
 

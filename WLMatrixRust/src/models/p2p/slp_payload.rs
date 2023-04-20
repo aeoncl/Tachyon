@@ -91,6 +91,14 @@ impl SlpPayload {
         return None;
     }
 
+    pub fn is_invite(&self) -> bool {
+        return self.first_line.contains("INVITE");
+    }
+
+    pub fn is_200_ok(&self) -> bool {
+        return self.first_line.contains("200 OK");
+    }
+
 }
 
 impl FromStr for SlpPayload {

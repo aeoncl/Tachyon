@@ -190,15 +190,8 @@ async fn handle_messages(matrix_client: Client, room_id: &RoomId, switchboard: &
         let msg = MsgPayloadFactory::get_message(emoji_to_smiley(&content.body));
         switchboard.on_message_received(msg, sender, Some(msg_event.event_id.to_string()));
     } else if let MessageType::File(content) = &msg_event.content.msgtype {
-
-       if let MediaSource::Plain(uri) = &content.source {
-    
-        log::info!("Received a plain file: {:?}", &content);
-        switchboard.on_file_received(sender, content.body.clone(), uri.to_string(), WLMatrixClient::get_size_or_default(&content),  msg_event.event_id.to_string());
-       } else if let MediaSource::Encrypted(encrypted_file) = &content.source {
-        log::info!("Received an encrypted file: {:?}", &content);
-        switchboard.on_file_received(sender, content.body.clone(), encrypted_file.url.to_string(), WLMatrixClient::get_size_or_default(&content),  msg_event.event_id.to_string());
-       }
+        log::info!("Received a file: {:?}", &content);
+        switchboard.on_file_received(sender, content.body.clone(), content.source.clone(), WLMatrixClient::get_size_or_default(&content),  msg_event.event_id.to_string());
     }
 }
 

@@ -9,6 +9,7 @@ use crate::models::p2p::pending_packet::PendingPacket;
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine};
 use log::{info, error};
+use matrix_sdk::media::{MediaRequest, MediaFormat};
 use matrix_sdk::ruma::{OwnedUserId, UserId};
 use matrix_sdk::Client;
 use std::str::FromStr;
@@ -77,6 +78,7 @@ impl SwitchboardCommandHandler {
         mut p2p_stop_listener: oneshot::Receiver<()>,
     ) {
         let sender = self.sender.clone();
+        let matrix_client = self.matrix_client.clone().unwrap();
         let switchboard = self
             .switchboard
             .as_ref()
@@ -101,8 +103,8 @@ impl SwitchboardCommandHandler {
                                     let _result = sender.send(format!("MSG {msn_addr} {display_name} {payload_size}\r\n{payload}", msn_addr = &content.sender.get_msn_addr(), display_name = &content.sender.get_display_name(), payload_size = payload.len(), payload = &payload));
                                 },
                                 SwitchboardEvent::FileUploadEvent(content) => {
-                                    let client_data = MSN_CLIENT_LOCATOR.get().unwrap();
-                                    sb_bridge.transfer_file(content.sender, client_data.get_user(), content.filesize, content.filename);
+                                    
+                                    sb_bridge.transfer_file(content.clone());
                                 },
                                 _ => {
 
@@ -125,6 +127,18 @@ impl SwitchboardCommandHandler {
                                         error!("An error occured while sending file: {:?}", &error_resp);
                                    }
                                 },
+                                P2PEvent::FileTransferAccepted(content) => {
+                                    
+                                    let media_request = MediaRequest{source: content.source.clone(), format: MediaFormat::File };
+                                    let file_content = matrix_client.media().get_media_content(&media_request, true).await;
+                     
+                                     if let Ok(file_downloaded) = file_content {
+                                        sb_bridge.send_file(content.session_id, file_downloaded);
+                                     } else {
+                                         //Todo return error
+                                         error!("There was an error downloading the file to send: {:?} {}", &media_request, file_content.unwrap_err());
+                                     }
+                                }
                                 _ => {
 
                                 }
