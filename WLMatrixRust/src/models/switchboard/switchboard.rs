@@ -38,7 +38,7 @@ impl SwitchboardInner {
 
 impl Switchboard {
     pub fn new(matrix_client: Client, target_room_id: OwnedRoomId, creator_id: OwnedUserId) -> Self {
-        let (sb_event_sender, sb_event_queued_listener) = broadcast::channel::<SwitchboardEvent>(30);
+        let (sb_event_sender, sb_event_queued_listener) = broadcast::channel::<SwitchboardEvent>(100);
 
         let inner = Arc::new(SwitchboardInner {
             events_sent: Mutex::new(HashSet::new()),

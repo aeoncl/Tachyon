@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use crate::{models::uuid::UUID, sockets::msnp_command::MSNPCommand};
 
 use super::{
-    msnp_command::{MSNPCommandParser}, tcpserver::TCPServer, switchboard_command_handler::SwitchboardCommandHandler, command_handler::CommandHandler,
+    msnp_command::{MSNPCommandParser}, tcpserver::TCPServer, switchboard_command_handler::SwitchboardCommandHandler, command_handler::CommandHandler, events::socket_event::SocketEvent,
 };
 
 pub struct SwitchboardServer {
@@ -48,7 +48,7 @@ impl TCPServer for SwitchboardServer {
 
         loop {
             let (mut socket, _addr) = listener.accept().await.unwrap();
-            let (tx, mut rx) = broadcast::channel::<String>(100);
+            let (tx, mut rx) = broadcast::channel::<String>(10000);
             let mut command_handler = self.get_command_handler(tx.clone());
             let mut incomplete_command: Option<MSNPCommand> = None;
             let mut parser = MSNPCommandParser::new();
@@ -103,3 +103,20 @@ impl TCPServer for SwitchboardServer {
         }
     }
 }
+
+/*
+
+  match msg {
+                                SocketEvent::Single(msg) => {
+                                    info!("SW {} -> {}",&uuid.to_string(), &msg);
+                                    write.write_all(msg.as_bytes()).await;
+                                },
+                                SocketEvent::Multiple(msgs) => {
+                                    for msg in msgs {
+                                        info!("SW {} -> {}",&uuid.to_string(), &msg);
+                                        write.write_all(msg.as_bytes()).await;
+                                    }
+                                }
+                            }
+
+ */

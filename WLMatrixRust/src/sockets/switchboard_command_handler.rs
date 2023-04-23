@@ -75,7 +75,7 @@ impl SwitchboardCommandHandler {
         &mut self,
         mut sb_receiver: Receiver<SwitchboardEvent>,
         mut p2p_receiver: Receiver<P2PEvent>,
-        mut p2p_stop_listener: oneshot::Receiver<()>,
+        mut stop_listener: oneshot::Receiver<()>,
     ) {
         let sender = self.sender.clone();
         let matrix_client = self.matrix_client.clone().unwrap();
@@ -96,57 +96,52 @@ impl SwitchboardCommandHandler {
             loop {
                 tokio::select! {
                     sb_event = sb_receiver.recv() => {
-                        if let Ok(msg) = sb_event {
-                            match msg {
-                                SwitchboardEvent::MessageEvent(content) => {
-                                    let payload = content.msg.serialize();
-                                    let _result = sender.send(format!("MSG {msn_addr} {display_name} {payload_size}\r\n{payload}", msn_addr = &content.sender.get_msn_addr(), display_name = &content.sender.get_display_name(), payload_size = payload.len(), payload = &payload));
-                                },
-                                SwitchboardEvent::FileUploadEvent(content) => {
-                                    
-                                    sb_bridge.transfer_file(content.clone());
-                                },
-                                _ => {
-
-                                }
+                        let msg = sb_event.expect("SB Pipe to not lag");
+                        match msg {
+                            SwitchboardEvent::MessageEvent(content) => {
+                                let payload = content.msg.serialize();
+                                let _result = sender.send(format!("MSG {msn_addr} {display_name} {payload_size}\r\n{payload}", msn_addr = &content.sender.get_msn_addr(), display_name = &content.sender.get_display_name(), payload_size = payload.len(), payload = &payload));
+                            },
+                            SwitchboardEvent::FileUploadEvent(content) => {
+                                
+                                sb_bridge.send_transfer_invite(content.clone());
+                            },
+                            _ => {
                             }
                         }
                     },
                     p2p_event = p2p_receiver.recv() => {
-                        if let Ok(msg) = p2p_event {
-                            match msg {
-                                P2PEvent::Message(content) => {
-                                    //Todo change this
-                                    P2P_REPO.set_seq_number(content.packet.get_next_sequence_number());
-                                    info!("DEBUG P2PEVENT::Message");
-                                    let msg = MsgPayloadFactory::get_p2p(&content.sender, &content.receiver, &content.packet);
-                                    switchboard.on_message_received(msg, content.sender.clone(), None).unwrap();
-                                },
-                                P2PEvent::FileReceived(content) => {
-                                   if let Err(error_resp) = switchboard.send_file(content.file).await {
-                                        error!("An error occured while sending file: {:?}", &error_resp);
-                                   }
-                                },
-                                P2PEvent::FileTransferAccepted(content) => {
-                                    
-                                    let media_request = MediaRequest{source: content.source.clone(), format: MediaFormat::File };
-                                    let file_content = matrix_client.media().get_media_content(&media_request, true).await;
-                     
-                                     if let Ok(file_downloaded) = file_content {
-                                        sb_bridge.send_file(content.session_id, file_downloaded);
-                                     } else {
-                                         //Todo return error
-                                         error!("There was an error downloading the file to send: {:?} {}", &media_request, file_content.unwrap_err());
-                                     }
-                                }
-                                _ => {
-
-                                }
+                        let msg = p2p_event.expect("P2P Pipe to not lag");
+                        match msg {
+                            P2PEvent::Message(content) => {
+                                //Todo change this
+                                P2P_REPO.set_seq_number(content.packet.get_next_sequence_number());
+                                let payload = MsgPayloadFactory::get_p2p(&content.sender, &content.receiver, &content.packet).serialize();
+                                let _result = sender.send(format!("MSG {msn_addr} {display_name} {payload_size}\r\n{payload}", msn_addr = &content.sender.get_msn_addr(), display_name = &content.sender.get_display_name(), payload_size = payload.len(), payload = &payload));
+                            },
+                            P2PEvent::FileReceived(content) => {
+                               if let Err(error_resp) = switchboard.send_file(content.file).await {
+                                    error!("An error occured while sending file: {:?}", &error_resp);
+                               }
+                            },
+                            P2PEvent::FileTransferAccepted(content) => {
+                                
+                                let media_request = MediaRequest{source: content.source.clone(), format: MediaFormat::File };
+                                let file_content = matrix_client.media().get_media_content(&media_request, true).await;
+                                
+                                 if let Ok(file_downloaded) = file_content {
+                                    sb_bridge.send_file(content.session_id, file_downloaded);
+                                 } else {
+                                     //Todo return error
+                                     error!("There was an error downloading the file to send: {:?} {}", &media_request, file_content.unwrap_err());
+                                 }
+                            }
+                            _ => {
                             }
                         }
                     },
-                    _p2p_stop = &mut p2p_stop_listener => {
-                        info!("STOP LISTENING FOR SB");
+                    _stop = &mut stop_listener => {
+                        info!("STOP LISTENING FOR SB & SB Brdige");
                         break;
                     }
                 }
@@ -228,7 +223,7 @@ impl SwitchboardCommandHandler {
         self.switchboard = Some(switchboard.clone());
         let sb_receiver = switchboard.get_receiver();
 
-        let (p2p_sender, p2p_receiver) = broadcast::channel::<P2PEvent>(30);
+        let (p2p_sender, p2p_receiver) = broadcast::channel::<P2PEvent>(10000);
         self.sb_bridge = Some(P2PSession::new(p2p_sender));
 
         let (stop_sender, mut stop_receiver) = oneshot::channel::<()>();

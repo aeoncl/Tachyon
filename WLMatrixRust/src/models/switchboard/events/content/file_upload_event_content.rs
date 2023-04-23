@@ -11,7 +11,6 @@ pub struct FileUploadEventContent {
     pub filename: String,
     pub filesize: usize,
     pub source: MediaSource
-
 }
 
 impl FileUploadEventContent {
