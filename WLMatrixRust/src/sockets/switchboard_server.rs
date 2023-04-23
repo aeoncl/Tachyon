@@ -32,7 +32,7 @@ impl SwitchboardServer {
         };
     }
 
-    fn get_command_handler(&self, sender: Sender<String>) -> Box<dyn CommandHandler> {
+    fn get_command_handler(&self, sender: Sender<SocketEvent>) -> Box<dyn CommandHandler> {
         return Box::new(SwitchboardCommandHandler::new(sender));
     }
 
@@ -48,9 +48,8 @@ impl TCPServer for SwitchboardServer {
 
         loop {
             let (mut socket, _addr) = listener.accept().await.unwrap();
-            let (tx, mut rx) = broadcast::channel::<String>(10000);
+            let (tx, mut rx) = broadcast::channel::<SocketEvent>(100);
             let mut command_handler = self.get_command_handler(tx.clone());
-            let mut incomplete_command: Option<MSNPCommand> = None;
             let mut parser = MSNPCommandParser::new();
 
 
@@ -91,8 +90,19 @@ impl TCPServer for SwitchboardServer {
                         },
                         command_to_send = rx.recv() => {
                             let msg = command_to_send.unwrap();
-                            info!("SW {} -> {}",&uuid.to_string(), &msg);
-                            write.write_all(msg.as_bytes()).await;
+                            match msg {
+                                SocketEvent::Single(content) => {
+                                    info!("SW {} -> {}",&uuid.to_string(), &content);
+                                    write.write_all(content.as_bytes()).await;
+                                },
+                                SocketEvent::Multiple(content) => {
+                                    for current in content {
+                                        info!("SW {} -> {}",&uuid.to_string(), &current);
+                                        write.write_all(current.as_bytes()).await;
+                                    }
+                                }
+                            }
+                        
                         }
                     }
                 }

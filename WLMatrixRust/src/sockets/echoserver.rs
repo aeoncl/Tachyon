@@ -11,7 +11,7 @@ use tokio::{
 use async_trait::async_trait;
 
 
-use crate::{models::{uuid::UUID, p2p::{pending_packet::PendingPacket, p2p_session::P2PSession}, msn_user::MSNUser}, sockets::{msnp_command::MSNPCommand, msnp2p_command::P2PCommandParser}};
+use crate::{models::{uuid::UUID, p2p::{pending_packet::PendingPacket, p2p_client::P2PClient}, msn_user::MSNUser}, sockets::{msnp_command::MSNPCommand, msnp2p_command::P2PCommandParser}};
 
 use super::{tcpserver::TCPServer};
 

@@ -5,7 +5,7 @@ use std::{
     time::Duration, f32::consts::E,
 };
 
-use log::{info, debug, error};
+use log::{info, debug, error, logger, warn};
 use matrix_sdk::{Client, media::{MediaEventContent, MediaRequest, MediaFormat}};
 use rand::Rng;
 use tokio::sync::broadcast::Sender;
@@ -20,16 +20,16 @@ use super::{
     p2p_transport_packet::P2PTransportPacket,
     pending_packet::PendingPacket,
     slp_payload::SlpPayload,
-    slp_payload_handler::SlpPayloadHandler, events::{p2p_event::P2PEvent, content::message_event_content::MessageEventContent}, slp_context::PreviewData,
+    events::{p2p_event::P2PEvent, content::message_event_content::MessageEventContent}, slp_context::PreviewData, session::{p2p_session::{P2PSession}, p2p_session_type::P2PSessionType},
 };
 
 #[derive(Debug)]
-pub struct InnerP2PSession {
+pub struct InnerP2PClient {
     sender: Sender<P2PEvent>,
 
     //p2ppayload package number & P2PTransport packet
     inbound_chunked_packets: Mutex<HashMap<u16, PendingPacket>>,
-
+    
     /* packets received before the handshake was done */
     inbound_pending_packets: Mutex<Vec<PendingPacket>>,
 
@@ -44,21 +44,21 @@ pub struct InnerP2PSession {
     pending_files: Mutex<HashMap<u32, File>>,
 
     /** a map of session_ids / FileUploadEventContent */
-    pending_outbound_sessions: Mutex<HashMap<u32, FileUploadEventContent>>,
+    pending_outbound_sessions: Mutex<HashMap<u32, P2PSession>>,
 }
 
 #[derive(Clone, Debug)]
-pub struct P2PSession {
-    inner: Arc<InnerP2PSession>,
+pub struct P2PClient {
+    inner: Arc<InnerP2PClient>,
 }
 
-impl P2PSession {
+impl P2PClient {
     pub fn new(sender: Sender<P2PEvent>) -> Self {
         let mut rng = rand::thread_rng();
         let seq_number = rng.gen::<u32>();
 
-        return P2PSession {
-            inner: Arc::new(InnerP2PSession {
+        return P2PClient {
+            inner: Arc::new(InnerP2PClient {
                 sender,
                 inbound_chunked_packets: Mutex::new(HashMap::new()),
                 inbound_pending_packets: Mutex::new(Vec::new()),
@@ -67,7 +67,7 @@ impl P2PSession {
                 pending_files: Mutex::new(HashMap::new()),
                 package_number: Mutex::new(150),
                 pending_outbound_sessions: Mutex::new(HashMap::new()),
-            })           
+            })
         };
     }
 
@@ -295,10 +295,9 @@ impl P2PSession {
         if packet_to_send.get_payload().is_some() && packet_to_send.get_payload().unwrap().get_payload_bytes().len() > 1222 {
             //We need to split this joker, he's too big
             let split = self.split(packet_to_send);
-            for current in split {
-                info!("OnChunkedMsgReply: {:?}", &current);
-                self.inner.sender.send(P2PEvent::Message(MessageEventContent{packet: current, sender: sender.clone(), receiver: receiver.clone()}));
-            }
+            info!("OnChunkedMsgReply");
+            self.inner.sender.send(P2PEvent::Message(MessageEventContent{packets: split, sender: sender.clone(), receiver: receiver.clone()}));
+            
         } else {
 
           info!("OnSingleMsgReply: {:?}", &packet_to_send);
@@ -306,7 +305,9 @@ impl P2PSession {
           packet_to_send.sequence_number = self.get_seq_number();
           self.set_seq_number(self.get_seq_number() + packet_to_send.get_payload_length());
 
-          self.inner.sender.send(P2PEvent::Message(MessageEventContent{packet: packet_to_send, sender: sender.clone(), receiver: receiver.clone()}));
+          let mut out = Vec::new();
+          out.push(packet_to_send);
+          self.inner.sender.send(P2PEvent::Message(MessageEventContent{packets: out, sender: sender.clone(), receiver: receiver.clone()}));
 
         }
       
@@ -361,22 +362,33 @@ impl P2PSession {
         return out;
     }
 
-    pub fn send_transfer_invite(&mut self, event_content: FileUploadEventContent) {
+    pub fn initiate_session(&mut self, inviter: MSNUser, invitee: MSNUser, session_type: P2PSessionType) {
         //Todo setup handshake
-        let receiver = event_content.receiver.clone();
-        let sender = event_content.sender.clone();
-        let context = PreviewData::new(event_content.filesize.clone(), event_content.filename.clone());
-        let (slp_request, session_id) = SlpPayloadFactory::get_file_transfer_request(&sender, &receiver, &context).unwrap();
+
+        let mut slp_request : Option<SlpPayload> = None;
+
+        let mut rng = rand::thread_rng();
+        let session_id: u32 = rng.gen();
+
+        match session_type {
+            P2PSessionType::FileTransfer(ref content) => {
+                let context = PreviewData::new(content.filesize.clone(), content.filename.clone());
+                slp_request = Some(SlpPayloadFactory::get_file_transfer_request(&inviter, &invitee, &context, session_id).unwrap());
+            }
+        }
+
         let mut p2p_payload = P2PPayloadFactory::get_sip_text_message();
-        p2p_payload.set_payload(slp_request.to_string().as_bytes().to_owned());
+        p2p_payload.set_payload(slp_request.expect("An SLP Payload to have").to_string().as_bytes().to_owned());
         p2p_payload.tf_combination = 0x01;
         p2p_payload.session_id = 0;
 
         let mut slp_transport_req = P2PTransportPacket::new(0, Some(p2p_payload));
         slp_transport_req.op_code = 0x0;
 
-        self.inner.pending_outbound_sessions.lock().expect("pending_files_to_send to be unlocked").insert(session_id, event_content);
-        self.reply(&sender, &receiver, slp_transport_req);
+        let session: P2PSession = P2PSession::new(session_type, session_id, inviter.clone(), invitee.clone());
+        self.inner.pending_outbound_sessions.lock().expect("pending_files_to_send to be unlocked").insert(session_id, session);
+
+        self.reply(&inviter, &invitee, slp_transport_req);
     }
 
     fn handle_slp_payload(&mut self, slp_payload: &SlpPayload) -> Result<Option<SlpPayload>, Errors> {
@@ -455,13 +467,19 @@ impl P2PSession {
            if let Some(session_id) = slp_payload.get_body_property(&String::from("SessionID")) {
              let session_id = session_id.parse::<u32>().unwrap();
 
-            let pending_files_lock = self.inner.pending_outbound_sessions.lock().expect("pending_files_to_send to be unlocked while sending");
+            let pending_sessions_lock = self.inner.pending_outbound_sessions.lock().expect("pending_files_to_send to be unlocked while sending");
 
-             let maybe_file = pending_files_lock.get(&session_id);
-             if let Some(file) = maybe_file {
-                self.inner.sender.send(P2PEvent::FileTransferAccepted(FileTransferAcceptedEventContent{ source: file.source.clone(), session_id }));
-             } else {
-                error!("No pending file to send for session_id: {}", &session_id);
+             let maybe_session = pending_sessions_lock.get(&session_id);
+             let session = maybe_session.expect(format!("session {} to be present", session_id).as_str());
+
+
+             match session.get_type() {
+                &P2PSessionType::FileTransfer(ref content) => {
+                    self.inner.sender.send(P2PEvent::FileTransferAccepted(FileTransferAcceptedEventContent{ source: content.source.as_ref().expect("media source to be present").clone(), session_id }));
+                }
+                _ => {
+                    warn!("Session Type not handled yet");
+                }
              }
            }
         }
@@ -469,18 +487,14 @@ impl P2PSession {
     }
 
     pub fn send_file(&mut self, session_id: u32, file: Vec<u8>) {
-        let maybe_file_event = self.inner.pending_outbound_sessions.lock().expect("pending_files_to_send to be unlocked while sending").remove(&session_id);
-        if let Some(file_event) = maybe_file_event {
+        let maybe_session = self.inner.pending_outbound_sessions.lock().expect("pending_files_to_send to be unlocked while sending").remove(&session_id);
+        if let Some(session) = maybe_session {
 
             
             let mut payload = P2PPayloadFactory::get_file_transfer(session_id);
             payload.set_payload(file);
-
             let packet = P2PTransportPacket::new(0, Some(payload));
-
-            let sender = file_event.sender.clone();
-            let receiver = file_event.receiver.clone();
-            self.reply(&sender, &receiver, packet);
+            self.reply(&session.get_inviter(), &session.get_invitee(), packet);
         }
     }
 
@@ -516,7 +530,7 @@ mod tests {
         },
     };
 
-    use super::P2PSession;
+    use super::P2PClient;
 
     #[actix_rt::test]
     async fn test_chunked_payload() {

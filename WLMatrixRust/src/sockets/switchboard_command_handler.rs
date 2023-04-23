@@ -3,9 +3,11 @@ use crate::models::msn_user::MSNUser;
 use crate::models::notification::error::{MsnpError, MsnpErrorCode};
 use crate::models::owned_user_id_traits::{FromMsnAddr, ToMsnAddr};
 use crate::models::p2p::events::p2p_event::P2PEvent;
-use crate::models::p2p::p2p_session::P2PSession;
+use crate::models::p2p::p2p_client::P2PClient;
 use crate::models::p2p::p2p_transport_packet::P2PTransportPacket;
 use crate::models::p2p::pending_packet::PendingPacket;
+use crate::models::p2p::session::file_transfer_session_content::FileTransferSessionContent;
+use crate::models::p2p::session::p2p_session_type::P2PSessionType;
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine};
 use log::{info, error};
@@ -19,6 +21,7 @@ use tokio::sync::broadcast::{self, Receiver, Sender};
 use tokio::sync::oneshot;
 
 use super::command_handler::CommandHandler;
+use super::events::socket_event::SocketEvent;
 use super::msnp_command::MSNPCommand;
 use crate::models::msg_payload::factories::MsgPayloadFactory;
 use crate::models::switchboard::events::switchboard_event::SwitchboardEvent;
@@ -36,9 +39,9 @@ pub struct SwitchboardCommandHandler {
     target_matrix_id: Option<OwnedUserId>,
     target_msn_addr: String,
     matrix_client: Option<Client>,
-    sender: Sender<String>,
+    sender: Sender<SocketEvent>,
     switchboard: Option<Switchboard>,
-    sb_bridge: Option<P2PSession>,
+    sb_bridge: Option<P2PClient>,
     stop_sender: Option<oneshot::Sender<()>>,
 }
 
@@ -54,7 +57,7 @@ impl Drop for SwitchboardCommandHandler {
 }
 
 impl SwitchboardCommandHandler {
-    pub fn new(sender: Sender<String>) -> SwitchboardCommandHandler {
+    pub fn new(sender: Sender<SocketEvent>) -> SwitchboardCommandHandler {
         return SwitchboardCommandHandler {
             protocol_version: Arc::new(-1),
             msn_addr: String::new(),
@@ -100,11 +103,11 @@ impl SwitchboardCommandHandler {
                         match msg {
                             SwitchboardEvent::MessageEvent(content) => {
                                 let payload = content.msg.serialize();
-                                let _result = sender.send(format!("MSG {msn_addr} {display_name} {payload_size}\r\n{payload}", msn_addr = &content.sender.get_msn_addr(), display_name = &content.sender.get_display_name(), payload_size = payload.len(), payload = &payload));
+                                let _result = sender.send(format!("MSG {msn_addr} {display_name} {payload_size}\r\n{payload}", msn_addr = &content.sender.get_msn_addr(), display_name = &content.sender.get_display_name(), payload_size = payload.len(), payload = &payload).into());
                             },
                             SwitchboardEvent::FileUploadEvent(content) => {
-                                
-                                sb_bridge.send_transfer_invite(content.clone());
+                                let session_type = P2PSessionType::FileTransfer(FileTransferSessionContent { filename: content.filename, filesize: content.filesize, source: Some(content.source) });
+                                sb_bridge.initiate_session(content.sender, content.receiver, session_type);
                             },
                             _ => {
                             }
@@ -115,9 +118,13 @@ impl SwitchboardCommandHandler {
                         match msg {
                             P2PEvent::Message(content) => {
                                 //Todo change this
-                                P2P_REPO.set_seq_number(content.packet.get_next_sequence_number());
-                                let payload = MsgPayloadFactory::get_p2p(&content.sender, &content.receiver, &content.packet).serialize();
-                                let _result = sender.send(format!("MSG {msn_addr} {display_name} {payload_size}\r\n{payload}", msn_addr = &content.sender.get_msn_addr(), display_name = &content.sender.get_display_name(), payload_size = payload.len(), payload = &payload));
+                                //P2P_REPO.set_seq_number(content.packet.get_next_sequence_number());
+                                let msgs : Vec<String> = content.packets.iter().map(|packet| {
+                                    let payload = MsgPayloadFactory::get_p2p(&content.sender, &content.receiver, &packet).serialize();
+                                    format!("MSG {msn_addr} {display_name} {payload_size}\r\n{payload}", msn_addr = &content.sender.get_msn_addr(), display_name = &content.sender.get_display_name(), payload_size = payload.len(), payload = &payload)
+                                }).collect();
+
+                                let _result = sender.send(SocketEvent::Multiple(msgs));
                             },
                             P2PEvent::FileReceived(content) => {
                                if let Err(error_resp) = switchboard.send_file(content.file).await {
@@ -181,7 +188,7 @@ impl SwitchboardCommandHandler {
             passport = &msn_user.get_msn_addr(),
             friendly_name = &msn_user.get_msn_addr(),
             capabilities = &msn_user.get_capabilities().to_string()
-        ));
+        ).into());
 
         let endpoint_guid = UUID::from_string(&msn_user.get_msn_addr())
             .to_string()
@@ -194,7 +201,7 @@ impl SwitchboardCommandHandler {
             passport = &msn_user.get_msn_addr(),
             friendly_name = &msn_user.get_msn_addr(),
             endpoint_guid = &endpoint_guid,
-            capabilities = &msn_user.get_capabilities().to_string()));
+            capabilities = &msn_user.get_capabilities().to_string()).into());
     }
 
     pub fn send_me_joined(&self) {
@@ -209,22 +216,22 @@ impl SwitchboardCommandHandler {
             passport = &user.get_msn_addr(),
             friendly_name = &user.get_msn_addr(),
             capabilities = &user.get_capabilities().to_string()
-        ));
+        ).into());
         self.sender.send(format!(
             "JOI {passport};{{{endpoint_guid}}} {friendly_name} {capabilities}\r\n",
             passport = &user.get_msn_addr(),
             endpoint_guid = &user.get_endpoint_guid(),
             friendly_name = &user.get_msn_addr(),
             capabilities = &user.get_capabilities().to_string()
-        ));
+        ).into());
     }
 
     fn bootstrap_loops(&mut self, mut switchboard: Switchboard) {
         self.switchboard = Some(switchboard.clone());
         let sb_receiver = switchboard.get_receiver();
 
-        let (p2p_sender, p2p_receiver) = broadcast::channel::<P2PEvent>(10000);
-        self.sb_bridge = Some(P2PSession::new(p2p_sender));
+        let (p2p_sender, p2p_receiver) = broadcast::channel::<P2PEvent>(100);
+        self.sb_bridge = Some(P2PClient::new(p2p_sender));
 
         let (stop_sender, mut stop_receiver) = oneshot::channel::<()>();
         self.stop_sender = Some(stop_sender);
@@ -275,7 +282,7 @@ impl CommandHandler for SwitchboardCommandHandler {
 
                 let _result = self.send_initial_roster(&tr_id).await;
                 self.sender
-                    .send(format!("ANS {tr_id} OK\r\n", tr_id = &tr_id));
+                    .send(format!("ANS {tr_id} OK\r\n", tr_id = &tr_id).into());
                 self.send_me_joined();
 
                 return Ok(String::new());
@@ -326,7 +333,7 @@ impl CommandHandler for SwitchboardCommandHandler {
                     "CAL {tr_id} RINGING {session_id}\r\n",
                     tr_id = tr_id,
                     session_id = session_id
-                ));
+                ).into());
 
                 if msn_addr_to_add == self.msn_addr {
                     self.send_me_joined();
