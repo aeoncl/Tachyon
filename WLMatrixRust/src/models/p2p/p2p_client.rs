@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     mem,
-    sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}},
+    sync::{Arc, Mutex, atomic::{AtomicBool, Ordering, AtomicI32}},
     time::Duration, f32::consts::E,
 };
 
@@ -20,7 +20,7 @@ use super::{
     p2p_transport_packet::P2PTransportPacket,
     pending_packet::PendingPacket,
     slp_payload::SlpPayload,
-    events::{p2p_event::P2PEvent, content::message_event_content::MessageEventContent}, slp_context::PreviewData, session::{p2p_session::{P2PSession}, p2p_session_type::P2PSessionType},
+    events::{p2p_event::P2PEvent, content::message_event_content::MessageEventContent}, slp_context::PreviewData, session::{p2p_session::{P2PSession}, p2p_session_type::P2PSessionType, p2p_status::P2PSessionStatus},
 };
 
 #[derive(Debug)]
@@ -35,6 +35,9 @@ pub struct InnerP2PClient {
 
     /* Session has been initialized */
     initialized: AtomicBool,
+
+    transport_session_status: AtomicI32,
+
     /* The current sequence number */
     sequence_number: Mutex<u32>,
 
@@ -67,8 +70,18 @@ impl P2PClient {
                 pending_files: Mutex::new(HashMap::new()),
                 package_number: Mutex::new(150),
                 pending_outbound_sessions: Mutex::new(HashMap::new()),
+                transport_session_status: AtomicI32::new(P2PSessionStatus::WAITING as i32),
             })
         };
+    }
+
+    fn get_transport_session_status(&self) -> P2PSessionStatus {
+        let status = self.inner.transport_session_status.load(Ordering::Relaxed);
+        return num::FromPrimitive::from_i32(status).unwrap();
+    }
+
+    fn set_transport_session_status(&mut self, status: P2PSessionStatus) {
+        self.inner.transport_session_status.store(status as i32, Ordering::Relaxed);
     }
 
     pub fn set_seq_number(&mut self, seq_number: u32) {

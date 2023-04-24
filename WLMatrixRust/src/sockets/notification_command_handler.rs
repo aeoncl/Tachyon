@@ -50,7 +50,16 @@ impl NotificationCommandHandler {
                                     let _result = sender.send(format!("NOT {payload_size}\r\n{payload}", payload_size = content.payload.len(), payload = content.payload));
                                 },
                                 NotificationEvent::DisconnectEvent(content) => {
-                                    let _result = sender.send(format!("FLN 1:{msn_addr}\r\n", msn_addr = content.msn_addr));
+                                    let user = &content.msn_user;
+                                    let mut msn_obj = String::new();
+                                    if let Some(display_pic) = user.get_display_picture().as_ref() {
+                                        msn_obj = display_pic.to_string();
+                                    }
+                                    let _result = sender.send(format!("NLN {status} 1:{msn_addr} {nickname} {client_capabilities} {msn_obj}\r\n", client_capabilities= &user.get_capabilities() ,msn_addr= &user.get_msn_addr(), status = &user.get_status().to_string(), nickname= &user.get_display_name(), msn_obj = &msn_obj));                            
+                                    let ubx_payload = format!("<PSM>{status_msg}</PSM><CurrentMedia></CurrentMedia><EndpointData id=\"{{{machine_guid}}}\"><Capabilities>{client_capabilities}</Capabilities></EndpointData>", status_msg = &user.get_psm(), client_capabilities= &user.get_capabilities(), machine_guid = &user.get_endpoint_guid());
+                                    let _result = sender.send(format!("UBX 1:{msn_addr} {ubx_payload_size}\r\n{ubx_payload}", msn_addr = &user.get_msn_addr(), ubx_payload_size= ubx_payload.len(), ubx_payload=ubx_payload));
+                                   
+                                   // let _result = sender.send(format!("FLN 1:{msn_addr}\r\n", msn_addr = content.msn_addr));
                                 },
                                 NotificationEvent::PresenceEvent(content) => {
                                     let user = &content.user;

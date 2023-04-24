@@ -27,9 +27,9 @@ impl NotificationEventFactory {
         return NotificationEvent::HotmailNotificationEvent(content);
     }
 
-    pub fn get_disconnect(msn_addr: String) -> NotificationEvent {
+    pub fn get_disconnect(msn_user: MSNUser) -> NotificationEvent {
         return NotificationEvent::DisconnectEvent(DisconnectEventContent{
-            msn_addr
+            msn_user
         });
     }
 

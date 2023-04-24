@@ -148,7 +148,7 @@ impl SwitchboardCommandHandler {
                         }
                     },
                     _stop = &mut stop_listener => {
-                        info!("STOP LISTENING FOR SB & SB Brdige");
+                        info!("STOP LISTENING FOR SB & SB Bridge");
                         break;
                     }
                 }

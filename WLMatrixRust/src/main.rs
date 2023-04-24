@@ -25,6 +25,7 @@ use tokio::join;
 use lazy_static::lazy_static;
 #[macro_use] extern crate lazy_static_include;
 #[macro_use] extern crate serde_derive;
+#[macro_use] extern crate num_derive;
 
 use crate::repositories::ab_locator::ABLocator;
 use crate::repositories::matrix_client_locator::MatrixClientLocator;
@@ -93,7 +94,7 @@ fn setup_logs() {
             )
         })
         .target(env_logger::Target::Pipe(target))
-        .filter(Some("wlmatrix_rust"), LevelFilter::Debug)
+        .filter(None, LevelFilter::Debug)
         .init();
 
     //Some("wlmatrix_rust")    

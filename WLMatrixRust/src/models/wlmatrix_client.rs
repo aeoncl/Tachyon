@@ -352,18 +352,22 @@ async fn handle_presence_event(ev: PresenceEvent, client: Client, me: MSNUser, n
         return;
     }
 
+    let user_repo = MSNUserRepository::new(client.clone());
+
+
     let event_sender = &ev.sender;
     let sender_msn_addr = event_sender.to_msn_addr();
 
+
+    let room = client.find_dm_room(event_sender).await.unwrap().unwrap();
+
+    if let Ok(mut user) = user_repo.get_msnuser(&room.room_id(), event_sender, true).await {
+
     let presence_status : PresenceStatus = ev.content.presence.into();
     if let PresenceStatus::FLN = presence_status {
-        ns_sender.send(NotificationEventFactory::get_disconnect(sender_msn_addr));
+        ns_sender.send(NotificationEventFactory::get_disconnect(user));
     } else {
 
-        let user_repo = MSNUserRepository::new(client.clone());
-        let room = client.find_dm_room(event_sender).await.unwrap().unwrap();
-
-        if let Ok(mut user) = user_repo.get_msnuser(&room.room_id(), event_sender, true).await {
             user.set_status(presence_status);
             if let Some(display_name) = ev.content.displayname {
                 user.set_display_name(display_name);
@@ -375,9 +379,10 @@ async fn handle_presence_event(ev: PresenceEvent, client: Client, me: MSNUser, n
             //TODO handle avatar & msnobj
             //let msn_obj = "<msnobj/>";
             ns_sender.send(NotificationEventFactory::get_presence(user));
-        } else {
-            warn!("Could not find user in repo (presence) {} - {}", &room.room_id(), &event_sender);
-        }
+        } 
+    
+    } else {
+        warn!("Could not find user in repo (presence) {} - {}", &room.room_id(), &event_sender);
     }
 }
 

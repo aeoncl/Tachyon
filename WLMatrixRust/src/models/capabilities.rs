@@ -190,7 +190,7 @@ pub struct ClientCapabilitiesFactory;
 impl ClientCapabilitiesFactory {
 
     pub fn  get_default_capabilities() -> ClientCapabilities {
-        let standard_cap = Capabilities::RendersGifs as u32 + Capabilities::RendersIsf as u32 + Capabilities::WebcamDetected as u32  + Capabilities::SupportsTunneledSip as u32 + Capabilities::SupportsChunking as u32 + Capabilities::HasSpace as u32 + Capabilities::SupportsWinks as u32 + Capabilities::SupportsMSNSearch as u32 + Capabilities::SupportsVoiceIM as u32 + Capabilities::SupportsSipInvite as u32 + Capabilities::MsgrVersion10 as u32;
+        let standard_cap = Capabilities::RendersGifs as u32 + Capabilities::RendersIsf as u32 + Capabilities::WebcamDetected as u32  + Capabilities::SupportsTunneledSip as u32 + Capabilities::SupportsChunking as u32 + Capabilities::HasSpace as u32 + Capabilities::SupportsWinks as u32 + Capabilities::SupportsMSNSearch as u32 + Capabilities::SupportsVoiceIM as u32 + Capabilities::SupportsSipInvite as u32 + Capabilities::MsgrVersion10 as u32 + Capabilities::SupportsP2PTurn as u32 + Capabilities::SupportsP2PBootstrapViaUUN as u32;
         let extended_cap = ExtendedCapabilities::RTCVideoEnabled as u32 + ExtendedCapabilities::SupportsP2PV2 as u32;
         return ClientCapabilities::new(standard_cap, extended_cap);
     }
