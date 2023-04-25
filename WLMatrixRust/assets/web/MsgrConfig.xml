@@ -1,196 +1,106 @@
 <?xml version="1.0" encoding="utf-8"?>
 <MsgrConfig>
-	<Brands>
-		<Client v="2" CDNVER="http://cba.domains.live.com/cdn1" CDNCAB="http://cba.domains.live.com/cdn3" CDNPRV="http://cba.domains.live.com/prvw" />
-	</Brands>
 	<Simple>
 		<Config>
-			<ExpiresInDays>1
-</ExpiresInDays>
+			<ExpiresInDays>0</ExpiresInDays>
 		</Config>
-		<DisablePhoneDialer>1
-</DisablePhoneDialer>
-		<GetItemVersionForUnknown>false
-</GetItemVersionForUnknown>
-		<Logitech>
-			<PremiumAVConfigServer>http://mplocate.spotlife.net/locate.sxml</PremiumAVConfigServer>
-			<PreRollEnabled>1</PreRollEnabled>
-			<WebcamConfigServer>http://mlocate.spotlife.net/locate.sxml</WebcamConfigServer>
-		</Logitech>
+		<P2PConfig>
+			<ObjectStore>
+				<SendDelay>0</SendDelay>
+			</ObjectStore>
+		</P2PConfig>
+		<DisablePhoneDialer>1</DisablePhoneDialer>
+		<GetItemVersionForUnknown>false</GetItemVersionForUnknown>
 		<MinFlashPlayer BuildNumber="28" MajorVersion="9" MinorVersion="0" />
-		<RadUrl Tracking="http://global.msads.net/ads/abuimg/%PACKID%.xml">http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=</RadUrl>
 		<Relay>
 			<Enabled>0</Enabled>
 			<MaxCallLength>0</MaxCallLength>
-			<RegistrationDomain>4.68.251.254</RegistrationDomain>
-			<RelayDNS>avrelay.msn.com</RelayDNS>
-			<TimeoutToFallback>7000</TimeoutToFallback>
 		</Relay>
 		<Contacts>
 			<Client ZombieServerDetectDelay="1800" ZombieServerDetectInterval="30" ZombieServerDetectResumeDelay="1800" />
 			<Server ZombieServerDetectDelay="900" ZombieServerDetectResumeDelay="900" ZombieServerDetectConnectDelay="900" ZombieServerDetectLongDelay="900" />
 		</Contacts>
 		<TrustedDomains>
-			<domain name="127.0.0.1" />
-			<domain name="bluemountaincards.co.uk" />
-            <domain name="bluemountaincards.com.au" />
-            <domain name="bmamessenger.com" />
-            <domain name="gmarket.co.kr" />
-            <domain name="hotmail.com" />
-            <domain name="imgag.com" />
-            <domain name="meegos.com" />
-            <domain name="msn.com" />
-            <domain name="msads.net" />
-            <domain name="imagine-msn.com" />
-            <domain name="imagine-windowslive.com" />
-            <domain name="kiwee.com" />
-            <domain name="live.com" />
-            <domain name="msnplus.co.kr" />
-            <domain name="wee-mee.com" />
-            <domain name="mypersonalexpression.com" />
-            <domain name="mobilemoney.com" />
-            <domain name="hotmail.co.jp" />
-            <domain name="hotmail.de" />
-            <domain name="hotmail.it" />
-            <domain name="hotmail.fr" />
-            <domain name="hotmail.co.uk" />
-            <domain name="hotmail.com.tr" />
-            <domain name="hotmail.com.ar" />
-            <domain name="hotmail.co.th" />
-            <domain name="ninemsn.com" />
-            <domain name="ninemsn.com.au" />
-            <domain name="joyinter.net" />
-            <domain name="messengervibe.com" />
-            <domain name="messengervibe.net" />
-            <domain name="messengervibe.org" />
-            <domain name="meezone.com" />
-            <domain name="live.jp" />
-            <domain name="excite.co.jp" />
-            <domain name="start.com" />
-            <domain name="msn.com.hk" />
-            <domain name="msn.co.il" />
-            <domain name="msn.co.kr" />
-            <domain name="event-information.jp" />
-            <domain name="msn.mydrivers.com" />
-            <domain name="msn.com.br" />
-            <domain name="im.live.cn" />
-            <domain name="origindigital.net" />
-            <domain name="laughabits.com" />
-            <domain name="laughabits.net" />
-            <domain name="windowslive.com" />
-            <domain name="gowindowslive.com" />
-            <domain name="msn.com.tw" />
-            <domain name="msn.co.in" />
-            <domain name="www.mobilemoney.com" />
-            <domain name="wall-e.msn.co.uk" />
-            <domain name="walle.msn.co.uk" />
-            <domain name="wall-e.msn.fr" />
-            <domain name="walle.msn.fr" />
-            <domain name="wall-e.msn.be" />
-            <domain name="walle.msn.be" />
-            <domain name="wall-e.fr.msn.be" />
-            <domain name="walle.fr.msn.be" />
-            <domain name="wall-e.msn.nl" />
-            <domain name="walle.msn.nl" />
-            <domain name="wall-e.msn.es" />
-            <domain name="walle.msn.es" />
-            <domain name="wall-e.msn.dk" />
-            <domain name="walle.msn.dk" />
-            <domain name="wall-e.msn.fi" />
-            <domain name="walle.msn.fi" />
-            <domain name="wall-e.msn.no" />
-            <domain name="walle.msn.no" />
-            <domain name="wall-e.msn.se" />
-            <domain name="walle.msn.se" />
-            <domain name="wall-e.msn.de" />
-            <domain name="walle.msn.de" />
-            <domain name="wall-e.msn.it" />
-            <domain name="walle.msn.it" />
-            <domain name="msbrandent.vo.llnwd.net" />
-            <domain name="www.messengerexpressions.com" />
-            <domain name="www.sunsilkgangofgirls.com" />
-            <domain name="messenger.live.de" />
-            <domain name="themepackchooser.windowslivehosting.de" />
-            <domain name="messengermakeover.com" />
-            <domain name="microsoft.com" />
-            <domain name="windowslive.se" />
-			<domain name="matrix.org" />
-			<domain name="cern.ch" />
+			<domain name="localhost" />
+            <domain name="127.0.0.1" />
 		</TrustedDomains>
 		<ErrorResponseTable>
 			<Feature type="0" name="Login">
-				<Entry hr="0x80004002" action="3" />
-				<Entry hr="0x80004004" action="3" />
-				<Entry hr="0x80004005" action="3" />
-				<Entry hr="0x8000402A" action="3" />
-				<Entry hr="0x8001012E" action="3" />
-				<Entry hr="0x80040200" action="3" />
-				<Entry hr="0x80048051" action="3" />
-				<Entry hr="0x80048820" action="3" />
-				<Entry hr="0x80048823" action="3" />
-				<Entry hr="0x80070002" action="3" />
-				<Entry hr="0x80070005" action="3" />
-				<Entry hr="0x8007000E" action="3" />
-				<Entry hr="0x80070057" action="3" />
-				<Entry hr="0x8007007E" action="3" />
-				<Entry hr="0x800706BA" action="3" />
-				<Entry hr="0x800706BE" action="3" />
-				<Entry hr="0x80071392" action="3" />
-				<Entry hr="0x80072745" action="3" />
-				<Entry hr="0x80072746" action="3" />
-				<Entry hr="0x80072EE2" action="3" />
-				<Entry hr="0x80072EF3" action="3" />
-				<Entry hr="0x80072EFD" action="3" />
-				<Entry hr="0x80072EFF" action="3" />
-				<Entry hr="0x80072F06" action="3" />
-				<Entry hr="0x80072F7D" action="3" />
-				<Entry hr="0x800C013E" action="3" />
-				<Entry hr="0x80191002" action="3" />
-				<Entry hr="0x81000306" action="3" />
-				<Entry hr="0x8100030D" action="3" />
-				<Entry hr="0x81000314" action="3" />
-				<Entry hr="0x81000362" action="3" />
-				<Entry hr="0x81000378" action="3" />
-				<Entry hr="0x81000395" action="3" />
-				<Entry hr="0x85AE000B" action="3" />
-				<Entry hr="0x85AE000F" action="3" />
-				<Entry hr="0x85AE001D" action="3" />
-				<Entry hr="0x85AE0022" action="3" />
-				<Entry hr="0x85AE0024" action="3" />
-				<Entry hr="0x85AE0027" action="3" />
-				<Entry hr="0x85AE003C" action="3" />
-				<Entry hr="0x85AE0053" action="3" />
-				<Entry hr="0x8E5E0152" action="3" />
-				<Entry hr="0x8E5E0158" action="3" />
-				<Entry hr="0x8E5E0211" action="3" />
-				<Entry hr="0x8E5E0220" action="3" />
-				<Entry hr="0x8E5E0226" action="3" />
-				<Entry hr="0x8E5E03FE" action="3" />
-				<Entry hr="0x8E5E0408" action="3" />
-				<Entry hr="0x8E5E05F6" action="3" />
-				<Entry hr="0x8E5E0710" action="3" />
-				<Entry hr="0x8E5E0713" action="3" />
+				<Entry hr="0x80004002" action="3"/>
+				<Entry hr="0x80004004" action="3"/>
+				<Entry hr="0x80004005" action="3"/>
+				<Entry hr="0x8000402A" action="3"/>
+				<Entry hr="0x8000FFFF" action="3"/>
+				<Entry hr="0x8001012E" action="3"/>
+				<Entry hr="0x80040200" action="3"/>
+				<Entry hr="0x80048051" action="3"/>
+				<Entry hr="0x80048820" action="3"/>
+				<Entry hr="0x80048823" action="3"/>
+				<Entry hr="0x80070002" action="3"/>
+				<Entry hr="0x80070005" action="3"/>
+				<Entry hr="0x8007000E" action="3"/>
+				<Entry hr="0x80070057" action="3"/>
+				<Entry hr="0x8007007E" action="3"/>
+				<Entry hr="0x800702E4" action="3"/>
+				<Entry hr="0x800706BA" action="3"/>
+				<Entry hr="0x800706BE" action="3"/>
+				<Entry hr="0x80071392" action="3"/>
+				<Entry hr="0x80072745" action="3"/>
+				<Entry hr="0x80072746" action="3"/>
+				<Entry hr="0x80072EE2" action="3"/>
+				<Entry hr="0x80072EF3" action="3"/>
+				<Entry hr="0x80072EFD" action="3"/>
+				<Entry hr="0x80072EFF" action="3"/>
+				<Entry hr="0x80072F06" action="3"/>
+				<Entry hr="0x80072F7D" action="3"/>
+				<Entry hr="0x800C013E" action="3"/>
+				<Entry hr="0x80191002" action="3"/>
+				<Entry hr="0x81000306" action="3"/>
+				<Entry hr="0x8100030D" action="3"/>
+				<Entry hr="0x81000314" action="3"/>
+				<Entry hr="0x81000362" action="3"/>
+				<Entry hr="0x81000378" action="3"/>
+				<Entry hr="0x81000395" action="3"/>
+				<Entry hr="0x85AE000B" action="3"/>
+				<Entry hr="0x85AE000F" action="3"/>
+				<Entry hr="0x85AE001D" action="3"/>
+				<Entry hr="0x85AE0022" action="3"/>
+				<Entry hr="0x85AE0024" action="3"/>
+				<Entry hr="0x85AE0027" action="3"/>
+				<Entry hr="0x85AE003C" action="3"/>
+				<Entry hr="0x85AE0053" action="3"/>
+				<Entry hr="0x8E5E0152" action="3"/>
+				<Entry hr="0x8E5E0158" action="3"/>
+				<Entry hr="0x8E5E0211" action="3"/>
+				<Entry hr="0x8E5E0220" action="3"/>
+				<Entry hr="0x8E5E0226" action="3"/>
+				<Entry hr="0x8E5E03FE" action="3"/>
+				<Entry hr="0x8E5E0408" action="3"/>
+				<Entry hr="0x8E5E05F6" action="3"/>
+				<Entry hr="0x8E5E0710" action="3"/>
+				<Entry hr="0x8E5E0713" action="3"/>
 			</Feature>
 			<Feature type="2" name="MapFile">
-				<Entry hr="0x810003F1" action="3" />
-				<Entry hr="0x810003F6" action="3" />
+				<Entry hr="0x810003F1" action="3"/>
+				<Entry hr="0x810003F6" action="3"/>
 			</Feature>
 			<Feature type="3" name="P2P">
-				<Entry hr="0x82000016" action="3" />
-				<Entry hr="0x82000017" action="3" />
-				<Entry hr="0x82000019" action="3" />
-				<Entry hr="0x8200001b" action="3" />
-				<Entry hr="0x8200001d" action="3" />
-				<Entry hr="0x8200001e" action="3" />
-				<Entry hr="0x82000024" action="3" />
-				<Entry hr="0x82000026" action="3" />
+				<Entry hr="0x82000016" action="3"/>
+				<Entry hr="0x82000017" action="3"/>
+				<Entry hr="0x82000019" action="3"/>
+				<Entry hr="0x8200001b" action="3"/>
+				<Entry hr="0x8200001d" action="3"/>
+				<Entry hr="0x8200001e" action="3"/>
+				<Entry hr="0x82000024" action="3"/>
+				<Entry hr="0x82000026" action="3"/>
 			</Feature>
 		</ErrorResponseTable>
 		<USBDevices>
-			<Device VID="0x045e" PID="0x0719" />
-			<Device VID="0x045e" PID="0x0722" />
+			<Device VID="0x045e" PID="0x0719"/>
+			<Device VID="0x045e" PID="0x0722"/>
+			<Device VID="0x041e" PID="0x4080"/>
 		</USBDevices>
-		<CirclesWeb General="http://cid-$CIRCLECID$.groups.live.com/" General-SiteId="73625" Files="http://cid-$CIRCLECID$.groups.skydrive.live.com/home.aspx" Files-SiteId="250206" Photos="http://cid-$CIRCLECID$.groups.skydrive.live.com/albums.aspx" Photos-SiteId="250206" Disc="http://cid-$CIRCLECID$.groups.live.com/discussions/" Disc-SiteId="73625" Management="http://cid-$CIRCLECID$.groups.live.com/options/" Management-SiteId="73625" Membership="http://cid-$CIRCLECID$.groups.live.com/membership/" Membership-SiteId="73625" Leave="http://cid-$CIRCLECID$.groups.live.com/options/leavegroup/" Leave-SiteId="73625" />
+		<CirclesWeb General="http://cid-$CIRCLECID$.groups.live.com/" General-SiteId="73625" Management="http://cid-$CIRCLECID$.groups.live.com/options/" Management-SiteId="73625" Membership="http://cid-$CIRCLECID$.groups.live.com/membership/" Membership-SiteId="73625" Leave="http://cid-$CIRCLECID$.groups.live.com/options/leavegroup/" Leave-SiteId="73625" />
 		<AnonymousIMSettings>
 			<SettingsPage URL="http://settings.messenger.live.com/applications/WebSettings.aspx" SiteID="76215" />
 		</AnonymousIMSettings>
@@ -201,98 +111,6 @@
 			<oemdisplaylimit>1</oemdisplaylimit>
 		</msntabsettings>
 		<msntabdata>
-			<tab>
-				<image>http://sympaticomsn.workopolis.com/Tab/workopolis_logo_36x32.png</image>
-				<name>Workopolis</name>
-				<type>workopolis</type>
-				<tooltip>Take control of your career - use workopolis.com!</tooltip>
-				<contenturl>http://sympaticomsn.workopolis.com/View/Theme/WhiteLabel/sympaticomsn/Tab/index.htm</contenturl>
-				<hiturl>http://c.msn.com/c.gif?di=2308&amp;tp=http://messengertabs.msn.com/enca/workopolis</hiturl>
-				<siteid>0</siteid>
-				<notificationid>0</notificationid>
-			</tab>
-			<tab>
-				<image>http://cp.intl.match.com/msn/icons/heart_msncaen.png</image>
-				<name>Match.com</name>
-				<type>matchcom</type>
-				<tooltip>MSN Dating and Personals â Match.com</tooltip>
-				<contenturl>http://dating.ca.msn.com/matchus/cp.aspx?cpp=/en-us/msn/messenger/narrow.html</contenturl>
-				<hiturl>http://c.msn.com/c.gif?di=2308&amp;tp=http://messengertabs.msn.com/enca/matchcom</hiturl>
-				<siteid>0</siteid>
-				<notificationid>0</notificationid>
-			</tab>
-			<tab>
-				<image>http://stb.msn.com/i/3F/8B91C9E76AE0C43D0C6BE1E4FE4E.png</image>
-				<name>YellowPages.ca</name>
-				<type>yellowpages</type>
-				<tooltip>Find a business @ YellowPages.ca</tooltip>
-				<contenturl>http://apropos.sympatico.msn.ca/content/channels/apropos/messenger/YPG/yel_fram.html</contenturl>
-				<hiturl>http://c.msn.com/c.gif?di=2308&amp;tp=http://messengertabs.msn.com/enca/yellowpages</hiturl>
-				<siteid>0</siteid>
-				<notificationid>0</notificationid>
-			</tab>
-			<tab>
-				<image>http://www.microsoft.com/canada/msntabs/images/win-mob-tab-icon-32x45.png</image>
-				<name>These women are mobile.</name>
-				<type>womenmobile</type>
-				<tooltip>3 women share their technology success stories</tooltip>
-				<contenturl>http://www.microsoft.com/canada/msntabs/unisex.aspx</contenturl>
-				<hiturl>http://c.msn.com/c.gif?di=2308&amp;tp=http://messengertabs.msn.com/enca/womenmobile</hiturl>
-				<siteid>0</siteid>
-				<notificationid>0</notificationid>
-			</tab>
-			<tab>
-				<image>http://www.microsoft.com/canada/msn/live-search-tab/images/em_regular_smile_24x24.png</image>
-				<name>Emoticons</name>
-				<type>emoticon</type>
-				<tooltip>Get new emoticons for Messenger</tooltip>
-				<contenturl>http://specials.live.ca/LiveSearch/Tab/Default.aspx</contenturl>
-				<hiturl>http://c.msn.com/c.gif?di=2308&amp;tp=http://messengertabs.msn.com/enca/livesearch</hiturl>
-				<siteid>0</siteid>
-				<notificationid>0</notificationid>
-			</tab>
-			<tab>
-				<image>http://stc.msn.com/br/cacustom/wlm/tab/css/1/img/november15.png</image>
-				<name>All About Live</name>
-				<type>allaboutlive</type>
-				<tooltip>Find out whatâs new with Windows Live Services!</tooltip>
-				<contenturl>http://specials.live.ca/wlm/tab/default.aspx</contenturl>
-				<hiturl>http://c.msn.com/c.gif?di=2308&amp;tp=http://messengertabs.msn.com/enca/allaboutlive</hiturl>
-				<siteid>0</siteid>
-				<notificationid>0</notificationid>
-			</tab>
-			<tab>
-				<image>http://www.gowindowslive.com/mobile/tab/v90/tab_image/tab-image.png</image>
-				<name>Windows Mobile</name>
-
-				<type>windowsmobile</type>
-				<tooltip>Windows Live goes mobile</tooltip>
-				<contenturl>http://www.gowindowslive.com/mobile/tab/v90/en/en_mobile-tab-march09.html</contenturl>
-
-				<hiturl>http://c.msn.com/c.gif?di=2308&amp;tp=http://messengertabs.msn.com/enca/windowsmobile</hiturl>
-				<siteid>0</siteid>
-				<notificationid>0</notificationid>
-			</tab>
-			<tab>
-				<image>http://bmm.imgag.com/bmm/tabiconCAE.png</image>
-				<name>Kiwee</name>
-				<type>kiwee</type>
-				<tooltip>Make Messenger sizzle with content from Kiwee</tooltip>
-				<contenturl>http://www1.cae.mypersonalexpression.com/tabindex.pd?source=mpecae530</contenturl>
-				<hiturl>http://c.msn.com/c.gif?di=2308&amp;tp=http://messengertabs.msn.com/enca/kiwee</hiturl>
-				<siteid>0</siteid>
-				<notificationid>0</notificationid>
-			</tab>
-			<tab>
-				<image>http://images.kidshelpphone.ca/tab.png</image>
-				<name>Kids Help Phone</name>
-				<type>kidshelp</type>
-				<tooltip>Whatever the problem, talk to us.  Kids Help Phone.</tooltip>
-				<contenturl>http://www.kidshelpphone.ca/msn/kidshelpphone_msn.htm</contenturl>
-				<hiturl>http://c.msn.com/c.gif?di=2308&amp;tp=http://messengertabs.msn.com/enca/kidshelp</hiturl>
-				<siteid>0</siteid>
-				<notificationid>0</notificationid>
-			</tab>
 		</msntabdata>
 	</TabConfig>
 	<AbchCfg>
@@ -300,374 +118,80 @@
 			<url>http://127.0.0.1:8080/abservice/abservice.asmx</url>
 		</abchconfig>
 	</AbchCfg>
-	<AdMainConfig>
-		<AdDownloadTimeInMinutes>120
-</AdDownloadTimeInMinutes>
-
-		<AdMainCfg>http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMSCAE?SC=HF
-</AdMainCfg>
-	</AdMainConfig>
-	<AdPhoneConfig>http://rad.msn.com/ADSAdClient31.dll?GetAd?PG=IMSECA?SC=HF
-</AdPhoneConfig>
-
-<SocialNews>
-	<EventUrl>http://127.0.0.1:8080/social/cid-%1!16.16I64X!/events</EventUrl>
-	<EventSiteID>73625</EventSiteID>
-	<GroupUrl>http://127.0.0.1:8080/social/cid-%1!16.16I64X!/groups</GroupUrl>
-	<GroupSiteID>73625</GroupSiteID>
-	<MainUrl>http://127.0.0.1:8080/whatsnew</MainUrl>
-	<MainSiteID>73625</MainSiteID>
-	<OptionsUrl>http://127.0.0.1:8080/whatsnewsettings/</OptionsUrl>
-	<OptionsSiteID>73625</OptionsSiteID>
-	<UserUrl>http://127.0.0.1:8080/cid-%1!16.16I64X!/profile</UserUrl>
-	<UserSiteID>73625</UserSiteID>
-</SocialNews>
-
 	<LocalizedConfig Market="en-US">
 		<AdMainConfig>
-			<AdBanner20URL>http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMSMCA&amp;AP=1007
-</AdBanner20URL>
-			<AdBanner300URL Refresh="" FooterPane="" />
-
-			<StdAd AdVisible="30" VideoVisible="45" VideoDldIntvl="25">
-				<VideoFeeds FeedsListURL="http://rad.msn.com/ADSAdClient31.dll?GetAd?pg=IMCE2V" />
-			</StdAd>
-			<TextAdRotation>0
-</TextAdRotation>
-
-			<TextAdRefresh>1
-</TextAdRefresh>
-			<TextAdServer>http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAX1&amp;LANG=EN
-</TextAdServer>
+			<AdBanner20URL>http://127.0.0.1:8080/ads/banner?puid=$PUID$</AdBanner20URL>
+			<TextAdRotation>400</TextAdRotation>
+			<TextAdRefresh>1</TextAdRefresh>
+			<TextAdServer>http://127.0.0.1:8080/ads/text?puid=$PUID$</TextAdServer>
 		</AdMainConfig>
 		<AppDirConfig>
-
-			<AppDirPageURL>http://appdirectory.messenger.msn.com/AppDirectory/Directory.aspx?L=en-us
-</AppDirPageURL>
-
-			<AppDirSeviceURL>http://appdirectory.messenger.msn.com/AppDirectory/AppDirectory.asmx
-</AppDirSeviceURL>
-
-			<AppDirVersionURL>http://appdirectory.messenger.msn.com/AppDirectory/GetAppDirVersion.aspx
-</AppDirVersionURL>
-
-			<GamesBrowserURL>http://g.msn.com/0ZOMESSENGERGAMES/MESSENGERGAMEBROWSER?locale=en-us&amp;mode=gbp4
-</GamesBrowserURL>
-
+			<AppDirPageURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/Directory.aspx?L=en-us</AppDirPageURL>
+			<AppDirSeviceURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/AppDirectory.asmx</AppDirSeviceURL>
+			<AppDirVersionURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/GetAppdirVersion.aspx</AppDirVersionURL>
 		</AppDirConfig>
-		<AVPrerollAd FetchTimeout="6900" IntroLength="3000" MinAdLength="7000" URL="http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAV1" />
-
 		<Contacts>
 			<ABPendingRequests>
 				<SiteId>73625</SiteId>
 				<height>672</height>
-				<IncludeSNRequests>false</IncludeSNRequests>
+				<IncludeSNRequests>true</IncludeSNRequests>
 				<width>808</width>
-				<url>http://127.0.0.1:8080/messages</url>
-				<urlcid>http://127.0.0.1:8080/cid-%1!16.16I64X!/messages</urlcid>
+				<urlcid>http://cid-%1!16.16I64X!.profile.live.com/invites?partner=Messenger</urlcid>
 			</ABPendingRequests>
 			<EditMyLiveContactProfile>
-				<url>http://127.0.0.1:8080/profile.aspx?action=edit&amp;mode=activecontacts&amp;mkt=en-us&amp;partner=Messenger</url>
+				<url>http://spaces.live.com/profile.aspx?action=edit&amp;mode=activecontacts&amp;mkt=en-us&amp;partner=Messenger</url>
 				<SiteId>73625</SiteId>
 			</EditMyLiveContactProfile>
 			<EditMyProfile>
-				<url>http://127.0.0.1:8080/profile.aspx?action=edit&amp;partner=Messenger&amp;mkt=en-us</url>
+				<url>http://profile.live.com/details</url>
 				<SiteId>73625</SiteId>
 			</EditMyProfile>
 			<Import>
-				<url>http://127.0.0.1:8080/cid-%1!16.16I64X!/connect/?partner=Messenger</url>
+				<url>http://cid-%1!16.16I64X!.profile.live.com/connect/?partner=Messenger</url>
 				<SiteId>73625</SiteId>
 			</Import>
 			<MessengerInvite>
-				<url>http://127.0.0.1:8080/cid-%1/connect/send.aspx?email=%2</url>
+				<url>http://cid-%1.profile.live.com/connect/send.aspx?email=%2</url>
+				<urlcid>http://cid-%1.profile.live.com/connect/send.aspx?cid=%2</urlcid>
 				<SiteId>73625</SiteId>
 			</MessengerInvite>
 			<Profile>
-				<url>http://127.0.0.1:8080/profile</url>
-				<urlcid>http://127.0.0.1:8080/cid-%1!16.16I64X!/profile</urlcid>
-				<urlcid2>http://127.0.0.1:8080/cid-%1!16.16I64X!/profile</urlcid2>
+				<url>http://spaces.live.com/Profile.aspx?partner=Messenger&amp;mkt=en-us&amp;mem=%ls</url>
+				<urlcid>http://spaces.live.com/Profile.aspx?partner=Messenger&amp;mkt=en-us&amp;cid=%ls</urlcid>
+				<urlcid2>http://cid-%1!16.16I64X!.profile.live.com</urlcid2>
 				<SiteId>73625</SiteId>
 			</Profile>
 			<SNInvites>
-				<url>http://127.0.0.1:8080/cid-%1/connect/Messenger.aspx?Email=%2</url>
-				<urlcid>http://127.0.0.1:8080/cid-%1//connect/Messenger.aspx?cid=0x%2</urlcid>
+				<url>http://cid-%1.profile.live.com/connect/Messenger.aspx?Email=%2</url>
+				<urlcid>http://cid-%1.profile.live.com/connect/Messenger.aspx?cid=0x%2</urlcid>
 				<SiteId>73625</SiteId>
 			</SNInvites>
 			<ViewMapEnabled>true</ViewMapEnabled>
 		</Contacts>
-		<ContactCard>
-			<AddToMySpaceSiteId>73625</AddToMySpaceSiteId>
-			<AddToMySpaceUrl>http://127.0.0.1:8080/spaces/addblogentry</AddToMySpaceUrl>
-
-			<ContactCardDisabled>false</ContactCardDisabled>
-			<CreateSpaceSiteId>73625</CreateSpaceSiteId>
-			<CreateSpaceUrl>http://127.0.0.1:8080/spaces/create</CreateSpaceUrl>
-
-			<GetItemVerUrl>http://127.0.0.1:8080/storageservice/schematizedstore.asmx</GetItemVerUrl>
-			<GetXmlFeedUrl>http://127.0.0.1:8080/contactcard/contactcardservice.asmx</GetXmlFeedUrl>
-
-			<GetXmlFeedRpsUrl>http://127.0.0.1:8080/contactcard/contactcardservice.asmx</GetXmlFeedRpsUrl>
-
-			<GetXmlFeedRpsCidUrl>http://127.0.0.1:8080/contactcard/cid-%1!16.16I64X!/contactcardservice.asmx</GetXmlFeedRpsCidUrl>
-
-			<MySpaceSiteId>73625</MySpaceSiteId>
-			<MySpaceUrl>http://127.0.0.1:8080/winks/index.html</MySpaceUrl>
-			<SpaceBaseSiteId>73625</SpaceBaseSiteId>
-
-			<SpaceBaseUrl>http://127.0.0.1:8080/winks/index.html</SpaceBaseUrl>
-			<SpaceIntegrationEnabled>true</SpaceIntegrationEnabled>
-		</ContactCard>
-
-		<DynamicContent>
-			<merchant>
-				<themepacks>
-					<slots>
-						<URL id="1">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCATA</URL>
-						<URL id="2">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCATB</URL>
-						<URL id="3">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCATC</URL>
-						<URL id="4">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCATD</URL>
-					</slots>
-				</themepacks>
-			</merchant>
-			<premium>	
-				<bkgrounds>
-					<providersiteid>60971</providersiteid>
-
-					<providerurl>http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/backgrounds/?loc=MBMore&amp;LCID=en-us</providerurl>
-
-					<slots>
-						<URL id="1">http://bmm.imgag.com/bmm/xml/menuitem_cae_mb_1.xml</URL>
-						<URL id="2">http://bmm.imgag.com/bmm/xml/menuitem_cae_mb_2.xml</URL>
-						<URL id="3">http://bmm.imgag.com/bmm/xml/menuitem_cae_mb_3.xml</URL>
-						<URL id="4">http://bmm.imgag.com/bmm/xml/menuitem_cae_mb_4.xml</URL>
-					</slots>
-				</bkgrounds>
-
-				<emoticons2 visibleto="7.0.729 and greater">
-					<providersiteid>60971</providersiteid>
-
-					<providerurl>http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/emoticons/?loc=EMMore&amp;LCID=en-us</providerurl>
-
-					<slots>
-						<URL id="1">http://bmm.imgag.com/bmm/xml/menuitem_cae_em_1.xml</URL>
-						<URL id="2">http://bmm.imgag.com/bmm/xml/menuitem_cae_em_2.xml</URL>
-
-						<URL id="3">http://bmm.imgag.com/bmm/xml/menuitem_cae_em_3.xml</URL>
-						<URL id="4">http://bmm.imgag.com/bmm/xml/menuitem_cae_em_4.xml</URL>
-
-						<URL id="5">http://bmm.imgag.com/bmm/xml/menuitem_cae_em_5.xml</URL>
-					</slots>
-				</emoticons2>
-				<themepacks>
-					<providersiteid>60971</providersiteid>
-
-					<providerurl>http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/winks/?loc=PEMore&amp;LCID=en-us</providerurl>
-
-					<slots>
-						<URL id="1">http://bmm.imgag.com/bmm/xml/menuitem_cae_pe_1.xml</URL>
-						<URL id="2">http://bmm.imgag.com/bmm/xml/menuitem_cae_pe_2.xml</URL>
-
-						<URL id="3">http://bmm.imgag.com/bmm/xml/menuitem_cae_pe_3.xml</URL>
-						<URL id="4">http://bmm.imgag.com/bmm/xml/menuitem_cae_pe_4.xml</URL>
-
-					</slots>
-				</themepacks>
-				<winks2 visibleto="7.0.729 and greater">
-					<providersiteid>60971</providersiteid>
-
-					<!--<providerurl>http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/winks/?loc=WKMore&amp;LCID=en-us</providerurl>-->
-					<providerurl>http://127.0.0.1:8080/winks/index.html</providerurl>
-
-					<slots>
-						<URL id="1">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-						<URL id="2">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-
-						<URL id="3">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-						<URL id="4">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-
-						<URL id="5">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-						<URL id="6">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-
-						<URL id="7">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-						<URL id="8">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-
-					</slots>
-				</winks2>
-			</premium>
-			<mixed>
-				<emoticons2>
-					<providersiteid>60971</providersiteid>
-
-					<providerurl>http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/emoticons/?loc=EMMore&amp;LCID=en-us</providerurl>
-
-					<slots>
-						<URL id="1">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAEA</URL>
-						<URL id="2">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAEB</URL>
-						<URL id="3">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAEC</URL>
-						<URL id="4">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAED</URL>
-						<URL id="5">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAEE</URL>
-						<URL id="6">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAEF</URL>
-						<URL id="7">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAEG</URL>
-						<URL id="8">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAEH</URL>
-					</slots>
-				</emoticons2>
-				<bkgrounds>
-					<providersiteid>60971</providersiteid>
-					<providerurl>http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/backgrounds/?loc=MBMore&amp;LCID=en-us</providerurl>
-
-					<slots>
-						<URL id="1">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAGA</URL>
-						<URL id="2">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAGB</URL>
-						<URL id="3">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAGC</URL>
-						<URL id="4">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAGD</URL>
-						<URL id="5">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAGE</URL>
-						<URL id="6">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAGF</URL>
-						<URL id="7">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAGG</URL>
-						<URL id="8">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAGH</URL>
-					</slots>
-				</bkgrounds>
-				<usertiles>
-					<providersiteid>60971</providersiteid>
-					<providerurl>http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/display-pictures/?loc=DPCreate&amp;LCID=en-us</providerurl>
-
-					<slots>
-						<URL id="1">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAAA</URL>
-						<URL id="2">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAAB</URL>
-						<URL id="3">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAAC</URL>
-						<URL id="4">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAAD</URL>
-						<URL id="5">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAAE</URL>
-						<URL id="6">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAAF</URL>
-						<URL id="7">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAAG</URL>
-						<URL id="8">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCAAH</URL>
-					</slots>
-				</usertiles>
-				<winks2>
-					<providersiteid>60971</providersiteid>
-					<providerurl>http://127.0.0.1:8080/winks/index.html</providerurl>
-					<slots>
-						<URL id="1">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-						<URL id="2">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-						<URL id="3">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-						<URL id="4">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-						<URL id="5">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-						<URL id="6">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-						<URL id="7">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-						<URL id="8">http://127.0.0.1:8080/winks/menuitem.xml</URL>
-					</slots>
-				</winks2>
-			</mixed>
-		</DynamicContent>
-		<EditorialConfig>http://feeds.msn.com/content/ca/messenger/imtoday.xml</EditorialConfig>
-		<FlashUpgradeURL>http://messenger.msn.com/flash/?mkt=en-us&amp;version=$VERSION$</FlashUpgradeURL>
-		<FSS>
-			<SiteID>0</SiteID>
-			<AddBuddyURL>https://fss.live.com/krl/kidsinfo.aspx</AddBuddyURL>
-		</FSS>
-
+		<FlashUpgradeURL>http://get.adobe.com/flashplayer/thankyou/activex/?installer=Flash_Player_10_for_Windows_Internet_Explorer</FlashUpgradeURL>
 		<GLinkMarket v="en_us" />
-		<Highlight>
-			<FirstRunURLSet>
-
-				<FirstRunURL id="1">
-					<url id="1">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/1WelcomeUU.html</url>
-				</FirstRunURL>
-				<FirstRunURL id="2">
-					<url id="2">http://profile.live.com/details/initprofile.aspx?mkt=en-us</url>
-					<SiteID>74138</SiteID>
-				</FirstRunURL>
-				<FirstRunURL id="3">
-					<url id="3">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/2DynamicDisplayPicture.html</url>
-				</FirstRunURL>
-				<FirstRunURL id="4">
-					<url id="4">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/3FavoritesUU.html</url>
-				</FirstRunURL>
-				<FirstRunURL id="5">
-					<url id="5">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/4SharePhotos.html</url>
-				</FirstRunURL>
-				<FirstRunURL id="6">
-					<url id="6">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/5WhatsNewFeed.html</url>
-				</FirstRunURL>
-				<FirstRunURL id="7">
-					<url id="7">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/6ImportContactsUU.html</url>
-				</FirstRunURL>
-				<FirstRunURL id="8">
-					<url id="8">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/7AccessHotmail.html</url>
-				</FirstRunURL>
-			</FirstRunURLSet>
-			<MinDaysBtwFirstRunLaunches>7</MinDaysBtwFirstRunLaunches>
-			<MinDaysBtwFirstRecurringLaunches>30</MinDaysBtwFirstRecurringLaunches>
-			<RecurringHighlightURL />
-			<Wave val="4">
-				<FirstRunURLSet>
-					<FirstRunURL id="1">
-						<url id="1">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/1WelcomeUU.html</url>
-					</FirstRunURL>
-					<FirstRunURL id="2">
-						<url id="2">http://profile.live.com/details/initprofile.aspx?mkt=en-us</url>
-						<SiteID>74138</SiteID>
-					</FirstRunURL>
-					<FirstRunURL id="3">
-						<url id="3">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/2DynamicDisplayPicture.html</url>
-					</FirstRunURL>
-					<FirstRunURL id="4">
-						<url id="4">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/3FavoritesUU.html</url>
-					</FirstRunURL>
-					<FirstRunURL id="5">
-						<url id="5">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/4SharePhotos.html</url>
-					</FirstRunURL>
-					<FirstRunURL id="6">
-						<url id="6">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/5WhatsNewFeed.html</url>
-					</FirstRunURL>
-					<FirstRunURL id="7">
-						<url id="7">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/6ImportContactsUU.html</url>
-					</FirstRunURL>
-					<FirstRunURL id="8">
-						<url id="8">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/7AccessHotmail.html</url>
-					</FirstRunURL>
-				</FirstRunURLSet>
-				<RecurringHighlightURL />
-			</Wave>
-		</Highlight>
 		<LiveFolders UpsellMessageId="1" />
-		<MessengerBlogURL>http://messengersays.spaces.live.com</MessengerBlogURL>
-		<MobileMessaging Mode="RPPNew" CarrierList="" CrossSell="1" CharMax="136" MainWindowButton="true" OperatorPage="http://www.pc2mobile.ca" ValidRoutes="US;CA" />
 		<MSNSearch>
-			<ImagesURL>http://www.bing.com/images/results.aspx?q=$QUERY$&amp;FORM=$FC$&amp;mkt=en-us</ImagesURL>
-			<InstantAccessConfig>
-				<SearchMarket>en-us</SearchMarket>
-				<SearchURL>http://api.search.live.net/xml.aspx</SearchURL>
-				<ImageSearchEnabled>True</ImageSearchEnabled>
-				<VideoSearchEnabled>True</VideoSearchEnabled>
-				<OnlineAlbumsEnabled>True</OnlineAlbumsEnabled>
-				<RecognizerEnabled>True</RecognizerEnabled>
-				<WebVersion>2</WebVersion>
-				<WebPath>http://www.windowslivemessengerdev.com/web.xml</WebPath>
-				<ImageVideoVersion>2</ImageVideoVersion>
-				<ImageVideoPath>http://www.windowslivemessengerdev.com/imagevideo.xml</ImageVideoPath>
-			</InstantAccessConfig>
-			<NewsURL>http://www.bing.com/news/results.aspx?q=$QUERY$&amp;FORM=$FC$&amp;mkt=en-us</NewsURL>
-			<PeopleSearchURL>http://profile.live.com/results.aspx?q=$QUERY$</PeopleSearchURL>
+			<DesktopInstallURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</DesktopInstallURL>
+			<ImagesURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=images</ImagesURL>
+			<NearMeURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</NearMeURL>
+			<NewsURL>https://duckduckgo.com/?q=$QUERY$+news&amp;ia=news</NewsURL>
+			<PeopleSearchURL>http://home.live.com/search?query=$QUERY$</PeopleSearchURL>
 			<PeopleSearchSiteID>73625</PeopleSearchSiteID>
-			<SearchKidsURL>http://search.msn.ca/kidz/results.aspx?q=$QUERY$&amp;FORM=$FC$&amp;mkt=en-us</SearchKidsURL>
-			<SearchURL>http://www.bing.com/results.aspx?q=$QUERY$&amp;FORM=$FC$&amp;mkt=en-us</SearchURL>
-			<SharedSearchURL>http://www.bing.com/results.aspx?q=$QUERY$&amp;FORM=$FC$&amp;mkt=en-us</SharedSearchURL>
-			<SharedSearchURL2>http://www.bing.com/results.aspx?q=$QUERY$&amp;FORM=$FC$&amp;mkt=en-us</SharedSearchURL2>
+			<SearchKidsURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SearchKidsURL>
+			<SearchURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SearchURL>
+			<SharedSearchURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SharedSearchURL>
+			<SharedSearchURL2>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SharedSearchURL2>
 		</MSNSearch>
 		<MsnTodayConfig>
 			<MsnTodaySiteID>6528</MsnTodaySiteID>
-			<!--<MsnTodayURL>http://t.msn.com/en-us/home.aspx</MsnTodayURL>-->
-			<MsnTodayURL>http://127.0.0.1/msntoday</MsnTodayURL>
+			<MsnTodayURL>https://escargot.log1p.xyz/etc/escargot-today</MsnTodayURL>
 			<Flags>2</Flags>
 		</MsnTodayConfig>
-
-		<MusicIntegration URL="http://www.bing.com/results.aspx?q=$ARTIST$+Music&amp;Form=MSNMUS&amp;qpvt=$ARTIST$" SiteID="" />
 		<OneCare Enabled="0" />
-		<PE Tracking="" />
+		<PE Tracking=""/>
 		<PremiumAV Visibility="1" />
 		<PSTNOut Hidden="0" />
-		<PublicFederated>
-			<YahooNetwork Enabled="true" OfflineIM="true" />
-		</PublicFederated>
 		<ReportAbuse>
 			<ReportAbuseSID />
 			<ReportAbuseURL>http://support.live.com/default.aspx?productkey=wlmessengerabuse</ReportAbuseURL>
@@ -676,102 +200,17 @@
 			<ViewProfileURL>http://g.msn.com/5meen_us/106?%1&amp;Plcid=%2!hs!&amp;%3&amp;Country=%4!hs!&amp;BrandID=%5&amp;passport=%6</ViewProfileURL>
 		</RL>
 		<SDrive Enabled="true" />
-		<SocialNews>
-			<EventUrl>http://127.0.0.1:8080/social/cid-%1!16.16I64X!/events</EventUrl>
-			<EventSiteID>73625</EventSiteID>
-			<GroupUrl>http://127.0.0.1:8080/social/cid-%1!16.16I64X!/groups</GroupUrl>
-			<GroupSiteID>73625</GroupSiteID>
-			<MainUrl>http://127.0.0.1:8080/whatsnew</MainUrl>
-			<MainSiteID>73625</MainSiteID>
-			<OptionsUrl>http://127.0.0.1:8080/whatsnewsettings/</OptionsUrl>
-			<OptionsSiteID>73625</OptionsSiteID>
-			<UserUrl>http://127.0.0.1:8080/cid-%1!16.16I64X!/profile</UserUrl>
-			<UserSiteID>73625</UserSiteID>
-		</SocialNews>
-		<TabConfig>
-			<slots>
-				<URL id="1">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCETA</URL>
-				<URL id="2">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCETB</URL>
-				<URL id="3">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCETC</URL>
-				<URL id="4">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCETD</URL>
-				<URL id="5">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCETE</URL>
-				<URL id="6">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCETF</URL>
-				<URL id="7">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCETG</URL>
-				<URL id="8">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCETH</URL>
-				<URL id="9">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMCETI</URL>
-			</slots>
-		</TabConfig>
 		<TermsOfUse>
 			<TermsOfUseSID>956</TermsOfUseSID>
-			<TermsOfUseURL>http://127.0.0.1:8080/Help/Terms.aspx?mkt=en-us</TermsOfUseURL>
+			<TermsOfUseURL>https://www.matrix.org</TermsOfUseURL>
 		</TermsOfUse>
-		<UPUX>
-			<Product id="1" PartnerID="AG" ProductName="Winks" BrandName="Kiwee Winks">
-				<BasePurchaseURL LaunchWindowType="Messenger" SiteID="60971" URL="http://127.0.0.1:8080/winks/index.html" />
-				<BillingHelpURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/winks/?loc=WKHelp&amp;LCID=en-us" />
-				<BillingURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/winks/?loc=WKTools&amp;LCID=en-us" />
-				<ProductShopURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/winks/?loc=WKAction&amp;LCID=en-us" />
-			</Product>
-			<Product id="2" PartnerID="AG" ProductName="Emoticons" BrandName="Kiwee Emoticons">
-				<BasePurchaseURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/emoticons/?loc=EMGetThis&amp;LCID=en-us" />
-				<BillingHelpURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/emoticons/?loc=EMHelp&amp;LCID=en-us" />
-				<BillingURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/emoticons/?loc=EMTools&amp;LCID=en-us" />
-				<ProductShopURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/emoticons/?loc=EMAction&amp;LCID=en-us" />
-			</Product>
-			<Product id="3" PartnerID="AG" ProductName="Backgrounds" BrandName="Kiwee Backgrounds">
-				<BillingHelpURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/backgrounds/?loc=MBHelp&amp;LCID=en-us" />
-				<BillingURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/backgrounds/?loc=MBTools&amp;LCID=en-us" />
-				<ProductShopURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/backgrounds/?loc=MBAction&amp;LCID=en-us" />
-			</Product>
-			<Product id="4" PartnerID="AG" ProductName="Theme Packs" BrandName="Kiwee Packs">
-				<BillingHelpURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/winks/?loc=PEHelp&amp;LCID=en-us" />
-				<BillingURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/winks/?loc=PETools&amp;LCID=en-us" />
-				<ProductShopURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/winks/?loc=PEAction&amp;LCID=en-us" />
-			</Product>
-			<Product id="5" PartnerID="SY" ProductName="Dynamic Display Pictures" BrandName="WeeMee" DialogMenuString="Create a Dynamic WeeMee" IntegrationType="medium">
-				<BillingHelpURL LaunchWindowType="IE" SiteID="41170" URL="http://www.wee-mee.com/en-us/help/" />
-				<BillingURL LaunchWindowType="IE" SiteID="41170" URL="http://www.wee-mee.com/en-us/myaccount/" />
-				<ProductShopURL LaunchWindowType="IE" SiteID="41170" URL=" http://www.wee-mee.com/en-us/ddp/" />
-			</Product>
-			<Product id="6" PartnerID="SY" ProductName="Winks" BrandName="WeeMee Winks">
-				<ProductShopURL LaunchWindowType="IE" SiteID="41170" URL="http://www.wee-mee.com/en-us/winks/" />
-				<BillingURL LaunchWindowType="IE" SiteID="41170" URL="http://www.wee-mee.com/en-us/myaccount/" />
-				<BillingHelpURL LaunchWindowType="IE" SiteID="41170" URL="http://www.wee-mee.com/en-us/help/" />
-				<BasePurchaseURL LaunchWindowType="IE" SiteID="41170" URL="http://www.wee-mee.com/en-us/content.aspx?id=$CONTENTID$" />
-			</Product>
-			<Product id="7" PartnerID="TD" ProductName="Dynamic Display Pictures" BrandName="Quebles Display Pictures" DialogMenuString="Quebles Display Pictures" IntegrationType="medium">
-				<BillingHelpURL LaunchWindowType="Messenger" SiteID="60025" URL="http://ca.mobilemoney.com/partners/msnmessenger/webshop/ddp.asp?account=msnca&amp;pos=billingmenu" />
-				<BillingURL LaunchWindowType="Messenger" SiteID="60025" URL="http://ca.mobilemoney.com/partners/msnmessenger/webshop/ddp.asp?account=msnca&amp;pos=billingmenu" />
-				<ProductShopURL LaunchWindowType="Messenger" SiteID="60025" URL="http://ca.mobilemoney.com/partners/msnmessenger/webshop/ddp.asp?account=msnca&amp;pos=actionmenu" />
-			</Product>
-			<Product id="8" PartnerID="TD" ProductName="Winks" BrandName="Quebles Winks">
-				<BasePurchaseURL LaunchWindowType="Messenger" SiteID="60025" URL="http://ca.mobilemoney.com/partners/msnmessenger/webshop/winks.asp?account=msnca&amp;pos=chatwindow&amp;contentID=$CONTENTID$" />
-				<BillingHelpURL LaunchWindowType="Messenger" SiteID="60025" URL="http://ca.mobilemoney.com/partners/msnmessenger/webshop/winks.asp?account=msnca&amp;pos=billingmenu" />
-				<BillingURL LaunchWindowType="Messenger" SiteID="60025" URL="http://ca.mobilemoney.com/partners/msnmessenger/webshop/winks.asp?account=msnca&amp;pos=billingmenu" />
-				<ProductShopURL LaunchWindowType="Messenger" SiteID="60025" URL="http://ca.mobilemoney.com/partners/msnmessenger/webshop/winks.asp?account=msnca&amp;pos=actionmenu" />
-			</Product>
-			<Product id="9" PartnerID="AG" ProductName="Dynamic Display Pictures" BrandName="Kiwee's Most Popular" DialogMenuString="Kiwee's Most Popular" IntegrationType="deep">
-				<BillingHelpURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/display-pictures/?loc=DPHelp&amp;LCID=en-us" />
-				<BillingURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/display-pictures/?loc=DPTools&amp;LCID=en-us" />
-				<ProductShopURL LaunchWindowType="Messenger" SiteID="60971" URL="http://www.kiwee.com/platform/im/category.pd/kiwee-(im)/display-pictures/?loc=DPAction&amp;LCID=en-us" />
-			</Product>
-			<Product id="99" PartnerID="VML" ProductName="Winks">
-				<BasePurchaseURL LaunchWindowType="Messenger" SiteID="258666" URL="http://themepackfactory.windowslive.com/default.aspx?tpf.loc=WKGetThis&amp;tpf.cid=$CONTENTID$" />
-			</Product>
-		</UPUX>
 		<VoiceClip Hidden="0" />
 		<VoiceVideo>
 			<DisableSipProxyInviteTest>0</DisableSipProxyInviteTest>
-			<DisableSipProxyCapability>1</DisableSipProxyCapability>
-			<DisableSipProxyInvite>1</DisableSipProxyInvite>
+			<DisableSipProxyCapability>0</DisableSipProxyCapability>
+			<DisableSipProxyInvite>0</DisableSipProxyInvite>
 			<DisableSipProxyCapability2>0</DisableSipProxyCapability2>
 			<DisableSipProxyInvite2>0</DisableSipProxyInvite2>
 		</VoiceVideo>
-		<WebWatchConfig>
-			<SendSiteID>0</SendSiteID>
-			<SendURL>http://www.msndirect.com/default.htm</SendURL>
-			<SetupSiteID>42729</SetupSiteID>
-			<SetupURL>http://direct.msn.com/default.aspx?source=Msgr&amp;L=en-US</SetupURL>
-		</WebWatchConfig>
 	</LocalizedConfig>
 </MsgrConfig>

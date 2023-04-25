@@ -1,5 +1,6 @@
 use std::{str::{from_utf8_unchecked}};
 
+use log::info;
 use tokio::{
     io::{AsyncWriteExt, BufReader, AsyncReadExt},
     net::TcpListener,
@@ -32,7 +33,7 @@ impl TCPServer for NotificationServer {
         
         loop {
             let (mut socket, _addr) = listener.accept().await.unwrap();
-            let (tx, mut rx) = broadcast::channel::<String>(10);
+            let (tx, mut rx) = broadcast::channel::<String>(100);
             let mut parser = MSNPCommandParser::new();
             let mut command_handler = self.get_command_handler(tx.clone());
 
@@ -60,20 +61,20 @@ impl TCPServer for NotificationServer {
                             let commands : Vec<MSNPCommand> = parser.parse_message(line);
 
                             for command in commands {
-                                    println!("NS <= {}", &command);
+                                info!("NS <- {}", &command);
                                     match command_handler.handle_command(&command).await {
                                         Ok(response) => {
                                             if !response.is_empty() {
                                                 write.write_all(response.as_bytes()).await;
-                                                println!("NS => {}", &response);
+                                                info!("NS -> {}", &response);
                                             }
                                         },
                                         Err(err) => {
 
                                             let error = format!("{error_code} {tr_id}\r\n", error_code = err.code as i32, tr_id= err.tr_id);
                                             let out = "OUT\r\n";
-                                            log::error!("NS => {}", &error);
-                                            log::error!("NS => {}", &out);
+                                            log::error!("NS -> {}", &error);
+                                            log::error!("NS -> {}", &out);
                                             write.write_all(error.as_bytes()).await;
                                             write.write_all(out.as_bytes()).await;
                                         }
@@ -84,7 +85,7 @@ impl TCPServer for NotificationServer {
                         },
                         command_to_send = rx.recv() => {
                             let msg = command_to_send.unwrap();
-                            println!("NS => {}", &msg);
+                            info!("NS => {}", &msg);
                             write.write_all(msg.as_bytes()).await;
                         }
                     }

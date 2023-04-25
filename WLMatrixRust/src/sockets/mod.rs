@@ -8,3 +8,4 @@ pub mod p2p_server;
 pub mod switchboard_server;
 pub mod msnp2p_command;
 pub mod echoserver;
+pub mod events;

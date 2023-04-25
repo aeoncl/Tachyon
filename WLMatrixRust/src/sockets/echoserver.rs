@@ -11,7 +11,7 @@ use tokio::{
 use async_trait::async_trait;
 
 
-use crate::{models::{uuid::UUID, p2p::{pending_packet::PendingPacket, p2p_session::P2PSession}, msn_user::MSNUser}, sockets::{msnp_command::MSNPCommand, msnp2p_command::P2PCommandParser}};
+use crate::{models::{uuid::UUID, p2p::{pending_packet::PendingPacket, p2p_client::P2PClient}, msn_user::MSNUser}, sockets::{msnp_command::MSNPCommand, msnp2p_command::P2PCommandParser}};
 
 use super::{tcpserver::TCPServer};
 
@@ -32,10 +32,6 @@ impl TCPServer for EchoServer {
         
         loop {
             let (mut socket, _addr) = listener.accept().await.unwrap();
-            let (tx, mut rx) = broadcast::channel::<PendingPacket>(10);
-            let mut p2p_session = P2PSession::new(tx.clone());
-            p2p_session.set_initialized(true);
-
             let mut real_user: Option<MSNUser> = None;
             let mut proxy_user: Option<MSNUser> = None;
 

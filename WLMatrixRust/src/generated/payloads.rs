@@ -215,7 +215,7 @@ impl yaserde::YaDeserialize for ClientType {
 
 
 
-#[derive(Debug, Clone, ToString, EnumString, YaSerialize, YaDeserialize)]
+#[derive(Debug, Clone, ToString, EnumString, YaSerialize, YaDeserialize, PartialEq, Eq)]
 pub enum PresenceStatus {
 
     /* Online */
@@ -255,6 +255,9 @@ impl From<PresenceState> for PresenceStatus {
             PresenceState::Unavailable => {
                 PresenceStatus::AWY
             },
+            PresenceState::Offline => {
+                PresenceStatus::FLN
+            }
             _ => {
                 PresenceStatus::FLN
             }

@@ -194,4 +194,7 @@ impl MSNUser {
         return self.partial_user.clone();
     }
     
+    pub fn get_mpop_identifier(&self) -> String {
+        return format!("{msn_addr};{{{endpoint_guid}}}", msn_addr = &self.partial_user.msn_addr, endpoint_guid = &self.endpoint_guid);
+    }
 }

@@ -1,5 +1,6 @@
 use lazy_static::lazy_static;
 use matrix_sdk::ruma::{OwnedUserId, UserId, OwnedRoomId, RoomId};
+use rand::Rng;
 use regex::Regex;
 
 use crate::models::uuid::UUID;
@@ -29,7 +30,12 @@ pub fn parse_mxc(mxc : &String) -> (String, String) {
 
     let captures = MXC_REGEX.captures(mxc).unwrap();
     return (captures[1].to_string(), captures[2].to_string());
+}
 
+pub fn get_sb_session_id() -> String{
+    let mut rng = rand::thread_rng();
+    let n2: u16 = rng.gen();
+    return n2.to_string();
 }
 
 

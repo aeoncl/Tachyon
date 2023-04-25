@@ -37,7 +37,9 @@ lazy_static! {
 }
 
 lazy_static_include_bytes! {
-    MSGR_CONFIG_XML => "assets/web/MsgrConfig.xml"
+    MSGR_CONFIG_XML => "assets/web/MsgrConfig.xml",
+    BANNER => "assets/web/banner.html",
+    TEXT_AD => "assets/web/ads/textad.xml"
 }
 
 #[post("/")]
@@ -47,9 +49,10 @@ pub async fn firewall_test(request: HttpRequest) -> Result<HttpResponse, WebErro
 
 #[post("/RST2.srf")]
 pub async fn rst2(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
-    let test = std::str::from_utf8(&body).unwrap();
+    let request_body_str = std::str::from_utf8(&body).unwrap();
+    info!("RST2 Request: {}", &request_body_str);
 
-    let request_parsed: RST2RequestMessageSoapEnvelope = from_str(test).unwrap();
+    let request_parsed: RST2RequestMessageSoapEnvelope = from_str(request_body_str).unwrap();
     let username_token = request_parsed.header.security.username_token.unwrap();
 
     let matrix_id = OwnedUserId::from_msn_addr(&username_token.username);
@@ -93,6 +96,22 @@ pub async fn get_msgr_config() -> HttpResponse {
     let data: &'static [u8] = *MSGR_CONFIG_XML;
     return HttpResponseBuilder::new(StatusCode::OK)
         .append_header(("Content-Type", "application/soap+xml"))
+        .body(data);
+}
+
+#[get("/ads/banner")]
+pub async fn get_banner() -> HttpResponse {
+    let data: &'static [u8] = *BANNER;
+    return HttpResponseBuilder::new(StatusCode::OK)
+        .append_header(("Content-Type", "text/html"))
+        .body(data);
+}
+
+#[get("/ads/text")]
+pub async fn get_text_ad() -> HttpResponse {
+    let data: &'static [u8] = *TEXT_AD;
+    return HttpResponseBuilder::new(StatusCode::OK)
+        .append_header(("Content-Type", "text/xml"))
         .body(data);
 }
 

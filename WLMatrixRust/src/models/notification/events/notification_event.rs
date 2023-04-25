@@ -1,4 +1,4 @@
-use crate::{models::msn_user::MSNUser, generated::payloads::factories::NotificationFactory};
+use crate::{models::{msn_user::MSNUser, msn_object::MSNObject}, generated::payloads::factories::NotificationFactory};
 
 use super::content::{presence_event_content::PresenceEventContent, switchboard_init_event_content::SwitchboardInitEventContent, hotmail_notification_event_content::HotmailNotificationEventContent, disconnect_event_content::DisconnectEventContent};
 
@@ -9,7 +9,8 @@ pub enum NotificationEvent {
     PresenceEvent(PresenceEventContent),
     DisconnectEvent(DisconnectEventContent),
     SwitchboardInitEvent(SwitchboardInitEventContent),
-    HotmailNotificationEvent(HotmailNotificationEventContent)
+    HotmailNotificationEvent(HotmailNotificationEventContent),
+    AddressBookUpdateEvent(HotmailNotificationEventContent)
 
 }
 
@@ -24,17 +25,17 @@ impl NotificationEventFactory {
         let content = HotmailNotificationEventContent{
             payload: payload,
         };
-        return NotificationEvent::HotmailNotificationEvent(content);
+        return NotificationEvent::AddressBookUpdateEvent(content);
     }
 
-    pub fn get_disconnect(msn_addr: String) -> NotificationEvent {
+    pub fn get_disconnect(msn_user: MSNUser) -> NotificationEvent {
         return NotificationEvent::DisconnectEvent(DisconnectEventContent{
-            msn_addr
+            msn_user
         });
     }
 
     pub fn get_presence(msn_user: MSNUser) -> NotificationEvent {
-        return NotificationEvent::PresenceEvent(PresenceEventContent{user: msn_user });
+        return NotificationEvent::PresenceEvent(PresenceEventContent{user: msn_user});
     }
 
     pub fn get_switchboard_init(inviter: MSNUser, session_id: String, ticket: String) -> NotificationEvent {

@@ -1,3 +1,5 @@
+use core::fmt;
+
 use byteorder::{LittleEndian, ByteOrder};
 use crate::models::{msn_user::MSNUser, errors::Errors};
 
@@ -10,7 +12,6 @@ pub struct PendingPacket {
     chunks: Vec<P2PTransportPacket>,
     pub sender: MSNUser,
     pub receiver: MSNUser
-
 }
 
 impl PendingPacket {
@@ -36,6 +37,15 @@ impl PendingPacket {
 
     }
 
+    pub fn get_last_chunk_next_seq_number(&self) -> u32 {
+        let last_chunk = self.chunks.last();
+        if last_chunk.is_none() {
+           return self.packet.get_next_sequence_number();
+        } else {
+           return last_chunk.unwrap().get_next_sequence_number();
+        }
+    }
+
     fn merge_chunks(&self) -> P2PTransportPacket {
         let mut original = self.packet.to_owned();
         for chunk in &self.chunks {
@@ -54,19 +64,6 @@ impl PendingPacket {
         }
 
         return false;
-    }
-
-    pub fn as_direct_p2p(&self) -> Vec<u8> {
-        let mut msg_bytes : Vec<u8> = self.packet.to_vec();
-        
-        let size = msg_bytes.len();
-        let mut buffer : [u8;4] = [0,0,0,0];
-        LittleEndian::write_u32(&mut buffer, size as u32);
-        
-        let mut out = buffer.to_vec();
-        out.append(&mut msg_bytes);
-
-        return out;
     }
 }
 

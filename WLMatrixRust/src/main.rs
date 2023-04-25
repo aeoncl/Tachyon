@@ -5,20 +5,27 @@ mod models;
 mod web;
 mod utils;
 
+use std::fs::File;
 use std::sync::Arc;
 
 use actix_web::App;
 use actix_web::HttpServer;
 use actix_web::middleware::Logger;
+use chrono::Local;
+use env_logger::Builder;
+use log::LevelFilter;
+use log::info;
 use web::webserver::*;
 use web::sharing_service::*;
 use web::storage_service::*;
 use web::ab_service::*;
+use std::io::Write;
 
 use tokio::join;
 use lazy_static::lazy_static;
 #[macro_use] extern crate lazy_static_include;
 #[macro_use] extern crate serde_derive;
+#[macro_use] extern crate num_derive;
 
 use crate::repositories::ab_locator::ABLocator;
 use crate::repositories::matrix_client_locator::MatrixClientLocator;
@@ -39,8 +46,7 @@ lazy_static! {
 #[tokio::main]
 async fn main() {
 
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-    
+    setup_logs();    
 
     let notif_server = NotificationServer::new("127.0.0.1".to_string(), 1863);
     let switchboard_server = SwitchboardServer::new("127.0.0.1".to_string(), 1864);
@@ -62,10 +68,36 @@ async fn main() {
     .service(soap_sharing_service)
     .service(soap_storage_service)
     .service(sha1auth)
-    .service(get_profile_pic))
+    .service(get_profile_pic)
+    .service(get_text_ad)
+    .service(get_banner))
     .bind(("127.0.0.1", 8080)).unwrap()
     .run();
 
     let _test = join!(notif_server_future, switchboard_server_future, http_server);
     println!("See you next time 👀!");
+}
+
+fn setup_logs() {
+    let target = Box::new(File::create("C:\\temp\\log.txt").expect("Can't create file"));
+
+    Builder::new()
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "{}:{} {} [{}] - {}",
+                record.file().unwrap_or("unknown"),
+                record.line().unwrap_or(0),
+                Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"),
+                record.level(),
+                record.args()
+            )
+        })
+        .target(env_logger::Target::Pipe(target))
+        .filter(Some("wlmatrix_rust") , LevelFilter::Debug)
+        .filter(Some("matrix-sdk"), LevelFilter::Info)
+        .init();
+
+    //Some("wlmatrix_rust")    
+    info!("=========NEW LOG SESSION (✿◡‿◡)  - {}=========", Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"));
 }

@@ -1,5 +1,7 @@
 use matrix_sdk::{HttpResult, HttpError};
 
+use crate::models::errors::Errors;
+
 #[derive(Debug, Clone)]
 
 pub enum MsnpErrorCode {
@@ -74,4 +76,9 @@ impl From<HttpError> for MsnpErrorCode {
 			MsnpErrorCode::InvalidParameter
 		}
 	}
-	
+
+	impl From<Errors> for MsnpErrorCode {
+    fn from(value: Errors) -> Self {
+		return MsnpErrorCode::InternalServerError;
+    }
+}	

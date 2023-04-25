@@ -4,17 +4,21 @@ pub mod p2p_payload;
 pub mod p2p_transport_packet;
 pub mod slp_payload;
 pub mod tlv;
-pub mod p2p_session;
+pub mod p2p_client;
 pub mod slp_payload_handler;
 pub mod slp_context;
 pub mod file;
+pub mod events;
+pub mod session;
+pub mod app_id;
 
 pub mod factories {
     use byteorder::{BigEndian, ByteOrder, LittleEndian};
+    use rand::Rng;
 
-    use crate::models::{errors::Errors};
+    use crate::models::{errors::Errors, msn_user::MSNUser, uuid::UUID};
 
-    use super::{slp_payload::SlpPayload, p2p_transport_packet::P2PTransportPacket, p2p_payload::P2PPayload, tlv::TLV};
+    use super::{slp_payload::{SlpPayload, EufGUID}, p2p_transport_packet::P2PTransportPacket, p2p_payload::P2PPayload, tlv::TLV, slp_context::PreviewData};
 
 
 
@@ -146,6 +150,28 @@ SessionID: 2216804035
             return Ok(out);
         }
 
+        pub fn get_file_transfer_request(sender: &MSNUser, receiver: &MSNUser, context: &PreviewData, session_id: u32) -> Result<SlpPayload, Errors> {
+            let mut out = SlpPayload::new();
+            out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver.get_mpop_identifier());
+            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.get_mpop_identifier()));
+            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = sender.get_mpop_identifier()));
+            out.add_header(String::from("Via"), format!("MSNSLP/1.0/TLP ;branch={{{branch_uuid}}}", branch_uuid = UUID::new().to_string()));
+
+            out.add_header(String::from("CSeq"), String::from("0"));
+            out.add_header(String::from("Call-ID"), format!("{{{call_id}}}", call_id = UUID::new().to_string()));
+            out.add_header(String::from("Max-Forwards"), String::from("0"));
+            out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-sessionreqbody"));
+
+            out.add_body_property(String::from("EUF-GUID"), EufGUID::FileTransfer.to_string());
+            out.add_body_property(String::from("SessionID"), session_id.to_string());
+            out.add_body_property(String::from("AppID"), String::from("2"));
+            out.add_body_property(String::from("RequestFlags"), String::from("16"));
+
+            out.add_body_property(String::from("Context"), context.to_string());
+
+            return Ok(out);
+        }
+
         pub fn get_200_ok_indirect_connect(invite: &SlpPayload) -> Result<SlpPayload, Errors> {
             let mut out = SlpPayloadFactory::get_200_ok_direct_connect(invite)?;
             out.add_body_property(String::from("Bridge"), String::from("SBBridge"));
@@ -243,16 +269,19 @@ SessionID: 2216804035
             return Ok(out);
         }
 
-        pub fn get_direct_connect_invite() -> SlpPayload {
+        pub fn get_transport_request(sender: &MSNUser, receiver: &MSNUser) -> SlpPayload {
             let mut out = SlpPayload::new();
-            out.first_line = String::from("INVITE MSNMSGR:aeontest@shl.local;{f52973b6-c926-4bad-9ba8-7c1e840e4ab0} MSNSLP/1.0");
+            let sender_endpoint_id = sender.get_mpop_identifier();
+            let receiver_endpoint_id = receiver.get_mpop_identifier();
 
-            out.add_header(String::from("To"), String::from("<msnmsgr:aeontest@shl.local;{f52973b6-c926-4bad-9ba8-7c1e840e4ab0}>"));
-            out.add_header(String::from("From"), String::from("<msnmsgr:aeontest3@shl.local;{77c46a8f-33a3-5282-9a5d-905ecd3eb069}>"));
-            out.add_header(String::from("Via"), String::from("MSNSLP/1.0/TLP ;branch={2477EF37-9DC5-4884-BC5E-1D32FE3BEC2F}"));
+            out.first_line = format!("INVITE MSNMSGR:{mpop_id} MSNSLP/1.0", mpop_id = &receiver_endpoint_id);
+
+            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = &receiver_endpoint_id));
+            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = &sender_endpoint_id));
+            out.add_header(String::from("Via"), format!("MSNSLP/1.0/TLP ;branch={{{branch_uuid}}}", branch_uuid = UUID::new().to_string()));
 
             out.add_header(String::from("CSeq"), String::from("0"));
-            out.add_header(String::from("Call-ID"), String::from("{AFDB2A8D-0514-488F-9667-35624900DBE3}"));
+            out.add_header(String::from("Call-ID"), format!("{{{call_id}}}", call_id = UUID::new().to_string()));
             out.add_header(String::from("Max-Forwards"), String::from("0"));
             out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-transreqbody"));
 
@@ -307,6 +336,21 @@ SessionID: 2216804035
         pub fn get_sip_text_message() -> P2PPayload {
             return P2PPayload::new(0x01, 0x0);
         }
+
+        pub fn get_file_transfer(session_id: u32) -> P2PPayload {
+            return P2PPayload::new(0x07, session_id);
+        }
+
+        pub fn get_data_preparation_message(session_id: u32) -> P2PPayload {
+            let mut payload = P2PPayload::new(0x01, session_id);
+            payload.set_payload([0x0, 0x0, 0x0, 0x0].to_vec());
+            return payload;
+        }
+
+        pub fn get_msn_obj(session_id: u32) -> P2PPayload {
+            return P2PPayload::new(0x05, session_id);
+
+        }
     }
 
     pub struct TLVFactory;
@@ -325,9 +369,9 @@ SessionID: 2216804035
             return TLV::new(0x03, 0x04, buffer.to_vec());
         }
 
-        pub fn get_untransfered_data_size(sequence_number: u64) -> TLV {
+        pub fn get_untransfered_data_size(untransfered_payload_data_size: u64) -> TLV {
             let mut buffer: [u8;8] = [0,0,0,0,0,0,0,0];
-            BigEndian::write_u64(&mut buffer, sequence_number);
+            BigEndian::write_u64(&mut buffer, untransfered_payload_data_size);
             return TLV::new(0x01, 0x08, buffer.to_vec());
         }
 

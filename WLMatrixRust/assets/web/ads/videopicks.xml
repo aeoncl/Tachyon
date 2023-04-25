@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Escargot Video</title>
+    <link>
+    http://escargot.chat
+    </link>
+    <description>Escargot Video Feed</description>
+    <copyright>Escargot</copyright>
+    <language>en-us</language>
+    <ttl>10</ttl>
+    <lastBuildDate>Fri, 28 Jan 2022 04:00:55 GMT</lastBuildDate>
+    <image>
+      <url>http://static.levelleap.com/sites/escargot.chat/logo/flat.png</url>
+      <title>Escargot Video - Entertainment</title>
+      <link>
+      http://escargot.chat
+      </link>
+    </image>
+    <item>
+      <title>AOL 5.0 sign on proof of concept</title>
+      <link>
+      https://www.youtube.com/watch?v=FLZY2iBgNO0
+      </link>
+      <description>Yes, we did it. Learn more at: https://nina.chat</description>
+      <enclosure url="https://i.ytimg.com/vi/FLZY2iBgNO0/hqdefault.jpg" type="image/jpeg" length="1"/>
+      <guid>0b2d0466-803b-4ca5-932f-af058c45dd7a</guid>
+      <pubDate>Mon, 07 Jun 2013 07:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Windows Live Messenger is back with Escargot!</title>
+      <link>
+      https://www.youtube.com/watch?v=q5pzJ_fzu1c
+      </link>
+      <description>MSN Messenger aka Windows Live Messenger is back, and brought to you by Escargot. You can learn more about it at: https://escargot.chat</description>
+      <enclosure url="https://img.youtube.com/vi/q5pzJ_fzu1c/maxresdefault.jpg" type="image/jpeg" length="1"/>
+      <guid>7f25908e-17c6-48ff-b4b2-5b9a49cb6134</guid>
+      <pubDate>Mon, 07 Jun 2013 07:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>You've Got Talk: Modernization</title>
+      <link>
+      https://www.youtube.com/watch?v=Gj5BEaUdQoc
+      </link>
+      <description>Listen to our new podcast! On this first episode, we'll talk about modernization.</description>
+      <enclosure url="http://static.levelleap.com/sites/messaging/escargot.chat/clients/video/ygt.png" type="image/jpeg" length="1"/>
+      <guid>d9244e0d-9886-412e-bf1d-c9c1defb91ab</guid>
+      <pubDate>Sat, 26 Mar 2022 19:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

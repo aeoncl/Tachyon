@@ -78,7 +78,7 @@ impl MSNPCommandParser {
             if command.is_complete() {
                 out.push(command);
             } else {
-                info!("message was chunked");
+                info!("message was chunked: {}", &message);
                 self.incomplete_command.push(command);
                 break;
             }
@@ -114,6 +114,10 @@ impl MSNPCommand {
     }
 
     pub fn get_payload_size(&self) -> usize {
+        
+        if self.operand.as_str() == "ANS" {
+            return 0;
+        }
         
         let split = self.split();
         let last = split.last().unwrap();
@@ -248,6 +252,18 @@ mod tests {
 
         let payload_command = parsed.pop().unwrap();
         assert!(payload_command.is_complete() == true);
+    }
+
+    #[test]
+    fn test_weird_chunk_bug() {
+        env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
+
+        let mut parser = MSNPCommandParser::new();  
+
+        let command = String::from("ANS 9 aeontest4@shlasouf.local;{F52973B6-C926-4BAD-9BA8-7C1E840E4AB0} IWlIc1N6VHNzZXh6ZWVWV1pjVDpzaGxhc291Zi5sb2NhbDtzeXRfWVdWdmJuUmxjM1EwX09xUklRQktRd0ZFRU1aSE5KY2JiXzBCQjJzcjtAYWVvbnRlc3QzOnNobGFzb3VmLmxvY2Fs 15800445832891040610");
+   
+        let parsed = parser.parse_message(command.as_str());
+
     }
 
     #[test]

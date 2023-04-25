@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use crate::{models::uuid::UUID, sockets::msnp_command::MSNPCommand};
 
 use super::{
-    msnp_command::{MSNPCommandParser}, tcpserver::TCPServer, switchboard_command_handler::SwitchboardCommandHandler, command_handler::CommandHandler,
+    msnp_command::{MSNPCommandParser}, tcpserver::TCPServer, switchboard_command_handler::SwitchboardCommandHandler, command_handler::CommandHandler, events::socket_event::SocketEvent,
 };
 
 pub struct SwitchboardServer {
@@ -32,7 +32,7 @@ impl SwitchboardServer {
         };
     }
 
-    fn get_command_handler(&self, sender: Sender<String>) -> Box<dyn CommandHandler> {
+    fn get_command_handler(&self, sender: Sender<SocketEvent>) -> Box<dyn CommandHandler> {
         return Box::new(SwitchboardCommandHandler::new(sender));
     }
 
@@ -48,9 +48,8 @@ impl TCPServer for SwitchboardServer {
 
         loop {
             let (mut socket, _addr) = listener.accept().await.unwrap();
-            let (tx, mut rx) = broadcast::channel::<String>(10);
+            let (tx, mut rx) = broadcast::channel::<SocketEvent>(100);
             let mut command_handler = self.get_command_handler(tx.clone());
-            let mut incomplete_command: Option<MSNPCommand> = None;
             let mut parser = MSNPCommandParser::new();
 
 
@@ -80,19 +79,30 @@ impl TCPServer for SwitchboardServer {
                             let commands : Vec<MSNPCommand> = parser.parse_message(line);
 
                            for command in commands {
-                                info!("SW {}<= {}", &uuid.to_string(), &command);
+                                info!("SW {} <- {}", &uuid.to_string(), &command);
                                    let response = command_handler.handle_command(&command).await.unwrap();
                                    if !response.is_empty() {
                                        write.write_all(response.as_bytes()).await;
-                                       info!("SW {}=> {}",&uuid.to_string(), &response);
+                                       info!("SW {} -> {}",&uuid.to_string(), &response);
                                    }
                            }
                             buffer = [0u8; 2048];
                         },
                         command_to_send = rx.recv() => {
                             let msg = command_to_send.unwrap();
-                            info!("SW {}=> {}",&uuid.to_string(), &msg);
-                            write.write_all(msg.as_bytes()).await;
+                            match msg {
+                                SocketEvent::Single(content) => {
+                                    info!("SW {} -> {}",&uuid.to_string(), &content);
+                                    write.write_all(content.as_bytes()).await;
+                                },
+                                SocketEvent::Multiple(content) => {
+                                    for current in content {
+                                        info!("SW {} -> {}",&uuid.to_string(), &current);
+                                        write.write_all(current.as_bytes()).await;
+                                    }
+                                }
+                            }
+                        
                         }
                     }
                 }
@@ -103,3 +113,20 @@ impl TCPServer for SwitchboardServer {
         }
     }
 }
+
+/*
+
+  match msg {
+                                SocketEvent::Single(msg) => {
+                                    info!("SW {} -> {}",&uuid.to_string(), &msg);
+                                    write.write_all(msg.as_bytes()).await;
+                                },
+                                SocketEvent::Multiple(msgs) => {
+                                    for msg in msgs {
+                                        info!("SW {} -> {}",&uuid.to_string(), &msg);
+                                        write.write_all(msg.as_bytes()).await;
+                                    }
+                                }
+                            }
+
+ */

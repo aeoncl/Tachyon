@@ -1,0 +1,15 @@
+INVITE MSNMSGR:aeoncl@escargot.chat;{60fd8027-b569-4855-ac45-0fdd1b94ecbb} MSNSLP/1.0
+To: <msnmsgr:aeoncl@escargot.chat;{60fd8027-b569-4855-ac45-0fdd1b94ecbb}>
+From: <msnmsgr:aeonshl@escargot.chat;{60fd8027-b569-4855-ac45-0fdd1b94ecbb}>
+Via: MSNSLP/1.0/TLP ;branch={BB4D1102-BB05-436C-AE37-E102420BAC51}
+CSeq: 0 
+Call-ID: {154B76DD-B9B0-4451-A822-A8A47B5C4DF0}
+Max-Forwards: 0
+Content-Type: application/x-msnmsgr-sessionreqbody
+Content-Length: 300
+
+EUF-GUID: {A4268EEC-FEC5-49E5-95C3-F126696BDBF6}
+SessionID: 4014275036
+AppID: 33
+RequestFlags: 18
+Context: PG1zbm9iaiBDcmVhdG9yPSJhZW9uY2xAZXNjYXJnb3QuY2hhdCIgVHlwZT0iMTUiIFNIQTFEPSJFUVlFTjY4Vm1qRWdkTktRb2Jwb0VZSVZlSVE9IiBTaXplPSIxMDYzIiBMb2NhdGlvbj0iMCIgRnJpZW5kbHk9ImNnQmhBSGNBQUFBPSIvPgA=

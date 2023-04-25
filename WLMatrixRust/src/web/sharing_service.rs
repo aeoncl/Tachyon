@@ -2,7 +2,7 @@ use std::{str::{from_utf8, FromStr}, sync::Arc};
 
 use actix_web::{post, HttpRequest, web, HttpResponse, HttpResponseBuilder};
 use http::{header::HeaderName, StatusCode};
-use log::info;
+use log::{info, warn};
 use substring::Substring;
 use yaserde::{ser::to_string, de::from_str};
 
@@ -18,12 +18,17 @@ pub async fn soap_sharing_service(body: web::Bytes, request: HttpRequest) -> Res
         .get(HeaderName::from_str("SOAPAction").unwrap())
     {
         if let Ok(soap_action) = from_utf8(soap_action_header.as_bytes()) {
+            let name = soap_action.split("/").last().unwrap_or(soap_action);
+            info!("{}Request: {}", &name, from_utf8(&body)?);
+
             match soap_action {
                 "http://www.msn.com/webservices/AddressBook/FindMembership" => {
                     return ab_sharing_find_membership(body, request).await;
                 },
                 _ => {}
             }
+        } else {
+            info!("SharingService UnknownRequest: {}", from_utf8(&body)?);
         }
     }
     return Ok(HttpResponseBuilder::new(StatusCode::NOT_FOUND)
@@ -90,6 +95,9 @@ fn get_messenger_service(membership_events: &Vec<AddressBookEvent>) -> (Vec<Base
                 },
                 &RoleId::Pending => {
                     pending_list.push(content.member.clone())
+                },
+                _ => {
+                    warn!("Address Book event contained forbidden list: {}", &content.list)
                 }
             }
         }

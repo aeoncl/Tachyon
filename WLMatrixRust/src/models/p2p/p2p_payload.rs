@@ -1,3 +1,4 @@
+use core::fmt;
 use std::{str::from_utf8_unchecked, fmt::Display};
 
 use byteorder::{BigEndian, ByteOrder};
@@ -8,7 +9,7 @@ use crate::{models::{errors::Errors}};
 use super::{tlv::{TLV, ValueType, extract_tlvs}, slp_payload::SlpPayload};
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct P2PPayload {
 
     pub header_length: usize,
@@ -17,6 +18,20 @@ pub struct P2PPayload {
     pub session_id: u32,
     pub tlvs: Vec<TLV>,
     pub payload: Vec<u8>
+}
+
+impl fmt::Debug for P2PPayload {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("P2PPayload")
+         .field("header_length", &self.header_length)
+         .field("tf_combination", &self.tf_combination)
+         .field("package_number", &self.package_number)
+         .field("session_id", &self.session_id)
+         .field("tlvs", &self.tlvs)
+        // .field("payload_str",  unsafe {&from_utf8_unchecked(&self.payload.as_slice())})
+         .field("payload_bytes", &self.payload)
+         .finish()
+    }
 }
 
 impl P2PPayload {
@@ -181,4 +196,24 @@ impl Display for P2PPayload {
         return write!(f, "{}", out_str);
 
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::models::p2p::factories::TLVFactory;
+
+
+#[test]
+fn test() {
+    //137 With header
+  let test = [65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 61, 61, 13, 10, 13, 10, 0];
+  //TLV { length: 8, value_type: 1, value: [0, 0, 0, 0, 0, 0, 0, 129] }]
+
+  let tlv = TLVFactory::get_untransfered_data_size(129);
+
+  println!("tlv: {:?}", &tlv);
+
+
+}
+
 }

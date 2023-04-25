@@ -8,11 +8,12 @@ use std::{str::{FromStr, from_utf8}, fmt::Display};
 use base64::{Engine, engine::general_purpose};
 use linked_hash_map::LinkedHashMap;
 use log::warn;
+use num::FromPrimitive;
 use substring::Substring;
 
-use crate::models::{errors::Errors, msn_user::MSNUser};
+use crate::models::{errors::Errors, msn_user::MSNUser, msn_object::MSNObject};
 
-use super::slp_context::{PreviewData, MsnObject, SlpContext};
+use super::{slp_context::{PreviewData, SlpContext}, app_id::AppID};
 
 #[derive(Clone, Debug)]
 pub struct SlpPayload {
@@ -66,7 +67,7 @@ impl SlpPayload {
     pub fn get_context_as_preview_data(&self) -> Option<Box<PreviewData>> {
         if let Some(context) = self.get_body_property(&String::from("Context")) {
             if let Ok(decoded) = general_purpose::STANDARD.decode(context) {
-                return PreviewData::from_slp_context(decoded);
+                return PreviewData::from_slp_context(&decoded);
             } else {
                 warn!("Couldn't decode base64 slp context: {}", context);
             }            
@@ -76,8 +77,43 @@ impl SlpPayload {
         return None;
     }
 
-    pub fn get_context_as_msnobj() -> Option<MsnObject> {
-        return None;
+    pub fn get_euf_guid(&self) -> Result<Option<EufGUID>, Errors> {
+        let euf_guid = self.get_body_property(&String::from("EUF-GUID"));
+        if euf_guid.is_none() {
+            return Ok(None);
+        }
+
+        let euf_guid = euf_guid.unwrap();
+        let euf_guid = EufGUID::try_from(euf_guid.as_str())?;
+        return Ok(Some(euf_guid));
+    }
+
+    pub fn get_app_id(&self) -> Result<Option<AppID>, Errors> {
+        let app_id = self.get_body_property(&String::from("AppID"));
+        if app_id.is_none() {
+            return  Ok(None);
+        }
+
+        let app_id = app_id.unwrap();
+        let app_id = u32::from_str(app_id.as_str())?;
+        let app_id: Option<AppID> = FromPrimitive::from_u32(app_id);
+        return Ok(app_id);
+    }
+
+    pub fn get_context_as_msnobj(&self) -> Option<Box<MSNObject>> {
+        let context = self.get_body_property(&String::from("Context"));
+        if let None = context {
+            return None;
+        }
+        return MSNObject::from_slp_context(&context.unwrap().as_bytes().to_vec());
+    }
+
+    pub fn is_invite(&self) -> bool {
+        return self.first_line.contains("INVITE");
+    }
+
+    pub fn is_200_ok(&self) -> bool {
+        return self.first_line.contains("200 OK");
     }
 
 }
@@ -153,6 +189,103 @@ impl Display for SlpPayload {
     }
 }
 
+#[derive(PartialEq, Debug)]
+pub enum EufGUID {
+    MSNObject,
+    FileTransfer,
+    MediaReceiveOnly,
+    MediaSession,
+    SharePhoto,
+    Activity
+}
 
+impl Display for EufGUID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut out = "{00000000-0000-0000-0000-000000000000}";
+        match self {
+            EufGUID::MSNObject => {
+                out = "{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}";
+            },
+            EufGUID::FileTransfer => {
+                out = "{5D3E02AB-6190-11D3-BBBB-00C04F795683}";
+            },
+            EufGUID::MediaReceiveOnly => {
+                out = "{1C9AA97E-9C05-4583-A3BD-908A196F1E92}";
+            },
+            EufGUID::MediaSession => {
+                out = "{4BD96FC0-AB17-4425-A14A-439185962DC8}"
+            },
+            EufGUID::SharePhoto => {
+                out = "{41D3E74E-04A2-4B37-96F8-08ACDB610874}";
+            },
+            EufGUID::Activity => {
+                out = "{6A13AF9C-5308-4F35-923A-67E8DDA40C2F}";
+            }
+        }
+        return write!(f, "{}", &out);
+    }
+}
 
+impl TryFrom<&str> for EufGUID {
+    type Error = Errors;
 
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}" => {
+                return Ok(EufGUID::MSNObject);
+            },
+            "{5D3E02AB-6190-11D3-BBBB-00C04F795683}" => {
+                return Ok(EufGUID::FileTransfer);
+            },
+            "{1C9AA97E-9C05-4583-A3BD-908A196F1E92}" => {
+                return Ok(EufGUID::MediaReceiveOnly);
+            },
+            "{4BD96FC0-AB17-4425-A14A-439185962DC8}" => {
+                return Ok(EufGUID::MediaSession);
+            },
+            "{41D3E74E-04A2-4B37-96F8-08ACDB610874}" => {
+                return Ok(EufGUID::SharePhoto);
+            },
+            "{6A13AF9C-5308-4F35-923A-67E8DDA40C2F}" => {
+                return Ok(EufGUID::Activity);
+            },
+            _=> {
+                return Err(Errors::PayloadDeserializeError);
+            }
+        }
+    }
+}
+
+mod tests {
+    use crate::models::p2p::slp_payload::SlpPayload;
+
+    use super::EufGUID;
+
+    #[test]
+    fn test_euf_guid_try_from_str() {
+       let test = EufGUID::try_from("{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}").unwrap();
+        assert_eq!(test, EufGUID::MSNObject);
+    }
+
+    #[test]
+    fn test_euf_guid_to_str() {
+       let test = EufGUID::MSNObject.to_string();
+       assert_eq!("{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}", test.as_str());
+    }
+
+    #[test]
+    fn test_slp_payload_get_euf_guid_success() {
+       let mut payload = SlpPayload::new();
+       payload.add_body_property(String::from("EUF-GUID"), String::from("{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}"));
+
+       let result = payload.get_euf_guid().unwrap().unwrap();
+       assert_eq!(result, EufGUID::MSNObject);
+    }
+
+    #[test]
+    fn test_slp_payload_get_euf_guid_none() {
+        let payload = SlpPayload::new();
+        let result = payload.get_euf_guid().unwrap();
+        assert_eq!(result.is_none(), true);
+    }
+}

@@ -654,6 +654,7 @@ pub trait StorageServicePortType {
 }
 
 pub mod bindings {
+use log::info;
 use yaserde::{YaSerialize, YaDeserialize};
             use yaserde::de::from_str;
             use async_trait::async_trait;
@@ -663,7 +664,7 @@ use yaserde::{YaSerialize, YaDeserialize};
             impl StorageServiceBinding {
                 async fn send_soap_request<T: YaSerialize>(&self, request: &T, action: &str) -> SoapResponse {
                     let body = to_string(request).expect("failed to generate xml");
-                    debug!("SOAP Request: {}", body);
+                    info!("SOAP Request: {}", body);
                     let mut req = self
                         .client
                         .post(&self.url)
@@ -680,7 +681,7 @@ use yaserde::{YaSerialize, YaDeserialize};
                     let status = res.status();
                     debug!("SOAP Status: {}", status);
                     let txt = res.text().await.unwrap_or_default();
-                    debug!("SOAP Response: {}", txt);
+                    info!("SOAP Response: {}", txt);
                     Ok((status, txt))
                 }
             }

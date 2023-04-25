@@ -1,0 +1,10 @@
+<map>
+    <h aid="PS" op="ADDH" ver="1"></h>
+    <m guid="{F7B44311-CFEE-4CA6-8AA2-5BA1267C4C43}" hash="wiAaY06wETnjfMmKhjgqXKtJdoE=" si="1"
+        tospath="&lt;msnobj Creator=&quot;aeontest4@shlasouf.local&quot; Type=&quot;15&quot; SHA1D=&quot;7TALVkv1oXdd8D08INlIsGz0NFE=&quot; Size=&quot;989&quot; Location=&quot;0&quot; Friendly=&quot;XwBEAFMAQwAwADAAMAAzAAAA&quot;/&gt;"
+        mospath="&lt;msnobj Creator=&quot;aeontest4@shlasouf.local&quot; Type=&quot;15&quot; SHA1D=&quot;+0TlYjuJAOt2OUeNReZPfe6olmc=&quot; Size=&quot;29976&quot; Location=&quot;0&quot; Friendly=&quot;XwBEAFMAQwAwADAAMAAzAAAA&quot;/&gt;"
+        dispn="_DSC0003.JPG" />
+</map>
+
+<!-- When a user uploads a photo, he sends this, we then retrieve the images with MSNObject transfert requests to the sender -->
+<!-- During this transfert, we send progress maps for the sender to update it's UI -->

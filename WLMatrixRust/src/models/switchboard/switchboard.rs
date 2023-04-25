@@ -1,10 +1,11 @@
-use std::{sync::{Arc, Mutex}, collections::HashSet, str::FromStr, io::Cursor, mem};
-use matrix_sdk::{ruma::{OwnedRoomId, OwnedUserId, OwnedEventId, events::room::message::RoomMessageEventContent}, Client, attachment::AttachmentConfig};
+use std::{sync::{Arc, Mutex, atomic::{}}, collections::HashSet, str::FromStr, io::Cursor, mem};
+use log::info;
+use matrix_sdk::{ruma::{OwnedRoomId, OwnedUserId, OwnedEventId, events::room::{message::RoomMessageEventContent, MediaSource}}, Client, attachment::AttachmentConfig};
 use tokio::sync::{broadcast::{Sender, Receiver, error::SendError, self}};
 
-use crate::{utils::emoji::smiley_to_emoji, models::{p2p::file::File, msg_payload::MsgPayload, msn_user::MSNUser}};
+use crate::{utils::emoji::smiley_to_emoji, models::{p2p::{file::File, events::p2p_event::{self}, p2p_transport_packet::P2PTransportPacket, pending_packet::PendingPacket}, msg_payload::{MsgPayload, factories::MsgPayloadFactory}, msn_user::MSNUser}, P2P_REPO, MSN_CLIENT_LOCATOR};
 
-use super::{events::{switchboard_event::SwitchboardEvent, content::message_event_content::MessageEventContent}, switchboard_error::SwitchboardError};
+use super::{events::{switchboard_event::SwitchboardEvent, content::{message_event_content::MessageEventContent, file_upload_event_content::FileUploadEventContent}}, switchboard_error::SwitchboardError};
 
 
 #[derive(Clone, Debug)]
@@ -20,12 +21,18 @@ pub(crate) struct SwitchboardInner {
     matrix_client: Client,
     creator_id: OwnedUserId,
     sb_event_sender: Sender<SwitchboardEvent>,
-    sb_event_queued_listener: Mutex<Option<Receiver<SwitchboardEvent>>>
+    sb_event_queued_listener: Mutex<Option<Receiver<SwitchboardEvent>>>,
+}
+
+impl Drop for SwitchboardInner {
+    fn drop(&mut self) {
+        info!("DROPPING SWITCHBOARDInner");
+    }
 }
 
 impl Switchboard {
     pub fn new(matrix_client: Client, target_room_id: OwnedRoomId, creator_id: OwnedUserId) -> Self {
-        let (sb_event_sender, sb_event_queued_listener) = broadcast::channel::<SwitchboardEvent>(30);
+        let (sb_event_sender, sb_event_queued_listener) = broadcast::channel::<SwitchboardEvent>(100);
 
         let inner = Arc::new(SwitchboardInner {
             events_sent: Mutex::new(HashSet::new()),
@@ -36,9 +43,11 @@ impl Switchboard {
             sb_event_queued_listener: Mutex::new(Some(sb_event_queued_listener)),
         });
 
-        return Switchboard {
+        let out = Switchboard {
             inner
         };
+
+        return out;
     }
 
     /**
@@ -52,6 +61,8 @@ impl Switchboard {
 
         let config = AttachmentConfig::new().generate_thumbnail(None);
         let response = room.send_attachment(file.filename.as_str(), &mime, file.bytes, config).await?;
+
+        info!("Sent file to server: {:?}", &response);
 
         self.add_to_events_sent(response.event_id.to_string());
         Ok(response.event_id)
@@ -90,6 +101,15 @@ impl Switchboard {
         }
         let content = MessageEventContent{ msg, sender };
         return self.dispatch_event(SwitchboardEvent::MessageEvent(content));
+    }
+
+    pub fn on_file_received(&self, sender: MSNUser, filename: String, source: MediaSource, filesize: usize, event_id: String) -> Result<usize, SendError<SwitchboardEvent>> {
+        if self.is_ignored_event(&event_id) {
+            return Ok(0);
+        }
+        let client_data = MSN_CLIENT_LOCATOR.get().unwrap();
+
+        return self.dispatch_event(FileUploadEventContent::new(sender,client_data.get_user(), filename, source, filesize).into());
     }
 
     pub fn get_receiver(&mut self) -> Receiver<SwitchboardEvent> {

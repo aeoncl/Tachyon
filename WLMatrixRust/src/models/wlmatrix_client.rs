@@ -1,11 +1,13 @@
 use std::{path::Path, collections::HashSet, time::Duration, f32::consts::E};
 
 use base64::{engine::general_purpose, Engine};
+use js_int::UInt;
 use log::{info, warn};
-use matrix_sdk::{Client, Session, config::SyncSettings, ruma::{device_id, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, JoinedRoom}}, presence::PresenceState, events::{presence::PresenceEvent, room::{member::{StrippedRoomMemberEvent, SyncRoomMemberEvent, RoomMemberEventContent, MembershipState}, message::{SyncRoomMessageEvent, RoomMessageEventContent, MessageType}}, direct::{DirectEvent, DirectEventContent}, typing::SyncTypingEvent, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, GlobalAccountDataEvent, GlobalAccountDataEventType}, RoomId, OwnedUserId, UserId}, room::{Room, RoomMember}, event_handler::Ctx};
+use matrix_sdk::{Client, Session, config::SyncSettings, ruma::{device_id, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, JoinedRoom}}, presence::PresenceState, events::{presence::PresenceEvent, room::{member::{StrippedRoomMemberEvent, SyncRoomMemberEvent, RoomMemberEventContent, MembershipState}, message::{SyncRoomMessageEvent, RoomMessageEventContent, MessageType, FileMessageEventContent}, MediaSource}, direct::{DirectEvent, DirectEventContent}, typing::SyncTypingEvent, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, GlobalAccountDataEvent, GlobalAccountDataEventType}, RoomId, OwnedUserId, UserId}, room::{Room, RoomMember}, event_handler::Ctx};
+use rand::Rng;
 use tokio::sync::{broadcast::Sender, oneshot};
 
-use crate::{utils::{identifiers::{get_matrix_device_id}, emoji::emoji_to_smiley}, generated::{payloads::{factories::NotificationFactory, PresenceStatus}, msnab_sharingservice::factories::{MemberFactory, ContactFactory, AnnotationFactory}, msnab_datatypes::types::{ArrayOfAnnotation, RoleId, MemberState, ContactTypeEnum}}, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, models::{msg_payload::factories::MsgPayloadFactory, uuid::UUID, owned_user_id_traits::ToMsnAddr, abch::events::AddressBookEventFactory}, MSN_CLIENT_LOCATOR, AB_LOCATOR};
+use crate::{utils::{identifiers::{get_matrix_device_id, self}, emoji::emoji_to_smiley}, generated::{payloads::{factories::NotificationFactory, PresenceStatus}, msnab_sharingservice::factories::{MemberFactory, ContactFactory, AnnotationFactory}, msnab_datatypes::types::{ArrayOfAnnotation, RoleId, MemberState, ContactTypeEnum}}, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, models::{msg_payload::factories::MsgPayloadFactory, uuid::UUID, owned_user_id_traits::ToMsnAddr, abch::events::AddressBookEventFactory}, MSN_CLIENT_LOCATOR, AB_LOCATOR};
 
 use super::{notification::{error::MsnpErrorCode,  events::notification_event::{NotificationEvent, NotificationEventFactory}}, msn_user::MSNUser, switchboard::switchboard::Switchboard, capabilities::ClientCapabilitiesFactory};
 
@@ -188,7 +190,20 @@ async fn handle_messages(matrix_client: Client, room_id: &RoomId, switchboard: &
     if let MessageType::Text(content) = &msg_event.content.msgtype {
         let msg = MsgPayloadFactory::get_message(emoji_to_smiley(&content.body));
         switchboard.on_message_received(msg, sender, Some(msg_event.event_id.to_string()));
+    } else if let MessageType::File(content) = &msg_event.content.msgtype {
+        log::info!("Received a file: {:?}", &content);
+        switchboard.on_file_received(sender, content.body.clone(), content.source.clone(), WLMatrixClient::get_size_or_default(&content),  msg_event.event_id.to_string());
     }
+}
+
+fn get_size_or_default(content: &FileMessageEventContent) -> usize {
+    let mut size: i32 = 0;
+    if let Some(info) = content.info.as_ref() {
+        if let Ok(valid_size) = i32::try_from(info.size.unwrap_or(UInt::new(0).unwrap())) {
+            size = valid_size;
+        }
+    }
+    return usize::try_from(size).expect("Matrix file size to be a usize");
 }
 
 async fn handle_directs(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, room: &Room, client: &Client, mtx_token: &String, msn_addr: &String) -> bool {
@@ -270,18 +285,21 @@ async fn handle_1v1_dm2(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, roo
             }
         },
         Room::Left(room) => {
-            log::info!("AB - I Deleted: {}", &target_msn_addr);
-            //I Left the room, remove member from PENDING_LIST, ALLOW_LIST, REVERSE_LIST. Remove Contact from Contact List
-            let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, true);
-            let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, true);
-            let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, true);
-            let current_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true);
 
-            ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), current_contact));
-            ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_allow_member, RoleId::Allow));
-            ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_reverse_member, RoleId::Reverse));
-            ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_pending_member, RoleId::Pending));
-            notify_ab = true;
+            if Self::should_i_really_delete_contact(&client, target.clone()).await {
+                log::info!("AB - I Deleted: {}", &target_msn_addr);
+                //I Left the room, remove member from PENDING_LIST, ALLOW_LIST, REVERSE_LIST. Remove Contact from Contact List
+                let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, true);
+                let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, true);
+                let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, true);
+                let current_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true);
+    
+                ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), current_contact));
+                ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_allow_member, RoleId::Allow));
+                ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_reverse_member, RoleId::Reverse));
+                ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_pending_member, RoleId::Pending));
+                notify_ab = true;
+            }
         },
         _=> {
 
@@ -335,18 +353,22 @@ async fn handle_presence_event(ev: PresenceEvent, client: Client, me: MSNUser, n
         return;
     }
 
-    let event_sender = &ev.sender;
+    let user_repo = MSNUserRepository::new(client.clone());
+
+
+    let event_sender: &OwnedUserId = &ev.sender;
     let sender_msn_addr = event_sender.to_msn_addr();
 
-    let presence_status : PresenceStatus = ev.content.presence.into();
-    if let PresenceStatus::FLN = presence_status {
-        ns_sender.send(NotificationEventFactory::get_disconnect(sender_msn_addr));
+    if let Ok(mut user) = user_repo.get_msnuser_from_userid(event_sender, false).await{
+
+    let presence_status : PresenceStatus = ev.content.presence.clone().into();
+
+    info!("Received Presence Event: {:?} - ev: {:?}", &presence_status, &ev);
+
+    if PresenceStatus::FLN == presence_status {
+        ns_sender.send(NotificationEventFactory::get_disconnect(user));
     } else {
 
-        let user_repo = MSNUserRepository::new(client.clone());
-        let room = client.find_dm_room(event_sender).await.unwrap().unwrap();
-
-        if let Ok(mut user) = user_repo.get_msnuser(&room.room_id(), event_sender, true).await {
             user.set_status(presence_status);
             if let Some(display_name) = ev.content.displayname {
                 user.set_display_name(display_name);
@@ -355,13 +377,25 @@ async fn handle_presence_event(ev: PresenceEvent, client: Client, me: MSNUser, n
             if let Some(status_msg) = ev.content.status_msg{
                 user.set_psm(status_msg);
             }
-            //TODO handle avatar & msnobj
-            //let msn_obj = "<msnobj/>";
+
+
+            if let Some(avatar_mxc) = ev.content.avatar_url.as_ref() {
+
+                match user_repo.get_avatar(avatar_mxc.clone()).await {
+                    Ok(avatar) => {
+                       user.set_display_picture(Some(user_repo.avatar_to_msn_obj(&avatar, sender_msn_addr.clone(), &avatar_mxc)));
+                    },
+                    Err(err) => {
+                        log::error!("Couldn't download avatar: {} - {}", &avatar_mxc, err);
+                    }
+                }
+            }
 
             ns_sender.send(NotificationEventFactory::get_presence(user));
-        } else {
-            warn!("Could not find user in repo (presence) {} - {}", &room.room_id(), &event_sender);
-        }
+        } 
+    
+    } else {
+        warn!("Could not find user in repo (presence) {}", &event_sender);
     }
 }
 
@@ -507,7 +541,7 @@ async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, room: Room, cl
         let debug = room.is_direct();
         let debug_len = joined_members.len();
 
-        if room.is_direct() && joined_members.len() > 0 && joined_members.len() <= 2 {
+       // if room.is_direct() && joined_members.len() > 0 && joined_members.len() <= 2 {
             let me_user_id =  client.user_id().unwrap();
 
             if let Some(target) = Self::get_direct_target_that_isnt_me(&room.direct_targets(), &room, &me_user_id).await{
@@ -527,9 +561,7 @@ async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, room: Room, cl
 
                             msn_client.get_switchboards().add(room_id.clone(), sb_data);
                              //send RNG command
-                             let room_uuid = UUID::from_string(&room_id);
-
-                             let session_id = room_uuid.get_most_significant_bytes_as_hex();
+                             let session_id = identifiers::get_sb_session_id();
 
                              let ticket = general_purpose::STANDARD.encode(format!("{target_room_id};{token};{target_matrix_id}", target_room_id = &room_id, token = &client.access_token().unwrap(), target_matrix_id = target.to_string()));
 
@@ -538,7 +570,7 @@ async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, room: Room, cl
                     }  
                 }
             }
-        }
+       // }
     }
 }
 

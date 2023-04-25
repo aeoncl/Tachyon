@@ -1,3 +1,4 @@
+use core::fmt;
 use std::{str::{from_utf8_unchecked, FromStr}, fmt::Display};
 
 use byteorder::{BigEndian, ByteOrder};
@@ -11,7 +12,7 @@ use super::{p2p_payload::P2PPayload, opcode::OperationCode, factories::TLVFactor
 /* P2PHeaderV2 */
 /* For the official client to use P2PV2 headers, firstly, our fake client must have the P2PV2 Extended Capability 
 AND our fake client must be MPOP enabled. (which means adding endpoint data in NLN UBX payload AND making join the endpoint in switchboards. */
-    #[derive(Clone, Debug)]
+    #[derive(Clone)]
     pub struct P2PTransportPacket {
     
         pub header_length: usize,
@@ -20,6 +21,24 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
         pub sequence_number: u32,
         pub tlvs: Vec<TLV>,
         payload: Option<P2PPayload>
+    }
+
+    impl fmt::Debug for P2PTransportPacket {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("P2PTransportPacket")
+             .field("header_length", &self.header_length)
+             .field("sequence_number", &self.sequence_number)
+
+             .field("op_code", &self.op_code)
+             .field("is_syn", &self.is_syn())
+             .field("is_ack", &self.is_ack())
+             .field("is_rak", &self.is_rak())
+             .field("payload_length", &self.payload_length)
+             .field("is_payload_chunked", &self.is_payload_chunked())
+             .field("tlvs", &self.tlvs)
+             .field("payload", &self.payload)
+             .finish()
+        }
     }
     
     impl P2PTransportPacket {
@@ -34,6 +53,10 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
 
         pub fn get_payload(&self) -> Option<&P2PPayload> {
             return self.payload.as_ref();
+        }
+
+        pub fn get_payload_as_mut(&mut self) -> Option<&mut P2PPayload> {
+            return self.payload.as_mut();
         }
 
         pub fn set_payload(&mut self, payload: Option<P2PPayload>) {
@@ -129,6 +152,20 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
         pub fn is_syn(&self) -> bool {
             let is_syn_flag = &self.op_code & OperationCode::Syn as u8;
             return is_syn_flag == OperationCode::Syn as u8;
+        }
+
+        pub fn add_tlv(&mut self, tlv: TLV) {
+            self.tlvs.push(tlv);
+        }
+
+        pub fn is_slp_msg(&self) -> bool {
+            if self.payload.is_none() {
+                return false;
+            }
+
+            let payload = self.payload.as_ref().unwrap();
+
+            return payload.session_id == 0;
         }
     
         pub fn is_ack(&self) -> bool {
@@ -259,3 +296,6 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
             return write!(f, "{}", out_str);
         }
     }
+
+
+    

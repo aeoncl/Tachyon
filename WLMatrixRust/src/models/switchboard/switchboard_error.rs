@@ -1,5 +1,6 @@
 
 
+#[derive(Debug)]
 pub enum SwitchboardError {
     MatrixSdkError(matrix_sdk::Error),
     MatrixRoomNotFound,
