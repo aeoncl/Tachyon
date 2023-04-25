@@ -1,0 +1,14 @@
+To: <msnmsgr:aeontest3@shlasouf.local;{1f3e003f-6e90-515c-810a-4ab66222bcd7}>
+From: <msnmsgr:aeontest4@shlasouf.local;{f52973b6-c926-4bad-9ba8-7c1e840e4ab0}>
+Via: MSNSLP/1.0/TLP ;branch={2819410C-BB1F-4D9D-8D97-66773D6D3746}
+CSeq: 0
+Call-ID: {870E922B-ADEA-410E-8F3C-F715EEBBDB5B}
+Max-Forwards: 0
+Content-Type: application/x-msnmsgr-sessionreqbody
+Content-Length: 105
+Content-Length: 105
+
+EUF-GUID: {41D3E74E-04A2-4B37-96F8-08ACDB610874}
+SessionID: 3600158560
+AppID: 35
+RequestFlags: 16

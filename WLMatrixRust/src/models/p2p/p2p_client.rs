@@ -592,8 +592,7 @@ impl P2PClient {
                 .expect("EUF-GUID to be here");
             let app_id = slp_payload
                 .get_app_id()
-                .expect("AppID to be valid")
-                .expect("AppID to be present");
+                .expect("AppID to be valid");
 
             let session_id = slp_payload
             .get_body_property(&String::from("SessionID"))
@@ -603,7 +602,7 @@ impl P2PClient {
 
             match euf_guid {
                 EufGUID::FileTransfer => {
-                    if app_id == AppID::FILE_TRANSFER {
+                    if app_id.expect("AppId to be present here") == AppID::FILE_TRANSFER {
                         let context = slp_payload.get_context_as_preview_data().expect("Preview Data to be present here");
 
                             self.inner
@@ -619,7 +618,7 @@ impl P2PClient {
                 },
                 EufGUID::MSNObject => {
                     let context = *slp_payload.get_context_as_msnobj().expect("MSNObject to be present here");
-                    if app_id == AppID::DISPLAY_PICTURE_TRANSFER {
+                    if app_id.expect("AppId to be present here") == AppID::DISPLAY_PICTURE_TRANSFER {
                         self.inner.sender.send(P2PEvent::MSNObjectRequested(MSNObjectRequestedEventContent{
                             msn_object: context,
                             session_id: session_id,
@@ -627,6 +626,9 @@ impl P2PClient {
                             invitee: receiver.clone()
                         }));
                     }
+                },
+                EufGUID::SharePhoto => {
+                    
                 }
                 _ => {
                     warn!(

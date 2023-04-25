@@ -1,0 +1,8 @@
+<map><h aid="PS" op="PROGRESS" ver="1"></h><m guid="{5D59B0A0-44B1-4899-95CC-E7142B1CD711}" dp="0.1871505"/></map>
+<map><h aid="PS" op="PROGRESS" ver="1"></h><m guid="{5D59B0A0-44B1-4899-95CC-E7142B1CD711}" dp="0.3743009"/></map>
+<map><h aid="PS" op="PROGRESS" ver="1"></h><m guid="{5D59B0A0-44B1-4899-95CC-E7142B1CD711}" dp="0.5614514"/></map>
+<map><h aid="PS" op="PROGRESS" ver="1"></h><m guid="{5D59B0A0-44B1-4899-95CC-E7142B1CD711}" dp="0.7486019"/></map>
+<map><h aid="PS" op="PROGRESS" ver="1"></h><m guid="{5D59B0A0-44B1-4899-95CC-E7142B1CD711}" dp="0.9357523"/></map>
+<map><h aid="PS" op="PROGRESS" ver="1"></h><m guid="{5D59B0A0-44B1-4899-95CC-E7142B1CD711}" dp="1"/></map>
+
+<!-- Show the download progress of an image, dp = download progress -->

@@ -1,0 +1,3 @@
+The map are payloads of data preparation packets (TF 0x01) & SessionID != 0
+They are UTF16 (probably little endian) encoded strings
+The MSNObjects inside the Photo Add map is urlencoded
