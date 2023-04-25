@@ -9,7 +9,8 @@ pub enum NotificationEvent {
     PresenceEvent(PresenceEventContent),
     DisconnectEvent(DisconnectEventContent),
     SwitchboardInitEvent(SwitchboardInitEventContent),
-    HotmailNotificationEvent(HotmailNotificationEventContent)
+    HotmailNotificationEvent(HotmailNotificationEventContent),
+    AddressBookUpdateEvent(HotmailNotificationEventContent)
 
 }
 
@@ -24,7 +25,7 @@ impl NotificationEventFactory {
         let content = HotmailNotificationEventContent{
             payload: payload,
         };
-        return NotificationEvent::HotmailNotificationEvent(content);
+        return NotificationEvent::AddressBookUpdateEvent(content);
     }
 
     pub fn get_disconnect(msn_user: MSNUser) -> NotificationEvent {

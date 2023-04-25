@@ -101,26 +101,6 @@ impl Display for PreviewData {
     }
 }
 
-
-pub struct MsnObject {
-    creator: String,
-    size: usize,
-    obj_type: i32,
-    location: String,
-    friendly: String,
-    sha1d: Option<String>,
-    sha1c: Option<String>
-}
-
-impl SlpContext for MsnObject {
-
-    fn from_slp_context(bytes: &Vec<u8>) -> Option<Box<Self>> { 
-        return None;
-    }
-}
-
-
-
 #[cfg(test)]
 mod tests {
     use super::{PreviewData, SlpContext};
@@ -157,8 +137,5 @@ mod tests {
 
     }
 
-    fn MsnObj_deserialization_test() {
-        let base64_context = String::from("PG1zbm9iaiBDcmVhdG9yPSJidWRkeTFAaG90bWFpbC5jb20iIFNpemU9IjI0NTM5IiBUeXBlPSIzIiBMb2NhdGlvbj0iVEZSMkMudG1wIiBGcmllbmRseT0iQUFBPSIgU0hBMUQ9InRyQzhTbEZ4MnNXUXhaTUlCQVdTRW5YYzhvUT0iIFNIQTFDPSJVMzJvNmJvc1p6bHVKcTgyZUF0TXB4NWRJRUk9Ii8+DQoA");
-    }
 
 }

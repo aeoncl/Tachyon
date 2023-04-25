@@ -10,6 +10,7 @@ pub mod slp_context;
 pub mod file;
 pub mod events;
 pub mod session;
+pub mod app_id;
 
 pub mod factories {
     use byteorder::{BigEndian, ByteOrder, LittleEndian};
@@ -338,6 +339,16 @@ SessionID: 2216804035
 
         pub fn get_file_transfer(session_id: u32) -> P2PPayload {
             return P2PPayload::new(0x07, session_id);
+        }
+
+        pub fn get_data_preparation_message(session_id: u32) -> P2PPayload {
+            let mut payload = P2PPayload::new(0x01, session_id);
+            payload.set_payload([0x0, 0x0, 0x0, 0x0].to_vec());
+            return payload;
+        }
+
+        pub fn get_msn_obj(session_id: u32) -> P2PPayload {
+            return P2PPayload::new(0x05, session_id);
 
         }
     }

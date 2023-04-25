@@ -8,6 +8,7 @@ use crate::models::p2p::p2p_transport_packet::P2PTransportPacket;
 use crate::models::p2p::pending_packet::PendingPacket;
 use crate::models::p2p::session::file_transfer_session_content::FileTransferSessionContent;
 use crate::models::p2p::session::p2p_session_type::P2PSessionType;
+use crate::repositories::msn_user_repository::MSNUserRepository;
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine};
 use log::{info, error};
@@ -142,6 +143,21 @@ impl SwitchboardCommandHandler {
                                      //Todo return error
                                      error!("There was an error downloading the file to send: {:?} {}", &media_request, file_content.unwrap_err());
                                  }
+                            },
+                            P2PEvent::MSNObjectRequested(content) => {
+                                info!("RECEIVED MSNObjectRequestedEvent: {:?}", &content);
+                                let msn_obj = &content.msn_object;
+                                let base64encoded_id =  msn_obj.location.trim_end_matches(".tmp");
+                                let base64decoded_id = general_purpose::STANDARD.decode(base64encoded_id).expect("MSNObj location to be base64encoded");
+
+                                let avatar_url = String::from_utf8(base64decoded_id).expect("MSNObj location to be UTF-8");
+                                let msn_user_repo = MSNUserRepository::new(matrix_client.clone());
+                                if let Ok(avatar_bytes) = msn_user_repo.get_avatar_from_string(avatar_url.clone()).await {
+                                    sb_bridge.send_msn_object(content.session_id, avatar_bytes, content.invitee, content.inviter);
+                                } else {
+                                    error!("Could not download avatar for: {}", &avatar_url);
+                                    //TODO sent SLP error
+                                }
                             }
                             _ => {
                             }

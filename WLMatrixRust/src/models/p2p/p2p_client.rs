@@ -1,26 +1,52 @@
 use std::{
     collections::HashMap,
+    f32::consts::E,
     mem,
-    sync::{Arc, Mutex, atomic::{AtomicBool, Ordering, AtomicI32}},
-    time::Duration, f32::consts::E,
+    sync::{
+        atomic::{AtomicBool, AtomicI32, Ordering},
+        Arc, Mutex,
+    },
+    time::Duration,
 };
 
-use log::{info, debug, error, logger, warn};
-use matrix_sdk::{Client, media::{MediaEventContent, MediaRequest, MediaFormat}};
+use log::{debug, error, info, logger, warn};
+use matrix_sdk::{
+    media::{MediaEventContent, MediaFormat, MediaRequest},
+    Client,
+};
 use rand::Rng;
 use tokio::sync::broadcast::Sender;
 use tokio::time::{self};
 
-use crate::models::{errors::Errors, msn_user::MSNUser, switchboard::{switchboard::Switchboard, events::content::file_upload_event_content::FileUploadEventContent}, p2p::events::content::{file_received_event_content::FileReceivedEventContent, file_transfer_accepted_event_content::FileTransferAcceptedEventContent}};
+use crate::models::{
+    errors::Errors,
+    msn_user::MSNUser,
+    p2p::{
+        app_id::AppID,
+        events::content::{
+            file_received_event_content::FileReceivedEventContent,
+            file_transfer_accepted_event_content::FileTransferAcceptedEventContent, msn_object_requested_event_content::MSNObjectRequestedEventContent,
+        },
+        slp_payload::EufGUID,
+    },
+    switchboard::{
+        events::content::file_upload_event_content::FileUploadEventContent,
+        switchboard::Switchboard,
+    }, msn_object::MSNObject,
+};
 
 use super::{
+    events::{content::message_event_content::MessageEventContent, p2p_event::P2PEvent},
     factories::{P2PPayloadFactory, P2PTransportPacketFactory, SlpPayloadFactory, TLVFactory},
     file::File,
     p2p_payload::P2PPayload,
     p2p_transport_packet::P2PTransportPacket,
     pending_packet::PendingPacket,
+    session::{
+        p2p_session::P2PSession, p2p_session_type::P2PSessionType, p2p_status::P2PSessionStatus,
+    },
+    slp_context::PreviewData,
     slp_payload::SlpPayload,
-    events::{p2p_event::P2PEvent, content::message_event_content::MessageEventContent}, slp_context::PreviewData, session::{p2p_session::{P2PSession}, p2p_session_type::P2PSessionType, p2p_status::P2PSessionStatus},
 };
 
 #[derive(Debug)]
@@ -29,7 +55,7 @@ pub struct InnerP2PClient {
 
     //p2ppayload package number & P2PTransport packet
     inbound_chunked_packets: Mutex<HashMap<u16, PendingPacket>>,
-    
+
     /* packets received before the handshake was done */
     inbound_pending_packets: Mutex<Vec<PendingPacket>>,
 
@@ -71,7 +97,7 @@ impl P2PClient {
                 package_number: Mutex::new(150),
                 pending_outbound_sessions: Mutex::new(HashMap::new()),
                 transport_session_status: AtomicI32::new(P2PSessionStatus::WAITING as i32),
-            })
+            }),
         };
     }
 
@@ -81,23 +107,32 @@ impl P2PClient {
     }
 
     fn set_transport_session_status(&mut self, status: P2PSessionStatus) {
-        self.inner.transport_session_status.store(status as i32, Ordering::Relaxed);
+        self.inner
+            .transport_session_status
+            .store(status as i32, Ordering::Relaxed);
     }
 
     pub fn set_seq_number(&mut self, seq_number: u32) {
-
-        let mut seq_num = self.inner
+        let mut seq_num = self
+            .inner
             .sequence_number
             .lock()
             .expect("seq_number to be unlocked");
 
-
         let old_value = mem::replace(&mut *seq_num, seq_number);
-        debug!("Replacing seq_number: {} ({:01x}) with {} ({:01x}) (diff +{})", old_value, old_value, seq_number,seq_number, seq_number - old_value);
+        debug!(
+            "Replacing seq_number: {} ({:01x}) with {} ({:01x}) (diff +{})",
+            old_value,
+            old_value,
+            seq_number,
+            seq_number,
+            seq_number - old_value
+        );
     }
 
     fn get_seq_number(&self) -> u32 {
-        let mut seq_num = self.inner
+        let mut seq_num = self
+            .inner
             .sequence_number
             .lock()
             .expect("seq_number to be unlocked");
@@ -111,19 +146,32 @@ impl P2PClient {
     fn is_in_chunks(&self, msg: &PendingPacket) -> bool {
         let mut found: bool = false;
         if let Some(package_num) = msg.packet.get_payload_package_number() {
-            found = self.inner.inbound_chunked_packets.lock().expect("chunkedpackets to be unlocked").contains_key(&package_num);
+            found = self
+                .inner
+                .inbound_chunked_packets
+                .lock()
+                .expect("chunkedpackets to be unlocked")
+                .contains_key(&package_num);
         }
         return found;
     }
 
     fn pop_from_chunks(&mut self, package_number: u16) -> Option<PendingPacket> {
-        return self.inner.inbound_chunked_packets.lock().expect("chunkedpackets to be unlocked").remove(&package_number);
+        return self
+            .inner
+            .inbound_chunked_packets
+            .lock()
+            .expect("chunkedpackets to be unlocked")
+            .remove(&package_number);
     }
 
     fn add_or_append_to_chunks(&mut self, msg: &PendingPacket) -> u16 {
         if let Some(package_num) = msg.packet.get_payload_package_number() {
-
-            let mut chunked_packets = self.inner.inbound_chunked_packets.lock().expect("chunkedpackets to be unlocked");
+            let mut chunked_packets = self
+                .inner
+                .inbound_chunked_packets
+                .lock()
+                .expect("chunkedpackets to be unlocked");
 
             if let Some(found) = chunked_packets.get_mut(&package_num) {
                 found.add_chunk(msg.packet.to_owned());
@@ -152,11 +200,21 @@ impl P2PClient {
         info!("is_initialized: {}", &is_initialized);
         if !is_initialized {
             // save the packet while we wait for handshake
-            self.inner.inbound_pending_packets.lock().expect("received_pending_packets to be unlocked").push(msg);
+            self.inner
+                .inbound_pending_packets
+                .lock()
+                .expect("received_pending_packets to be unlocked")
+                .push(msg);
             return;
         }
-        
-        if !self.inner.inbound_pending_packets.lock().expect("received_pending_packets to be unlocked").is_empty() {
+
+        if !self
+            .inner
+            .inbound_pending_packets
+            .lock()
+            .expect("received_pending_packets to be unlocked")
+            .is_empty()
+        {
             self.handle_pending_packets();
         }
 
@@ -173,7 +231,7 @@ impl P2PClient {
             if let Ok(slp_request) = payload.get_payload_as_slp() {
                 info!("Payload contained SLPRequest");
 
-                if let Ok(Some(slp_response)) = self.handle_slp_payload(&slp_request) {
+                if let Ok(Some(slp_response)) = self.handle_slp_payload(&slp_request, &msg.sender, &msg.receiver) {
                     self.reply_slp(&msg.receiver, &msg.sender, slp_response);
                 } else {
                     //TODO reply error slp
@@ -183,10 +241,19 @@ impl P2PClient {
                     "file transfer packet received!, retrieveing pending file: {}",
                     &payload.session_id
                 );
-                let file = self.inner.pending_files.lock().expect("pending_files to be unlocked").remove(&payload.session_id);
+                let file = self
+                    .inner
+                    .pending_files
+                    .lock()
+                    .expect("pending_files to be unlocked")
+                    .remove(&payload.session_id);
                 if let Some(mut file) = file {
                     file.bytes = payload.get_payload_bytes().clone();
-                    self.inner.sender.send(P2PEvent::FileReceived(FileReceivedEventContent { file: file }));
+                    self.inner
+                        .sender
+                        .send(P2PEvent::FileReceived(FileReceivedEventContent {
+                            file: file,
+                        }));
                 }
                 self.reply_ack(&msg);
             }
@@ -195,7 +262,13 @@ impl P2PClient {
 
     fn handle_pending_packets(&mut self) {
         let mut packets = Vec::new();
-        packets.append(&mut self.inner.inbound_pending_packets.lock().expect("received_pending_packets to be unlocked"));
+        packets.append(
+            &mut self
+                .inner
+                .inbound_pending_packets
+                .lock()
+                .expect("received_pending_packets to be unlocked"),
+        );
 
         for packet in packets {
             self.on_message_received(packet);
@@ -296,46 +369,60 @@ impl P2PClient {
     }
 
     fn reply(&mut self, sender: &MSNUser, receiver: &MSNUser, msg_to_send: P2PTransportPacket) {
-
         let mut packet_to_send = msg_to_send.clone();
 
         if let Some(payload) = packet_to_send.get_payload_as_mut() {
             payload.package_number = self.get_package_number();
-        //setting next package number
+            //setting next package number
             self.set_package_number(self.get_package_number() + 1);
         }
 
-        if packet_to_send.get_payload().is_some() && packet_to_send.get_payload().unwrap().get_payload_bytes().len() > 1222 {
+        if packet_to_send.get_payload().is_some()
+            && packet_to_send
+                .get_payload()
+                .unwrap()
+                .get_payload_bytes()
+                .len()
+                > 1222
+        {
             //We need to split this joker, he's too big
             let split = self.split(packet_to_send);
             info!("OnChunkedMsgReply");
-            self.inner.sender.send(P2PEvent::Message(MessageEventContent{packets: split, sender: sender.clone(), receiver: receiver.clone()}));
-            
+            self.inner
+                .sender
+                .send(P2PEvent::Message(MessageEventContent {
+                    packets: split,
+                    sender: sender.clone(),
+                    receiver: receiver.clone(),
+                }));
         } else {
+            info!("OnSingleMsgReply: {:?}", &packet_to_send);
+            //setting next sequence number
+            packet_to_send.sequence_number = self.get_seq_number();
+            self.set_seq_number(self.get_seq_number() + packet_to_send.get_payload_length());
 
-          info!("OnSingleMsgReply: {:?}", &packet_to_send);
-          //setting next sequence number
-          packet_to_send.sequence_number = self.get_seq_number();
-          self.set_seq_number(self.get_seq_number() + packet_to_send.get_payload_length());
-
-          let mut out = Vec::new();
-          out.push(packet_to_send);
-          self.inner.sender.send(P2PEvent::Message(MessageEventContent{packets: out, sender: sender.clone(), receiver: receiver.clone()}));
-
+            let mut out = Vec::new();
+            out.push(packet_to_send);
+            self.inner
+                .sender
+                .send(P2PEvent::Message(MessageEventContent {
+                    packets: out,
+                    sender: sender.clone(),
+                    receiver: receiver.clone(),
+                }));
         }
-      
-        
-
     }
 
     fn split(&mut self, to_split: P2PTransportPacket) -> Vec<P2PTransportPacket> {
-        let payload = to_split.get_payload().expect("A payload should be present when we split");
+        let payload = to_split
+            .get_payload()
+            .expect("A payload should be present when we split");
         let payload_bytes = payload.get_payload_bytes();
-        
+
         let chunks: Vec<&[u8]> = payload_bytes.chunks(1222).collect();
 
         let mut out: Vec<P2PTransportPacket> = Vec::new();
-        let mut remaining_bytes =  payload_bytes.len();
+        let mut remaining_bytes = payload_bytes.len();
 
         for i in 0..chunks.len() {
             let chunk = chunks[i];
@@ -346,14 +433,15 @@ impl P2PClient {
             payloadToAdd.payload = chunk.to_vec();
             payloadToAdd.session_id = payload.session_id;
 
-            let mut toAdd: P2PTransportPacket =  P2PTransportPacket::new(0, None);
+            let mut toAdd: P2PTransportPacket = P2PTransportPacket::new(0, None);
 
             if i < chunks.len() - 1 {
                 //We need to add the remaining bytes TLV
-                payloadToAdd.add_tlv(TLVFactory::get_untransfered_data_size(remaining_bytes.try_into().unwrap()));
+                payloadToAdd.add_tlv(TLVFactory::get_untransfered_data_size(
+                    remaining_bytes.try_into().unwrap(),
+                ));
                 info!("remainingBytes: {}", remaining_bytes);
             }
-
 
             if i == 0 {
                 toAdd.op_code = to_split.op_code;
@@ -375,10 +463,15 @@ impl P2PClient {
         return out;
     }
 
-    pub fn initiate_session(&mut self, inviter: MSNUser, invitee: MSNUser, session_type: P2PSessionType) {
+    pub fn initiate_session(
+        &mut self,
+        inviter: MSNUser,
+        invitee: MSNUser,
+        session_type: P2PSessionType,
+    ) {
         //Todo setup handshake
 
-        let mut slp_request : Option<SlpPayload> = None;
+        let mut slp_request: Option<SlpPayload> = None;
 
         let mut rng = rand::thread_rng();
         let session_id: u32 = rng.gen();
@@ -386,25 +479,46 @@ impl P2PClient {
         match session_type {
             P2PSessionType::FileTransfer(ref content) => {
                 let context = PreviewData::new(content.filesize.clone(), content.filename.clone());
-                slp_request = Some(SlpPayloadFactory::get_file_transfer_request(&inviter, &invitee, &context, session_id).unwrap());
+                slp_request = Some(
+                    SlpPayloadFactory::get_file_transfer_request(
+                        &inviter, &invitee, &context, session_id,
+                    )
+                    .unwrap(),
+                );
             }
         }
 
         let mut p2p_payload = P2PPayloadFactory::get_sip_text_message();
-        p2p_payload.set_payload(slp_request.expect("An SLP Payload to have").to_string().as_bytes().to_owned());
+        p2p_payload.set_payload(
+            slp_request
+                .expect("An SLP Payload to have")
+                .to_string()
+                .as_bytes()
+                .to_owned(),
+        );
         p2p_payload.tf_combination = 0x01;
         p2p_payload.session_id = 0;
 
         let mut slp_transport_req = P2PTransportPacket::new(0, Some(p2p_payload));
         slp_transport_req.op_code = 0x0;
 
-        let session: P2PSession = P2PSession::new(session_type, session_id, inviter.clone(), invitee.clone());
-        self.inner.pending_outbound_sessions.lock().expect("pending_files_to_send to be unlocked").insert(session_id, session);
+        let session: P2PSession =
+            P2PSession::new(session_type, session_id, inviter.clone(), invitee.clone());
+        self.inner
+            .pending_outbound_sessions
+            .lock()
+            .expect("pending_files_to_send to be unlocked")
+            .insert(session_id, session);
 
         self.reply(&inviter, &invitee, slp_transport_req);
     }
 
-    fn handle_slp_payload(&mut self, slp_payload: &SlpPayload) -> Result<Option<SlpPayload>, Errors> {
+    fn handle_slp_payload(
+        &mut self,
+        slp_payload: &SlpPayload,
+        sender: &MSNUser,
+        receiver: &MSNUser
+    ) -> Result<Option<SlpPayload>, Errors> {
         let error = String::from("error");
         let content_type = slp_payload.get_content_type().unwrap_or(&error);
         match content_type.as_str() {
@@ -429,7 +543,7 @@ impl P2PClient {
             "application/x-msnmsgr-sessionreqbody" => {
                 //if it's a file transfer request. TODO change this and put it inside slp_payload via an enum
                 info!("GOT SESS REQ_BODY");
-                return self.handle_sessionreqbody(slp_payload);
+                return self.handle_sessionreqbody(slp_payload, sender, receiver);
             }
             "application/x-msnmsgr-transrespbody" => {
                 let bridge = slp_payload
@@ -451,59 +565,117 @@ impl P2PClient {
         }
     }
 
-    fn handle_sessionreqbody(&mut self, slp_payload: &SlpPayload) -> Result<Option<SlpPayload>, Errors>  {
-
-        debug!("handle_sessionreqbody: is_invite: {}, is_200_ok: {} - {:?}", &slp_payload.is_invite(), &slp_payload.is_200_ok(), &slp_payload);
+    fn handle_sessionreqbody(
+        &mut self,
+        slp_payload: &SlpPayload,
+        sender: &MSNUser,
+        receiver: &MSNUser
+    ) -> Result<Option<SlpPayload>, Errors> {
+        debug!(
+            "handle_sessionreqbody: is_invite: {}, is_200_ok: {} - {:?}",
+            &slp_payload.is_invite(),
+            &slp_payload.is_200_ok(),
+            &slp_payload
+        );
 
         if slp_payload.is_invite() {
+            let euf_guid = slp_payload
+                .get_euf_guid()
+                .expect("EUF-GUID to be valid")
+                .expect("EUF-GUID to be here");
+            let app_id = slp_payload
+                .get_app_id()
+                .expect("AppID to be valid")
+                .expect("AppID to be present");
 
-            if slp_payload
-            .get_body_property(&String::from("AppID"))
-            .unwrap_or(&String::from("-1"))
-            .as_str()
-            == "2"
-        {
-            if let Some(context) = slp_payload.get_context_as_preview_data() {
-                let session_id = slp_payload
-                    .get_body_property(&String::from("SessionID"))
-                    .ok_or(Errors::PayloadDeserializeError)?
-                    .parse::<u32>()?;
-                self.inner.pending_files.lock().expect("pending_files to be unlocked").insert(
-                    session_id,
-                    File::new(context.get_size(), context.get_filename()),
-                );
-            }
-        }
-        return Ok(Some(SlpPayloadFactory::get_200_ok_session(slp_payload)?));
-        } else if slp_payload.is_200_ok() {
-            //transfer stuff
-           if let Some(session_id) = slp_payload.get_body_property(&String::from("SessionID")) {
-             let session_id = session_id.parse::<u32>().unwrap();
-
-            let pending_sessions_lock = self.inner.pending_outbound_sessions.lock().expect("pending_files_to_send to be unlocked while sending");
-
-             let maybe_session = pending_sessions_lock.get(&session_id);
-             let session = maybe_session.expect(format!("session {} to be present", session_id).as_str());
+            let session_id = slp_payload
+            .get_body_property(&String::from("SessionID"))
+            .ok_or(Errors::PayloadDeserializeError)?
+            .parse::<u32>()?;
 
 
-             match session.get_type() {
-                &P2PSessionType::FileTransfer(ref content) => {
-                    self.inner.sender.send(P2PEvent::FileTransferAccepted(FileTransferAcceptedEventContent{ source: content.source.as_ref().expect("media source to be present").clone(), session_id }));
+            match euf_guid {
+                EufGUID::FileTransfer => {
+                    if app_id == AppID::FILE_TRANSFER {
+                        let context = slp_payload.get_context_as_preview_data().expect("Preview Data to be present here");
+
+                            self.inner
+                                .pending_files
+                                .lock()
+                                .expect("pending_files to be unlocked")
+                                .insert(
+                                    session_id,
+                                    File::new(context.get_size(), context.get_filename()),
+                                );
+                        
+                    }
+                },
+                EufGUID::MSNObject => {
+                    let context = *slp_payload.get_context_as_msnobj().expect("MSNObject to be present here");
+                    if app_id == AppID::DISPLAY_PICTURE_TRANSFER {
+                        self.inner.sender.send(P2PEvent::MSNObjectRequested(MSNObjectRequestedEventContent{
+                            msn_object: context,
+                            session_id: session_id,
+                            inviter: sender.clone(),
+                            invitee: receiver.clone()
+                        }));
+                    }
                 }
                 _ => {
-                    warn!("Session Type not handled yet");
+                    warn!(
+                        "Received unsupported invite EufGUID: {} - payload: {}",
+                        euf_guid, slp_payload
+                    )
                 }
-             }
-           }
+            }
+
+            return Ok(Some(SlpPayloadFactory::get_200_ok_session(slp_payload)?));
+
+        } else if slp_payload.is_200_ok() {
+            //transfer stuff
+            if let Some(session_id) = slp_payload.get_body_property(&String::from("SessionID")) {
+                let session_id = session_id.parse::<u32>().unwrap();
+
+                let pending_sessions_lock = self
+                    .inner
+                    .pending_outbound_sessions
+                    .lock()
+                    .expect("pending_files_to_send to be unlocked while sending");
+
+                let maybe_session = pending_sessions_lock.get(&session_id);
+                let session =
+                    maybe_session.expect(format!("session {} to be present", session_id).as_str());
+
+                match session.get_type() {
+                    &P2PSessionType::FileTransfer(ref content) => {
+                        self.inner.sender.send(P2PEvent::FileTransferAccepted(
+                            FileTransferAcceptedEventContent {
+                                source: content
+                                    .source
+                                    .as_ref()
+                                    .expect("media source to be present")
+                                    .clone(),
+                                session_id,
+                            },
+                        ));
+                    }
+                    _ => {
+                        warn!("Session Type not handled yet");
+                    }
+                }
+            }
         }
         return Ok(None);
     }
 
     pub fn send_file(&mut self, session_id: u32, file: Vec<u8>) {
-        let maybe_session = self.inner.pending_outbound_sessions.lock().expect("pending_files_to_send to be unlocked while sending").remove(&session_id);
+        let maybe_session = self
+            .inner
+            .pending_outbound_sessions
+            .lock()
+            .expect("pending_files_to_send to be unlocked while sending")
+            .remove(&session_id);
         if let Some(session) = maybe_session {
-
-            
             let mut payload = P2PPayloadFactory::get_file_transfer(session_id);
             payload.set_payload(file);
             let packet = P2PTransportPacket::new(0, Some(payload));
@@ -511,15 +683,34 @@ impl P2PClient {
         }
     }
 
+    pub fn send_msn_object(&mut self, session_id: u32, file: Vec<u8>, sender: MSNUser, receiver: MSNUser) {
+        let data_preparation_message = P2PPayloadFactory::get_data_preparation_message(session_id);
+        let data_preparation_packet = P2PTransportPacket::new(0, Some(data_preparation_message));
+        self.reply(&sender, &receiver, data_preparation_packet);
+
+        let mut msn_obj_message = P2PPayloadFactory::get_msn_obj(session_id);
+        msn_obj_message.set_payload(file);
+        let msn_obj_packet = P2PTransportPacket::new(0, Some(msn_obj_message));
+        self.reply(&sender, &receiver, msn_obj_packet);
+    }
+
     fn set_package_number(&mut self, package_number: u16) {
-        let mut package_num = self.inner.package_number.lock().expect("Package number to be unlocked");
+        let mut package_num = self
+            .inner
+            .package_number
+            .lock()
+            .expect("Package number to be unlocked");
         *package_num = package_number;
     }
 
     fn get_package_number(&self) -> u16 {
-        return self.inner.package_number.lock().expect("Package number to be unlocked").clone();
+        return self
+            .inner
+            .package_number
+            .lock()
+            .expect("Package number to be unlocked")
+            .clone();
     }
-
 }
 
 #[cfg(test)]
@@ -533,12 +724,16 @@ mod tests {
         models::{
             msn_user::MSNUser,
             p2p::{
-                factories::{P2PTransportPacketFactory, TLVFactory}, p2p_transport_packet::P2PTransportPacket,
-                pending_packet::PendingPacket, events::p2p_event::P2PEvent, p2p_payload::P2PPayload,
+                events::p2p_event::P2PEvent,
+                factories::{P2PTransportPacketFactory, TLVFactory},
+                p2p_payload::P2PPayload,
+                p2p_transport_packet::P2PTransportPacket,
+                pending_packet::PendingPacket,
             },
         },
         sockets::{
-            command_handler::CommandHandler, msnp_command::MSNPCommandParser,
+            command_handler::CommandHandler, events::socket_event::SocketEvent,
+            msnp_command::MSNPCommandParser,
             switchboard_command_handler::SwitchboardCommandHandler,
         },
     };
@@ -1074,7 +1269,7 @@ mod tests {
         test1.append(&mut test3);
         test1.append(&mut test4);
 
-        let (sb_sender, mut sb_receiver) = broadcast::channel::<String>(10);
+        let (sb_sender, mut sb_receiver) = broadcast::channel::<SocketEvent>(10);
 
         let mut handler = SwitchboardCommandHandler::new(sb_sender);
 
@@ -1094,8 +1289,8 @@ mod tests {
 
         // let first_invite_msg_payload = [73, 78, 86, 73, 84, 69, 32, 77, 83, 78, 77, 83, 71, 82, 58, 97, 101, 111, 110, 116, 101, 115, 116, 49, 64, 115, 104, 108, 97, 115, 111, 117, 102, 46, 108, 111, 99, 97, 108, 59, 123, 102, 48, 54, 50, 56, 50, 53, 100, 45, 50, 54, 100, 57, 45, 53, 50, 97, 98, 45, 57, 52, 52, 55, 45, 98, 52, 98, 48, 97, 51, 49, 53, 100, 98, 101, 53, 125, 32, 77, 83, 78, 83, 76, 80, 47, 49, 46, 48, 13, 10, 84, 111, 58, 32, 60, 109, 115, 110, 109, 115, 103, 114, 58, 97, 101, 111, 110, 116, 101, 115, 116, 49, 64, 115, 104, 108, 97, 115, 111, 117, 102, 46, 108, 111, 99, 97, 108, 59, 123, 102, 48, 54, 50, 56, 50, 53, 100, 45, 50, 54, 100, 57, 45, 53, 50, 97, 98, 45, 57, 52, 52, 55, 45, 98, 52, 98, 48, 97, 51, 49, 53, 100, 98, 101, 53, 125, 62, 13, 10, 70, 114, 111, 109, 58, 32, 60, 109, 115, 110, 109, 115, 103, 114, 58, 97, 101, 111, 110, 99, 108, 49, 64, 115, 104, 108, 97, 115, 111, 117, 102, 46, 108, 111, 99, 97, 108, 59, 123, 102, 53, 50, 57, 55, 51, 98, 54, 45, 99, 57, 50, 54, 45, 52, 98, 97, 100, 45, 57, 98, 97, 56, 45, 55, 99, 49, 101, 56, 52, 48, 101, 52, 97, 98, 48, 125, 62, 13, 10, 86, 105, 97, 58, 32, 77, 83, 78, 83, 76, 80, 47, 49, 46, 48, 47, 84, 76, 80, 32, 59, 98, 114, 97, 110, 99, 104, 61, 123, 69, 68, 56, 56, 57, 68, 65, 48, 45, 52, 50, 56, 51, 45, 52, 49, 53, 49, 45, 56, 57, 48, 49, 45, 70, 55, 52, 50, 51, 70, 52, 66, 67, 48, 55, 56, 125, 13, 10, 67, 83, 101, 113, 58, 32, 48, 32, 13, 10, 67, 97, 108, 108, 45, 73, 68, 58, 32, 123, 66, 66, 56, 56, 54, 51, 51, 53, 45, 67, 69, 55, 57, 45, 52, 48, 48, 56, 45, 65, 65, 56, 56, 45, 65, 55, 56, 57, 54, 54, 50, 56, 52, 57, 67, 67, 125, 13, 10, 77, 97, 120, 45, 70, 111, 114, 119, 97, 114, 100, 115, 58, 32, 48, 13, 10, 67, 111, 110, 116, 101, 110, 116, 45, 84, 121, 112, 101, 58, 32, 97, 112, 112, 108, 105, 99, 97, 116, 105, 111, 110, 47, 120, 45, 109, 115, 110, 109, 115, 103, 114, 45, 115, 101, 115, 115, 105, 111, 110, 114, 101, 113, 98, 111, 100, 121, 13, 10, 67, 111, 110, 116, 101, 110, 116, 45, 76, 101, 110, 103, 116, 104, 58, 32, 56, 56, 50, 13, 10, 13, 10, 69, 85, 70, 45, 71, 85, 73, 68, 58, 32, 123, 53, 68, 51, 69, 48, 50, 65, 66, 45, 54, 49, 57, 48, 45, 49, 49, 68, 51, 45, 66, 66, 66, 66, 45, 48, 48, 67, 48, 52, 70, 55, 57, 53, 54, 56, 51, 125, 13, 10, 83, 101, 115, 115, 105, 111, 110, 73, 68, 58, 32, 57, 48, 54, 55, 50, 55, 57, 53, 48, 13, 10, 65, 112, 112, 73, 68, 58, 32, 50, 13, 10, 82, 101, 113, 117, 101, 115, 116, 70, 108, 97, 103, 115, 58, 32, 49, 54, 13, 10, 67, 111, 110, 116, 101, 120, 116, 58, 32, 80, 103, 73, 65, 65, 65, 73, 65, 65, 65, 67, 78, 53, 103, 73, 65, 65, 65, 65, 65, 65, 65, 69, 65, 65, 65, 66, 66, 65, 71, 52, 65, 100, 65, 66, 112, 65, 70, 81, 65, 81, 119, 66, 68, 65, 68, 69, 65, 77, 81, 65, 52, 65, 71, 77, 65, 76, 103, 66, 54, 65, 71, 107, 65, 99, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65];
         // let second_invite_msg_payload = [65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 61, 61, 13, 10, 13, 10, 0];
-        
-        // let mut first_msg_payload = P2PPayload::new(1, 0); 
+
+        // let mut first_msg_payload = P2PPayload::new(1, 0);
         // first_msg_payload.header_length = 20;
         // first_msg_payload.add_tlv(TLVFactory::get_untransfered_data_size(144));
         // first_msg_payload.set_payload(first_invite_msg_payload.to_vec());
@@ -1116,7 +1311,6 @@ mod tests {
 
         // let first_p2p_pending_packet = PendingPacket::new(first_p2p_packet, MSNUser::default(), MSNUser::new(String::from("glandu@recv.com")));
         // let second_p2p_pending_packet = PendingPacket::new(second_p2p_packet, MSNUser::default(), MSNUser::new(String::from("glandu@recv.com")));
-
 
         // let (p2p_sender, mut p2p_receiver) = broadcast::channel::<P2PEvent>(10);
 
@@ -1146,7 +1340,5 @@ mod tests {
         //     info!("DEBUGG: {:?}", &msg.packet);
         //     assert!(msg.packet.get_payload_length() > 0);
         // }
-
-
     }
 }

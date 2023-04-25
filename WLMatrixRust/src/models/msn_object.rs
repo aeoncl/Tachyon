@@ -1,4 +1,4 @@
-use std::{fmt::{Display, self}, convert::Infallible};
+use std::{fmt::{Display, self}, convert::Infallible, str::FromStr};
 
 use byteorder::{LittleEndian, ByteOrder};
 use matrix_sdk::ruma::serde::json_string::serialize;
@@ -6,60 +6,98 @@ use sha1::{Sha1, Digest};
 use base64::{Engine, engine::general_purpose};
 use strum_macros::EnumString;
 use substring::Substring;
-use yaserde::{de::{self, from_str}, ser::to_string};
+use yaserde::{de::{self, from_str}, ser::{to_string, to_string_with_config}};
 use yaserde_derive::{YaSerialize, YaDeserialize};
-use super::errors::Errors;
+use super::{errors::Errors, p2p::slp_context::SlpContext};
 
 // Documentation source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/MSN_Object
 
 
-#[derive(Clone, Debug)]
-
+#[derive(Clone, Debug, YaDeserialize, Default)]
+#[yaserde(rename = "msnobj")]
 pub struct MSNObject {
     //MSN Address of the creator or sender
-    creator: String,
+    #[yaserde(rename = "Creator", attribute)]
+    pub creator: String,
     //Size in bytes
-    size: usize,
+    #[yaserde(rename = "Size", attribute)]
+    pub size: u32,
     //Type
-    obj_type: MSNObjectType,
+    #[yaserde(rename = "Type", attribute)]
+    pub obj_type: MSNObjectType,
     //The Location field contains the filename under which the file will be, or has been, stored. 0 For in the storage service.
-    location: String,
+    #[yaserde(rename = "Location", attribute)]
+    pub location: String,
     /*This field contains the name of the picture in Unicode (UTF-16 Little Endian) format. 
     The string is then encoded with Base64. For most types of descriptors this field is a null character, 
     or AAA= when encoded.*/
-    friendly: Option<String>,
+    #[yaserde(rename = "Friendly", attribute)]
+    pub friendly: Option<String>,
     //The SHA1D field contains a SHA1 hash of the images data encoded in Base64. It is also known as the Data Hash or the SHA1 Data Field.
-    sha1d: String,
+    #[yaserde(rename = "SHA1D", attribute)]
+    pub sha1d: String,
 
     /* The following fields are not included in the sha1c */
-    contenttype: Option<MSNObjectContentType>,
+    #[yaserde(rename = "contenttype", attribute)]
+    pub contenttype: Option<MSNObjectContentType>,
 
     // The contentid field contains the identifier of the item which the Content Partner gave it.
-    contentid: Option<String>,
+    #[yaserde(rename = "contentid", attribute)]
+    pub contentid: Option<String>,
 
     /* The partnerid field contains the name of the Content Partner. 
     American Greetings/Blue Mountain for example, is identified by AG. 
     This field applies only for Custom Emoticons. 
     But if this field is not present in the Content XML file when it was downloaded, the value of this field is -1. */
-    partnerid: Option<String>,
+    #[yaserde(rename = "partnerid", attribute)]
+    pub partnerid: Option<String>,
 
     /* The stamp field contains the Base64 encoded signature of the file. 
     It is a S/MIME signature of the Base64 encoded hash of the Content cabinet file and is signed by the MSN Content Authority. 
     The stamp field is used in the Content XML file to make sure that the file isn't modified. 
     Currently, it's only being included in the MSN Object for dynamic (Flash) contents like Winks and Dynamic Display Pictures.  
     */
-    stamp: Option<String>,
+    #[yaserde(rename = "stamp", attribute)]
+    pub stamp: Option<String>,
 
     /* Down level fields */
     /* The avatarid field indicates what type of avatar is being referenced to. This field is currently only being seen with {6AD16E96-BC60-401B-89E2-5BB545DD2BF0}  */
-    avatarid: Option<String>,
+    #[yaserde(rename = "avatarid", attribute)]
+    pub avatarid: Option<String>,
 
     /* The avatarcontentid field contains the SHA-1 hash of the cabinet file which contains the content and is later encoded with Base64 as well. */
-    avatarcontentid: Option<String>,
+    #[yaserde(rename = "avatarcontentid", attribute)]
+    pub avatarcontentid: Option<String>,
 
     /* Not serialized  */
-    computeSha1c: bool,
+    pub computeSha1c: bool,
 
+}
+
+impl SlpContext for MSNObject {
+
+    fn from_slp_context(bytes: &Vec<u8>) -> Option<Box<Self>> { 
+        let base64_decoded = general_purpose::STANDARD.decode(bytes);
+        if let Ok(base64_decoded) = base64_decoded {
+            if let Ok(str) = String::from_utf8(base64_decoded){
+                if let Ok(msn_obj) = MSNObject::from_str(str.as_str()) {
+                    return Some(Box::new(msn_obj));
+                }
+            }
+        }
+        return None;
+    }
+}
+
+impl FromStr for MSNObject {
+    type Err = Errors;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(deserialized) = from_str::<MSNObject>(s) {
+            return Ok(deserialized);
+          } else {
+              return Err(Errors::PayloadDeserializeError);
+          }    }
 }
 
 impl yaserde::YaSerialize for &MSNObject {
@@ -101,7 +139,7 @@ impl yaserde::YaSerialize for &MSNObject {
 
 impl MSNObject {
     pub fn new(creator: String, obj_type: MSNObjectType, location: String, sha1d: String, size: usize, friendly: Option<String>, contenttype: Option<MSNObjectContentType>, computeSha1c: bool) -> Self {
-        return Self{ creator, size, obj_type, location, friendly, sha1d, contenttype, contentid: None, partnerid: None, stamp: None, avatarid: None, avatarcontentid: None, computeSha1c };
+        return Self{ creator, size: size.try_into().unwrap(), obj_type, location, friendly, sha1d, contenttype, contentid: None, partnerid: None, stamp: None, avatarid: None, avatarcontentid: None, computeSha1c };
     }
 
     fn get_friendly_base64_or_default(&self) -> String {
@@ -145,9 +183,15 @@ impl MSNObject {
 impl Display for MSNObject {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let serialized = to_string(&self).unwrap();
-        let out = serialized.substring(38, serialized.len());
-        return write!(f, "{}", urlencoding::encode(out));
+        
+        let yaserde_cfg = yaserde::ser::Config{
+            perform_indent: false,
+            write_document_declaration: false,
+            indent_string: None
+        };
+
+        let serialized = to_string_with_config(&self, &yaserde_cfg).unwrap();
+        return write!(f, "{}", urlencoding::encode(serialized.as_str()));
     }
 }
 
@@ -172,7 +216,7 @@ impl Default for MSNObjectContentType {
 }
 
 
-#[derive(Clone, Debug, YaSerialize)]
+#[derive(Clone, Debug, YaSerialize, Default)]
 pub enum MSNObjectType {
     //Unknown but present since MSN 6.0
     Avatar = 1,
@@ -194,7 +238,26 @@ pub enum MSNObjectType {
     SignatureSound=14,
     UnknownYet=15,
     Scene=16,
-    WebcamDynamicDisplayPicture=17
+    WebcamDynamicDisplayPicture=17,
+    #[default]
+    Default=-1
+}
+
+impl yaserde::YaDeserialize for MSNObjectType {
+
+    fn deserialize<R: std::io::Read>(reader: &mut de::Deserializer<R>) -> Result<Self, String> {
+        reader.peek();
+        
+        if let xml::reader::XmlEvent::Characters(obj_type) = reader.inner_next()?.to_owned() {
+            let text_parsed : i32 = FromStr::from_str(obj_type.as_str()).unwrap();
+            return Ok(MSNObjectType::try_from(text_parsed).unwrap());
+        }
+
+        return Err("Characters missing".to_string());
+
+    }
+
+
 }
 
 impl Display for MSNObjectType {
@@ -259,7 +322,7 @@ impl MSNObjectFactory {
 }
 
 mod tests {
-    use crate::models::msn_object::{MSNObject, MSNObjectType};
+    use crate::models::{msn_object::{MSNObject, MSNObjectType}, p2p::slp_context::SlpContext};
 
     use super::MSNObjectFactory;
 
@@ -285,9 +348,8 @@ mod tests {
         let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), Some(String::from("Flare")));
         let friendly_b64 = obj.get_friendly_base64_or_default();
         
-        let test = obj.to_string();
+        let obj_serialized = obj.to_string();
 
-        let obj_serialized = urlencoding::encode(&test);
         let str = "%3Cmsnobj%20Creator%3D%22aeoncl1%40shlasouf.local%22%20Type%3D%223%22%20SHA1D%3D%221u3ees4vbHswj%2B6ud7vJ1g24Lz0%3D%22%20Size%3D%2225810%22%20Location%3D%220%22%20Friendly%3D%22RgBsAGEAcgBlAAAA%22%20contenttype%3D%22D%22%2F%3E";
         assert_eq!(obj_serialized, str);
     }
@@ -318,6 +380,13 @@ mod tests {
         let friendly_b64 = obj.get_friendly_base64_or_default();
         
         assert_eq!(&friendly_b64, "AAA=");
+    }
+
+    #[test]
+    fn deserialize_test() {
+        let base64_context = String::from("PG1zbm9iaiBDcmVhdG9yPSJidWRkeTFAaG90bWFpbC5jb20iIFNpemU9IjI0NTM5IiBUeXBlPSIzIiBMb2NhdGlvbj0iVEZSMkMudG1wIiBGcmllbmRseT0iQUFBPSIgU0hBMUQ9InRyQzhTbEZ4MnNXUXhaTUlCQVdTRW5YYzhvUT0iIFNIQTFDPSJVMzJvNmJvc1p6bHVKcTgyZUF0TXB4NWRJRUk9Ii8+DQoA");
+        let msn_obj = MSNObject::from_slp_context(&base64_context.as_bytes().to_vec()).unwrap();
+        println!("{:?}", &msn_obj);
     }
 
 }

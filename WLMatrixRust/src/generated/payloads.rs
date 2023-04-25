@@ -255,6 +255,9 @@ impl From<PresenceState> for PresenceStatus {
             PresenceState::Unavailable => {
                 PresenceStatus::AWY
             },
+            PresenceState::Offline => {
+                PresenceStatus::FLN
+            }
             _ => {
                 PresenceStatus::FLN
             }

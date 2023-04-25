@@ -1,11 +1,15 @@
 use std::path::Path;
 use std::str::{FromStr};
+use tokio::task::JoinHandle;
+use std::time::Duration;
 
 use log::info;
 use matrix_sdk::Client;
 use substring::Substring;
 use async_trait::async_trait;
 use tokio::sync::broadcast::{Sender, self, Receiver};
+use tokio::sync::watch;
+use tokio::{time, task};
 use crate::generated::payloads::{PrivateEndpointData, PresenceStatus};
 
 use crate::models::msn_user::MSNUser;
@@ -13,6 +17,7 @@ use crate::models::notification::adl_payload::ADLPayload;
 use crate::models::notification::error::{MsnpError, MsnpErrorCode};
 use crate::models::notification::events::notification_event::NotificationEvent;
 use crate::models::notification::msn_client::{MSNClient, self};
+use crate::models::notification::user_notification_type::UserNotificationType;
 use crate::models::p2p::slp_payload::SlpPayload;
 use crate::models::p2p::slp_payload_handler::SlpPayloadHandler;
 use crate::models::wlmatrix_client::WLMatrixClient;
@@ -41,11 +46,47 @@ impl NotificationCommandHandler {
 
         let sender = self.sender.clone();
         tokio::spawn(async move {
+
+            let (ab_notify_task_stop_sender, ab_notify_task_stop_receiver) = broadcast::channel::<()>(1);
+            let mut join_handle: Option<JoinHandle<()>> = None;;
             loop {
                 tokio::select! {
                     command_to_send = notification_receiver.recv() => {
                         if let Ok(msg) = command_to_send {
                             match msg {
+                                NotificationEvent::AddressBookUpdateEvent(content) => {
+
+
+                                    let sender = sender.clone();
+                                    let mut stop_receiver = ab_notify_task_stop_sender.subscribe();
+
+                                    if let Some(jh) = join_handle {
+                                        if !jh.is_finished() {
+                                            ab_notify_task_stop_sender.send(());
+                                        }
+                                    }
+
+                                    join_handle = Some(task::spawn(async move {
+
+                                        info!("ABNotify: Spawning ab notify task");
+
+                                        let mut interval = time::interval(Duration::from_secs(5));
+                                        interval.tick().await;
+
+                                        tokio::select! {
+                                            abort = stop_receiver.recv()  => {
+                                                info!("ABNotify: Aborting task");
+                                                return;
+                                            }, 
+                                            tick = interval.tick() => {
+                                                let _result = sender.send(format!("NOT {payload_size}\r\n{payload}", payload_size = content.payload.len(), payload = content.payload));
+                                                info!("ABNotify: Send command");
+                                                return;
+                                            }
+                                        }
+                                    }));
+
+                                },
                                 NotificationEvent::HotmailNotificationEvent(content) => {
                                     let _result = sender.send(format!("NOT {payload_size}\r\n{payload}", payload_size = content.payload.len(), payload = content.payload));
                                 },
@@ -55,7 +96,7 @@ impl NotificationCommandHandler {
                                     if let Some(display_pic) = user.get_display_picture().as_ref() {
                                         msn_obj = display_pic.to_string();
                                     }
-                                    let _result = sender.send(format!("NLN {status} 1:{msn_addr} {nickname} {client_capabilities} {msn_obj}\r\n", client_capabilities= &user.get_capabilities() ,msn_addr= &user.get_msn_addr(), status = &user.get_status().to_string(), nickname= &user.get_display_name(), msn_obj = &msn_obj));                            
+                                    let _result = sender.send(format!("NLN HDN 1:{msn_addr} {nickname} {client_capabilities} {msn_obj}\r\n", client_capabilities= &user.get_capabilities() ,msn_addr= &user.get_msn_addr(), nickname= &user.get_display_name(), msn_obj = &msn_obj));                            
                                     let ubx_payload = format!("<PSM>{status_msg}</PSM><CurrentMedia></CurrentMedia><EndpointData id=\"{{{machine_guid}}}\"><Capabilities>{client_capabilities}</Capabilities></EndpointData>", status_msg = &user.get_psm(), client_capabilities= &user.get_capabilities(), machine_guid = &user.get_endpoint_guid());
                                     let _result = sender.send(format!("UBX 1:{msn_addr} {ubx_payload_size}\r\n{ubx_payload}", msn_addr = &user.get_msn_addr(), ubx_payload_size= ubx_payload.len(), ubx_payload=ubx_payload));
                                    
@@ -341,12 +382,18 @@ impl CommandHandler for NotificationCommandHandler {
             },
             "UUN" => {
                 // >>> UUN 14 aeoncl@matrix.org;{0ab73364-6ccf-507b-bb66-a967fe281cd0} 4 14 | goawyplzthxbye
+                // UUN 29 aeontest1@shlasouf.local 7 26 | aeontest2@shlasouf.local 1
+
                 // <<< UUN 14 OK
                 let tr_id = split[1];
                 let receiver = split[2].to_string();
                 let receiver_split : Vec<&str> = receiver.split(';').collect();
                 let receiver_msn_addr = receiver_split.get(0).unwrap_or(&receiver.as_str()).to_string();
                 let endpoint_guid = self.parse_endpoint_guid(receiver_split.get(1));
+
+                let notification_type = split[3];
+                let notification_type_parsed: UserNotificationType = num::FromPrimitive::from_i32(i32::from_str(notification_type).unwrap()).unwrap();
+
 
                 if receiver_msn_addr == self.msn_addr {
                     //this for me
@@ -364,7 +411,7 @@ impl CommandHandler for NotificationCommandHandler {
                         let slp_response = SlpPayloadHandler::handle(&slp_request).unwrap();
 
                         let payload = slp_response.to_string();
-                        return Ok(format!("UUN {tr_id} OK\r\nUBN {msn_addr} 5 {payload_size}\r\n{payload}", tr_id = tr_id, msn_addr= &receiver_msn_addr, payload=&payload, payload_size = payload.len()));
+                        return Ok(format!("UUN {tr_id} OK\r\nUBN {msn_addr} {notification_type} {payload_size}\r\n{payload}", tr_id = tr_id, msn_addr= &receiver_msn_addr, notification_type=&notification_type, payload=&payload, payload_size = payload.len()));
                     }
 
 

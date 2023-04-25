@@ -8,11 +8,12 @@ use std::{str::{FromStr, from_utf8}, fmt::Display};
 use base64::{Engine, engine::general_purpose};
 use linked_hash_map::LinkedHashMap;
 use log::warn;
+use num::FromPrimitive;
 use substring::Substring;
 
-use crate::models::{errors::Errors, msn_user::MSNUser};
+use crate::models::{errors::Errors, msn_user::MSNUser, msn_object::MSNObject};
 
-use super::slp_context::{PreviewData, MsnObject, SlpContext};
+use super::{slp_context::{PreviewData, SlpContext}, app_id::AppID};
 
 #[derive(Clone, Debug)]
 pub struct SlpPayload {
@@ -87,8 +88,24 @@ impl SlpPayload {
         return Ok(Some(euf_guid));
     }
 
-    pub fn get_context_as_msnobj() -> Option<MsnObject> {
-        return None;
+    pub fn get_app_id(&self) -> Result<Option<AppID>, Errors> {
+        let app_id = self.get_body_property(&String::from("AppID"));
+        if app_id.is_none() {
+            return  Ok(None);
+        }
+
+        let app_id = app_id.unwrap();
+        let app_id = u32::from_str(app_id.as_str())?;
+        let app_id: Option<AppID> = FromPrimitive::from_u32(app_id);
+        return Ok(app_id);
+    }
+
+    pub fn get_context_as_msnobj(&self) -> Option<Box<MSNObject>> {
+        let context = self.get_body_property(&String::from("Context"));
+        if let None = context {
+            return None;
+        }
+        return MSNObject::from_slp_context(&context.unwrap().as_bytes().to_vec());
     }
 
     pub fn is_invite(&self) -> bool {

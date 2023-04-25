@@ -355,16 +355,16 @@ async fn handle_presence_event(ev: PresenceEvent, client: Client, me: MSNUser, n
     let user_repo = MSNUserRepository::new(client.clone());
 
 
-    let event_sender = &ev.sender;
+    let event_sender: &OwnedUserId = &ev.sender;
     let sender_msn_addr = event_sender.to_msn_addr();
 
+    if let Ok(mut user) = user_repo.get_msnuser_from_userid(event_sender, false).await{
 
-    let room = client.find_dm_room(event_sender).await.unwrap().unwrap();
+    let presence_status : PresenceStatus = ev.content.presence.clone().into();
 
-    if let Ok(mut user) = user_repo.get_msnuser(&room.room_id(), event_sender, true).await {
+    info!("Received Presence Event: {:?} - ev: {:?}", &presence_status, &ev);
 
-    let presence_status : PresenceStatus = ev.content.presence.into();
-    if let PresenceStatus::FLN = presence_status {
+    if PresenceStatus::FLN == presence_status {
         ns_sender.send(NotificationEventFactory::get_disconnect(user));
     } else {
 
@@ -376,13 +376,25 @@ async fn handle_presence_event(ev: PresenceEvent, client: Client, me: MSNUser, n
             if let Some(status_msg) = ev.content.status_msg{
                 user.set_psm(status_msg);
             }
-            //TODO handle avatar & msnobj
-            //let msn_obj = "<msnobj/>";
+
+
+            if let Some(avatar_mxc) = ev.content.avatar_url.as_ref() {
+
+                match user_repo.get_avatar(avatar_mxc.clone()).await {
+                    Ok(avatar) => {
+                       user.set_display_picture(Some(user_repo.avatar_to_msn_obj(&avatar, sender_msn_addr.clone(), &avatar_mxc)));
+                    },
+                    Err(err) => {
+                        log::error!("Couldn't download avatar: {} - {}", &avatar_mxc, err);
+                    }
+                }
+            }
+
             ns_sender.send(NotificationEventFactory::get_presence(user));
         } 
     
     } else {
-        warn!("Could not find user in repo (presence) {} - {}", &room.room_id(), &event_sender);
+        warn!("Could not find user in repo (presence) {}", &event_sender);
     }
 }
 
