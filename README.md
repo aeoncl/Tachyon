@@ -2,24 +2,32 @@
 WLMatrix is a **translation layer** between **MSNP18** & **the Matrix API**. The project started originally in 2020 in C++ but was rewritten entirely in **Rust** leveraging the **Matrix Rust SDK**.
 *The goal is to compile WLMatrix as a .dll library and inject it in the process of MsnMsgr.exe. Redirect all the calls to localhost and voilà, you got a new backend and an amazing client relevant again !*
 ## What's sort of working now
-- Redirection to localhost
+ - Redirection to localhost
  - User/Password login
- - Profile pic update
- - Display name update
+ - Profile pics
+ - Display names
  - Presence (kinda working, WLM is not really compatible with the Matrix way of handling presence currently)
  - 1v1 DM Rooms
  - Text messages
- - File upload (only upload from WLM to Matrix currently, no receive yet)
+ - File upload
  - Multiple Points of Presence (showing all your logged in sessions)
- - E2E encryption (kinda, no key refresh mechanism yet)
+ - E2E encryption (kinda, no client validation)
+ - You can talk in more than 1o1 rooms but cannot initiate them, inviting contacts does nothing in the backend
 
 ## What's next
-
- - File upload (Matrix -> WLM)
- - Contact profile pic
+ - Photo sharing
+ - Vocal messages
+ - Handle all the default matrix messages types (m.notice, etc)
+ - Presence updates when presence disabled on homeserver
+ - Add & Delete contacts
+ - Font Styling for text messages
  - Custom events for WLM's specific messages (like nudges & winks)
  - Try to map Circles to non DM Rooms
  - Handle DM rooms with more than two people
+ - Contacts recent activity
+ - MSNToday
+ - MSNObject stores (Emoticon packs, winks, etc)
+ - Custom Games & Activities
 
 ## Components
 There are three distinct components making WLMatrix tick:
