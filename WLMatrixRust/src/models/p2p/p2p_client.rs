@@ -471,6 +471,7 @@ impl P2PClient {
     ) {
         //Todo setup handshake
 
+
         let mut slp_request: Option<SlpPayload> = None;
 
         let mut rng = rand::thread_rng();
@@ -500,7 +501,8 @@ impl P2PClient {
         p2p_payload.session_id = 0;
 
         let mut slp_transport_req = P2PTransportPacket::new(0, Some(p2p_payload));
-        slp_transport_req.op_code = 0x0;
+
+
 
         let session: P2PSession =
             P2PSession::new(session_type, session_id, inviter.clone(), invitee.clone());
@@ -510,6 +512,11 @@ impl P2PClient {
             .expect("pending_files_to_send to be unlocked")
             .insert(session_id, session);
 
+            if !self.inner.initialized.load(Ordering::Relaxed) {
+                slp_transport_req.op_code = 0x03;
+                //Added this so we don't answer their syn by another syn
+                self.inner.initialized.store(true, Ordering::Relaxed);
+            } 
         self.reply(&inviter, &invitee, slp_transport_req);
     }
 
