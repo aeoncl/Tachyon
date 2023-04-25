@@ -12,11 +12,13 @@ use crate::repositories::msn_user_repository::MSNUserRepository;
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine};
 use log::{info, error};
+use matrix_sdk::config::RequestConfig;
 use matrix_sdk::media::{MediaRequest, MediaFormat};
 use matrix_sdk::ruma::{OwnedUserId, UserId};
 use matrix_sdk::Client;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 use substring::Substring;
 use tokio::sync::broadcast::{self, Receiver, Sender};
 use tokio::sync::oneshot;
@@ -28,7 +30,7 @@ use crate::models::msg_payload::factories::MsgPayloadFactory;
 use crate::models::switchboard::events::switchboard_event::SwitchboardEvent;
 use crate::models::switchboard::switchboard::Switchboard;
 use crate::models::uuid::UUID;
-use crate::utils::identifiers::matrix_room_id_to_annoying_matrix_room_id;
+use crate::utils::identifiers::{matrix_room_id_to_annoying_matrix_room_id, self};
 use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR, P2P_REPO};
 
 pub struct SwitchboardCommandHandler {
@@ -44,6 +46,7 @@ pub struct SwitchboardCommandHandler {
     switchboard: Option<Switchboard>,
     sb_bridge: Option<P2PClient>,
     stop_sender: Option<oneshot::Sender<()>>,
+    session_id: String
 }
 
 impl Drop for SwitchboardCommandHandler {
@@ -72,6 +75,7 @@ impl SwitchboardCommandHandler {
             switchboard: None,
             sb_bridge: None,
             stop_sender: None,
+            session_id: identifiers::get_sb_session_id(),
         };
     }
 
@@ -174,25 +178,44 @@ impl SwitchboardCommandHandler {
 
     pub async fn send_initial_roster(&mut self, tr_id: &str) {
         let room_id = matrix_room_id_to_annoying_matrix_room_id(&self.target_room_id);
+        let mut room_members = Vec::new();
+
+
         if let Some(room) = &self
             .matrix_client
             .as_ref()
             .unwrap()
             .get_joined_room(&room_id)
         {
-            let members = room.joined_members().await.unwrap();
-            let mut index = 1;
-            //let count = (members.len() - 1)*2;
-            let count = members.len() - 1;
+            room_members = room.joined_members().await.unwrap().into_iter().map(|member| {
+                member.user_id().to_owned()
+            }).collect();
+        } else {
+            //We couldn't fetch the room yet :(
+            let room_event_request = matrix_sdk::ruma::api::client::membership::joined_members::v3::Request::new(room_id);
 
-            for member in members {
-                let msn_user = MSNUser::from_matrix_id(member.user_id().to_owned());
-                if msn_user.get_msn_addr() != self.msn_addr {
-                    self.send_initial_roster_member(tr_id, index, count as i32, &msn_user);
-                    index += 2;
-                }
+            let config = RequestConfig::new().timeout(Duration::from_secs(30)).retry_limit(2);
+
+            let response = self.matrix_client.as_ref().unwrap().send(room_event_request, Some(config)).await;
+            if let Ok(response) = response {
+                room_members = response.joined.into_iter().map(|(owned_user_id, room_member)| {
+                    owned_user_id
+                }).collect();
             }
         }
+
+        let mut index = 1;
+        //let count = (members.len() - 1)*2;
+        let count = room_members.len() - 1;
+
+        for member in room_members {
+            let msn_user = MSNUser::from_matrix_id(member);
+            if msn_user.get_msn_addr() != self.msn_addr {
+                self.send_initial_roster_member(tr_id, index, count as i32, &msn_user);
+                index += 2;
+            }
+        }
+
     }
 
     fn send_initial_roster_member(&self, tr_id: &str, index: i32, count: i32, msn_user: &MSNUser) {
@@ -269,6 +292,9 @@ impl CommandHandler for SwitchboardCommandHandler {
                 let split_token: Vec<&str> = token.split(";").collect();
                 let tr_id = split[1];
                 let endpoint = split[2];
+                let session_id = split[4];
+                self.session_id = session_id.to_string();
+
                 let endpoint_parts: Vec<&str> = endpoint.split(";").collect();
 
                 self.msn_addr = endpoint_parts.get(0).unwrap().to_string();
@@ -289,17 +315,18 @@ impl CommandHandler for SwitchboardCommandHandler {
 
                 let client_data = MSN_CLIENT_LOCATOR.get().unwrap();
 
+
+                let _result = self.send_initial_roster(&tr_id).await;
+                self.sender
+                    .send(format!("ANS {tr_id} OK\r\n", tr_id = &tr_id).into());
+                self.send_me_joined();
+
                 {
                     if let Some(mut sb) = client_data.get_switchboards().find(&self.target_room_id)
                     {
                         self.bootstrap_loops(sb);
                     }
                 };
-
-                let _result = self.send_initial_roster(&tr_id).await;
-                self.sender
-                    .send(format!("ANS {tr_id} OK\r\n", tr_id = &tr_id).into());
-                self.send_me_joined();
 
                 return Ok(String::new());
             }
@@ -343,12 +370,11 @@ impl CommandHandler for SwitchboardCommandHandler {
 
                 let tr_id = split[1];
                 let msn_addr_to_add = split[2].to_string();
-                let session_id = UUID::new().to_decimal_cid_string();
-
+        
                 self.sender.send(format!(
                     "CAL {tr_id} RINGING {session_id}\r\n",
                     tr_id = tr_id,
-                    session_id = session_id
+                    session_id = &self.session_id
                 ).into());
 
                 if msn_addr_to_add == self.msn_addr {

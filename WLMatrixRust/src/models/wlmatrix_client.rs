@@ -4,9 +4,10 @@ use base64::{engine::general_purpose, Engine};
 use js_int::UInt;
 use log::{info, warn};
 use matrix_sdk::{Client, Session, config::SyncSettings, ruma::{device_id, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, JoinedRoom}}, presence::PresenceState, events::{presence::PresenceEvent, room::{member::{StrippedRoomMemberEvent, SyncRoomMemberEvent, RoomMemberEventContent, MembershipState}, message::{SyncRoomMessageEvent, RoomMessageEventContent, MessageType, FileMessageEventContent}, MediaSource}, direct::{DirectEvent, DirectEventContent}, typing::SyncTypingEvent, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, GlobalAccountDataEvent, GlobalAccountDataEventType}, RoomId, OwnedUserId, UserId}, room::{Room, RoomMember}, event_handler::Ctx};
+use rand::Rng;
 use tokio::sync::{broadcast::Sender, oneshot};
 
-use crate::{utils::{identifiers::{get_matrix_device_id}, emoji::emoji_to_smiley}, generated::{payloads::{factories::NotificationFactory, PresenceStatus}, msnab_sharingservice::factories::{MemberFactory, ContactFactory, AnnotationFactory}, msnab_datatypes::types::{ArrayOfAnnotation, RoleId, MemberState, ContactTypeEnum}}, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, models::{msg_payload::factories::MsgPayloadFactory, uuid::UUID, owned_user_id_traits::ToMsnAddr, abch::events::AddressBookEventFactory}, MSN_CLIENT_LOCATOR, AB_LOCATOR};
+use crate::{utils::{identifiers::{get_matrix_device_id, self}, emoji::emoji_to_smiley}, generated::{payloads::{factories::NotificationFactory, PresenceStatus}, msnab_sharingservice::factories::{MemberFactory, ContactFactory, AnnotationFactory}, msnab_datatypes::types::{ArrayOfAnnotation, RoleId, MemberState, ContactTypeEnum}}, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, models::{msg_payload::factories::MsgPayloadFactory, uuid::UUID, owned_user_id_traits::ToMsnAddr, abch::events::AddressBookEventFactory}, MSN_CLIENT_LOCATOR, AB_LOCATOR};
 
 use super::{notification::{error::MsnpErrorCode,  events::notification_event::{NotificationEvent, NotificationEventFactory}}, msn_user::MSNUser, switchboard::switchboard::Switchboard, capabilities::ClientCapabilitiesFactory};
 
@@ -560,9 +561,7 @@ async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, room: Room, cl
 
                             msn_client.get_switchboards().add(room_id.clone(), sb_data);
                              //send RNG command
-                             let room_uuid = UUID::from_string(&room_id);
-
-                             let session_id = room_uuid.get_most_significant_bytes_as_hex();
+                             let session_id = identifiers::get_sb_session_id();
 
                              let ticket = general_purpose::STANDARD.encode(format!("{target_room_id};{token};{target_matrix_id}", target_room_id = &room_id, token = &client.access_token().unwrap(), target_matrix_id = target.to_string()));
 
