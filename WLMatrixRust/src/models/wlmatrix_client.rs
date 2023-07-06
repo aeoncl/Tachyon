@@ -3,7 +3,7 @@ use std::{path::Path, collections::HashSet, time::Duration, f32::consts::E};
 use base64::{engine::general_purpose, Engine};
 use js_int::UInt;
 use log::{info, warn};
-use matrix_sdk::{Client, Session, config::SyncSettings, ruma::{device_id, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, JoinedRoom}}, presence::PresenceState, events::{presence::PresenceEvent, room::{member::{StrippedRoomMemberEvent, SyncRoomMemberEvent, RoomMemberEventContent, MembershipState}, message::{SyncRoomMessageEvent, RoomMessageEventContent, MessageType, FileMessageEventContent}, MediaSource}, direct::{DirectEvent, DirectEventContent}, typing::SyncTypingEvent, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, GlobalAccountDataEvent, GlobalAccountDataEventType}, RoomId, OwnedUserId, UserId}, room::{Room, RoomMember}, event_handler::Ctx};
+use matrix_sdk::{Client, config::SyncSettings, ruma::{device_id, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, JoinedRoom}}, presence::PresenceState, events::{presence::PresenceEvent, room::{member::{StrippedRoomMemberEvent, SyncRoomMemberEvent, RoomMemberEventContent, MembershipState}, message::{SyncRoomMessageEvent, RoomMessageEventContent, MessageType, FileMessageEventContent}, MediaSource}, direct::{DirectEvent, DirectEventContent}, typing::SyncTypingEvent, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, GlobalAccountDataEvent, GlobalAccountDataEventType}, RoomId, OwnedUserId, UserId}, room::{Room, RoomMember}, event_handler::Ctx, RoomMemberships, matrix_auth::{Session, SessionTokens}, AuthSession};
 use rand::Rng;
 use tokio::sync::{broadcast::Sender, oneshot};
 
@@ -41,18 +41,16 @@ impl WLMatrixClient {
         match Client::builder()
             .disable_ssl_verification()
             .server_name(matrix_id.server_name())
-            .sled_store(store_path, None)
+            .sqlite_store(store_path, None)
             .build()
             .await
         {
             Ok(client) => {
                 if let Err(err) = client
-                    .restore_session(Session {
-                        access_token: token,
-                        refresh_token: None,
-                        user_id: matrix_id,
-                        device_id: device_id,
-                    })
+                    .restore_session(AuthSession::Matrix(Session {
+                        meta: matrix_sdk::SessionMeta { user_id: matrix_id, device_id: device_id },
+                        tokens: SessionTokens { access_token: token, refresh_token: None},
+                    }))
                     .await
                 {
                     log::error!("An error has occured logging in via token: {}", err);
@@ -86,10 +84,10 @@ pub async fn start_matrix_loop(matrix_client: Client, msn_user: MSNUser, event_s
         let mut retry_count=0;
         let max_retry_count=3;
 
-        let sync_token = matrix_client.store().get_sync_token().await;
+        let sync_token = matrix_client.store().sync_token().await;
 
         log::info!("WLMatrix Sync - Preparing Initial Sync");
-        if let Ok(Some(token)) = sync_token {
+        if let Some(token) = sync_token {
             log::info!("WLMatrix Sync - Token loaded: {}", &token);
             settings = settings.token(token);
         }
@@ -230,7 +228,7 @@ async fn handle_1v1_dm2(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, roo
     let matrix_token = client.access_token().unwrap();
     let me = client.user_id().unwrap().to_owned();
 
-
+    //TODO Fix this unwrap
     let target = Self::get_direct_target_that_isnt_me(&room.direct_targets(), &room, &me).await.unwrap();
     let target_usr = MSNUser::from_matrix_id(target.clone());
     let target_uuid = target_usr.get_uuid();
@@ -409,7 +407,7 @@ async fn handle_stripped_room_member_event(ev: StrippedRoomMemberEvent, room: Ro
 
     log::info!("AB DEBUG - STRIPPED: state_key: {}, sender: {}, membership: {}", &ev.state_key, &ev.sender, &ev.content.membership);
 
-    if room.is_direct() || ev.content.is_direct.unwrap_or(false) {
+    if room.is_direct().await.unwrap() || ev.content.is_direct.unwrap_or(false) {
         log::info!("AB DEBUG - STRIPPED: DIRECT");
         //This is a direct
 
@@ -493,7 +491,7 @@ async fn handle_sync_room_member_event(ev: SyncRoomMemberEvent, room: Room, clie
                             }
                         }
 
-                        if room.is_direct() || ev.content.is_direct.unwrap_or(false) {
+                        if room.is_direct().await.unwrap() || ev.content.is_direct.unwrap_or(false) {
                             info!("Room is direct !!");
                             notify_ab = notify_ab || Self::handle_directs(ev, &room, &client, &client.access_token().unwrap(), &me.get_msn_addr()).await;
                         } else {
@@ -590,7 +588,7 @@ fn try_fetch_in_direct_targets(direct_targets: &HashSet<OwnedUserId>, me: &UserI
 async fn get_direct_target_that_isnt_me(direct_targets: &HashSet<OwnedUserId>, room: &Room, me: &UserId) -> Option<OwnedUserId> {
    let mut maybe = Self::try_fetch_in_direct_targets(direct_targets, me);
     if maybe.is_none() {
-       let members = room.members_no_sync().await.unwrap();
+       let members = room.members(RoomMemberships::union(RoomMemberships::JOIN, RoomMemberships::INVITE)).await.unwrap();
        log::info!("TryGetDirectTarget2 - members count: {}, me: {}", members.len(), &me);
        for member in members {
         if member.user_id() != me {

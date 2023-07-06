@@ -7,7 +7,7 @@ build = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-tokio = { version = "1.25.0", features = ["full"] }
+tokio = { version = "1.27.0", features = ["full"] }
 regex = "1.7.1"
 lazy_static = "1.4.0"
 substring = "1.4.5"
@@ -48,7 +48,7 @@ num-derive = "0.3.3"
 num-traits = "0.2.15"
 [dependencies.matrix-sdk]
 path = "matrix-rust-sdk/crates/matrix-sdk"
-features = ["e2e-encryption", "sled", "native-tls", "image-proc"]
+features = ["e2e-encryption", "bundled-sqlite", "image-proc"]
 
 [dev-dependencies]
 actix-rt = "2.7.0"

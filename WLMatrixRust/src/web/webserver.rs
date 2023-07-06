@@ -60,7 +60,7 @@ pub async fn rst2(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse
 
     let client = Client::builder().disable_ssl_verification().server_name(matrix_id.server_name()).build().await?;
     
-    match client.login_username(matrix_id.as_str(), username_token.password.as_str()).device_id(get_matrix_device_id().as_str()).initial_device_display_name("WLMatrix").await {
+    match client.matrix_auth().login_username(matrix_id.as_str(), username_token.password.as_str()).device_id(get_matrix_device_id().as_str()).initial_device_display_name("WLMatrix").await {
         Ok(result) => {
             let response = RST2ResponseFactory::get_rst2_success_response(
                 result.access_token,
