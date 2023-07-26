@@ -329,7 +329,8 @@ impl CommandHandler for NotificationCommandHandler {
                 self.msn_client.as_mut().ok_or(MsnpError::internal_server_error(tr_id))?.get_user_mut().set_status(status.clone());
 
                 if let Some(matrix_client) = self.matrix_client.as_ref() {
-                    matrix_client.account().set_presence(status.clone().into(), None).await;
+                    //SET PRESENCE
+                   // matrix_client.account().set_presence(status.clone().into(), None).await;
                 }
 
                 if self.needs_initial_presence {

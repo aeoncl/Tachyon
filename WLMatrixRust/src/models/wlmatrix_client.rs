@@ -1,9 +1,9 @@
-use std::{path::Path, collections::HashSet, time::Duration, f32::consts::E};
+use std::{path::Path, collections::HashSet, time::Duration, f32::consts::E, error::Error};
 
 use base64::{engine::general_purpose, Engine};
 use js_int::UInt;
 use log::{info, warn};
-use matrix_sdk::{Client, config::SyncSettings, ruma::{device_id, api::client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, JoinedRoom}}, presence::PresenceState, events::{presence::PresenceEvent, room::{member::{StrippedRoomMemberEvent, SyncRoomMemberEvent, RoomMemberEventContent, MembershipState}, message::{SyncRoomMessageEvent, RoomMessageEventContent, MessageType, FileMessageEventContent}, MediaSource}, direct::{DirectEvent, DirectEventContent}, typing::SyncTypingEvent, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, GlobalAccountDataEvent, GlobalAccountDataEventType}, RoomId, OwnedUserId, UserId}, room::{Room, RoomMember}, event_handler::Ctx, RoomMemberships, matrix_auth::{Session, SessionTokens}, AuthSession};
+use matrix_sdk::{Client, config::SyncSettings, ruma::{device_id, api::{client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, JoinedRoom}}, error::MatrixError}, presence::PresenceState, events::{presence::PresenceEvent, room::{member::{StrippedRoomMemberEvent, SyncRoomMemberEvent, RoomMemberEventContent, MembershipState}, message::{SyncRoomMessageEvent, RoomMessageEventContent, MessageType, FileMessageEventContent}, MediaSource}, direct::{DirectEvent, DirectEventContent}, typing::SyncTypingEvent, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, GlobalAccountDataEvent, GlobalAccountDataEventType, SyncStateEvent}, RoomId, OwnedUserId, UserId}, room::{Room, RoomMember, self}, event_handler::Ctx, RoomMemberships, matrix_auth::{Session, SessionTokens}, AuthSession, deserialized_responses::RawMemberEvent};
 use rand::Rng;
 use tokio::sync::{broadcast::Sender, oneshot};
 
@@ -91,6 +91,9 @@ pub async fn start_matrix_loop(matrix_client: Client, msn_user: MSNUser, event_s
             log::info!("WLMatrix Sync - Token loaded: {}", &token);
             settings = settings.token(token);
         }
+
+
+        matrix_client.sync_stream(sync_settings)
 
         loop {
             tokio::select! {
@@ -599,5 +602,55 @@ async fn get_direct_target_that_isnt_me(direct_targets: &HashSet<OwnedUserId>, r
     }
    return maybe;
 }
+
+pub async fn find_or_create_dm_room(client: &Client, user_id: &UserId) -> Result<room::Joined, MatrixError>  {
+
+    if let Some(found) = WLMatrixClient::find_dm_room(&client, user_id).await? {
+        return Ok(found);
+    }
+    return client.create_dm(user_id).await;
+}
+
+pub async fn find_dm_room(client: &Client, user_id: &UserId) -> Result<Option<room::Joined>, MatrixError> {
+    let direct_event:  GlobalAccountDataEvent<DirectEventContent>;
+    if let Some(directs) = client.store().get_account_data_event(GlobalAccountDataEventType::Direct).await? {
+        direct_event = directs.deserialize_as()?;
+    } else {
+        direct_event = client.account().get_directs().await?;
+    }
+
+    let content = direct_event.content.0;
+    for current in content {
+        if &current.0 == user_id {
+            let dm_rooms = current.1;
+            for dm_room in dm_rooms {
+                //For each dm room for a direct user
+                    if let Some(joined_room) = self.get_joined_room(&dm_room) {
+                        let joined_members_count = joined_room.joined_members().await?.len();
+                        //If we are still in the room
+                        if let Some(member_event) = self.store().get_member_event(&dm_room, &user_id).await.unwrap() {
+
+                            match member_event {
+                                RawMemberEvent::Sync(sync_member_event) => {
+                                    let event : SyncStateEvent<RoomMemberEventContent> = sync_member_event.deserialize_as()?;
+                                    if event.membership() == &MembershipState::Invite || event.membership() == &MembershipState::Join && joined_members_count >= 1 && joined_members_count <= 2 {
+                                        //if user still invited or present in the room AND the room contains between one and two users
+                                        return Ok(Some(joined_room));
+                                    }
+                                }
+                                _ => (),
+                            }
+
+                     
+
+                        }
+                    }
+                
+            }
+        }
+    }
+    return Ok(None);
+}
+
 
 }
