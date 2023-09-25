@@ -56,7 +56,7 @@ impl Switchboard {
     pub async fn send_file(&self, file: File) -> Result<OwnedEventId, SwitchboardError>{
 
         let mime = mime::Mime::from_str(file.get_mime().as_str())?;
-        let room = self.inner.matrix_client.get_joined_room(&self.inner.target_room_id)
+        let room = self.inner.matrix_client.get_room(&self.inner.target_room_id)
         .ok_or(SwitchboardError::MatrixRoomNotFound)?;
 
         let config = AttachmentConfig::new().generate_thumbnail(None);
@@ -71,7 +71,7 @@ impl Switchboard {
     /* Sends a Message to the other participants of the Switchboard */
     pub async fn send_message(&self, payload: MsgPayload) -> Result<(), SwitchboardError> {
         let room_id = &self.inner.target_room_id;
-        let room = self.inner.matrix_client.get_joined_room(&self.inner.target_room_id)
+        let room = self.inner.matrix_client.get_room(&self.inner.target_room_id)
         .ok_or(SwitchboardError::MatrixRoomNotFound)?;
         
         match payload.content_type.as_str() {

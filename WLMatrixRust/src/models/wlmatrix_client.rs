@@ -1,15 +1,15 @@
-use std::{path::Path, collections::HashSet, time::Duration, f32::consts::E, error::Error};
+use std::{collections::HashSet, path::Path, time::Duration};
 
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use js_int::UInt;
 use log::{info, warn};
-use matrix_sdk::{Client, config::SyncSettings, ruma::{device_id, api::{client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::{Filter, JoinedRoom}}, error::MatrixError}, presence::PresenceState, events::{presence::PresenceEvent, room::{member::{StrippedRoomMemberEvent, SyncRoomMemberEvent, RoomMemberEventContent, MembershipState}, message::{SyncRoomMessageEvent, RoomMessageEventContent, MessageType, FileMessageEventContent}, MediaSource}, direct::{DirectEvent, DirectEventContent}, typing::SyncTypingEvent, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, GlobalAccountDataEvent, GlobalAccountDataEventType, SyncStateEvent}, RoomId, OwnedUserId, UserId}, room::{Room, RoomMember, self}, event_handler::Ctx, RoomMemberships, matrix_auth::{Session, SessionTokens}, AuthSession, deserialized_responses::RawMemberEvent};
-use rand::Rng;
+use matrix_sdk::{AuthSession, Client, config::SyncSettings, event_handler::Ctx, room::{Room, RoomMember}, RoomMemberships, RoomState, ruma::{api::{client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::Filter}}, device_id, events::{direct::{DirectEvent, DirectEventContent}, GlobalAccountDataEvent, GlobalAccountDataEventType, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, presence::PresenceEvent, room::{member::{MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent}, message::{FileMessageEventContent, MessageType, RoomMessageEventContent, SyncRoomMessageEvent}}, typing::SyncTypingEvent}, OwnedUserId, presence::PresenceState, RoomId, UserId}};
+use matrix_sdk::matrix_auth::{MatrixSession, MatrixSessionTokens};
 use tokio::sync::{broadcast::Sender, oneshot};
 
-use crate::{utils::{identifiers::{get_matrix_device_id, self}, emoji::emoji_to_smiley}, generated::{payloads::{factories::NotificationFactory, PresenceStatus}, msnab_sharingservice::factories::{MemberFactory, ContactFactory, AnnotationFactory}, msnab_datatypes::types::{ArrayOfAnnotation, RoleId, MemberState, ContactTypeEnum}}, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, models::{msg_payload::factories::MsgPayloadFactory, uuid::UUID, owned_user_id_traits::ToMsnAddr, abch::events::AddressBookEventFactory}, MSN_CLIENT_LOCATOR, AB_LOCATOR};
+use crate::{AB_LOCATOR, generated::{msnab_datatypes::types::{ArrayOfAnnotation, ContactTypeEnum, MemberState, RoleId}, msnab_sharingservice::factories::{AnnotationFactory, ContactFactory, MemberFactory}, payloads::PresenceStatus}, models::{abch::events::AddressBookEventFactory, msg_payload::factories::MsgPayloadFactory, owned_user_id_traits::ToMsnAddr}, MSN_CLIENT_LOCATOR, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, utils::{emoji::emoji_to_smiley, identifiers::{self, get_matrix_device_id}}};
 
-use super::{notification::{error::MsnpErrorCode,  events::notification_event::{NotificationEvent, NotificationEventFactory}}, msn_user::MSNUser, switchboard::switchboard::Switchboard, capabilities::ClientCapabilitiesFactory};
+use super::{msn_user::MSNUser, notification::{error::MsnpErrorCode, events::notification_event::{NotificationEvent, NotificationEventFactory}}, switchboard::switchboard::Switchboard};
 
 #[derive(Debug)]
 pub struct WLMatrixClient {
@@ -39,7 +39,7 @@ impl WLMatrixClient {
         let device_id = device_id!(device_id.as_str()).to_owned();
 
         match Client::builder()
-            .disable_ssl_verification()
+            .disable_ssl_verification() //TODO heeheeeee
             .server_name(matrix_id.server_name())
             .sqlite_store(store_path, None)
             .build()
@@ -47,9 +47,9 @@ impl WLMatrixClient {
         {
             Ok(client) => {
                 if let Err(err) = client
-                    .restore_session(AuthSession::Matrix(Session {
+                    .restore_session(AuthSession::Matrix(MatrixSession {
                         meta: matrix_sdk::SessionMeta { user_id: matrix_id, device_id: device_id },
-                        tokens: SessionTokens { access_token: token, refresh_token: None},
+                        tokens: MatrixSessionTokens { access_token: token, refresh_token: None},
                     }))
                     .await
                 {
@@ -84,7 +84,7 @@ pub async fn start_matrix_loop(matrix_client: Client, msn_user: MSNUser, event_s
         let mut retry_count=0;
         let max_retry_count=3;
 
-        let sync_token = matrix_client.store().sync_token().await;
+        let sync_token = matrix_client.sync_token().await;
 
         log::info!("WLMatrix Sync - Preparing Initial Sync");
         if let Some(token) = sync_token {
@@ -93,7 +93,7 @@ pub async fn start_matrix_loop(matrix_client: Client, msn_user: MSNUser, event_s
         }
 
 
-        matrix_client.sync_stream(sync_settings)
+     //   matrix_client.sync_stream(sync_settings);
 
         loop {
             tokio::select! {
@@ -239,8 +239,8 @@ async fn handle_1v1_dm2(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, roo
 
     log::info!("AB DEBUG - State_key: {}, sender: {}, membership: {}", &ev.state_key, &ev.sender, &ev.content.membership);
 
-    match &room {
-        Room::Joined(room) => {
+    match room.state() {
+        RoomState::Joined => {
             if &ev.state_key == &target {
                 let display_name = ev.content.displayname.as_ref().unwrap_or(&target_msn_addr).to_owned();
                 if ev.content.membership == MembershipState::Invite && &ev.sender == &me {
@@ -285,7 +285,7 @@ async fn handle_1v1_dm2(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, roo
                 }
             }
         },
-        Room::Left(room) => {
+        RoomState::Left => {
 
             if Self::should_i_really_delete_contact(&client, target.clone()).await {
                 log::info!("AB - I Deleted: {}", &target_msn_addr);
@@ -327,7 +327,7 @@ async fn should_i_really_delete_contact(client: &Client, contact: OwnedUserId) -
                 for dm_room in dm_rooms {
                     //For each dm room for a contact
                    //if let Some(member_event) = client.store().get_member_event(&dm_room, &contact).await.unwrap() {
-                         if let Some(joined_room) = client.get_joined_room(&dm_room) {
+                         if let Some(joined_room) = client.get_room(&dm_room) {
                              //If we are still in the room
                            // if member_event.content.membership == MembershipState::Invite || member_event.content.membership == MembershipState::Join {
                                 //If the contact is still in the room, don't delete it from the contact list.
@@ -414,8 +414,8 @@ async fn handle_stripped_room_member_event(ev: StrippedRoomMemberEvent, room: Ro
         log::info!("AB DEBUG - STRIPPED: DIRECT");
         //This is a direct
 
-            match &room {
-                Room::Joined(joined_room) => {
+            match room.state() {
+                RoomState::Joined => {
 
                     // COMMENTED BECAUSE WE NEVER RECEIVE THIS EVENT, MAYBE A BUG OF SYNAPSE OR RUST SDK
                     // if ev.content.membership == MembershipState::Join && &ev.state_key == &me_matrix_id && &ev.sender == &me_matrix_id {
@@ -436,7 +436,7 @@ async fn handle_stripped_room_member_event(ev: StrippedRoomMemberEvent, room: Ro
                     //     notify_ab = true;
                     // }
                 },
-                Room::Invited(room) => {
+                RoomState::Invited => {
                     if &ev.content.membership == &MembershipState::Invite && &ev.state_key == &me_matrix_id {
                         //I've been invited ! ADD TO PENDING LIST WITH INVITE MSG, ADD TO REVERSE LIST
 
@@ -464,7 +464,7 @@ async fn handle_stripped_room_member_event(ev: StrippedRoomMemberEvent, room: Ro
 
                     }   
                 },
-                Room::Left(room) => {
+                RoomState::Left => {
                     log::info!("AB DEBUG 1o1DM - STRIPPED: LEFT ROOM");
                 }
             }
@@ -603,54 +603,11 @@ async fn get_direct_target_that_isnt_me(direct_targets: &HashSet<OwnedUserId>, r
    return maybe;
 }
 
-pub async fn find_or_create_dm_room(client: &Client, user_id: &UserId) -> Result<room::Joined, MatrixError>  {
-
-    if let Some(found) = WLMatrixClient::find_dm_room(&client, user_id).await? {
+pub async fn find_or_create_dm_room(client: &Client, user_id: &UserId) -> matrix_sdk::Result<Room> {
+    if let Some(found) = client.get_dm_room(user_id) {
         return Ok(found);
     }
     return client.create_dm(user_id).await;
 }
-
-pub async fn find_dm_room(client: &Client, user_id: &UserId) -> Result<Option<room::Joined>, MatrixError> {
-    let direct_event:  GlobalAccountDataEvent<DirectEventContent>;
-    if let Some(directs) = client.store().get_account_data_event(GlobalAccountDataEventType::Direct).await? {
-        direct_event = directs.deserialize_as()?;
-    } else {
-        direct_event = client.account().get_directs().await?;
-    }
-
-    let content = direct_event.content.0;
-    for current in content {
-        if &current.0 == user_id {
-            let dm_rooms = current.1;
-            for dm_room in dm_rooms {
-                //For each dm room for a direct user
-                    if let Some(joined_room) = self.get_joined_room(&dm_room) {
-                        let joined_members_count = joined_room.joined_members().await?.len();
-                        //If we are still in the room
-                        if let Some(member_event) = self.store().get_member_event(&dm_room, &user_id).await.unwrap() {
-
-                            match member_event {
-                                RawMemberEvent::Sync(sync_member_event) => {
-                                    let event : SyncStateEvent<RoomMemberEventContent> = sync_member_event.deserialize_as()?;
-                                    if event.membership() == &MembershipState::Invite || event.membership() == &MembershipState::Join && joined_members_count >= 1 && joined_members_count <= 2 {
-                                        //if user still invited or present in the room AND the room contains between one and two users
-                                        return Ok(Some(joined_room));
-                                    }
-                                }
-                                _ => (),
-                            }
-
-                     
-
-                        }
-                    }
-                
-            }
-        }
-    }
-    return Ok(None);
-}
-
 
 }

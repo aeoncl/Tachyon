@@ -107,7 +107,9 @@ async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<H
     let profile = matrix_client.account().get_profile().await?;
     let display_name = profile.displayname.ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let psm = matrix_client.account().get_presence().await?.status_msg.unwrap_or_default();
+    //let psm = matrix_client.account().get_presence().await?.status_msg.unwrap_or_default();
+    //TODO fetch account data
+    let psm = String::new();
 
     let mut img_mx_id : Option<String> = None;
     if let Some(avatar_url) = &matrix_client.account().get_avatar_url().await?{

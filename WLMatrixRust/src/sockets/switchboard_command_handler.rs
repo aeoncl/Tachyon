@@ -1,3 +1,20 @@
+use std::str::FromStr;
+use std::sync::Arc;
+use std::time::Duration;
+
+use async_trait::async_trait;
+use base64::{Engine, engine::general_purpose};
+use log::{error, info};
+use matrix_sdk::Client;
+use matrix_sdk::config::RequestConfig;
+use matrix_sdk::media::{MediaFormat, MediaRequest};
+use matrix_sdk::ruma::{OwnedUserId, UserId};
+use substring::Substring;
+use tokio::sync::broadcast::{self, Receiver, Sender};
+use tokio::sync::oneshot;
+
+use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR};
+use crate::models::msg_payload::factories::MsgPayloadFactory;
 use crate::models::msg_payload::MsgPayload;
 use crate::models::msn_user::MSNUser;
 use crate::models::notification::error::{MsnpError, MsnpErrorCode};
@@ -8,30 +25,16 @@ use crate::models::p2p::p2p_transport_packet::P2PTransportPacket;
 use crate::models::p2p::pending_packet::PendingPacket;
 use crate::models::p2p::session::file_transfer_session_content::FileTransferSessionContent;
 use crate::models::p2p::session::p2p_session_type::P2PSessionType;
+use crate::models::switchboard::events::switchboard_event::SwitchboardEvent;
+use crate::models::switchboard::switchboard::Switchboard;
+use crate::models::uuid::UUID;
+use crate::models::wlmatrix_client::WLMatrixClient;
 use crate::repositories::msn_user_repository::MSNUserRepository;
-use async_trait::async_trait;
-use base64::{engine::general_purpose, Engine};
-use log::{info, error};
-use matrix_sdk::config::RequestConfig;
-use matrix_sdk::media::{MediaRequest, MediaFormat};
-use matrix_sdk::ruma::{OwnedUserId, UserId};
-use matrix_sdk::Client;
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
-use substring::Substring;
-use tokio::sync::broadcast::{self, Receiver, Sender};
-use tokio::sync::oneshot;
+use crate::utils::identifiers::{self, matrix_room_id_to_annoying_matrix_room_id};
 
 use super::command_handler::CommandHandler;
 use super::events::socket_event::SocketEvent;
 use super::msnp_command::MSNPCommand;
-use crate::models::msg_payload::factories::MsgPayloadFactory;
-use crate::models::switchboard::events::switchboard_event::SwitchboardEvent;
-use crate::models::switchboard::switchboard::Switchboard;
-use crate::models::uuid::UUID;
-use crate::utils::identifiers::{matrix_room_id_to_annoying_matrix_room_id, self};
-use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR, P2P_REPO};
 
 pub struct SwitchboardCommandHandler {
     protocol_version: Arc<i16>,
@@ -181,11 +184,11 @@ impl SwitchboardCommandHandler {
         let mut room_members = Vec::new();
 
 
-        if let Some(room) = &self
+        if let Some(room) = self
             .matrix_client
             .as_ref()
             .unwrap()
-            .get_joined_room(&room_id)
+            .get_room(&room_id)
         {
             room_members = room.joined_members().await.unwrap().into_iter().map(|member| {
                 member.user_id().to_owned()
@@ -386,7 +389,7 @@ impl CommandHandler for SwitchboardCommandHandler {
 
                     let client = self.matrix_client.as_ref().unwrap().clone();
 
-                    let target_room = client.find_or_create_dm_room(&user_to_add).await.unwrap(); //TODO handle this
+                    let target_room = WLMatrixClient::find_or_create_dm_room(&client, &user_to_add).await.unwrap(); //TODO handle this
                     self.target_room_id = target_room.room_id().to_string();
                     let client_data = MSN_CLIENT_LOCATOR.get().unwrap();
 
