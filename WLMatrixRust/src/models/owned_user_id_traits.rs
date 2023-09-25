@@ -1,5 +1,5 @@
-use matrix_sdk::ruma::{OwnedUserId, UserId};
 use lazy_static::lazy_static;
+use matrix_sdk::ruma::{OwnedUserId, UserId};
 use regex::Regex;
 
 lazy_static! {

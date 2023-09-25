@@ -1,4 +1,4 @@
-use std::{fmt, mem, string::FromUtf8Error};
+use std::fmt;
 
 use lazy_static::lazy_static;
 use log::info;

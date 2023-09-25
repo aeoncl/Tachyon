@@ -1,7 +1,6 @@
-use crate::{models::{msn_user::MSNUser, msn_object::MSNObject}, generated::payloads::factories::NotificationFactory};
+use crate::{generated::payloads::factories::NotificationFactory, models::msn_user::MSNUser};
 
-use super::content::{presence_event_content::PresenceEventContent, switchboard_init_event_content::SwitchboardInitEventContent, hotmail_notification_event_content::HotmailNotificationEventContent, disconnect_event_content::DisconnectEventContent};
-
+use super::content::{disconnect_event_content::DisconnectEventContent, hotmail_notification_event_content::HotmailNotificationEventContent, presence_event_content::PresenceEventContent, switchboard_init_event_content::SwitchboardInitEventContent};
 
 #[derive(Clone, Debug)]
 pub enum NotificationEvent {

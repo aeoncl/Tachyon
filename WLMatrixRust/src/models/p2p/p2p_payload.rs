@@ -1,13 +1,12 @@
 use core::fmt;
-use std::{str::from_utf8_unchecked, fmt::Display};
+use std::{fmt::Display, str::from_utf8_unchecked};
 
 use byteorder::{BigEndian, ByteOrder};
 use log::info;
 
-use crate::{models::{errors::Errors}};
+use crate::models::errors::Errors;
 
-use super::{tlv::{TLV, ValueType, extract_tlvs}, slp_payload::SlpPayload};
-
+use super::{slp_payload::SlpPayload, tlv::{extract_tlvs, TLV, ValueType}};
 
 #[derive(Clone)]
 pub struct P2PPayload {
@@ -202,8 +201,7 @@ impl Display for P2PPayload {
 mod tests {
     use crate::models::p2p::factories::TLVFactory;
 
-
-#[test]
+    #[test]
 fn test() {
     //137 With header
   let test = [65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 61, 61, 13, 10, 13, 10, 0];

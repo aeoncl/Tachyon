@@ -1,22 +1,16 @@
 use std::{
     collections::HashMap,
-    f32::consts::E,
     mem,
     sync::{
-        atomic::{AtomicBool, AtomicI32, Ordering},
-        Arc, Mutex,
+        Arc,
+        atomic::{AtomicBool, AtomicI32, Ordering}, Mutex,
     },
-    time::Duration,
 };
 
-use log::{debug, error, info, logger, warn};
-use matrix_sdk::{
-    media::{MediaEventContent, MediaFormat, MediaRequest},
-    Client,
-};
+use log::{debug, info, warn};
+use matrix_sdk::media::MediaEventContent;
 use rand::Rng;
 use tokio::sync::broadcast::Sender;
-use tokio::time::{self};
 
 use crate::models::{
     errors::Errors,
@@ -29,10 +23,6 @@ use crate::models::{
         },
         slp_payload::EufGUID,
     },
-    switchboard::{
-        events::content::file_upload_event_content::FileUploadEventContent,
-        switchboard::Switchboard,
-    }, msn_object::MSNObject,
 };
 
 use super::{
@@ -724,31 +714,6 @@ impl P2PClient {
 
 #[cfg(test)]
 mod tests {
-    use std::str::from_utf8_unchecked;
-
-    use log::info;
-    use tokio::sync::broadcast;
-
-    use crate::{
-        models::{
-            msn_user::MSNUser,
-            p2p::{
-                events::p2p_event::P2PEvent,
-                factories::{P2PTransportPacketFactory, TLVFactory},
-                p2p_payload::P2PPayload,
-                p2p_transport_packet::P2PTransportPacket,
-                pending_packet::PendingPacket,
-            },
-        },
-        sockets::{
-            command_handler::CommandHandler, events::socket_event::SocketEvent,
-            msnp_command::MSNPCommandParser,
-            switchboard_command_handler::SwitchboardCommandHandler,
-        },
-    };
-
-    use super::P2PClient;
-
     #[actix_rt::test]
     async fn test_chunked_payload() {
         let part1_msg: [u8; 1833] = [

@@ -1,7 +1,7 @@
-use std::{str::FromStr, mem};
+use std::{mem, str::FromStr};
 
 use byteorder::{ByteOrder, LittleEndian};
-use log::{warn, info};
+use log::{info, warn};
 
 use crate::models::{errors::Errors, p2p::p2p_transport_packet::P2PTransportPacket};
 
@@ -187,9 +187,7 @@ impl P2PCommandParser {
 
 #[cfg(test)]
 mod tests {
-    use std::str::from_utf8_unchecked;
-
-    use byteorder::{LittleEndian, ByteOrder};
+    use byteorder::{ByteOrder, LittleEndian};
 
     use super::P2PCommandParser;
 

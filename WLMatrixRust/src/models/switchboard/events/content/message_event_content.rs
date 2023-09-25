@@ -1,4 +1,5 @@
 use crate::models::{msg_payload::MsgPayload, msn_user::MSNUser};
+
 #[derive(Clone, Debug)]
 
 pub struct MessageEventContent {

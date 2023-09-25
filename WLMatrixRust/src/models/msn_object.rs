@@ -1,13 +1,13 @@
-use std::{fmt::{Display, self}, convert::Infallible, str::FromStr};
+use std::{fmt::{self, Display}, str::FromStr};
 
-use byteorder::{LittleEndian, ByteOrder};
-use matrix_sdk::ruma::serde::json_string::serialize;
-use sha1::{Sha1, Digest};
 use base64::{Engine, engine::general_purpose};
+use byteorder::ByteOrder;
+use sha1::{Digest, Sha1};
 use strum_macros::EnumString;
 use substring::Substring;
-use yaserde::{de::{self, from_str}, ser::{to_string, to_string_with_config}};
-use yaserde_derive::{YaSerialize, YaDeserialize};
+use yaserde::{de::{self, from_str}, ser::to_string_with_config};
+use yaserde_derive::{YaDeserialize, YaSerialize};
+
 use super::{errors::Errors, p2p::slp_context::SlpContext};
 
 // Documentation source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/MSN_Object
@@ -322,10 +322,9 @@ impl MSNObjectFactory {
 }
 
 mod tests {
-    use crate::models::{msn_object::{MSNObject, MSNObjectType}, p2p::slp_context::SlpContext};
+    use crate::models::{msn_object::MSNObject, p2p::slp_context::SlpContext};
 
     use super::MSNObjectFactory;
-
 
     lazy_static_include_bytes! {
         AVATAR_BYTES => "assets/img/avatar.jpg"

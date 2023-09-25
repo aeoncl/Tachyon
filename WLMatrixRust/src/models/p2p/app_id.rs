@@ -1,4 +1,3 @@
-
 use num_derive::FromPrimitive;
 
 #[derive(Clone, Debug, FromPrimitive, Eq, PartialEq)]

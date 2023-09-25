@@ -1,12 +1,12 @@
-use std::{sync::{Arc, Mutex, atomic::{}}, collections::HashSet, str::FromStr, io::Cursor, mem};
+use std::{collections::HashSet, mem, str::FromStr, sync::{Arc, Mutex}};
+
 use log::info;
-use matrix_sdk::{ruma::{OwnedRoomId, OwnedUserId, OwnedEventId, events::room::{message::RoomMessageEventContent, MediaSource}}, Client, attachment::AttachmentConfig};
-use tokio::sync::{broadcast::{Sender, Receiver, error::SendError, self}};
+use matrix_sdk::{attachment::AttachmentConfig, Client, ruma::{events::room::{MediaSource, message::RoomMessageEventContent}, OwnedEventId, OwnedRoomId, OwnedUserId}};
+use tokio::sync::{broadcast::{self, error::SendError, Receiver, Sender}};
 
-use crate::{utils::emoji::smiley_to_emoji, models::{p2p::{file::File, events::p2p_event::{self}, p2p_transport_packet::P2PTransportPacket, pending_packet::PendingPacket}, msg_payload::{MsgPayload, factories::MsgPayloadFactory}, msn_user::MSNUser}, P2P_REPO, MSN_CLIENT_LOCATOR};
+use crate::{models::{msg_payload::MsgPayload, msn_user::MSNUser, p2p::file::File}, MSN_CLIENT_LOCATOR, utils::emoji::smiley_to_emoji};
 
-use super::{events::{switchboard_event::SwitchboardEvent, content::{message_event_content::MessageEventContent, file_upload_event_content::FileUploadEventContent}}, switchboard_error::SwitchboardError};
-
+use super::{events::{content::{file_upload_event_content::FileUploadEventContent, message_event_content::MessageEventContent}, switchboard_event::SwitchboardEvent}, switchboard_error::SwitchboardError};
 
 #[derive(Clone, Debug)]
 pub struct Switchboard {

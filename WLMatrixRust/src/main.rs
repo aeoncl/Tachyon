@@ -1,11 +1,9 @@
-mod sockets;
-mod generated;
-mod repositories;
-mod models;
-mod web;
-mod utils;
+#[macro_use] extern crate lazy_static_include;
+#[macro_use] extern crate num_derive;
+#[macro_use] extern crate serde_derive;
 
 use std::fs::File;
+use std::io::Write;
 use std::sync::Arc;
 
 use actix_web::App;
@@ -13,19 +11,15 @@ use actix_web::HttpServer;
 use actix_web::middleware::Logger;
 use chrono::Local;
 use env_logger::Builder;
-use log::LevelFilter;
+use lazy_static::lazy_static;
 use log::info;
-use web::webserver::*;
+use log::LevelFilter;
+use tokio::join;
+
+use web::ab_service::*;
 use web::sharing_service::*;
 use web::storage_service::*;
-use web::ab_service::*;
-use std::io::Write;
-
-use tokio::join;
-use lazy_static::lazy_static;
-#[macro_use] extern crate lazy_static_include;
-#[macro_use] extern crate serde_derive;
-#[macro_use] extern crate num_derive;
+use web::webserver::*;
 
 use crate::repositories::ab_locator::ABLocator;
 use crate::repositories::matrix_client_locator::MatrixClientLocator;
@@ -35,6 +29,13 @@ use crate::repositories::repository::Repository;
 use crate::sockets::notification_server::NotificationServer;
 use crate::sockets::switchboard_server::SwitchboardServer;
 use crate::sockets::tcpserver::TCPServer;
+
+mod sockets;
+mod generated;
+mod repositories;
+mod models;
+mod web;
+mod utils;
 
 lazy_static! {
     static ref MSN_CLIENT_LOCATOR: Arc<MSNClientLocator> = Arc::new(MSNClientLocator::new());

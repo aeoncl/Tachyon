@@ -1,8 +1,7 @@
 use std::{
-    mem,
     sync::{
-        atomic::{AtomicI16, Ordering},
-        Arc, Mutex, RwLock, RwLockWriteGuard,
+        Arc,
+        atomic::{AtomicI16, Ordering}, RwLock, RwLockWriteGuard,
     },
 };
 
@@ -20,7 +19,7 @@ use crate::{
         msn_user::{MSNUser, PartialMSNUser},
         uuid::UUID,
     },
-    repositories::{switchboard_repository::SwitchboardRepository, msn_user_repository::MSNUserRepository},
+    repositories::{msn_user_repository::MSNUserRepository, switchboard_repository::SwitchboardRepository},
 };
 
 use super::{adl_payload::ADLPayload, error::MsnpErrorCode};

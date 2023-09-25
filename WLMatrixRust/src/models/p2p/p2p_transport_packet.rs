@@ -1,13 +1,12 @@
 use core::fmt;
-use std::{str::{from_utf8_unchecked, FromStr}, fmt::Display};
+use std::{fmt::Display, str::{from_utf8_unchecked, FromStr}};
 
 use byteorder::{BigEndian, ByteOrder};
 use log::info;
 
-use crate::{models::errors::Errors};
+use crate::models::errors::Errors;
 
-use super::{p2p_payload::P2PPayload, opcode::OperationCode, factories::TLVFactory, tlv::{ValueType, TLV, extract_tlvs}};
-
+use super::{factories::TLVFactory, opcode::OperationCode, p2p_payload::P2PPayload, tlv::{extract_tlvs, TLV, ValueType}};
 
 /* P2PHeaderV2 */
 /* For the official client to use P2PV2 headers, firstly, our fake client must have the P2PV2 Extended Capability 

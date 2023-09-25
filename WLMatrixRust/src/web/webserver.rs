@@ -1,32 +1,22 @@
-use std::path::{PathBuf, Path};
-
-use actix_web::{get, post, web, HttpRequest, HttpResponse, HttpResponseBuilder};
-
-use log::info;
-
-use matrix_sdk::ruma::api::client::error::{ErrorBody, ErrorKind};
-use matrix_sdk::{Client};
-
-use regex::Regex;
-
 use std::str::from_utf8;
 
-use urlencoding::decode;
-
+use actix_web::{get, HttpRequest, HttpResponse, HttpResponseBuilder, post, web};
 use http::StatusCode;
 use lazy_static::lazy_static;
-use matrix_sdk::ruma::{UserId, OwnedUserId};
+use log::info;
+use matrix_sdk::Client;
+use matrix_sdk::ruma::OwnedUserId;
+use matrix_sdk::ruma::api::client::error::{ErrorBody, ErrorKind};
+use regex::Regex;
+use urlencoding::decode;
 use yaserde::de::from_str;
 use yaserde::ser::to_string;
 
-use crate::generated::ppcrl_webservice::factories::RST2ResponseFactory;
 use crate::generated::ppcrl_webservice::*;
+use crate::generated::ppcrl_webservice::factories::RST2ResponseFactory;
 use crate::models::msn_user::MSNUser;
 use crate::models::owned_user_id_traits::FromMsnAddr;
-use crate::models::uuid::UUID;
-
-use crate::utils::identifiers::{get_matrix_device_id};
-
+use crate::utils::identifiers::get_matrix_device_id;
 
 use super::error::WebError;
 

@@ -1,4 +1,4 @@
-use std::{sync::{Mutex, RwLock}, collections::HashMap};
+use std::{collections::HashMap, sync::RwLock};
 
 use crate::models::switchboard::switchboard::Switchboard;
 

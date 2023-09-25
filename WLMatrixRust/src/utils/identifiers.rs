@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use matrix_sdk::ruma::{OwnedUserId, UserId, OwnedRoomId, RoomId};
+use matrix_sdk::ruma::{OwnedRoomId, RoomId};
 use rand::Rng;
 use regex::Regex;
 

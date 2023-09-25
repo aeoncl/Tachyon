@@ -1,6 +1,6 @@
 use std::{str::Utf8Error, string::FromUtf8Error};
 
-use actix_web::{HttpResponse, ResponseError, body::BoxBody};
+use actix_web::{HttpResponse, ResponseError};
 use base64::DecodeError;
 use http::StatusCode;
 use matrix_sdk::ClientBuildError;

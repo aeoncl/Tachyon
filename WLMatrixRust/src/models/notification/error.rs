@@ -1,4 +1,4 @@
-use matrix_sdk::{HttpResult, HttpError};
+use matrix_sdk::HttpError;
 
 use crate::models::errors::Errors;
 

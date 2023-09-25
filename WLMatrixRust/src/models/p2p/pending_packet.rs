@@ -1,10 +1,6 @@
-use core::fmt;
-
-use byteorder::{LittleEndian, ByteOrder};
-use crate::models::{msn_user::MSNUser, errors::Errors};
+use crate::models::{errors::Errors, msn_user::MSNUser};
 
 use super::p2p_transport_packet::P2PTransportPacket;
-
 
 #[derive(Clone, Debug)]
 pub struct PendingPacket {
