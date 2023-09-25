@@ -86,7 +86,7 @@ impl P2PCommandParser {
         return P2PTransportPacket::extract_payload_length(data);
     }
 
-    fn parseNonce(&self, data: &[u8]) -> Result<P2PCommand, Errors> {
+    fn parse_nonce(&self, data: &[u8]) -> Result<P2PCommand, Errors> {
         if data.len() >= 16 {
             let nonce = data[0..16].to_owned();
             return Ok(P2PCommand::nonce(nonce));
@@ -156,7 +156,7 @@ impl P2PCommandParser {
                                 }
                             } else {
                                 // We have a Nonce packet
-                                if let Ok(nonce_packet) = self.parseNonce(content) {
+                                if let Ok(nonce_packet) = self.parse_nonce(content) {
                                     out.push(nonce_packet);
                                 } else {
                                     warn!("malformed P2P nonce packet : len: {}, content: {:?}", payload_size, content);

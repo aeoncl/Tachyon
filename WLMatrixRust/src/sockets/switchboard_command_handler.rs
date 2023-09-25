@@ -5,7 +5,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use base64::{Engine, engine::general_purpose};
 use log::{error, info};
-use matrix_sdk::Client;
+use matrix_sdk::{Client, RoomMemberships};
 use matrix_sdk::config::RequestConfig;
 use matrix_sdk::media::{MediaFormat, MediaRequest};
 use matrix_sdk::ruma::{OwnedUserId, UserId};
@@ -190,7 +190,7 @@ impl SwitchboardCommandHandler {
             .unwrap()
             .get_room(&room_id)
         {
-            room_members = room.joined_members().await.unwrap().into_iter().map(|member| {
+            room_members = room.members(RoomMemberships::JOIN).await.unwrap().into_iter().map(|member| {
                 member.user_id().to_owned()
             }).collect();
         } else {

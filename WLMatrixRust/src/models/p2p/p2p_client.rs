@@ -418,36 +418,36 @@ impl P2PClient {
             let chunk = chunks[i];
             remaining_bytes -= chunk.len();
 
-            let mut payloadToAdd = P2PPayload::new(payload.tf_combination, payload.session_id);
-            payloadToAdd.package_number = payload.get_package_number();
-            payloadToAdd.payload = chunk.to_vec();
-            payloadToAdd.session_id = payload.session_id;
+            let mut payload_to_add = P2PPayload::new(payload.tf_combination, payload.session_id);
+            payload_to_add.package_number = payload.get_package_number();
+            payload_to_add.payload = chunk.to_vec();
+            payload_to_add.session_id = payload.session_id;
 
-            let mut toAdd: P2PTransportPacket = P2PTransportPacket::new(0, None);
+            let mut to_add: P2PTransportPacket = P2PTransportPacket::new(0, None);
 
             if i < chunks.len() - 1 {
                 //We need to add the remaining bytes TLV
-                payloadToAdd.add_tlv(TLVFactory::get_untransfered_data_size(
+                payload_to_add.add_tlv(TLVFactory::get_untransfered_data_size(
                     remaining_bytes.try_into().unwrap(),
                 ));
                 info!("remainingBytes: {}", remaining_bytes);
             }
 
             if i == 0 {
-                toAdd.op_code = to_split.op_code;
-                toAdd.tlvs = to_split.tlvs.clone();
-                toAdd.set_payload(Some(payloadToAdd));
+                to_add.op_code = to_split.op_code;
+                to_add.tlvs = to_split.tlvs.clone();
+                to_add.set_payload(Some(payload_to_add));
                 //We are creating the first packet
             } else {
-                payloadToAdd.tf_combination = payloadToAdd.tf_combination - 1;
-                toAdd.set_payload(Some(payloadToAdd));
+                payload_to_add.tf_combination = payload_to_add.tf_combination - 1;
+                to_add.set_payload(Some(payload_to_add));
                 //We are creating other packets
             }
 
-            toAdd.sequence_number = self.get_seq_number();
-            self.set_seq_number(self.get_seq_number() + toAdd.get_payload_length());
+            to_add.sequence_number = self.get_seq_number();
+            self.set_seq_number(self.get_seq_number() + to_add.get_payload_length());
 
-            out.push(toAdd);
+            out.push(to_add);
         }
 
         return out;
@@ -592,7 +592,7 @@ impl P2PClient {
 
             match euf_guid {
                 EufGUID::FileTransfer => {
-                    if app_id.expect("AppId to be present here") == AppID::FILE_TRANSFER {
+                    if app_id.expect("AppId to be present here") == AppID::FileTransfer {
                         let context = slp_payload.get_context_as_preview_data().expect("Preview Data to be present here");
 
                             self.inner
@@ -608,7 +608,7 @@ impl P2PClient {
                 },
                 EufGUID::MSNObject => {
                     let context = *slp_payload.get_context_as_msnobj().expect("MSNObject to be present here");
-                    if app_id.expect("AppId to be present here") == AppID::DISPLAY_PICTURE_TRANSFER {
+                    if app_id.expect("AppId to be present here") == AppID::DisplayPictureTransfer {
                         self.inner.sender.send(P2PEvent::MSNObjectRequested(MSNObjectRequestedEventContent{
                             msn_object: context,
                             session_id: session_id,

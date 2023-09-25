@@ -209,7 +209,7 @@ fn get_size_or_default(content: &FileMessageEventContent) -> usize {
 
 async fn handle_directs(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, room: &Room, client: &Client, mtx_token: &String, msn_addr: &String) -> bool {
 
-    let joined_members = room.joined_members().await.unwrap_or(Vec::new());
+    let joined_members = room.members(RoomMemberships::JOIN).await.unwrap_or(Vec::new());
 
     let mut notify_ab = false;
     if joined_members.len() >= 0 && joined_members.len() <= 2 {
@@ -537,7 +537,7 @@ async fn handle_sync_typing_event(ev: SyncTypingEvent, room: Room, client: Clien
 async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, room: Room, client: Client, event_sender: Sender<NotificationEvent>) {
     if let SyncRoomMessageEvent::Original(ev) = ev {
     
-        let joined_members = room.joined_members().await.unwrap_or(Vec::new());
+        let joined_members = room.members(RoomMemberships::JOIN).await.unwrap_or(Vec::new());
 
         let debug = room.is_direct();
         let debug_len = joined_members.len();
