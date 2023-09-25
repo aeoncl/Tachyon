@@ -1,19 +1,17 @@
-use std::{str::{from_utf8, from_utf8_unchecked}, ffi::{CString, OsString}};
+use std::str::from_utf8_unchecked;
 
-use log::{warn, info};
+use async_trait::async_trait;
+use log::info;
 use tokio::{
-    io::{AsyncWriteExt, BufReader, AsyncReadExt},
+    io::{AsyncReadExt, AsyncWriteExt, BufReader},
     net::TcpListener,
     sync::broadcast::{self, Sender},
 };
 
-use async_trait::async_trait;
-
-
 use crate::{models::uuid::UUID, sockets::msnp_command::MSNPCommand};
 
 use super::{
-    msnp_command::{MSNPCommandParser}, tcpserver::TCPServer, switchboard_command_handler::SwitchboardCommandHandler, command_handler::CommandHandler, events::socket_event::SocketEvent,
+    command_handler::CommandHandler, events::socket_event::SocketEvent, msnp_command::MSNPCommandParser, switchboard_command_handler::SwitchboardCommandHandler, tcpserver::TCPServer,
 };
 
 pub struct SwitchboardServer {

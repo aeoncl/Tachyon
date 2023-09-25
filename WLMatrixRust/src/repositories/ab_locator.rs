@@ -1,8 +1,8 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
-use tokio::sync::broadcast::{Receiver, Sender, self};
+use tokio::sync::broadcast::{self, Receiver, Sender};
 
-use crate::{models::abch::events::{AddressBookEvent, ContactEventContent}, generated::msnab_datatypes::types::ContactType};
+use crate::{generated::msnab_datatypes::types::ContactType, models::abch::events::AddressBookEvent};
 
 pub struct ABLocator {
     contact_receiver: Mutex<Receiver<AddressBookEvent>>,

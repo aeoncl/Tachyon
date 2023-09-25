@@ -1,6 +1,6 @@
 use std::{char::decode_utf16, fmt::Display};
 
-use byteorder::{LittleEndian, ByteOrder};
+use byteorder::{ByteOrder, LittleEndian};
 
 use crate::utils;
 
@@ -104,7 +104,6 @@ impl Display for PreviewData {
 #[cfg(test)]
 mod tests {
     use super::{PreviewData, SlpContext};
-
 
     #[test]
     fn preview_data_deserialization_test() {

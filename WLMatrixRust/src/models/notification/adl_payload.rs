@@ -1,10 +1,10 @@
-use std::{fmt::Display, str::FromStr, collections::HashMap};
+use std::{fmt::Display, str::FromStr};
 
 use substring::Substring;
-use yaserde::{ser::{to_string, to_string_with_config}, de::from_str};
-use yaserde_derive::{YaSerialize, YaDeserialize};
+use yaserde::{de::from_str, ser::to_string_with_config};
+use yaserde_derive::{YaDeserialize, YaSerialize};
 
-use crate::{generated::msnab_datatypes::types::RoleId, models::{errors::Errors, msn_user::PartialMSNUser}};
+use crate::{generated::msnab_datatypes::types::RoleId, models::errors::Errors};
 
 #[derive(Debug, Clone, Default, YaSerialize, YaDeserialize)]
 #[yaserde(rename = "ml")]
@@ -118,10 +118,7 @@ impl ADLPayload {
 mod tests {
     use std::str::FromStr;
 
-    use crate::{generated::msnab_datatypes::types::RoleId, models::msn_user::PartialMSNUser};
-
     use super::ADLPayload;
-
 
     #[test]
     fn test_deserialize() {

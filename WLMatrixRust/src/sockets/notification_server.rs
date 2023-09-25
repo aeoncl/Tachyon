@@ -1,21 +1,18 @@
-use std::{str::{from_utf8_unchecked}};
+use std::str::from_utf8_unchecked;
 
+use async_trait::async_trait;
 use log::info;
 use tokio::{
-    io::{AsyncWriteExt, BufReader, AsyncReadExt},
+    io::{AsyncReadExt, AsyncWriteExt, BufReader},
     net::TcpListener,
     sync::broadcast::{self, Sender},
 };
 
-use async_trait::async_trait;
-
-
-use crate::{sockets::msnp_command::MSNPCommand};
+use crate::sockets::msnp_command::MSNPCommand;
 
 use super::{
-    msnp_command::{MSNPCommandParser}, tcpserver::TCPServer, notification_command_handler::NotificationCommandHandler, command_handler::CommandHandler
+    command_handler::CommandHandler, msnp_command::MSNPCommandParser, notification_command_handler::NotificationCommandHandler, tcpserver::TCPServer
 };
-
 
 pub struct NotificationServer {
     url: String,

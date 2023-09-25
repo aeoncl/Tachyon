@@ -1,13 +1,13 @@
-use std::{fmt::{Display, self}, convert::Infallible, str::FromStr};
+use std::{fmt::{self, Display}, str::FromStr};
 
-use byteorder::{LittleEndian, ByteOrder};
-use matrix_sdk::ruma::serde::json_string::serialize;
-use sha1::{Sha1, Digest};
 use base64::{Engine, engine::general_purpose};
+use byteorder::ByteOrder;
+use sha1::{Digest, Sha1};
 use strum_macros::EnumString;
 use substring::Substring;
-use yaserde::{de::{self, from_str}, ser::{to_string, to_string_with_config}};
-use yaserde_derive::{YaSerialize, YaDeserialize};
+use yaserde::{de::{self, from_str}, ser::to_string_with_config};
+use yaserde_derive::{YaDeserialize, YaSerialize};
+
 use super::{errors::Errors, p2p::slp_context::SlpContext};
 
 // Documentation source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/MSN_Object
@@ -70,7 +70,7 @@ pub struct MSNObject {
     pub avatarcontentid: Option<String>,
 
     /* Not serialized  */
-    pub computeSha1c: bool,
+    pub compute_sha1c: bool,
 
 }
 
@@ -107,7 +107,7 @@ impl yaserde::YaSerialize for &MSNObject {
         let friendly = self.get_friendly_base64_or_default();
         let mut elem = xml::writer::XmlEvent::start_element("msnobj").attr("Creator", &self.creator).attr("Type", &obj_type).attr("SHA1D", &self.sha1d).attr("Size", &size).attr("Location", &self.location).attr("Friendly", &friendly);
         let sha1c = self.get_sha1c();
-        if self.computeSha1c {
+        if self.compute_sha1c {
             elem = elem.attr("SHA1C", &sha1c);
         }
 
@@ -138,8 +138,8 @@ impl yaserde::YaSerialize for &MSNObject {
 }
 
 impl MSNObject {
-    pub fn new(creator: String, obj_type: MSNObjectType, location: String, sha1d: String, size: usize, friendly: Option<String>, contenttype: Option<MSNObjectContentType>, computeSha1c: bool) -> Self {
-        return Self{ creator, size: size.try_into().unwrap(), obj_type, location, friendly, sha1d, contenttype, contentid: None, partnerid: None, stamp: None, avatarid: None, avatarcontentid: None, computeSha1c };
+    pub fn new(creator: String, obj_type: MSNObjectType, location: String, sha1d: String, size: usize, friendly: Option<String>, contenttype: Option<MSNObjectContentType>, compute_sha1c: bool) -> Self {
+        return Self{ creator, size: size.try_into().unwrap(), obj_type, location, friendly, sha1d, contenttype, contentid: None, partnerid: None, stamp: None, avatarid: None, avatarcontentid: None, compute_sha1c };
     }
 
     fn get_friendly_base64_or_default(&self) -> String {
@@ -170,8 +170,8 @@ impl MSNObject {
     }
 
     fn get_sha1c(&self) -> String {
-        let sha1Input = format!("Creator{creator}Type{obj_type}SHA1D{sha1d}Size{size}Location{location}Friendly{friendly}", creator = &self.creator, size = &self.size, obj_type = self.obj_type.clone() as i32, location = &self.location, friendly = self.get_friendly_base64_or_default(), sha1d = &self.sha1d);
-        return MSNObjectFactory::compute_sha1(sha1Input.as_bytes());
+        let sha1_input = format!("Creator{creator}Type{obj_type}SHA1D{sha1d}Size{size}Location{location}Friendly{friendly}", creator = &self.creator, size = &self.size, obj_type = self.obj_type.clone() as i32, location = &self.location, friendly = self.get_friendly_base64_or_default(), sha1d = &self.sha1d);
+        return MSNObjectFactory::compute_sha1(sha1_input.as_bytes());
     }
 }
 
@@ -322,10 +322,9 @@ impl MSNObjectFactory {
 }
 
 mod tests {
-    use crate::models::{msn_object::{MSNObject, MSNObjectType}, p2p::slp_context::SlpContext};
+    use crate::models::{msn_object::MSNObject, p2p::slp_context::SlpContext};
 
     use super::MSNObjectFactory;
-
 
     lazy_static_include_bytes! {
         AVATAR_BYTES => "assets/img/avatar.jpg"

@@ -1,4 +1,4 @@
-use yaserde_derive::{YaSerialize, YaDeserialize};
+use yaserde_derive::{YaDeserialize, YaSerialize};
 
 #[derive(Debug, Default, YaSerialize, YaDeserialize)]
 #[yaserde(
@@ -594,10 +594,12 @@ pub struct RequestSecurityToken {
 pub mod factories {
     use std::ops::Add;
 
-    use crate::models::uuid::UUID;
-    use chrono::{DateTime, Local, Duration};
-    use super::*;
+    use chrono::{DateTime, Duration, Local};
     use lazy_static::lazy_static;
+
+    use crate::models::uuid::UUID;
+
+    use super::*;
 
     lazy_static! {
         pub static ref AUTH_ERROR: String = String::from("<?xml version=\"1.0\" encoding=\"utf-8\" ?><S:Envelope xmlns:S=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\" xmlns:wst=\"http://schemas.xmlsoap.org/ws/2005/02/trust\" xmlns:psf=\"http://schemas.microsoft.com/Passport/SoapServices/SOAPFault\"><S:Header><psf:pp xmlns:psf=\"http://schemas.microsoft.com/Passport/SoapServices/SOAPFault\"><psf:serverVersion>1</psf:serverVersion><psf:authstate>0x80048800</psf:authstate><psf:reqstatus>0x80048821</psf:reqstatus><psf:serverInfo Path=\"Live1\" RollingUpgradeState=\"ExclusiveNew\" LocVersion=\"0\" ServerTime=\"{{server_time}}\" BuildVersion=\"16.0.28426.6\">XYZPPLOGN1A23 2017.09.28.12.44.07</psf:serverInfo><psf:cookies/><psf:response/></psf:pp></S:Header><S:Body><S:Fault><S:Code><S:Value>S:Sender</S:Value><S:Subcode><S:Value>wst:FailedAuthentication</S:Value></S:Subcode></S:Code><S:Reason><S:Text xml:lang=\"en-US\">Authentication Failure</S:Text></S:Reason><S:Detail><psf:error><psf:value>0x80048821</psf:value><psf:internalerror><psf:code>0x80041012</psf:code><psf:text>The entered and stored passwords do not match.&#x000D;&#x000A;</psf:text></psf:internalerror></psf:error></S:Detail></S:Fault></S:Body></S:Envelope>");
@@ -703,13 +705,12 @@ pub mod factories {
 
 #[cfg(test)]
 mod tests {
-    use log::{warn, debug};
     use yaserde::de::from_str;
     use yaserde::ser::to_string;
 
-    use crate::{generated::ppcrl_webservice::{RST2ResponseMessageHeader, RST2ResponseMessageSoapEnvelope, ActionHeader, Timestamp, SecurityHeader, PassportProperties, ServerInfo, RST2ResponseMessageBody, RequestSecurityTokenResponseCollection, RequestSecurityTokenResponse, AppliesTo, EndpointReference, Lifetime, RequestedSecurityToken, RequestedAttachedReference, SecurityTokenReference, Reference, RequestedProofToken}, models::uuid::UUID};
+    use crate::{generated::ppcrl_webservice::{ActionHeader, AppliesTo, EndpointReference, Lifetime, PassportProperties, Reference, RequestedAttachedReference, RequestedProofToken, RequestedSecurityToken, RequestSecurityTokenResponse, RequestSecurityTokenResponseCollection, RST2ResponseMessageBody, RST2ResponseMessageHeader, RST2ResponseMessageSoapEnvelope, SecurityHeader, SecurityTokenReference, ServerInfo, Timestamp}, models::uuid::UUID};
 
-    use super::{EncryptedData, EncryptionMethod, KeyInfo, CipherData, RST2RequestMessageSoapEnvelope, factories::RST2ResponseFactory};
+    use super::{CipherData, EncryptedData, EncryptionMethod, factories::RST2ResponseFactory, KeyInfo, RST2RequestMessageSoapEnvelope};
 
     #[test]
     fn test_rst2_request() {

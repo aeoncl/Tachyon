@@ -1,5 +1,3 @@
-use byteorder::{ByteOrder, LittleEndian};
-
 use crate::models::{msn_user::MSNUser, p2p::p2p_transport_packet::P2PTransportPacket};
 
 #[derive(Clone, Debug)]

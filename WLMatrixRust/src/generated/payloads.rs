@@ -1,12 +1,12 @@
-use std::{io::Read, convert::Infallible, fmt::{Display}, str::FromStr};
+use std::{convert::Infallible, fmt::Display, io::Read, str::FromStr};
 
 use matrix_sdk::ruma::presence::PresenceState;
-use strum_macros::{ToString, EnumString};
+use strum_macros::{EnumString, ToString};
 use substring::Substring;
 use yaserde::{de::{self, from_str}, ser::to_string};
-use yaserde_derive::{YaSerialize, YaDeserialize};
-use crate::models::{errors::Errors, capabilities::ClientCapabilities};
+use yaserde_derive::{YaDeserialize, YaSerialize};
 
+use crate::models::{capabilities::ClientCapabilities, errors::Errors};
 
 #[derive(Debug, Clone, Default, YaSerialize, YaDeserialize)]
 
@@ -377,8 +377,7 @@ pub mod factories {
 
     use crate::models::uuid::UUID;
 
-    use super::{NotificationPayload, Message, NotificationData, Recipient, Via, Url};
-
+    use super::{Message, NotificationData, NotificationPayload, Recipient, Url, Via};
 
     pub struct NotificationFactory;
 
@@ -424,13 +423,7 @@ pub mod factories {
 mod tests {
     use std::str::FromStr;
 
-    use chrono::Local;
-    use yaserde::ser::to_string;
-
-    use crate::{generated::payloads::{PrivateEndpointData, ClientType, PresenceStatus, EndpointData, factories::NotificationFactory}, models::{capabilities::ClientCapabilities, msn_user::MSNUser}};
-
-    use super::{NotificationPayload, Recipient, Via, Message, Url, NotificationData};
-
+    use crate::{generated::payloads::{ClientType, EndpointData, factories::NotificationFactory, PresenceStatus, PrivateEndpointData}, models::msn_user::MSNUser};
 
     #[test]
  fn test_private_endpoint_data() {

@@ -1,7 +1,6 @@
-use std::{str::FromStr, fmt::Display};
+use std::{fmt::Display, str::FromStr};
 
 use super::errors;
-use yaserde_derive::{YaSerialize, YaDeserialize};
 
 /** Source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/Client_Capabilities */
 
@@ -204,8 +203,6 @@ mod tests {
     use crate::models::capabilities::{Capabilities, ExtendedCapabilities};
 
     use super::{ClientCapabilities, ClientCapabilitiesFactory};
-
-
 
     #[test]
     fn test_deserialize() {

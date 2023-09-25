@@ -1,6 +1,7 @@
-use std::{sync::RwLock};
+use std::sync::RwLock;
 
 use matrix_sdk::Client;
+
 pub struct MatrixClientLocator {
     data : RwLock<Option<Client>>
 }

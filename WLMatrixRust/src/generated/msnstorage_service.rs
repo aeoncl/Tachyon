@@ -6,13 +6,15 @@
 
             #![allow(dead_code)]           
             #![allow(unused_imports)]
-            use yaserde_derive::{YaSerialize, YaDeserialize};
-            use std::io::{Read, Write};
-            use log::{warn, debug};
 
-            use self::types::{StorageUserHeader, StorageApplicationHeader, AffinityCacheHeader};
-            
-            pub const SOAP_ENCODING: &str = "http://www.w3.org/2003/05/soap-encoding";
+use std::io::{Read, Write};
+
+use log::{debug, warn};
+use yaserde_derive::{YaDeserialize, YaSerialize};
+
+use self::types::{AffinityCacheHeader, StorageApplicationHeader, StorageUserHeader};
+
+pub const SOAP_ENCODING: &str = "http://www.w3.org/2003/05/soap-encoding";
             #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 pub struct Header {
 }
@@ -66,12 +68,14 @@ impl std::fmt::Display for SoapFault {
 pub type SoapResponse = Result<(reqwest::StatusCode, String), reqwest::Error>;
 
 pub mod messages {
-use yaserde::{YaSerialize, YaDeserialize};
-            use yaserde::de::from_str;
-            use async_trait::async_trait;
-            use yaserde::ser::to_string;
-            use super::*;
-            #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
+    use async_trait::async_trait;
+    use yaserde::{YaDeserialize, YaSerialize};
+    use yaserde::de::from_str;
+    use yaserde::ser::to_string;
+
+    use super::*;
+
+    #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 	rename = "SSHeader",
 )]
@@ -205,14 +209,16 @@ pub struct DeleteRelationshipsMessage {
 }
 
 pub mod types {
-use yaserde::{YaSerialize, YaDeserialize};
-            use yaserde::de::from_str;
-            use async_trait::async_trait;
-            use yaserde::ser::to_string;
-            use crate::generated::msnstorage_datatypes::types::{Handle, DocumentBaseType, Relationship, ExpressionProfileAttributesType, ProfileAttributes};
+    use async_trait::async_trait;
+    use yaserde::{YaDeserialize, YaSerialize};
+    use yaserde::de::from_str;
+    use yaserde::ser::to_string;
 
-            use super::*;
-            #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
+    use crate::generated::msnstorage_datatypes::types::{DocumentBaseType, ExpressionProfileAttributesType, Handle, ProfileAttributes, Relationship};
+
+    use super::*;
+
+    #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 	rename = "StorageApplicationHeader",
 	namespace = "nsi1: http://www.msn.com/webservices/storage/2008",
@@ -598,12 +604,14 @@ pub type DeleteRelationshipsResponse = Option<String>;
 }
 
 pub mod ports {
-use yaserde::{YaSerialize, YaDeserialize};
-            use yaserde::de::from_str;
-            use async_trait::async_trait;
-            use yaserde::ser::to_string;
-            use super::*;
-            pub type GetProfileMessage = messages::GetProfileMessage;
+    use async_trait::async_trait;
+    use yaserde::{YaDeserialize, YaSerialize};
+    use yaserde::de::from_str;
+    use yaserde::ser::to_string;
+
+    use super::*;
+
+    pub type GetProfileMessage = messages::GetProfileMessage;
 
 pub type GetProfileResponseMessage = messages::GetProfileResponseMessage;
 
@@ -654,14 +662,15 @@ pub trait StorageServicePortType {
 }
 
 pub mod bindings {
-use log::info;
-use yaserde::{YaSerialize, YaDeserialize};
-            use yaserde::de::from_str;
-            use async_trait::async_trait;
-            use yaserde::ser::to_string;
-            use super::*;
-            
-            impl StorageServiceBinding {
+    use async_trait::async_trait;
+    use log::info;
+    use yaserde::{YaDeserialize, YaSerialize};
+    use yaserde::de::from_str;
+    use yaserde::ser::to_string;
+
+    use super::*;
+
+    impl StorageServiceBinding {
                 async fn send_soap_request<T: YaSerialize>(&self, request: &T, action: &str) -> SoapResponse {
                     let body = to_string(request).expect("failed to generate xml");
                     info!("SOAP Request: {}", body);
@@ -1586,12 +1595,14 @@ use yaserde::{YaSerialize, YaDeserialize};
 }
 
 pub mod services {
-use yaserde::{YaSerialize, YaDeserialize};
-            use yaserde::de::from_str;
-            use async_trait::async_trait;
-            use yaserde::ser::to_string;
-            use super::*;
-            pub struct StorageService {}
+    use async_trait::async_trait;
+    use yaserde::{YaDeserialize, YaSerialize};
+    use yaserde::de::from_str;
+    use yaserde::ser::to_string;
+
+    use super::*;
+
+    pub struct StorageService {}
                impl StorageService {
                 
             pub fn new_client(credentials: Option<(String, String)>) -> bindings::StorageServiceBinding {
@@ -1603,10 +1614,9 @@ use yaserde::{YaSerialize, YaDeserialize};
 pub mod factories {
     use chrono::Local;
 
-    use crate::{generated::{msnstorage_service::{types::{StorageUserHeader, GetProfileResultType, GetProfileResponse, AffinityCacheHeader, ExpressionProfile}, RequestHeaderContainer, bindings::SoapGetProfileResponseMessage, messages::GetProfileResponseMessage}, msnstorage_datatypes::types::{DocumentStream, DocumentStreams, DocumentBaseType}}, models::uuid::UUID};
+    use crate::{generated::{msnstorage_datatypes::types::{DocumentBaseType, DocumentStream, DocumentStreams}, msnstorage_service::{bindings::SoapGetProfileResponseMessage, messages::GetProfileResponseMessage, RequestHeaderContainer, types::{AffinityCacheHeader, ExpressionProfile, GetProfileResponse, GetProfileResultType, StorageUserHeader}}}, models::uuid::UUID};
 
-    use super::bindings::{GetProfileResponseMessageSoapEnvelope, UpdateDocumentResponseMessageSoapEnvelope, SoapUpdateDocumentResponseMessage, UpdateProfileResponseMessageSoapEnvelope, SoapUpdateProfileResponseMessage, DeleteRelationshipsResponseMessageSoapEnvelope, SoapDeleteRelationshipsResponseMessage};
-
+    use super::bindings::{DeleteRelationshipsResponseMessageSoapEnvelope, GetProfileResponseMessageSoapEnvelope, SoapDeleteRelationshipsResponseMessage, SoapUpdateDocumentResponseMessage, SoapUpdateProfileResponseMessage, UpdateDocumentResponseMessageSoapEnvelope, UpdateProfileResponseMessageSoapEnvelope};
 
     pub struct GetProfileResponseFactory;
 
@@ -1700,14 +1710,13 @@ pub mod factories {
 
 #[cfg(test)]
 mod tests {
-    use log::{warn, debug};
+    use log::{debug, warn};
     use yaserde::de::from_str;
     use yaserde::ser::to_string;
 
-    use crate::{generated::{msnstorage_datatypes::types::{DocumentBaseType, DocumentStreams, DocumentStream}, msnstorage_service::bindings::{DeleteRelationshipsResponseMessageSoapEnvelope, SoapDeleteRelationshipsResponseMessage}}, models::uuid::UUID};
+    use crate::{generated::{msnstorage_datatypes::types::{DocumentBaseType, DocumentStream, DocumentStreams}, msnstorage_service::bindings::{DeleteRelationshipsResponseMessageSoapEnvelope, SoapDeleteRelationshipsResponseMessage}}, models::uuid::UUID};
 
-    use super::{bindings::{GetProfileMessageSoapEnvelope, GetProfileResponseMessageSoapEnvelope, SoapGetProfileResponseMessage, UpdateDocumentMessageSoapEnvelope, UpdateDocumentResponseMessageSoapEnvelope, SoapUpdateDocumentResponseMessage, UpdateProfileMessageSoapEnvelope, UpdateProfileResponseMessageSoapEnvelope, SoapUpdateProfileResponseMessage, DeleteRelationshipsMessageSoapEnvelope}, RequestHeaderContainer, types::{AffinityCacheHeader, StorageApplicationHeader, StorageUserHeader, GetProfileResponse, GetProfileResultType, ExpressionProfile}, messages::GetProfileResponseMessage};
-
+    use super::{bindings::{DeleteRelationshipsMessageSoapEnvelope, GetProfileMessageSoapEnvelope, GetProfileResponseMessageSoapEnvelope, SoapGetProfileResponseMessage, SoapUpdateDocumentResponseMessage, SoapUpdateProfileResponseMessage, UpdateDocumentMessageSoapEnvelope, UpdateDocumentResponseMessageSoapEnvelope, UpdateProfileMessageSoapEnvelope, UpdateProfileResponseMessageSoapEnvelope}, messages::GetProfileResponseMessage, RequestHeaderContainer, types::{AffinityCacheHeader, ExpressionProfile, GetProfileResponse, GetProfileResultType, StorageApplicationHeader, StorageUserHeader}};
 
     #[test]
     fn test_get_profile_request() {

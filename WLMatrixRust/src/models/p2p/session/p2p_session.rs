@@ -2,7 +2,6 @@ use crate::models::{msn_user::MSNUser, p2p::pending_packet::PendingPacket};
 
 use super::{p2p_session_type::P2PSessionType, p2p_status::P2PSessionStatus};
 
-
 #[derive(Clone, Debug)]
 pub struct P2PSession {
     session_type: P2PSessionType,

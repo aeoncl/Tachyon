@@ -1,17 +1,16 @@
-use std::{str::{from_utf8, FromStr}, sync::Arc};
+use std::{str::{from_utf8, FromStr}};
 
-use actix_web::{post, web, HttpRequest, HttpResponse, HttpResponseBuilder, get};
+use actix_web::{get, HttpRequest, HttpResponse, HttpResponseBuilder, post, web};
 use base64::{Engine, engine::general_purpose};
 use http::{header::HeaderName, StatusCode};
 use js_int::UInt;
 use log::info;
-use matrix_sdk::{ruma::{MxcUri, events::room::MediaSource, api::client::media::get_content_thumbnail::v3::Method}, Client, media::{MediaRequest, MediaFormat, MediaThumbnailSize}};
+use matrix_sdk::{Client, media::{MediaFormat, MediaRequest, MediaThumbnailSize}, ruma::{api::client::media::get_content_thumbnail::v3::Method, events::room::MediaSource, MxcUri}};
 use mime::Mime;
 use substring::Substring;
-use yaserde::{ser::to_string, de::from_str};
-use crate::{web::{error::WebError, webserver::{DEFAULT_CACHE_KEY}}, generated::msnstorage_service::{bindings::{GetProfileMessageSoapEnvelope, DeleteRelationshipsMessageSoapEnvelope, UpdateProfileMessageSoapEnvelope, UpdateDocumentMessageSoapEnvelope}, factories::{GetProfileResponseFactory, UpdateDocumentResponseFactory, DeleteRelationshipsResponseFactory, UpdateProfileResponseFactory}, types::StorageUserHeader}, repositories::{repository::Repository}, models::uuid::UUID, utils::identifiers::{parse_mxc}, MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
+use yaserde::{de::from_str, ser::to_string};
 
-
+use crate::{generated::msnstorage_service::{bindings::{DeleteRelationshipsMessageSoapEnvelope, GetProfileMessageSoapEnvelope, UpdateDocumentMessageSoapEnvelope, UpdateProfileMessageSoapEnvelope}, factories::{DeleteRelationshipsResponseFactory, GetProfileResponseFactory, UpdateDocumentResponseFactory, UpdateProfileResponseFactory}, types::StorageUserHeader}, MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR, repositories::repository::Repository, utils::identifiers::parse_mxc, web::{error::WebError, webserver::DEFAULT_CACHE_KEY}};
 
 #[post("/storageservice/SchematizedStore.asmx")]
 pub async fn soap_storage_service(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
@@ -107,7 +106,9 @@ async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<H
     let profile = matrix_client.account().get_profile().await?;
     let display_name = profile.displayname.ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let psm = matrix_client.account().get_presence().await?.status_msg.unwrap_or_default();
+    //let psm = matrix_client.account().get_presence().await?.status_msg.unwrap_or_default();
+    //TODO fetch account data
+    let psm = String::new();
 
     let mut img_mx_id : Option<String> = None;
     if let Some(avatar_url) = &matrix_client.account().get_avatar_url().await?{
@@ -217,8 +218,10 @@ async fn storage_update_profile(body: web::Bytes, request: HttpRequest) -> Resul
     }
 
     let psm = profile.personal_status.unwrap_or(String::new());
-    let presence = matrix_client.account().get_presence().await?;
-    matrix_client.account().set_presence(presence.presence, Some(psm)).await?;
+    //TODO set status message & presence
+    
+    //let presence = matrix_client.account().get_presence().await?;
+    //matrix_client.account().set_presence(presence.presence, Some(psm)).await?;
 
     
 

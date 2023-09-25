@@ -1,4 +1,5 @@
 use std::{collections::HashMap, str::FromStr};
+
 use lazy_static::lazy_static;
 
 use crate::models::errors::Errors;
@@ -113,7 +114,7 @@ impl FromStr for MsgPayload {
 pub mod factories {
     use chrono::Local;
 
-    use crate::models::{uuid::{PUID}, msn_user::MSNUser, p2p::p2p_transport_packet::P2PTransportPacket };
+    use crate::models::{msn_user::MSNUser, p2p::p2p_transport_packet::P2PTransportPacket, uuid::PUID};
 
     use super::MsgPayload;
 
@@ -144,6 +145,7 @@ pub mod factories {
             out.add_header(String::from("ClientPort"), String::from("0"));
             out.add_header(String::from("ABCHMigrated"), String::from("1"));
             out.add_header(String::from("MPOPEnabled"), String::from("1"));
+
             out.disable_trailing_terminators();
 
             return out;
@@ -215,7 +217,6 @@ mod tests {
     use std::str::FromStr;
 
     use crate::models::msg_payload::MsgPayload;
-
 
     #[test]
     fn test() {

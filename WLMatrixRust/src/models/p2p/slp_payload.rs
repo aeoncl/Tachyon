@@ -3,7 +3,7 @@
  * https://code.google.com/archive/p/msnp-sharp/wikis/KB_MSNC12_BinaryHeader.wiki
  */
 
-use std::{str::{FromStr, from_utf8}, fmt::Display};
+use std::{fmt::Display, str::{from_utf8, FromStr}};
 
 use base64::{Engine, engine::general_purpose};
 use linked_hash_map::LinkedHashMap;
@@ -11,9 +11,9 @@ use log::warn;
 use num::FromPrimitive;
 use substring::Substring;
 
-use crate::models::{errors::Errors, msn_user::MSNUser, msn_object::MSNObject};
+use crate::models::{errors::Errors, msn_object::MSNObject, msn_user::MSNUser};
 
-use super::{slp_context::{PreviewData, SlpContext}, app_id::AppID};
+use super::{app_id::AppID, slp_context::{PreviewData, SlpContext}};
 
 #[derive(Clone, Debug)]
 pub struct SlpPayload {

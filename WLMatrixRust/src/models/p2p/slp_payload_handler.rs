@@ -2,7 +2,7 @@ use log::info;
 
 use crate::models::errors::Errors;
 
-use super::{factories::{SlpPayloadFactory, P2PPayloadFactory}, slp_payload::SlpPayload, p2p_payload::P2PPayload};
+use super::{factories::{P2PPayloadFactory, SlpPayloadFactory}, p2p_payload::P2PPayload, slp_payload::SlpPayload};
 
 pub struct SlpPayloadHandler;
 

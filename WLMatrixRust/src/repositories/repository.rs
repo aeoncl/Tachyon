@@ -1,5 +1,4 @@
-use chashmap::{WriteGuard, ReadGuard};
-
+use chashmap::{ReadGuard, WriteGuard};
 
 pub trait Repository<K, V> {
 

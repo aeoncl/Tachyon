@@ -1,5 +1,4 @@
-use crate::generated::msnab_datatypes::types::{ContactType, BaseMember, RoleId};
-
+use crate::generated::msnab_datatypes::types::{BaseMember, ContactType, RoleId};
 
 #[derive(Clone, Debug)]
 pub enum AddressBookEvent {

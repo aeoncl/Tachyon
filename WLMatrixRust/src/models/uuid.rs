@@ -1,8 +1,8 @@
+use std::{fmt::Display, str::FromStr};
 
-use std::{str::FromStr, fmt::Display};
+use byteorder::{ByteOrder, LittleEndian, ReadBytesExt};
+use uuid::Uuid;
 
-use byteorder::{ReadBytesExt, LittleEndian, ByteOrder};
-use uuid::{Uuid};
 use crate::models::notification::error::MsnpErrorCode;
 
 #[derive(Clone, Debug)]

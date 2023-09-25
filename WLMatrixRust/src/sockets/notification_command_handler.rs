@@ -1,30 +1,30 @@
 use std::path::Path;
-use std::str::{FromStr};
-use tokio::task::JoinHandle;
+use std::str::FromStr;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use log::info;
 use matrix_sdk::Client;
 use substring::Substring;
-use async_trait::async_trait;
-use tokio::sync::broadcast::{Sender, self, Receiver};
-use tokio::sync::watch;
-use tokio::{time, task};
-use crate::generated::payloads::{PrivateEndpointData, PresenceStatus};
+use tokio::{task, time};
+use tokio::sync::broadcast::{self, Receiver, Sender};
+use tokio::task::JoinHandle;
 
+use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR};
+use crate::generated::payloads::{PresenceStatus, PrivateEndpointData};
+use crate::models::msg_payload::factories::MsgPayloadFactory;
 use crate::models::msn_user::MSNUser;
 use crate::models::notification::adl_payload::ADLPayload;
 use crate::models::notification::error::{MsnpError, MsnpErrorCode};
 use crate::models::notification::events::notification_event::NotificationEvent;
-use crate::models::notification::msn_client::{MSNClient, self};
+use crate::models::notification::msn_client::MSNClient;
 use crate::models::notification::user_notification_type::UserNotificationType;
 use crate::models::p2p::slp_payload::SlpPayload;
 use crate::models::p2p::slp_payload_handler::SlpPayloadHandler;
+use crate::models::uuid::UUID;
 use crate::models::wlmatrix_client::WLMatrixClient;
 use crate::repositories::repository::Repository;
-use crate::{MSN_CLIENT_LOCATOR, MATRIX_CLIENT_LOCATOR};
-use crate::models::uuid::UUID;
-use crate::models::msg_payload::factories::{MsgPayloadFactory};
+
 use super::command_handler::CommandHandler;
 use super::msnp_command::MSNPCommand;
 
@@ -329,7 +329,8 @@ impl CommandHandler for NotificationCommandHandler {
                 self.msn_client.as_mut().ok_or(MsnpError::internal_server_error(tr_id))?.get_user_mut().set_status(status.clone());
 
                 if let Some(matrix_client) = self.matrix_client.as_ref() {
-                    matrix_client.account().set_presence(status.clone().into(), None).await;
+                    //SET PRESENCE
+                   // matrix_client.account().set_presence(status.clone().into(), None).await;
                 }
 
                 if self.needs_initial_presence {

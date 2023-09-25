@@ -1,7 +1,5 @@
 use crate::models::msn_object::MSNObject;
 
-
-
 #[derive(Clone, Debug, YaDeserialize, YaSerialize, Default)]
 #[yaserde(rename = "map")]
 pub struct Map {

@@ -1,8 +1,8 @@
-use matrix_sdk::ruma::{OwnedUserId};
+use matrix_sdk::ruma::OwnedUserId;
 
-use crate::{generated::payloads::PresenceStatus};
+use crate::generated::payloads::PresenceStatus;
 
-use super::{uuid::{UUID, PUID}, capabilities::{ClientCapabilitiesFactory, ClientCapabilities}, errors::Errors, msn_object::MSNObject, owned_user_id_traits::{FromMsnAddr, ToMsnAddr}};
+use super::{capabilities::{ClientCapabilities, ClientCapabilitiesFactory}, errors::Errors, msn_object::MSNObject, owned_user_id_traits::{FromMsnAddr, ToMsnAddr}, uuid::{PUID, UUID}};
 
 #[derive(Clone, Debug)]
 pub struct PartialMSNUser {

@@ -1,15 +1,12 @@
-use std::{str::{from_utf8, FromStr}, sync::Arc};
+use std::{str::{from_utf8, FromStr}};
 
-use actix_web::{post, HttpRequest, web, HttpResponse, HttpResponseBuilder};
+use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, post, web};
 use http::{header::HeaderName, StatusCode};
 use log::{info, warn};
 use substring::Substring;
-use yaserde::{ser::to_string, de::from_str};
+use yaserde::{de::from_str, ser::to_string};
 
-
-use crate::{web::{error::WebError, webserver::DEFAULT_CACHE_KEY}, generated::{msnab_sharingservice::{bindings::{FindMembershipMessageSoapEnvelope, FindMembershipResponseMessageSoapEnvelope}, factories::FindMembershipResponseFactory}, msnab_datatypes::types::{BaseMember, RoleId}}, repositories::{repository::Repository}, models::{uuid::UUID, abch::events::AddressBookEvent}, MSN_CLIENT_LOCATOR, AB_LOCATOR};
-
-
+use crate::{AB_LOCATOR, generated::{msnab_datatypes::types::{BaseMember, RoleId}, msnab_sharingservice::{bindings::{FindMembershipMessageSoapEnvelope, FindMembershipResponseMessageSoapEnvelope}, factories::FindMembershipResponseFactory}}, models::abch::events::AddressBookEvent, MSN_CLIENT_LOCATOR, repositories::repository::Repository, web::{error::WebError, webserver::DEFAULT_CACHE_KEY}};
 
 #[post("/abservice/SharingService.asmx")]
 pub async fn soap_sharing_service(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {

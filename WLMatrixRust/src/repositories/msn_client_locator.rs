@@ -1,6 +1,7 @@
-use std::{sync::{Mutex}};
+use std::sync::Mutex;
 
 use crate::models::notification::msn_client::MSNClient;
+
 pub struct MSNClientLocator {
     data : Mutex<Option<MSNClient>>
 }

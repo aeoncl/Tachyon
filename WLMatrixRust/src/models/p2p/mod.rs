@@ -14,15 +14,12 @@ pub mod app_id;
 
 pub mod factories {
     use byteorder::{BigEndian, ByteOrder, LittleEndian};
-    use rand::Rng;
 
     use crate::models::{errors::Errors, msn_user::MSNUser, uuid::UUID};
 
-    use super::{slp_payload::{SlpPayload, EufGUID}, p2p_transport_packet::P2PTransportPacket, p2p_payload::P2PPayload, tlv::TLV, slp_context::PreviewData};
+    use super::{p2p_payload::P2PPayload, p2p_transport_packet::P2PTransportPacket, slp_context::PreviewData, slp_payload::{EufGUID, SlpPayload}, tlv::TLV};
 
-
-
-/**
+    /**
  * RT5'}L³E[@
 ÆhÅ6GÆð;ÐvÖPõ¤£UUN 14 aeontest@escargot.chat;{6c03b198-22eb-49f4-b4d6-8eb5567b2e8c} 3 743
 INVITE MSNMSGR:aeontest@escargot.chat;{6c03b198-22eb-49f4-b4d6-8eb5567b2e8c} MSNSLP/1.0
@@ -420,16 +417,17 @@ SessionID: 2216804035
 #[cfg(test)]
 mod tests {
     use std::str::{from_utf8_unchecked, FromStr};
+
     use byteorder::{BigEndian, ByteOrder};
     use log::info;
+
+    use crate::sockets::msnp_command::MSNPCommandParser;
     use crate::models::msg_payload::MsgPayload;
     use crate::models::p2p::p2p_payload::P2PPayload;
     use crate::models::p2p::p2p_transport_packet::P2PTransportPacket;
     use crate::models::p2p::tlv::ValueType;
-    use crate::{sockets::msnp_command::MSNPCommandParser};
 
-
-    use super::factories::{TLVFactory, P2PTransportPacketFactory};
+    use super::factories::{P2PTransportPacketFactory, TLVFactory};
 
     #[test]
     fn test_deserialize_msg_command_containing_slp_payload() {

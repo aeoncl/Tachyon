@@ -1,4 +1,4 @@
-use super::content::{user_joined_event_content::UserJoinedEventContent, initial_roster_event_content::InitialRosterEventContent, typing_user_event_content::TypingUserEventContent, message_event_content::MessageEventContent, file_upload_event_content::FileUploadEventContent, messages_event_content::MessagesEventContent};
+use super::content::{file_upload_event_content::FileUploadEventContent, initial_roster_event_content::InitialRosterEventContent, message_event_content::MessageEventContent, messages_event_content::MessagesEventContent, typing_user_event_content::TypingUserEventContent, user_joined_event_content::UserJoinedEventContent};
 
 #[derive(Clone, Debug)]
 

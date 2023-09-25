@@ -1,4 +1,4 @@
-use crate::models::{p2p::file::File, msn_user::MSNUser};
+use crate::models::p2p::file::File;
 
 #[derive(Clone, Debug)]
 pub struct FileReceivedEventContent {

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::{from_utf8, Utf8Error}};
+use std::collections::HashMap;
 
 use lazy_static::lazy_static;
 
@@ -197,11 +197,7 @@ pub fn emoji_to_smiley(msg: &String) -> String {
 
 #[cfg(test)]
 mod tests {
-    use log::info;
-
-    use crate::utils::emoji::{smiley_to_emoji, emoji_to_smiley};
-
-
+    use crate::utils::emoji::{emoji_to_smiley, smiley_to_emoji};
 
     #[test]
     fn test_smileys_to_emoji() {
