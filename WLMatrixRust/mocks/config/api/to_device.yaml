@@ -1,0 +1,98 @@
+# Copyright 2016 OpenMarket Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+openapi: 3.1.0
+info:
+  title: Matrix Client-Server Send-to-device API
+  version: 1.0.0
+paths:
+  "/sendToDevice/{eventType}/{txnId}":
+    put:
+      summary: Send an event to a given set of devices.
+      description: |-
+        This endpoint is used to send send-to-device events to a set of
+        client devices.
+      operationId: sendToDevice
+      security:
+        - accessToken: []
+      parameters:
+        - in: path
+          name: eventType
+          description: The type of event to send.
+          required: true
+          example: m.new_device
+          schema:
+            type: string
+        - in: path
+          name: txnId
+          description: |-
+            The [transaction ID](/client-server-api/#transaction-identifiers) for this event. Clients should generate an
+            ID unique across requests with the same access token; it will be
+            used by the server to ensure idempotency of requests.
+          required: true
+          example: "35"
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              title: body
+              properties:
+                messages:
+                  type: object
+                  description: |-
+                    The messages to send. A map from user ID, to a map from
+                    device ID to message body. The device ID may also be `*`,
+                    meaning all known devices for the user.
+                  additionalProperties:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      title: EventContent
+                      description: Message content
+                  example:
+                    "@alice:example.com":
+                      TLLBEANAAG:
+                        example_content_key: value
+              required:
+                - messages
+        required: true
+      responses:
+        "200":
+          description: The message was successfully sent.
+          content:
+            application/json:
+              schema:
+                type: object
+              examples:
+                response:
+                  value: {}
+      tags:
+        - Send-to-Device messaging
+servers:
+  - url: "{protocol}://{hostname}{basePath}"
+    variables:
+      protocol:
+        enum:
+          - http
+          - https
+        default: https
+      hostname:
+        default: localhost:8008
+      basePath:
+        default: /_matrix/client/v3
+components:
+  securitySchemes:
+    $ref: definitions/security.yaml

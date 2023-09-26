@@ -3,11 +3,11 @@ use std::{collections::HashSet, path::Path, time::Duration};
 use base64::{Engine, engine::general_purpose};
 use js_int::UInt;
 use log::{info, warn};
-use matrix_sdk::{AuthSession, Client, config::SyncSettings, event_handler::Ctx, room::{Room, RoomMember}, RoomMemberships, RoomState, ruma::{api::{client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::Filter}}, device_id, events::{direct::{DirectEvent, DirectEventContent}, GlobalAccountDataEvent, GlobalAccountDataEventType, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, presence::PresenceEvent, room::{member::{MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent}, message::{FileMessageEventContent, MessageType, RoomMessageEventContent, SyncRoomMessageEvent}}, typing::SyncTypingEvent}, OwnedUserId, presence::PresenceState, RoomId, UserId}};
+use matrix_sdk::{AuthSession, Client, ClientBuilder, config::SyncSettings, event_handler::Ctx, room::{Room, RoomMember}, RoomMemberships, RoomState, ruma::{api::{client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::Filter}}, device_id, events::{direct::{DirectEvent, DirectEventContent}, GlobalAccountDataEvent, GlobalAccountDataEventType, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, presence::PresenceEvent, room::{member::{MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent}, message::{FileMessageEventContent, MessageType, RoomMessageEventContent, SyncRoomMessageEvent}}, typing::SyncTypingEvent}, OwnedUserId, presence::PresenceState, RoomId, UserId}, ServerName};
 use matrix_sdk::matrix_auth::{MatrixSession, MatrixSessionTokens};
 use tokio::sync::{broadcast::Sender, oneshot};
 
-use crate::{AB_LOCATOR, generated::{msnab_datatypes::types::{ArrayOfAnnotation, ContactTypeEnum, MemberState, RoleId}, msnab_sharingservice::factories::{AnnotationFactory, ContactFactory, MemberFactory}, payloads::PresenceStatus}, models::{abch::events::AddressBookEventFactory, msg_payload::factories::MsgPayloadFactory, owned_user_id_traits::ToMsnAddr}, MSN_CLIENT_LOCATOR, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, utils::{emoji::emoji_to_smiley, identifiers::{self, get_matrix_device_id}}};
+use crate::{AB_LOCATOR, generated::{msnab_datatypes::types::{ArrayOfAnnotation, ContactTypeEnum, MemberState, RoleId}, msnab_sharingservice::factories::{AnnotationFactory, ContactFactory, MemberFactory}, payloads::PresenceStatus}, models::{abch::events::AddressBookEventFactory, msg_payload::factories::MsgPayloadFactory, owned_user_id_traits::ToMsnAddr}, MSN_CLIENT_LOCATOR, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, SETTINGS_LOCATOR, utils::{emoji::emoji_to_smiley, identifiers::{self, get_matrix_device_id}}};
 
 use super::{msn_user::MSNUser, notification::{error::MsnpErrorCode, events::notification_event::{NotificationEvent, NotificationEventFactory}}, switchboard::switchboard::Switchboard};
 
@@ -34,16 +34,30 @@ impl Drop for WLMatrixClient {
 
 impl WLMatrixClient {
 
+    pub fn get_matrix_client_builder(server_name: &ServerName) -> ClientBuilder {
+        let homeserver_url = &SETTINGS_LOCATOR.homeserver_url;
+
+        let mut client_builder = Client::builder()
+        .disable_ssl_verification(); //TODO heeheeeee
+
+        if homeserver_url.is_none() {
+            client_builder = client_builder.server_name(server_name)
+        } else {
+            info!("Setting Homeserver on the client");
+            client_builder = client_builder.homeserver_url(&homeserver_url.as_ref().unwrap())
+        }
+
+        return client_builder;
+    }
+
     pub async fn login(matrix_id: OwnedUserId, token: String, store_path: &Path) -> Result<Client, MsnpErrorCode> {
         let device_id = get_matrix_device_id();
         let device_id = device_id!(device_id.as_str()).to_owned();
 
-        match Client::builder()
-            .disable_ssl_verification() //TODO heeheeeee
-            .server_name(matrix_id.server_name())
-            .sqlite_store(store_path, None)
-            .build()
-            .await
+        match Self::get_matrix_client_builder(matrix_id.server_name())
+              .sqlite_store(store_path, None)
+              .build()
+              .await
         {
             Ok(client) => {
                 if let Err(err) = client

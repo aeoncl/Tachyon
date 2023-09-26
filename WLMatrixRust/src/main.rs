@@ -2,6 +2,7 @@
 #[macro_use] extern crate num_derive;
 #[macro_use] extern crate serde_derive;
 
+use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::sync::Arc;
@@ -25,6 +26,8 @@ use crate::repositories::ab_locator::ABLocator;
 use crate::repositories::matrix_client_locator::MatrixClientLocator;
 use crate::repositories::msn_client_locator::MSNClientLocator;
 use crate::repositories::p2p_repository::P2PRepository;
+use crate::repositories::settings_locator::SettingsLocator;
+
 use crate::repositories::repository::Repository;
 use crate::sockets::notification_server::NotificationServer;
 use crate::sockets::switchboard_server::SwitchboardServer;
@@ -42,12 +45,12 @@ lazy_static! {
     static ref MATRIX_CLIENT_LOCATOR: Arc<MatrixClientLocator> = Arc::new(MatrixClientLocator::new());
     static ref AB_LOCATOR : Arc<ABLocator> = Arc::new(ABLocator::new());
     static ref P2P_REPO : Arc<P2PRepository> = Arc::new(P2PRepository::new());
+    static ref SETTINGS_LOCATOR: Arc<SettingsLocator> = Arc::new(SettingsLocator::from(env::args()));
 }
 
 #[tokio::main]
 async fn main() {
-
-    setup_logs();    
+    setup_logs();
 
     let notif_server = NotificationServer::new("127.0.0.1".to_string(), 1863);
     let switchboard_server = SwitchboardServer::new("127.0.0.1".to_string(), 1864);

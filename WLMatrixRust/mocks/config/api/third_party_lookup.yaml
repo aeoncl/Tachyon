@@ -1,0 +1,255 @@
+# Copyright 2018 New Vector Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+openapi: 3.1.0
+info:
+  title: Matrix Client-Server Third-party Lookup API
+  version: 1.0.0
+paths:
+  /thirdparty/protocols:
+    get:
+      summary: Retrieve metadata about all protocols that a homeserver supports.
+      description: |-
+        Fetches the overall metadata about protocols supported by the
+        homeserver. Includes both the available protocols and all fields
+        required for queries against each protocol.
+      operationId: getProtocols
+      security:
+        - accessToken: []
+      responses:
+        "200":
+          description: The protocols supported by the homeserver.
+          content:
+            application/json:
+              schema:
+                $ref: ../application-service/definitions/protocol_metadata.yaml
+      tags:
+        - Third-party Lookup
+  "/thirdparty/protocol/{protocol}":
+    get:
+      summary: Retrieve metadata about a specific protocol that the homeserver supports.
+      description: Fetches the metadata from the homeserver about a particular
+        third-party protocol.
+      operationId: getProtocolMetadata
+      security:
+        - accessToken: []
+      parameters:
+        - in: path
+          name: protocol
+          description: The name of the protocol.
+          required: true
+          example: irc
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The protocol was found and metadata returned.
+          content:
+            application/json:
+              schema:
+                $ref: ../application-service/definitions/protocol.yaml
+        "404":
+          description: The protocol is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: definitions/errors/error.yaml
+              examples:
+                response:
+                  value: {
+                    "errcode": "M_NOT_FOUND"
+                  }
+      tags:
+        - Third-party Lookup
+  "/thirdparty/location/{protocol}":
+    get:
+      summary: Retrieve Matrix-side portals rooms leading to a third-party location.
+      description: |-
+        Requesting this endpoint with a valid protocol name results in a list
+        of successful mapping results in a JSON array. Each result contains
+        objects to represent the Matrix room or rooms that represent a portal
+        to this third-party network. Each has the Matrix room alias string,
+        an identifier for the particular third-party network protocol, and an
+        object containing the network-specific fields that comprise this
+        identifier. It should attempt to canonicalise the identifier as much
+        as reasonably possible given the network type.
+      operationId: queryLocationByProtocol
+      security:
+        - accessToken: []
+      parameters:
+        - in: path
+          name: protocol
+          description: The protocol used to communicate to the third-party network.
+          required: true
+          example: irc
+          schema:
+            type: string
+        - in: query
+          name: searchFields
+          description: |-
+            One or more custom fields to help identify the third-party
+            location.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: At least one portal room was found.
+          content:
+            application/json:
+              schema:
+                $ref: ../application-service/definitions/location_batch.yaml
+        "404":
+          description: No portal rooms were found.
+          content:
+            application/json:
+              schema:
+                $ref: definitions/errors/error.yaml
+              examples:
+                response:
+                  value: {
+                    "errcode": "M_NOT_FOUND"
+                  }
+      tags:
+        - Third-party Lookup
+  "/thirdparty/user/{protocol}":
+    get:
+      summary: Retrieve the Matrix User ID of a corresponding third-party user.
+      description: |-
+        Retrieve a Matrix User ID linked to a user on the third-party service, given
+        a set of user parameters.
+      operationId: queryUserByProtocol
+      security:
+        - accessToken: []
+      parameters:
+        - in: path
+          name: protocol
+          description: The name of the protocol.
+          required: true
+          example: irc
+          schema:
+            type: string
+        - in: query
+          name: fields
+          description: One or more custom fields that are passed to the AS to help
+            identify the user.
+          schema:
+            type: object
+            additionalProperties:
+              type: string
+      responses:
+        "200":
+          description: The Matrix User IDs found with the given parameters.
+          content:
+            application/json:
+              schema:
+                $ref: ../application-service/definitions/user_batch.yaml
+        "404":
+          description: The Matrix User ID was not found
+          content:
+            application/json:
+              schema:
+                $ref: definitions/errors/error.yaml
+              examples:
+                response:
+                  value: {
+                    "errcode": "M_NOT_FOUND"
+                  }
+      tags:
+        - Third-party Lookup
+  /thirdparty/location:
+    get:
+      summary: Reverse-lookup third-party locations given a Matrix room alias.
+      description: |-
+        Retrieve an array of third-party network locations from a Matrix room
+        alias.
+      operationId: queryLocationByAlias
+      security:
+        - accessToken: []
+      parameters:
+        - in: query
+          name: alias
+          description: The Matrix room alias to look up.
+          required: true
+          example: "#matrix:matrix.org"
+          schema:
+            type: string
+      responses:
+        "200":
+          description: All found third-party locations.
+          content:
+            application/json:
+              schema:
+                $ref: ../application-service/definitions/location_batch.yaml
+        "404":
+          description: The Matrix room alias was not found
+          content:
+            application/json:
+              schema:
+                $ref: definitions/errors/error.yaml
+              examples:
+                response:
+                  value: {
+                    "errcode": "M_NOT_FOUND"
+                  }
+      tags:
+        - Third-party Lookup
+  /thirdparty/user:
+    get:
+      summary: Reverse-lookup third-party users given a Matrix User ID.
+      description: Retrieve an array of third-party users from a Matrix User ID.
+      operationId: queryUserByID
+      security:
+        - accessToken: []
+      parameters:
+        - in: query
+          name: userid
+          description: The Matrix User ID to look up.
+          required: true
+          example: "@bob:matrix.org"
+          schema:
+            type: string
+      responses:
+        "200":
+          description: An array of third-party users.
+          content:
+            application/json:
+              schema:
+                $ref: ../application-service/definitions/user_batch.yaml
+        "404":
+          description: The Matrix User ID was not found
+          content:
+            application/json:
+              schema:
+                $ref: definitions/errors/error.yaml
+              examples:
+                response:
+                  value: {
+                    "errcode": "M_NOT_FOUND"
+                  }
+      tags:
+        - Third-party Lookup
+servers:
+  - url: "{protocol}://{hostname}{basePath}"
+    variables:
+      protocol:
+        enum:
+          - http
+          - https
+        default: https
+      hostname:
+        default: localhost:8008
+      basePath:
+        default: /_matrix/client/v3
+components:
+  securitySchemes:
+    $ref: definitions/security.yaml

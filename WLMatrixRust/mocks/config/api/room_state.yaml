@@ -1,0 +1,145 @@
+# Copyright 2016 OpenMarket Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+openapi: 3.1.0
+info:
+  title: Matrix Client-Server state event send API
+  version: 1.0.0
+paths:
+  "/rooms/{roomId}/state/{eventType}/{stateKey}":
+    put:
+      summary: Send a state event to the given room.
+      description: |
+        State events can be sent using this endpoint.  These events will be
+        overwritten if `<room id>`, `<event type>` and `<state key>` all
+        match.
+
+        Requests to this endpoint **cannot use transaction IDs**
+        like other `PUT` paths because they cannot be differentiated from the
+        `state_key`. Furthermore, `POST` is unsupported on state paths.
+
+        The body of the request should be the content object of the event; the
+        fields in this object will vary depending on the type of event. See
+        [Room Events](/client-server-api/#room-events) for the `m.` event specification.
+
+        If the event type being sent is `m.room.canonical_alias` servers
+        SHOULD ensure that any new aliases being listed in the event are valid
+        per their grammar/syntax and that they point to the room ID where the
+        state event is to be sent. Servers do not validate aliases which are
+        being removed or are already present in the state event.
+      operationId: setRoomStateWithKey
+      security:
+        - accessToken: []
+      parameters:
+        - in: path
+          name: roomId
+          description: The room to set the state in
+          required: true
+          example: "!636q39766251:example.com"
+          schema:
+            type: string
+        - in: path
+          name: eventType
+          description: The type of event to send.
+          required: true
+          example: m.room.member
+          schema:
+            type: string
+        - in: path
+          name: stateKey
+          description: |-
+            The state_key for the state to send. Defaults to the empty string. When
+            an empty string, the trailing slash on this endpoint is optional.
+          required: true
+          example: "@alice:example.com"
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example: {
+                "membership": "join",
+                "avatar_url": "mxc://localhost/SEsfnsuifSDFSSEF",
+                "displayname": "Alice Margatroid"
+              }
+        required: true
+      responses:
+        "200":
+          description: An ID for the sent event.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  event_id:
+                    type: string
+                    description: A unique identifier for the event.
+                required:
+                  - event_id
+              examples:
+                response:
+                  value: {
+                    "event_id": "$YUwRidLecu:example.com"
+                  }
+        "400":
+          description: |-
+            The sender's request is malformed.
+
+            Some example error codes include:
+
+            * `M_INVALID_PARAM`: One or more aliases within the `m.room.canonical_alias`
+              event have invalid syntax.
+
+            * `M_BAD_ALIAS`: One or more aliases within the `m.room.canonical_alias` event
+              do not point to the room ID for which the state event is to be sent to.
+          content:
+            application/json:
+              schema:
+                $ref: definitions/errors/error.yaml
+              examples:
+                response:
+                  value: {
+                    "errcode": "M_BAD_ALIAS",
+                    "error": "The alias '#hello:example.org' does not point to this room."
+                  }
+        "403":
+          description: The sender doesn't have permission to send the event into the room.
+          content:
+            application/json:
+              schema:
+                $ref: definitions/errors/error.yaml
+              examples:
+                response:
+                  value: {
+                    "errcode": "M_FORBIDDEN",
+                    "error": "You do not have permission to send the event."
+                  }
+      tags:
+        - Room participation
+servers:
+  - url: "{protocol}://{hostname}{basePath}"
+    variables:
+      protocol:
+        enum:
+          - http
+          - https
+        default: https
+      hostname:
+        default: localhost:8008
+      basePath:
+        default: /_matrix/client/v3
+components:
+  securitySchemes:
+    $ref: definitions/security.yaml

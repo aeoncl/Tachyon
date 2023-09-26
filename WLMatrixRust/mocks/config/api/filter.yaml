@@ -1,0 +1,217 @@
+# Copyright 2016 OpenMarket Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+openapi: 3.1.0
+info:
+  title: Matrix Client-Server filter API
+  version: 1.0.0
+paths:
+  "/user/{userId}/filter":
+    post:
+      summary: Upload a new filter.
+      description: |-
+        Uploads a new filter definition to the homeserver.
+        Returns a filter ID that may be used in future requests to
+        restrict which events are returned to the client.
+      operationId: defineFilter
+      security:
+        - accessToken: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          description: The id of the user uploading the filter. The access token must be
+            authorized to make requests for this user id.
+          example: "@alice:example.com"
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              allOf:
+                - $ref: definitions/sync_filter.yaml
+              example: {
+                "room": {
+                  "state": {
+                    "types": [
+                      "m.room.*"
+                    ],
+                    "not_rooms": [
+                      "!726s6s6q:example.com"
+                    ]
+                  },
+                  "timeline": {
+                    "limit": 10,
+                    "types": [
+                      "m.room.message"
+                    ],
+                    "not_rooms": [
+                      "!726s6s6q:example.com"
+                    ],
+                    "not_senders": [
+                      "@spam:example.com"
+                    ]
+                  },
+                  "ephemeral": {
+                    "types": [
+                      "m.receipt",
+                      "m.typing"
+                    ],
+                    "not_rooms": [
+                      "!726s6s6q:example.com"
+                    ],
+                    "not_senders": [
+                      "@spam:example.com"
+                    ]
+                  }
+                },
+                "presence": {
+                  "types": [
+                    "m.presence"
+                  ],
+                  "not_senders": [
+                    "@alice:example.com"
+                  ]
+                },
+                "event_format": "client",
+                "event_fields": [
+                  "type",
+                  "content",
+                  "sender"
+                ]
+              }
+        description: The filter to upload.
+        required: true
+      responses:
+        "200":
+          description: The filter was created.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  filter_id:
+                    type: string
+                    description: |-
+                      The ID of the filter that was created. Cannot start
+                      with a `{` as this character is used to determine
+                      if the filter provided is inline JSON or a previously
+                      declared filter by homeservers on some APIs.
+                    example: 66696p746572
+                required:
+                  - filter_id
+      tags:
+        - Room participation
+  "/user/{userId}/filter/{filterId}":
+    get:
+      summary: Download a filter
+      operationId: getFilter
+      security:
+        - accessToken: []
+      parameters:
+        - in: path
+          name: userId
+          description: The user ID to download a filter for.
+          required: true
+          example: "@alice:example.com"
+          schema:
+            type: string
+        - in: path
+          name: filterId
+          description: The filter ID to download.
+          required: true
+          example: 66696p746572
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The filter definition.
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - $ref: definitions/sync_filter.yaml
+              examples:
+                response:
+                  value: {
+                    "room": {
+                      "state": {
+                        "types": [
+                          "m.room.*"
+                        ],
+                        "not_rooms": [
+                          "!726s6s6q:example.com"
+                        ]
+                      },
+                      "timeline": {
+                        "limit": 10,
+                        "types": [
+                          "m.room.message"
+                        ],
+                        "not_rooms": [
+                          "!726s6s6q:example.com"
+                        ],
+                        "not_senders": [
+                          "@spam:example.com"
+                        ]
+                      },
+                      "ephemeral": {
+                        "types": [
+                          "m.receipt",
+                          "m.typing"
+                        ],
+                        "not_rooms": [
+                          "!726s6s6q:example.com"
+                        ],
+                        "not_senders": [
+                          "@spam:example.com"
+                        ]
+                      }
+                    },
+                    "presence": {
+                      "types": [
+                        "m.presence"
+                      ],
+                      "not_senders": [
+                        "@alice:example.com"
+                      ]
+                    },
+                    "event_format": "client",
+                    "event_fields": [
+                      "type",
+                      "content",
+                      "sender"
+                    ]
+                  }
+        "404":
+          description: Unknown filter.
+      tags:
+        - Room participation
+servers:
+  - url: "{protocol}://{hostname}{basePath}"
+    variables:
+      protocol:
+        enum:
+          - http
+          - https
+        default: https
+      hostname:
+        default: localhost:8008
+      basePath:
+        default: /_matrix/client/v3
+components:
+  securitySchemes:
+    $ref: definitions/security.yaml

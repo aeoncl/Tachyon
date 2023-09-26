@@ -1,0 +1,115 @@
+# Copyright 2018 Travis Ralston
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+openapi: 3.1.0
+info:
+  title: Matrix Client-Server Report Content API
+  version: 1.0.0
+paths:
+  "/rooms/{roomId}/report/{eventId}":
+    post:
+      summary: Report an event in a joined room as inappropriate.
+      description: |-
+        Reports an event as inappropriate to the server, which may then notify
+        the appropriate people. The caller must be joined to the room to report
+        it.
+        
+        It might be possible for clients to deduce whether an event exists by
+        timing the response, as only a report for an event that does exist
+        will require the homeserver to check whether a user is joined to
+        the room. To combat this, homeserver implementations should add
+        a random delay when generating a response.
+      operationId: reportContent
+      parameters:
+        - in: path
+          name: roomId
+          description: The room in which the event being reported is located.
+          required: true
+          example: "!637q39766251:example.com"
+          schema:
+            type: string
+        - in: path
+          name: eventId
+          description: The event to report.
+          required: true
+          example: $something:example.org
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example: {
+                "score": -100,
+                "reason": "this makes me sad"
+              }
+              properties:
+                score:
+                  type: integer
+                  description: |-
+                    The score to rate this content as where -100 is most offensive
+                    and 0 is inoffensive.
+                reason:
+                  type: string
+                  description: The reason the content is being reported. May be blank.
+        required: true
+      security:
+        - accessToken: []
+      x-changedInMatrixVersion:
+        1.8: |
+          This endpoint now requires the user to be joined to the room.
+      responses:
+        "200":
+          description: The event has been reported successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+              examples:
+                response:
+                  value: {}
+        "404":
+          description: |-
+            The event was not found or you are not joined to the room where the
+            event resides.
+            
+            Homeserver implementations can additionally return this error if the
+            reported event has been redacted.
+          content:
+            application/json:
+              schema:
+                $ref: definitions/errors/error.yaml
+              examples:
+                response:
+                  value: {
+                    "errcode": "M_NOT_FOUND",
+                    "error": "The event was not found or you are not joined to the room."
+                  }
+      tags:
+        - Reporting content
+servers:
+  - url: "{protocol}://{hostname}{basePath}"
+    variables:
+      protocol:
+        enum:
+          - http
+          - https
+        default: https
+      hostname:
+        default: localhost:8008
+      basePath:
+        default: /_matrix/client/v3
+components:
+  securitySchemes:
+    $ref: definitions/security.yaml
