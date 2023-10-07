@@ -129,12 +129,10 @@ impl MSNClient {
             let email_domain = &domain.domain;
 
             for contact in &domain.contacts {
-                let contact_list_types = Vec::new(); //TODOList of contact types from ADL packet
+                let contact_list_types = contact.get_roles();
 
                 let msn_addr = format!("{}@{}", &contact.email_part, &email_domain);
                 let partial_user = PartialMSNUser::new(msn_addr);
-
-                //TODO REDO THIS PROPERLY
 
                 for contact_list_type in contact_list_types {
                     if let Some(mut found) = self.inner.contact_list.get_mut(&contact_list_type) {

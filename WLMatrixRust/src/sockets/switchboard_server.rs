@@ -113,20 +113,3 @@ impl TCPServer for SwitchboardServer {
         }
     }
 }
-
-/*
-
-  match msg {
-                                SocketEvent::Single(msg) => {
-                                    info!("SW {} -> {}",&uuid.to_string(), &msg);
-                                    write.write_all(msg.as_bytes()).await;
-                                },
-                                SocketEvent::Multiple(msgs) => {
-                                    for msg in msgs {
-                                        info!("SW {} -> {}",&uuid.to_string(), &msg);
-                                        write.write_all(msg.as_bytes()).await;
-                                    }
-                                }
-                            }
-
- */

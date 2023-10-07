@@ -57,6 +57,32 @@ impl ADLContact {
         self.list_type & role as u8 != 0
     }
 
+    pub fn get_roles(&self) -> Vec<RoleId> {
+        let mut out = Vec::new();
+
+        if self.list_type & RoleId::Forward as u8 != 0 {
+            out.push(RoleId::Forward);
+        }
+
+        if self.list_type & RoleId::Allow as u8 != 0 {
+            out.push(RoleId::Allow);
+        }
+
+        if self.list_type & RoleId::Block as u8 != 0 {
+            out.push(RoleId::Block);
+        }
+
+        if self.list_type & RoleId::Reverse as u8 != 0 {
+            out.push(RoleId::Reverse);
+        }
+
+        if self.list_type & RoleId::Pending as u8 != 0 {
+            out.push(RoleId::Pending);
+        }
+
+        return out;
+    }
+
     pub fn to_partial_msn_user(&self, domain: &str) -> PartialMSNUser {
         PartialMSNUser::new(format!("{}@{}", &self.email_part, domain))
     }
