@@ -17,7 +17,7 @@ impl ABLocator {
         return Self { contact_receiver: Mutex::new(contact_receiver), member_receiver: Mutex::new(receiver), sender};
     }
 
-    pub async fn get_contacts(&self, ticket_token: &String) -> Result<Vec<ContactType>, ()>{
+    pub async fn get_contacts(&self, ticket_token: &str) -> Result<Vec<ContactType>, ()>{
         let mut out = Vec::new();
         let mut contact_receiver = self.contact_receiver.lock().or(Err(()))?;
 

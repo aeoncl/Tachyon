@@ -98,8 +98,8 @@ fn setup_logs() {
             )
         })
         .target(env_logger::Target::Pipe(target))
-        .filter(Some("wlmatrix_rust") , LevelFilter::Debug)
-        .filter(Some("matrix-sdk"), LevelFilter::Info)
+        .filter(Some("wlmatrix_rust") , LevelFilter::Info)
+        .filter(Some("matrix-sdk"), LevelFilter::Debug)
         .init();
 
     //Some("wlmatrix_rust")    

@@ -15,7 +15,7 @@ pub mod app_id;
 pub mod factories {
     use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
-    use crate::models::{errors::Errors, msn_user::MSNUser, uuid::UUID};
+    use crate::models::{tachyon_error::TachyonError, msn_user::MSNUser, uuid::UUID};
 
     use super::{p2p_payload::P2PPayload, p2p_transport_packet::P2PTransportPacket, slp_context::PreviewData, slp_payload::{EufGUID, SlpPayload}, tlv::TLV};
 
@@ -130,7 +130,7 @@ SessionID: 2216804035
 
     impl SlpPayloadFactory {
 
-        pub fn get_200_ok_session(invite: &SlpPayload) -> Result<SlpPayload, Errors>  {
+        pub fn get_200_ok_session(invite: &SlpPayload) -> Result<SlpPayload, TachyonError>  {
             let mut out = SlpPayload::new();
             out.first_line = String::from("MSNSLP/1.0 200 OK");
             out.add_header(String::from("To"), invite.get_header(&String::from("From")).unwrap().to_owned());
@@ -147,7 +147,7 @@ SessionID: 2216804035
             return Ok(out);
         }
 
-        pub fn get_file_transfer_request(sender: &MSNUser, receiver: &MSNUser, context: &PreviewData, session_id: u32) -> Result<SlpPayload, Errors> {
+        pub fn get_file_transfer_request(sender: &MSNUser, receiver: &MSNUser, context: &PreviewData, session_id: u32) -> Result<SlpPayload, TachyonError> {
             let mut out = SlpPayload::new();
             out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver.get_mpop_identifier());
             out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.get_mpop_identifier()));
@@ -169,13 +169,13 @@ SessionID: 2216804035
             return Ok(out);
         }
 
-        pub fn get_200_ok_indirect_connect(invite: &SlpPayload) -> Result<SlpPayload, Errors> {
+        pub fn get_200_ok_indirect_connect(invite: &SlpPayload) -> Result<SlpPayload, TachyonError> {
             let mut out = SlpPayloadFactory::get_200_ok_direct_connect(invite)?;
             out.add_body_property(String::from("Bridge"), String::from("SBBridge"));
             return Ok(out);
         }
 
-        pub fn get_200_ok_direct_connect(invite: &SlpPayload) -> Result<SlpPayload, Errors> {
+        pub fn get_200_ok_direct_connect(invite: &SlpPayload) -> Result<SlpPayload, TachyonError> {
             let mut out = SlpPayload::new();
             out.first_line = String::from("MSNSLP/1.0 200 OK");
 
@@ -209,7 +209,7 @@ SessionID: 2216804035
             return Ok(out);
         }
 
-        pub fn get_200_ok_direct_connect_bad_port(invite: &SlpPayload) -> Result<SlpPayload, Errors> {
+        pub fn get_200_ok_direct_connect_bad_port(invite: &SlpPayload) -> Result<SlpPayload, TachyonError> {
             let mut out = SlpPayload::new();
             out.first_line = String::from("MSNSLP/1.0 200 OK");
 
@@ -243,7 +243,7 @@ SessionID: 2216804035
             return Ok(out);
         }
 
-        pub fn get_500_error_direct_connect(invite: &SlpPayload, bridge: String) -> Result<SlpPayload, Errors> {
+        pub fn get_500_error_direct_connect(invite: &SlpPayload, bridge: String) -> Result<SlpPayload, TachyonError> {
             let mut out = SlpPayload::new();
             out.first_line = String::from("MSNSLP/1.0 500 Internal Error");
 

@@ -50,7 +50,7 @@ impl UUID {
         return UUID{ uuid: Uuid::new_v4() };
     }
 
-    pub fn from_string(s: &String) -> UUID {
+    pub fn from_string(s: &str) -> UUID {
         return UUID { uuid: Uuid::new_v5(&Uuid::NAMESPACE_OID, s.as_bytes()) }
     }
 

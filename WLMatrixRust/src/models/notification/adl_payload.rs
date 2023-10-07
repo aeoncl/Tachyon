@@ -4,7 +4,8 @@ use substring::Substring;
 use yaserde::{de::from_str, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
-use crate::{generated::msnab_datatypes::types::RoleId, models::errors::Errors};
+use crate::{generated::msnab_datatypes::types::RoleId, models::tachyon_error::TachyonError};
+use crate::models::msn_user::PartialMSNUser;
 
 #[derive(Debug, Clone, Default, YaSerialize, YaDeserialize)]
 #[yaserde(rename = "ml")]
@@ -28,6 +29,16 @@ pub struct ADLDomain {
     pub contacts: Vec<ADLContact>
 }
 
+impl ADLDomain {
+    pub fn get_contacts(&self) -> Vec<PartialMSNUser> {
+        return self.contacts.iter().map(|c| c.to_partial_msn_user(&self.domain)).collect();
+    }
+
+    pub fn get_contacts_for_role(&self, role: &RoleId) -> Vec<PartialMSNUser> {
+        return self.contacts.iter().filter(|c| c.has_role(role.clone())).map(|c| c.to_partial_msn_user(&self.domain)).collect();
+    }
+}
+
 #[derive(Debug, Clone, Default, YaSerialize, YaDeserialize)]
 pub struct ADLContact {
 
@@ -42,30 +53,12 @@ pub struct ADLContact {
 }
 
 impl ADLContact {
-    pub fn get_list_types(&self) -> Vec<RoleId> {
-        let mut out = Vec::new();
+    pub fn has_role(&self, role: RoleId) -> bool {
+        self.list_type & role as u8 != 0
+    }
 
-        if self.list_type & RoleId::Forward as u8 != 0 {
-            out.push(RoleId::Forward);
-        } 
-
-        if self.list_type & RoleId::Allow as u8 != 0 {
-            out.push(RoleId::Allow);
-        } 
-
-         if self.list_type & RoleId::Block as u8 != 0 {
-            out.push(RoleId::Block);
-        } 
-
-         if self.list_type & RoleId::Reverse as u8 != 0 {
-            out.push(RoleId::Reverse);
-        } 
-
-         if self.list_type & RoleId::Pending as u8 != 0 {
-            out.push(RoleId::Pending);
-        }
-
-       return out;
+    pub fn to_partial_msn_user(&self, domain: &str) -> PartialMSNUser {
+        PartialMSNUser::new(format!("{}@{}", &self.email_part, domain))
     }
 }
 
@@ -90,13 +83,13 @@ impl Display for ADLPayload {
 }
 
 impl FromStr for ADLPayload {
-    type Err = Errors;
+    type Err = TachyonError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
       if let Ok(deserialized) = from_str::<ADLPayload>(s) {
         return Ok(deserialized);
       } else {
-          return Err(Errors::PayloadDeserializeError);
+          return Err(TachyonError::PayloadDeserializeError);
       }
     }
 }
@@ -139,15 +132,6 @@ mod tests {
 
         let second_contact = first_domain.contacts.get(1).unwrap();
         assert_eq!(second_contact.email_part.as_str(), "facebookbot1");
-    }
-
-    #[test]
-    fn test_get_list_types() {
-        let payload = ADLPayload::from_str("<ml><d n=\"shlasouf.local\"><c n=\"facebookbot\" l=\"3\" t=\"1\"/><c n=\"facebookbot1\" l=\"1\" t=\"1\"/></d></ml>").unwrap();
-        let contact = payload.domains.first().unwrap().contacts.first().unwrap();
-
-        let lists = contact.get_list_types();
-        println!("{:?}", &lists);
     }
 
     #[test]

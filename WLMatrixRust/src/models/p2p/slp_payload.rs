@@ -11,7 +11,7 @@ use log::warn;
 use num::FromPrimitive;
 use substring::Substring;
 
-use crate::models::{errors::Errors, msn_object::MSNObject, msn_user::MSNUser};
+use crate::models::{tachyon_error::TachyonError, msn_object::MSNObject, msn_user::MSNUser};
 
 use super::{app_id::AppID, slp_context::{PreviewData, SlpContext}};
 
@@ -77,7 +77,7 @@ impl SlpPayload {
         return None;
     }
 
-    pub fn get_euf_guid(&self) -> Result<Option<EufGUID>, Errors> {
+    pub fn get_euf_guid(&self) -> Result<Option<EufGUID>, TachyonError> {
         let euf_guid = self.get_body_property(&String::from("EUF-GUID"));
         if euf_guid.is_none() {
             return Ok(None);
@@ -88,7 +88,7 @@ impl SlpPayload {
         return Ok(Some(euf_guid));
     }
 
-    pub fn get_app_id(&self) -> Result<Option<AppID>, Errors> {
+    pub fn get_app_id(&self) -> Result<Option<AppID>, TachyonError> {
         let app_id = self.get_body_property(&String::from("AppID"));
         if app_id.is_none() {
             return  Ok(None);
@@ -119,7 +119,7 @@ impl SlpPayload {
 }
 
 impl FromStr for SlpPayload {
-    type Err = Errors;
+    type Err = TachyonError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
 
@@ -127,7 +127,7 @@ impl FromStr for SlpPayload {
             let mut out = SlpPayload::new();
             let headers_split: Vec<&str> = headers.split("\r\n").collect();
 
-            out.first_line = headers_split.get(0).ok_or(Errors::PayloadDeserializeError)?.to_string();
+            out.first_line = headers_split.get(0).ok_or(TachyonError::PayloadDeserializeError)?.to_string();
 
             for i in 1..headers_split.len() {
                 let current = headers_split.get(i).unwrap().to_string();
@@ -147,12 +147,12 @@ impl FromStr for SlpPayload {
 
             return Ok(out);
         }
-       return Err(Errors::PayloadDeserializeError);
+       return Err(TachyonError::PayloadDeserializeError);
     }
 }
 
 impl TryFrom<&Vec<u8>> for SlpPayload {
-    type Error = Errors;
+    type Error = TachyonError;
 
     fn try_from(value: &Vec<u8>) -> Result<Self, Self::Error> {
         let str = from_utf8(value)?;
@@ -227,7 +227,7 @@ impl Display for EufGUID {
 }
 
 impl TryFrom<&str> for EufGUID {
-    type Error = Errors;
+    type Error = TachyonError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
@@ -250,7 +250,7 @@ impl TryFrom<&str> for EufGUID {
                 return Ok(EufGUID::Activity);
             },
             _=> {
-                return Err(Errors::PayloadDeserializeError);
+                return Err(TachyonError::PayloadDeserializeError);
             }
         }
     }

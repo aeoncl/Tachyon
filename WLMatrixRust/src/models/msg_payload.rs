@@ -2,9 +2,9 @@ use std::{collections::HashMap, str::FromStr};
 
 use lazy_static::lazy_static;
 
-use crate::models::errors::Errors;
+use crate::models::tachyon_error::TachyonError;
 
-use super::errors;
+use super::tachyon_error;
 
 lazy_static! {
     static ref TEMPLATE : String = String::from("MIME-Version: 1.0\r\nContent-Type: ");
@@ -70,7 +70,7 @@ impl MsgPayload {
 }
 
 impl FromStr for MsgPayload {
-    type Err = errors::Errors;
+    type Err = tachyon_error::TachyonError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
 
@@ -93,7 +93,7 @@ impl FromStr for MsgPayload {
 
                         if name == String::from("Content-Type") {
                             let value_split : Vec<&str> = value.split(";").collect();
-                            let mime_type = value_split.get(0).ok_or(Errors::PayloadDeserializeError)?.trim().to_string();
+                            let mime_type = value_split.get(0).ok_or(TachyonError::PayloadDeserializeError)?.trim().to_string();
                             out.content_type = mime_type;
                         } else {
                             if name != String::from("MIME-Version") {
@@ -107,7 +107,7 @@ impl FromStr for MsgPayload {
             return Ok(out);
 
         }
-        return Err(Errors::PayloadDeserializeError);
+        return Err(TachyonError::PayloadDeserializeError);
     }
 }
 

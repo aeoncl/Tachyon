@@ -103,7 +103,7 @@ impl MSNClient {
         for device in devices {
             if device.device_id != this_device_id {
                 let machine_guid =
-                    format!("{{{}}}", UUID::from_string(&device.device_id.to_string()));
+                    format!("{{{}}}", UUID::from_string(&device.device_id.as_str()));
                 let endpoint_name = device.display_name.unwrap_or(device.device_id.to_string());
 
                 let endpoint = EndpointData::new(
@@ -129,10 +129,12 @@ impl MSNClient {
             let email_domain = &domain.domain;
 
             for contact in &domain.contacts {
-                let contact_list_types = contact.get_list_types();
+                let contact_list_types = Vec::new(); //TODOList of contact types from ADL packet
 
                 let msn_addr = format!("{}@{}", &contact.email_part, &email_domain);
                 let partial_user = PartialMSNUser::new(msn_addr);
+
+                //TODO REDO THIS PROPERLY
 
                 for contact_list_type in contact_list_types {
                     if let Some(mut found) = self.inner.contact_list.get_mut(&contact_list_type) {

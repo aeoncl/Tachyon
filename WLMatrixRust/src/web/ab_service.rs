@@ -2,7 +2,7 @@ use std::{str::{from_utf8, FromStr}};
 
 use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, post, web};
 use http::{header::HeaderName, StatusCode};
-use log::info;
+use log::{info, warn};
 use substring::Substring;
 use yaserde::{de::from_str, ser::to_string};
 
@@ -66,9 +66,7 @@ async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest) -> Resul
     let request = from_str::<AbfindContactsPagedMessageSoapEnvelope>(body)?;
     let header = request.header.ok_or(StatusCode::BAD_REQUEST)?;
     let ticket_token = &header.ab_auth_header.ticket_token;
-    let matrix_token = header
-        .ab_auth_header
-        .ticket_token
+    let matrix_token = ticket_token
         .substring(2, ticket_token.len())
         .to_string();
 
@@ -79,9 +77,24 @@ async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest) -> Resul
     let response : AbfindContactsPagedResponseMessageSoapEnvelope;
     
     let matrix_client =  MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    //TODO !important Check request token against currently logged user in the matrix client
+
 
     let me_mtx_id = msn_client.get_user().get_matrix_id();
-    let me_display_name = matrix_client.account().get_display_name().await?.unwrap_or(msn_client.get_user_msn_addr());
+
+    let me_display_name = match matrix_client.account().get_display_name().await {
+        Err(e) => {
+            warn!("Error while fetching the display name of logged user: {}", e);
+            msn_client.get_user_msn_addr()
+        },
+        Ok(None) => {
+            msn_client.get_user_msn_addr()
+        }
+        Ok(Some(maybe_display_name)) => {
+            maybe_display_name
+        }
+    };
+
 
     if header.application_header.partner_scenario.as_str() == "Initial" {
             //Fetch contacts from the ADL command

@@ -6,7 +6,7 @@ use substring::Substring;
 use yaserde::{de::{self, from_str}, ser::to_string};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
-use crate::models::{capabilities::ClientCapabilities, errors::Errors};
+use crate::models::{capabilities::ClientCapabilities, tachyon_error::TachyonError};
 
 #[derive(Debug, Clone, Default, YaSerialize, YaDeserialize)]
 
@@ -29,13 +29,13 @@ impl EndpointData{
 }
 
 impl FromStr for EndpointData {
-    type Err = Errors;
+    type Err = TachyonError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
       if let Ok(deserialized) = from_str::<EndpointData>(s) {
         return Ok(deserialized);
       } else {
-          return Err(Errors::PayloadDeserializeError);
+          return Err(TachyonError::PayloadDeserializeError);
       }
     }
 }
@@ -78,13 +78,13 @@ impl PrivateEndpointData {
 
 
 impl FromStr for PrivateEndpointData {
-    type Err = Errors;
+    type Err = TachyonError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
       if let Ok(deserialized) = from_str::<PrivateEndpointData>(s) {
         return Ok(deserialized);
       } else {
-          return Err(Errors::PayloadDeserializeError);
+          return Err(TachyonError::PayloadDeserializeError);
       }
     }
 }

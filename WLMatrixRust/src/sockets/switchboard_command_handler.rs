@@ -190,7 +190,7 @@ impl SwitchboardCommandHandler {
             .unwrap()
             .get_room(&room_id)
         {
-            room_members = room.members(RoomMemberships::JOIN).await.unwrap().into_iter().map(|member| {
+            room_members = room.members(RoomMemberships::JOIN).await.expect("Room to have members").into_iter().map(|member| {
                 member.user_id().to_owned()
             }).collect();
         } else {
@@ -208,8 +208,7 @@ impl SwitchboardCommandHandler {
         }
 
         let mut index = 1;
-        //let count = (members.len() - 1)*2;
-        let count = room_members.len() - 1;
+        let count = if room_members.len() > 0 { room_members.len() - 1 } else { 0 };
 
         for member in room_members {
             let msn_user = MSNUser::from_matrix_id(member);

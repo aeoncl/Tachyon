@@ -4,7 +4,7 @@ use std::{fmt::Display, str::from_utf8_unchecked};
 use byteorder::{BigEndian, ByteOrder};
 use log::info;
 
-use crate::models::errors::Errors;
+use crate::models::tachyon_error::TachyonError;
 
 use super::{slp_payload::SlpPayload, tlv::{extract_tlvs, TLV, ValueType}};
 
@@ -39,11 +39,11 @@ impl P2PPayload {
         return P2PPayload{ header_length: 0, tf_combination, package_number: 0, session_id, tlvs: Vec::new(), payload: Vec::new() };
     }
 
-    pub fn deserialize(bytes: &[u8], payload_length: usize) -> Result<Self, Errors> {
+    pub fn deserialize(bytes: &[u8], payload_length: usize) -> Result<Self, TachyonError> {
         let header_length = bytes.get(0).unwrap_or(&0).to_owned() as usize;
 
         if header_length < 8 {
-            return Err(Errors::PayloadDeserializeError);
+            return Err(TachyonError::PayloadDeserializeError);
         }
 
         let tf_combination = bytes.get(1).unwrap_or(&0).to_owned();
@@ -59,7 +59,7 @@ impl P2PPayload {
 
         let mut payload_length_to_take = payload_length;
         if payload_length > bytes.len() {
-            return Err(Errors::PayloadNotComplete);
+            return Err(TachyonError::PayloadNotComplete);
         }
 
         let payload = bytes[8+tlvs_length..payload_length_to_take].to_owned();
@@ -103,14 +103,14 @@ impl P2PPayload {
         return 0;
     }
 
-    pub fn get_payload_as_slp(&self) -> Result<SlpPayload, Errors> {
+    pub fn get_payload_as_slp(&self) -> Result<SlpPayload, TachyonError> {
 
         if !self.payload.is_empty() {
             if self.tf_combination <= 0x01 && self.session_id == 0x0000 {
                 return SlpPayload::try_from(&self.payload);
             }
         }
-        return Err(Errors::PayloadDoesNotContainsSLP);
+        return Err(TachyonError::PayloadDoesNotContainsSLP);
     }
 
     pub fn get_payload_bytes(&self) -> &Vec<u8> {

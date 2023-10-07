@@ -3,7 +3,7 @@ use std::{mem, str::FromStr};
 use byteorder::{ByteOrder, LittleEndian};
 use log::{info, warn};
 
-use crate::models::{errors::Errors, p2p::p2p_transport_packet::P2PTransportPacket};
+use crate::models::{tachyon_error::TachyonError, p2p::p2p_transport_packet::P2PTransportPacket};
 
 #[derive(Clone, Debug)]
 
@@ -86,16 +86,16 @@ impl P2PCommandParser {
         return P2PTransportPacket::extract_payload_length(data);
     }
 
-    fn parse_nonce(&self, data: &[u8]) -> Result<P2PCommand, Errors> {
+    fn parse_nonce(&self, data: &[u8]) -> Result<P2PCommand, TachyonError> {
         if data.len() >= 16 {
             let nonce = data[0..16].to_owned();
             return Ok(P2PCommand::nonce(nonce));
         }
 
-        return Err(Errors::PayloadDeserializeError);
+        return Err(TachyonError::PayloadDeserializeError);
     }
 
-    fn parse_p2p_payload(&self, data: &[u8], payload_size: usize) -> Result<P2PCommand, Errors> {
+    fn parse_p2p_payload(&self, data: &[u8], payload_size: usize) -> Result<P2PCommand, TachyonError> {
 
         let p2p_transport_packet = P2PTransportPacket::try_from(data)?;
         return Ok(P2PCommand::data(p2p_transport_packet));

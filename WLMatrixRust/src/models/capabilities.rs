@@ -1,6 +1,6 @@
 use std::{fmt::Display, str::FromStr};
 
-use super::errors;
+use super::tachyon_error;
 
 /** Source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/Client_Capabilities */
 
@@ -111,7 +111,7 @@ impl ClientCapabilities {
 }
 
 impl FromStr for ClientCapabilities {
-    type Err = errors::Errors;
+    type Err = tachyon_error::TachyonError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_string();

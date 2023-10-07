@@ -13,7 +13,7 @@ use rand::Rng;
 use tokio::sync::broadcast::Sender;
 
 use crate::models::{
-    errors::Errors,
+    tachyon_error::TachyonError,
     msn_user::MSNUser,
     p2p::{
         app_id::AppID,
@@ -515,7 +515,7 @@ impl P2PClient {
         slp_payload: &SlpPayload,
         sender: &MSNUser,
         receiver: &MSNUser
-    ) -> Result<Option<SlpPayload>, Errors> {
+    ) -> Result<Option<SlpPayload>, TachyonError> {
         let error = String::from("error");
         let content_type = slp_payload.get_content_type().unwrap_or(&error);
         match content_type.as_str() {
@@ -553,11 +553,11 @@ impl P2PClient {
                 return Ok(Some(slp_payload_response));
             }
             "application/x-msnmsgr-sessionclosebody" => {
-                return Err(Errors::PayloadNotComplete);
+                return Err(TachyonError::PayloadNotComplete);
             }
             _ => {
                 info!("not handled slp payload: {:?}", slp_payload);
-                return Err(Errors::PayloadNotComplete);
+                return Err(TachyonError::PayloadNotComplete);
             }
         }
     }
@@ -567,7 +567,7 @@ impl P2PClient {
         slp_payload: &SlpPayload,
         sender: &MSNUser,
         receiver: &MSNUser
-    ) -> Result<Option<SlpPayload>, Errors> {
+    ) -> Result<Option<SlpPayload>, TachyonError> {
         debug!(
             "handle_sessionreqbody: is_invite: {}, is_200_ok: {} - {:?}",
             &slp_payload.is_invite(),
@@ -586,7 +586,7 @@ impl P2PClient {
 
             let session_id = slp_payload
             .get_body_property(&String::from("SessionID"))
-            .ok_or(Errors::PayloadDeserializeError)?
+            .ok_or(TachyonError::PayloadDeserializeError)?
             .parse::<u32>()?;
 
 
@@ -714,6 +714,12 @@ impl P2PClient {
 
 #[cfg(test)]
 mod tests {
+    use std::str::from_utf8_unchecked;
+
+    use tokio::sync::broadcast;
+
+    use crate::sockets::{msnp_command::MSNPCommandParser, switchboard_command_handler::SwitchboardCommandHandler, events::socket_event::SocketEvent, command_handler::CommandHandler};
+
     #[actix_rt::test]
     async fn test_chunked_payload() {
         let part1_msg: [u8; 1833] = [

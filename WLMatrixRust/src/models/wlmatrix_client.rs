@@ -2,25 +2,28 @@ use std::{collections::HashSet, path::Path, time::Duration};
 
 use base64::{Engine, engine::general_purpose};
 use js_int::UInt;
-use log::{info, warn};
-use matrix_sdk::{AuthSession, Client, ClientBuilder, config::SyncSettings, event_handler::Ctx, room::{Room, RoomMember}, RoomMemberships, RoomState, ruma::{api::{client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::Filter}}, device_id, events::{direct::{DirectEvent, DirectEventContent}, GlobalAccountDataEvent, GlobalAccountDataEventType, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, presence::PresenceEvent, room::{member::{MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent}, message::{FileMessageEventContent, MessageType, RoomMessageEventContent, SyncRoomMessageEvent}}, typing::SyncTypingEvent}, OwnedUserId, presence::PresenceState, RoomId, UserId}, ServerName};
+use log::{error, info, warn};
+use matrix_sdk::{AuthSession, Client, ClientBuilder, config::SyncSettings, Error, event_handler::Ctx, room::{Room, RoomMember}, RoomMemberships, RoomState, ruma::{api::{client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::Filter}}, device_id, events::{direct::{DirectEvent, DirectEventContent}, GlobalAccountDataEvent, GlobalAccountDataEventType, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, presence::PresenceEvent, room::{member::{MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent}, message::{FileMessageEventContent, MessageType, RoomMessageEventContent, SyncRoomMessageEvent}}, typing::SyncTypingEvent}, OwnedUserId, presence::PresenceState, RoomId, UserId}, ServerName, StateStoreExt};
 use matrix_sdk::matrix_auth::{MatrixSession, MatrixSessionTokens};
+use matrix_sdk::ruma::__private_macros::user_id;
+use matrix_sdk::ruma::OwnedRoomId;
 use tokio::sync::{broadcast::Sender, oneshot};
 
 use crate::{AB_LOCATOR, generated::{msnab_datatypes::types::{ArrayOfAnnotation, ContactTypeEnum, MemberState, RoleId}, msnab_sharingservice::factories::{AnnotationFactory, ContactFactory, MemberFactory}, payloads::PresenceStatus}, models::{abch::events::AddressBookEventFactory, msg_payload::factories::MsgPayloadFactory, owned_user_id_traits::ToMsnAddr}, MSN_CLIENT_LOCATOR, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, SETTINGS_LOCATOR, utils::{emoji::emoji_to_smiley, identifiers::{self, get_matrix_device_id}}};
+use crate::models::tachyon_error::TachyonError;
 
 use super::{msn_user::MSNUser, notification::{error::MsnpErrorCode, events::notification_event::{NotificationEvent, NotificationEventFactory}}, switchboard::switchboard::Switchboard};
 
 #[derive(Debug)]
 pub struct WLMatrixClient {
-    stop_loop_sender: Option<oneshot::Sender::<()>>
+    stop_loop_sender: Option<oneshot::Sender::<()>>,
 }
 
 
-#[derive(Debug, Clone)] 
+#[derive(Debug, Clone)]
 struct WLMatrixContext {
     me: MSNUser,
-    event_sender: Sender<NotificationEvent>
+    event_sender: Sender<NotificationEvent>,
 }
 
 
@@ -33,12 +36,11 @@ impl Drop for WLMatrixClient {
 }
 
 impl WLMatrixClient {
-
     pub fn get_matrix_client_builder(server_name: &ServerName) -> ClientBuilder {
         let homeserver_url = &SETTINGS_LOCATOR.homeserver_url;
 
         let mut client_builder = Client::builder()
-        .disable_ssl_verification(); //TODO heeheeeee
+            .disable_ssl_verification(); //TODO heeheeeee
 
         if homeserver_url.is_none() {
             client_builder = client_builder.server_name(server_name)
@@ -55,15 +57,15 @@ impl WLMatrixClient {
         let device_id = device_id!(device_id.as_str()).to_owned();
 
         match Self::get_matrix_client_builder(matrix_id.server_name())
-              .sqlite_store(store_path, None)
-              .build()
-              .await
+            .sqlite_store(store_path, None)
+            .build()
+            .await
         {
             Ok(client) => {
                 if let Err(err) = client
                     .restore_session(AuthSession::Matrix(MatrixSession {
                         meta: matrix_sdk::SessionMeta { user_id: matrix_id, device_id: device_id },
-                        tokens: MatrixSessionTokens { access_token: token, refresh_token: None},
+                        tokens: MatrixSessionTokens { access_token: token, refresh_token: None },
                     }))
                     .await
                 {
@@ -74,7 +76,7 @@ impl WLMatrixClient {
                 if let Err(_check_connection_status) = client.whoami().await {
                     return Err(MsnpErrorCode::AuthFail);
                 }
-                   return Ok(client);
+                return Ok(client);
             }
             Err(_err) => {
                 log::error!("An error has occured building the client: {}", _err);
@@ -83,34 +85,33 @@ impl WLMatrixClient {
         }
     }
 
-    pub async fn listen(matrix_client: Client, user: MSNUser, event_sender: Sender<NotificationEvent>) -> Result<Self,()> {
+    pub async fn listen(matrix_client: Client, user: MSNUser, event_sender: Sender<NotificationEvent>) -> Result<Self, ()> {
         let kill_sender = Self::start_matrix_loop(matrix_client, user, event_sender).await;
-        Ok(WLMatrixClient{ stop_loop_sender: Some(kill_sender) })
+        Ok(WLMatrixClient { stop_loop_sender: Some(kill_sender) })
     }
 
-pub async fn start_matrix_loop(matrix_client: Client, msn_user: MSNUser, event_sender: Sender<NotificationEvent>) -> oneshot::Sender<()> {
+    pub async fn start_matrix_loop(matrix_client: Client, msn_user: MSNUser, event_sender: Sender<NotificationEvent>) -> oneshot::Sender<()> {
+        Self::register_events(&matrix_client, &msn_user, event_sender.clone());
+        let (stop_sender, mut stop_receiver) = oneshot::channel::<()>();
 
-    Self::register_events(&matrix_client, &msn_user, event_sender.clone());
-    let (stop_sender, mut stop_receiver) = oneshot::channel::<()>();
+        let _result = tokio::spawn(async move {
+            let mut settings = Self::get_sync_settings();
+            let mut retry_count = 0;
+            let max_retry_count = 3;
 
-    let _result = tokio::spawn(async move{
-        let mut settings = Self::get_sync_settings();
-        let mut retry_count=0;
-        let max_retry_count=3;
+            let sync_token = matrix_client.sync_token().await;
 
-        let sync_token = matrix_client.sync_token().await;
-
-        log::info!("WLMatrix Sync - Preparing Initial Sync");
-        if let Some(token) = sync_token {
-            log::info!("WLMatrix Sync - Token loaded: {}", &token);
-            settings = settings.token(token);
-        }
+            log::info!("WLMatrix Sync - Preparing Initial Sync");
+            if let Some(token) = sync_token {
+                log::info!("WLMatrix Sync - Token loaded: {}", &token);
+                settings = settings.token(token);
+            }
 
 
-     //   matrix_client.sync_stream(sync_settings);
+            //   matrix_client.sync_stream(sync_settings);
 
-        loop {
-            tokio::select! {
+            loop {
+                tokio::select! {
                 sync_result = matrix_client.sync_once(settings.clone()) => {
                     if let Ok(sync_result) = sync_result {
                         log::info!("WLMatrix Sync - next batch: {}", &sync_result.next_batch);
@@ -121,6 +122,7 @@ pub async fn start_matrix_loop(matrix_client: Client, msn_user: MSNUser, event_s
                             retry_count += 1;
                         } else {
                             break;
+                                //TODO when we break out of the sync loop (because an error) we should tell the client & all it's switchboards to disconnect
                         }
                     }
                 },
@@ -128,210 +130,197 @@ pub async fn start_matrix_loop(matrix_client: Client, msn_user: MSNUser, event_s
                     break;
                 },    
             }
-        }
-    });
-    return stop_sender;
-}
+            }
+        });
+        return stop_sender;
+    }
 
 
-fn get_sync_settings() -> SyncSettings {
-    let mut filters = FilterDefinition::default();
-    let mut room_filters = RoomFilter::default();
-    room_filters.include_leave = true;
-    filters.room = room_filters;
-    return SyncSettings::new().timeout(Duration::from_secs(5)).filter(Filter::FilterDefinition(filters)).set_presence(PresenceState::Online);
-}
+    fn get_sync_settings() -> SyncSettings {
+        let mut filters = FilterDefinition::default();
+        let mut room_filters = RoomFilter::default();
+        room_filters.include_leave = true;
+        filters.room = room_filters;
+        return SyncSettings::new().timeout(Duration::from_secs(5)).filter(Filter::FilterDefinition(filters)).set_presence(PresenceState::Online);
+    }
 
-fn register_events(matrix_client: &Client, msn_user: &MSNUser, event_sender: Sender<NotificationEvent>) {
-    matrix_client.add_event_handler_context(WLMatrixContext { me: msn_user.clone(), event_sender });
-    
-    // Registering all events
+    fn register_events(matrix_client: &Client, msn_user: &MSNUser, event_sender: Sender<NotificationEvent>) {
+        matrix_client.add_event_handler_context(WLMatrixContext { me: msn_user.clone(), event_sender });
 
-    matrix_client.add_event_handler({
-        |ev: PresenceEvent, client: Client, context: Ctx<WLMatrixContext>| async move {
+        // Registering all events
+
+        matrix_client.add_event_handler({
+            |ev: PresenceEvent, client: Client, context: Ctx<WLMatrixContext>| async move {
                 Self::handle_presence_event(ev, client, context.me.clone(), context.event_sender.clone()).await;
-            
-        }
-    });
-
-    matrix_client.add_event_handler({
-        |ev: StrippedRoomMemberEvent, room: Room, client: Client, context: Ctx<WLMatrixContext>| async move {
-            let notify_ab = Self::handle_stripped_room_member_event(ev, room, client, context.me.clone(), context.event_sender.clone()).await;
-            if notify_ab {
-                context.event_sender.send(NotificationEventFactory::get_ab_updated(context.me.clone()));
             }
-        }
-    });
+        });
 
-
-    matrix_client.add_event_handler({
-        |ev: SyncRoomMemberEvent, room: Room, client: Client, context: Ctx<WLMatrixContext>| async move{
-            Self::handle_sync_room_member_event(ev, room, client, context.me.clone(), context.event_sender.clone()).await;
-            
-        }
-    });
-
-
-    matrix_client.add_event_handler({
-        |ev: DirectEvent, client: Client, context: Ctx<WLMatrixContext>| async move {
-            Self::handle_direct_event(ev, client).await;
-            
-        }
-    });
-
-
-    matrix_client.add_event_handler({
-        |ev: SyncTypingEvent, room: Room, client: Client, context: Ctx<WLMatrixContext>| async move {
-            Self::handle_sync_typing_event(ev, room, client, context.me.clone()).await;
-            
-        }
-    });
-
-    matrix_client.add_event_handler({
-        |ev: SyncRoomMessageEvent, room: Room, client: Client, context: Ctx<WLMatrixContext> | async move {
-            Self::handle_sync_room_message_event(ev, room, client, context.event_sender.clone()).await;
-            
-        }
-    });
-}
-
-async fn handle_messages(matrix_client: Client, room_id: &RoomId, switchboard: &Switchboard, msg_event: &OriginalSyncMessageLikeEvent<RoomMessageEventContent>) {
-    info!("Handle message!");
-
-    let user_repo = MSNUserRepository::new(matrix_client);
-
-    let sender = user_repo.get_msnuser(&room_id, &msg_event.sender, false).await.unwrap();
-
-    if let MessageType::Text(content) = &msg_event.content.msgtype {
-        let msg = MsgPayloadFactory::get_message(emoji_to_smiley(&content.body));
-        switchboard.on_message_received(msg, sender, Some(msg_event.event_id.to_string()));
-    } else if let MessageType::File(content) = &msg_event.content.msgtype {
-        log::info!("Received a file: {:?}", &content);
-        switchboard.on_file_received(sender, content.body.clone(), content.source.clone(), WLMatrixClient::get_size_or_default(&content),  msg_event.event_id.to_string());
-    }
-}
-
-fn get_size_or_default(content: &FileMessageEventContent) -> usize {
-    let mut size: i32 = 0;
-    if let Some(info) = content.info.as_ref() {
-        if let Ok(valid_size) = i32::try_from(info.size.unwrap_or(UInt::new(0).unwrap())) {
-            size = valid_size;
-        }
-    }
-    return usize::try_from(size).expect("Matrix file size to be a usize");
-}
-
-async fn handle_directs(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, room: &Room, client: &Client, mtx_token: &String, msn_addr: &String) -> bool {
-
-    let joined_members = room.members(RoomMemberships::JOIN).await.unwrap_or(Vec::new());
-
-    let mut notify_ab = false;
-    if joined_members.len() >= 0 && joined_members.len() <= 2 {
-        //1O1 DM Room
-        info!("Room is One on One Direct !!");
-        notify_ab = notify_ab || Self::handle_1v1_dm2(ev, room, client, mtx_token, msn_addr, joined_members).await;
-    } else {
-        info!("Room is Group DM!!");
-        //Group DMs
-
-    }
-
-    return notify_ab;
-}
-
-async fn handle_1v1_dm2(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, room: &Room, client: &Client, mtx_token: &String, msn_addr: &String, joined_members: Vec<RoomMember>) -> bool {
-    let mut notify_ab = false;
-    let ab_sender = AB_LOCATOR.get_sender();
-    let matrix_token = client.access_token().unwrap();
-    let me = client.user_id().unwrap().to_owned();
-
-    //TODO Fix this unwrap
-    let target = Self::get_direct_target_that_isnt_me(&room.direct_targets(), &room, &me).await.unwrap();
-    let target_usr = MSNUser::from_matrix_id(target.clone());
-    let target_uuid = target_usr.get_uuid();
-    let target_msn_addr = target_usr.get_msn_addr();
-
-    log::info!("AB DEBUG - State_key: {}, sender: {}, membership: {}", &ev.state_key, &ev.sender, &ev.content.membership);
-
-    match room.state() {
-        RoomState::Joined => {
-            if &ev.state_key == &target {
-                let display_name = ev.content.displayname.as_ref().unwrap_or(&target_msn_addr).to_owned();
-                if ev.content.membership == MembershipState::Invite && &ev.sender == &me {
-                    //I Invited him, Add to allow list, add to contact pending.
-                    log::info!("AB - Send invitation to: {}", &target_msn_addr);
-                    let invited_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::LivePending, false);
-                    let invited_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
-                    ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), invited_contact));
-                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), invited_allow_member, RoleId::Allow));
-                    notify_ab = true;
-                } else if ev.content.membership == MembershipState::Join {
-                    //He accepted my invitation, ADD TO REVERSE LIST, CHANGE CONTACT TO NOT PENDING
-                    log::info!("AB - Invitation Accepted from: {}", &target_msn_addr);
-                    let invited_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::Live, false);
-                    let invited_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, false);
-                    ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), invited_contact));
-                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), invited_reverse_member, RoleId::Reverse));
-                    notify_ab = true;
-                } else if ev.content.membership == MembershipState::Leave || ev.content.membership == MembershipState::Ban {
-                    log::info!("AB - Contact left: {}", &target_msn_addr);
-                    //He left the room, Remove from Reverse List, Set to contact pending
-                    let left_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::LivePending, false);
-                    let left_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, true);
-                    ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), left_contact));
-                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), left_reverse_member, RoleId::Reverse));
-                    notify_ab = true;
-                }
-            } else if &ev.state_key == &me {
-                if &ev.content.membership == &MembershipState::Invite && &ev.sender == &target {
-                    //This is strange, i should get a join membership when i accept an invite, but i get an invite
-                             //I Accepted his invitation, REMOVE FROM PENDING LIST, ADD TO ALLOW LIST, ADD TO CONTACT LIST
-                    log::info!("AB - I Accepted an invite from: {}", &target_msn_addr);
-
-                    let inviter_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, false);
-                    let inviter_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
-                    let inviter_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true); 
-                    ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), inviter_contact));
-                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), inviter_allow_member, RoleId::Allow));
-                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), inviter_pending_member, RoleId::Pending));
-                    notify_ab = true;
-
+        matrix_client.add_event_handler({
+            |ev: StrippedRoomMemberEvent, room: Room, client: Client, context: Ctx<WLMatrixContext>| async move {
+                let notify_ab = Self::handle_stripped_room_member_event(ev, room, client, context.me.clone(), context.event_sender.clone()).await;
+                if notify_ab {
+                    context.event_sender.send(NotificationEventFactory::get_ab_updated(context.me.clone()));
                 }
             }
-        },
-        RoomState::Left => {
+        });
 
-            if Self::should_i_really_delete_contact(&client, target.clone()).await {
-                log::info!("AB - I Deleted: {}", &target_msn_addr);
-                //I Left the room, remove member from PENDING_LIST, ALLOW_LIST, REVERSE_LIST. Remove Contact from Contact List
-                let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, true);
-                let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, true);
-                let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, true);
-                let current_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true);
-    
-                ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), current_contact));
-                ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_allow_member, RoleId::Allow));
-                ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_reverse_member, RoleId::Reverse));
-                ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_pending_member, RoleId::Pending));
-                notify_ab = true;
+
+        matrix_client.add_event_handler({
+            |ev: SyncRoomMemberEvent, room: Room, client: Client, context: Ctx<WLMatrixContext>| async move {
+                Self::handle_sync_room_member_event(ev, room, client, context.me.clone(), context.event_sender.clone()).await;
             }
-        },
-        _=> {
+        });
 
+
+        matrix_client.add_event_handler({
+            |ev: DirectEvent, client: Client, context: Ctx<WLMatrixContext>| async move {
+                Self::handle_direct_event(ev, client).await;
+            }
+        });
+
+
+        matrix_client.add_event_handler({
+            |ev: SyncTypingEvent, room: Room, client: Client, context: Ctx<WLMatrixContext>| async move {
+                Self::handle_sync_typing_event(ev, room, client, context.me.clone()).await;
+            }
+        });
+
+        matrix_client.add_event_handler({
+            |ev: SyncRoomMessageEvent, room: Room, client: Client, context: Ctx<WLMatrixContext>| async move {
+                Self::handle_sync_room_message_event(ev, room, client, context.event_sender.clone()).await;
+            }
+        });
+    }
+
+    async fn handle_messages(matrix_client: Client, room_id: &RoomId, switchboard: &Switchboard, msg_event: &OriginalSyncMessageLikeEvent<RoomMessageEventContent>) {
+        info!("Handle message!");
+
+        let user_repo = MSNUserRepository::new(matrix_client);
+
+        let sender = user_repo.get_msnuser(&room_id, &msg_event.sender, false).await.unwrap();
+
+        if let MessageType::Text(content) = &msg_event.content.msgtype {
+            let msg = MsgPayloadFactory::get_message(emoji_to_smiley(&content.body));
+            switchboard.on_message_received(msg, sender, Some(msg_event.event_id.to_string()));
+        } else if let MessageType::File(content) = &msg_event.content.msgtype {
+            log::info!("Received a file: {:?}", &content);
+            switchboard.on_file_received(sender, content.body.clone(), content.source.clone(), WLMatrixClient::get_size_or_default(&content), msg_event.event_id.to_string());
         }
     }
 
-    return notify_ab;
-}
+    fn get_size_or_default(content: &FileMessageEventContent) -> usize {
+        let mut size: i32 = 0;
+        if let Some(info) = content.info.as_ref() {
+            if let Ok(valid_size) = i32::try_from(info.size.unwrap_or(UInt::new(0).unwrap())) {
+                size = valid_size;
+            }
+        }
+        return usize::try_from(size).expect("Matrix file size to be a usize");
+    }
 
-async fn handle_group_dm(ev: &SyncRoomMemberEvent, room: &Room, client: &Client, mtx_token: &String, msn_addr: &String) {
-    
-}
+    async fn handle_directs(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, room: &Room, client: &Client, mtx_token: &String, msn_addr: &String) -> bool {
+        let joined_members = room.members(RoomMemberships::JOIN).await.unwrap_or(Vec::new());
 
-async fn should_i_really_delete_contact(client: &Client, contact: OwnedUserId) -> bool {
-   let directs = client.store().get_account_data_event(GlobalAccountDataEventType::Direct).await.unwrap().unwrap(); //fix this
+        let mut notify_ab = false;
+        if joined_members.len() >= 0 && joined_members.len() <= 2 {
+            //1O1 DM Room
+            info!("Room is One on One Direct !!");
+            notify_ab = notify_ab || Self::handle_1v1_dm2(ev, room, client, mtx_token, msn_addr, joined_members).await;
+        } else {
+            info!("Room is Group DM!!");
+            //Group DMs
+        }
 
-   let directs_parsed : GlobalAccountDataEvent<DirectEventContent> = directs.deserialize_as().unwrap();
+        return notify_ab;
+    }
+
+    async fn handle_1v1_dm2(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, room: &Room, client: &Client, mtx_token: &String, msn_addr: &String, joined_members: Vec<RoomMember>) -> bool {
+        let mut notify_ab = false;
+        let ab_sender = AB_LOCATOR.get_sender();
+        let matrix_token = client.access_token().unwrap();
+        let me = client.user_id().unwrap().to_owned();
+
+        //TODO Fix this unwrap
+        let target = Self::get_direct_target_that_isnt_me(&room.direct_targets(), &room, &me, &client).await.unwrap();
+        let target_usr = MSNUser::from_matrix_id(target.clone());
+        let target_uuid = target_usr.get_uuid();
+        let target_msn_addr = target_usr.get_msn_addr();
+
+        log::info!("AB DEBUG - State_key: {}, sender: {}, membership: {}", &ev.state_key, &ev.sender, &ev.content.membership);
+
+        match room.state() {
+            RoomState::Joined => {
+                if &ev.state_key == &target {
+                    let display_name = ev.content.displayname.as_ref().unwrap_or(&target_msn_addr).to_owned();
+                    if ev.content.membership == MembershipState::Invite && &ev.sender == &me {
+                        //I Invited him, Add to allow list, add to contact pending.
+                        log::info!("AB - Send invitation to: {}", &target_msn_addr);
+                        let invited_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::LivePending, false);
+                        let invited_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
+                        ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), invited_contact));
+                        ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), invited_allow_member, RoleId::Allow));
+                        notify_ab = true;
+                    } else if ev.content.membership == MembershipState::Join {
+                        //He accepted my invitation, ADD TO REVERSE LIST, CHANGE CONTACT TO NOT PENDING
+                        log::info!("AB - Invitation Accepted from: {}", &target_msn_addr);
+                        let invited_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::Live, false);
+                        let invited_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, false);
+                        ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), invited_contact));
+                        ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), invited_reverse_member, RoleId::Reverse));
+                        notify_ab = true;
+                    } else if ev.content.membership == MembershipState::Leave || ev.content.membership == MembershipState::Ban {
+                        log::info!("AB - Contact left: {}", &target_msn_addr);
+                        //He left the room, Remove from Reverse List, Set to contact pending
+                        let left_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::LivePending, false);
+                        let left_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, true);
+                        ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), left_contact));
+                        ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), left_reverse_member, RoleId::Reverse));
+                        notify_ab = true;
+                    }
+                } else if &ev.state_key == &me {
+                    if &ev.content.membership == &MembershipState::Invite && &ev.sender == &target {
+                        //This is strange, i should get a join membership when i accept an invite, but i get an invite
+                        //I Accepted his invitation, REMOVE FROM PENDING LIST, ADD TO ALLOW LIST, ADD TO CONTACT LIST
+                        log::info!("AB - I Accepted an invite from: {}", &target_msn_addr);
+
+                        let inviter_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, false);
+                        let inviter_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
+                        let inviter_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true);
+                        ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), inviter_contact));
+                        ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), inviter_allow_member, RoleId::Allow));
+                        ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), inviter_pending_member, RoleId::Pending));
+                        notify_ab = true;
+                    }
+                }
+            }
+            RoomState::Left => {
+                if Self::should_i_really_delete_contact(&client, target.clone()).await {
+                    log::info!("AB - I Deleted: {}", &target_msn_addr);
+                    //I Left the room, remove member from PENDING_LIST, ALLOW_LIST, REVERSE_LIST. Remove Contact from Contact List
+                    let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, true);
+                    let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, true);
+                    let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, true);
+                    let current_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true);
+
+                    ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), current_contact));
+                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_allow_member, RoleId::Allow));
+                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_reverse_member, RoleId::Reverse));
+                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_pending_member, RoleId::Pending));
+                    notify_ab = true;
+                }
+            }
+            _ => {}
+        }
+
+        return notify_ab;
+    }
+
+    async fn handle_group_dm(ev: &SyncRoomMemberEvent, room: &Room, client: &Client, mtx_token: &String, msn_addr: &String) {}
+
+    async fn should_i_really_delete_contact(client: &Client, contact: OwnedUserId) -> bool {
+        let directs = client.store().get_account_data_event(GlobalAccountDataEventType::Direct).await.unwrap().unwrap(); //fix this
+
+        let directs_parsed: GlobalAccountDataEvent<DirectEventContent> = directs.deserialize_as().unwrap();
 
         let content = directs_parsed.content.0;
 
@@ -340,93 +329,88 @@ async fn should_i_really_delete_contact(client: &Client, contact: OwnedUserId) -
                 let dm_rooms = current.1;
                 for dm_room in dm_rooms {
                     //For each dm room for a contact
-                   //if let Some(member_event) = client.store().get_member_event(&dm_room, &contact).await.unwrap() {
-                         if let Some(joined_room) = client.get_room(&dm_room) {
-                             //If we are still in the room
-                           // if member_event.content.membership == MembershipState::Invite || member_event.content.membership == MembershipState::Join {
-                                //If the contact is still in the room, don't delete it from the contact list.
-                                return false;
-                                
-                            //};
-                         }
+                    //if let Some(member_event) = client.store().get_member_event(&dm_room, &contact).await.unwrap() {
+                    if let Some(joined_room) = client.get_room(&dm_room) {
+                        //If we are still in the room
+                        // if member_event.content.membership == MembershipState::Invite || member_event.content.membership == MembershipState::Join {
+                        //If the contact is still in the room, don't delete it from the contact list.
+                        return false;
 
-                  // }
+                        //};
+                    }
+
+                    // }
                 }
                 break;
             }
         }
-    return true;
-}
-
-
-//TODO handle the fact that room member events also broadcast name change & psm change
-async fn handle_presence_event(ev: PresenceEvent, client: Client, me: MSNUser, ns_sender: Sender<NotificationEvent>) {
-                    
-    if ev.sender == client.user_id().unwrap() { 
-
-        //TODO handle me changing avatars
-        return;
+        return true;
     }
 
-    let user_repo = MSNUserRepository::new(client.clone());
+
+    //TODO handle the fact that room member events also broadcast name change & psm change
+    async fn handle_presence_event(ev: PresenceEvent, client: Client, me: MSNUser, ns_sender: Sender<NotificationEvent>) {
+        if ev.sender == client.user_id().unwrap() {
+
+            //TODO handle me changing avatars
+            return;
+        }
+
+        let user_repo = MSNUserRepository::new(client.clone());
 
 
-    let event_sender: &OwnedUserId = &ev.sender;
-    let sender_msn_addr = event_sender.to_msn_addr();
+        let event_sender: &OwnedUserId = &ev.sender;
+        let sender_msn_addr = event_sender.to_msn_addr();
 
-    if let Ok(mut user) = user_repo.get_msnuser_from_userid(event_sender, false).await{
+        if let Ok(mut user) = user_repo.get_msnuser_from_userid(event_sender, false).await {
+            let presence_status: PresenceStatus = ev.content.presence.clone().into();
 
-    let presence_status : PresenceStatus = ev.content.presence.clone().into();
+            info!("Received Presence Event: {:?} - ev: {:?}", &presence_status, &ev);
 
-    info!("Received Presence Event: {:?} - ev: {:?}", &presence_status, &ev);
+            if PresenceStatus::FLN == presence_status {
+                ns_sender.send(NotificationEventFactory::get_disconnect(user));
+            } else {
+                user.set_status(presence_status);
+                if let Some(display_name) = ev.content.displayname {
+                    user.set_display_name(display_name);
+                }
 
-    if PresenceStatus::FLN == presence_status {
-        ns_sender.send(NotificationEventFactory::get_disconnect(user));
-    } else {
-
-            user.set_status(presence_status);
-            if let Some(display_name) = ev.content.displayname {
-                user.set_display_name(display_name);
-            }
-
-            if let Some(status_msg) = ev.content.status_msg{
-                user.set_psm(status_msg);
-            }
+                if let Some(status_msg) = ev.content.status_msg {
+                    user.set_psm(status_msg);
+                }
 
 
-            if let Some(avatar_mxc) = ev.content.avatar_url.as_ref() {
-
-                match user_repo.get_avatar(avatar_mxc.clone()).await {
-                    Ok(avatar) => {
-                       user.set_display_picture(Some(user_repo.avatar_to_msn_obj(&avatar, sender_msn_addr.clone(), &avatar_mxc)));
-                    },
-                    Err(err) => {
-                        log::error!("Couldn't download avatar: {} - {}", &avatar_mxc, err);
+                if let Some(avatar_mxc) = ev.content.avatar_url.as_ref() {
+                    match user_repo.get_avatar(avatar_mxc.clone()).await {
+                        Ok(avatar) => {
+                            user.set_display_picture(Some(user_repo.avatar_to_msn_obj(&avatar, sender_msn_addr.clone(), &avatar_mxc)));
+                        }
+                        Err(err) => {
+                            log::error!("Couldn't download avatar: {} - {}", &avatar_mxc, err);
+                        }
                     }
                 }
+
+                ns_sender.send(NotificationEventFactory::get_presence(user));
             }
-
-            ns_sender.send(NotificationEventFactory::get_presence(user));
-        } 
-    
-    } else {
-        warn!("Could not find user in repo (presence) {}", &event_sender);
+        } else {
+            warn!("Could not find user in repo (presence) {}", &event_sender);
+        }
     }
-}
 
-async fn handle_stripped_room_member_event(ev: StrippedRoomMemberEvent, room: Room, client: Client, me: MSNUser, event_sender: Sender<NotificationEvent>) -> bool {
-    let mut notify_ab = false;
-    let ab_sender = AB_LOCATOR.get_sender();
-    let matrix_token = client.access_token().unwrap();
+    async fn handle_stripped_room_member_event(ev: StrippedRoomMemberEvent, room: Room, client: Client, me: MSNUser, event_sender: Sender<NotificationEvent>) -> bool {
+        let mut notify_ab = false;
+        let ab_sender = AB_LOCATOR.get_sender();
+        let matrix_token = client.access_token().unwrap();
 
 
-    let me_matrix_id = me.get_matrix_id();
+        let me_matrix_id = me.get_matrix_id();
 
-    log::info!("AB DEBUG - STRIPPED: state_key: {}, sender: {}, membership: {}", &ev.state_key, &ev.sender, &ev.content.membership);
+        log::info!("AB DEBUG - STRIPPED: state_key: {}, sender: {}, membership: {}", &ev.state_key, &ev.sender, &ev.content.membership);
 
-    if room.is_direct().await.unwrap() || ev.content.is_direct.unwrap_or(false) {
-        log::info!("AB DEBUG - STRIPPED: DIRECT");
-        //This is a direct
+        if room.is_direct().await.unwrap() || ev.content.is_direct.unwrap_or(false) {
+            log::info!("AB DEBUG - STRIPPED: DIRECT");
+            //This is a direct
 
             match room.state() {
                 RoomState::Joined => {
@@ -449,7 +433,7 @@ async fn handle_stripped_room_member_event(ev: StrippedRoomMemberEvent, room: Ro
                     //     ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), inviter_pending_member, RoleId::Pending));
                     //     notify_ab = true;
                     // }
-                },
+                }
                 RoomState::Invited => {
                     if &ev.content.membership == &MembershipState::Invite && &ev.state_key == &me_matrix_id {
                         //I've been invited ! ADD TO PENDING LIST WITH INVITE MSG, ADD TO REVERSE LIST
@@ -467,161 +451,186 @@ async fn handle_stripped_room_member_event(ev: StrippedRoomMemberEvent, room: Ro
                         let annotation = AnnotationFactory::get_invite(ev.content.reason.unwrap_or(String::new()));
                         let mut annotations = Vec::new();
                         annotations.push(annotation);
-                        current_pending_member.annotations=Some(ArrayOfAnnotation{ annotation: annotations });
-                
-                
+                        current_pending_member.annotations = Some(ArrayOfAnnotation { annotation: annotations });
+
+
                         let current_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, false);
-                        
+
                         ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_pending_member, RoleId::Pending));
                         ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_reverse_member, RoleId::Reverse));
                         notify_ab = true;
-
-                    }   
-                },
+                    }
+                }
                 RoomState::Left => {
                     log::info!("AB DEBUG 1o1DM - STRIPPED: LEFT ROOM");
                 }
             }
-    } else {
-        log::info!("AB DEBUG - STRIPPED: NON DIRECT")
+        } else {
+            log::info!("AB DEBUG - STRIPPED: NON DIRECT")
+        }
+        return notify_ab;
     }
-    return notify_ab;
-}
 
-async fn handle_sync_room_member_event(ev: SyncRoomMemberEvent, room: Room, client: Client, me: MSNUser, event_sender: Sender<NotificationEvent>) {
-  let my_user_id = client.user_id().unwrap();
-    let mut notify_ab = false;
-                    if let SyncRoomMemberEvent::Original(ev) = &ev {
-                        info!("ABDEBUG: Original Event !!");
+    async fn handle_sync_room_member_event(ev: SyncRoomMemberEvent, room: Room, client: Client, me: MSNUser, event_sender: Sender<NotificationEvent>) {
+        let my_user_id = client.user_id().unwrap();
+        let mut notify_ab = false;
+        if let SyncRoomMemberEvent::Original(ev) = &ev {
+            info!("ABDEBUG: Original Event !!");
 
-                        if ev.sender == my_user_id.to_owned() {
-                            info!("ABDEBUG: I Changed!");
-                            if let Some(previous_content) = ev.prev_content() {
-                                if ev.content.displayname != previous_content.displayname {
-                                    
-                                    if let Some(display_name) = &ev.content.displayname {
-                                       //TODO update display name
-                                }
-                            }else {
-
-                            }
-                            }
+            if ev.sender == my_user_id.to_owned() {
+                info!("ABDEBUG: I Changed!");
+                if let Some(previous_content) = ev.prev_content() {
+                    if ev.content.displayname != previous_content.displayname {
+                        if let Some(display_name) = &ev.content.displayname {
+                            //TODO update display name
                         }
+                    } else {}
+                }
+            }
 
-                        if room.is_direct().await.unwrap() || ev.content.is_direct.unwrap_or(false) {
-                            info!("Room is direct !!");
-                            notify_ab = notify_ab || Self::handle_directs(ev, &room, &client, &client.access_token().unwrap(), &me.get_msn_addr()).await;
-                        } else {
-                            info!("Room is not a direct !!");
-                        }
-                    } else if let SyncRoomMemberEvent::Redacted(ev) = &ev {
-                        info!("ABDEBUG: Redacted event !!");
-                    }
+            if room.is_direct().await.unwrap() || ev.content.is_direct.unwrap_or(false) {
+                info!("Room is direct !!");
+                notify_ab = notify_ab || Self::handle_directs(ev, &room, &client, &client.access_token().unwrap(), &me.get_msn_addr()).await;
+            } else {
+                info!("Room is not a direct !!");
+            }
+        } else if let SyncRoomMemberEvent::Redacted(ev) = &ev {
+            info!("ABDEBUG: Redacted event !!");
+        }
 
-    if notify_ab {
-        event_sender.send(NotificationEventFactory::get_ab_updated(me.clone()));
+        if notify_ab {
+            event_sender.send(NotificationEventFactory::get_ab_updated(me.clone()));
+        }
     }
-}
 
-async fn handle_direct_event(ev: DirectEvent, client: Client) {
-    info!("RECEIVED DIRECT EVENT!!!!");
+    async fn handle_direct_event(ev: DirectEvent, client: Client) {
+        info!("RECEIVED DIRECT EVENT!!!!");
+    }
 
-}
+    async fn handle_sync_typing_event(ev: SyncTypingEvent, room: Room, client: Client, me: MSNUser) {
+        let user_repo = MSNUserRepository::new(client.clone());
 
-async fn handle_sync_typing_event(ev: SyncTypingEvent, room: Room, client: Client, me: MSNUser) {
-
-    let user_repo = MSNUserRepository::new(client.clone());
-
-    let room_id = room.room_id().to_string();
+        let room_id = room.room_id().to_string();
         if let Some(found) = MSN_CLIENT_LOCATOR.get().unwrap().get_switchboards().find(&room_id) {
             for user_id in ev.content.user_ids {
-                
                 let typing_user = user_repo.get_msnuser(&room.room_id(), &user_id, false).await.unwrap();
 
                 if &typing_user.get_msn_addr() != &me.get_msn_addr() {
-
                     let typing_user_payload = MsgPayloadFactory::get_typing_user(typing_user.get_msn_addr().clone());
 
                     found.on_message_received(typing_user_payload, typing_user, None);
                 }
             }
         }
-}
+    }
 
-async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, room: Room, client: Client, event_sender: Sender<NotificationEvent>) {
-    if let SyncRoomMessageEvent::Original(ev) = ev {
-    
-        let joined_members = room.members(RoomMemberships::JOIN).await.unwrap_or(Vec::new());
+    async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, room: Room, client: Client, event_sender: Sender<NotificationEvent>) {
+        if let SyncRoomMessageEvent::Original(ev) = ev {
+            let joined_members = room.members(RoomMemberships::JOIN).await.unwrap_or(Vec::new());
 
-        let debug = room.is_direct();
-        let debug_len = joined_members.len();
+            let debug = room.is_direct();
+            let debug_len = joined_members.len();
 
-       // if room.is_direct() && joined_members.len() > 0 && joined_members.len() <= 2 {
-            let me_user_id =  client.user_id().unwrap();
+            // if room.is_direct() && joined_members.len() > 0 && joined_members.len() <= 2 {
+            let me_user_id = client.user_id().unwrap();
 
-            if let Some(target) = Self::get_direct_target_that_isnt_me(&room.direct_targets(), &room, &me_user_id).await{
 
+            if let Some(target) = Self::get_direct_target_that_isnt_me(&room.direct_targets(), &room, &me_user_id, &client).await {
                 let room_id = room.room_id().to_string();
                 let target_msn_user = MSNUser::from_matrix_id(target.clone());
 
-                if let Some(msn_client) = MSN_CLIENT_LOCATOR.get(){
+                if let Some(msn_client) = MSN_CLIENT_LOCATOR.get() {
                     if let Some(found) = msn_client.get_switchboards().find(&room_id) {
                         Self::handle_messages(client.clone(), &room.room_id(), &found, &ev).await;
                     } else {
-                             //sb not initialized yet
-                            let sb_data = Switchboard::new(client.clone(), room.room_id().to_owned(), client.user_id().unwrap().to_owned());
-                            {
-                                Self::handle_messages(client.clone(), &room.room_id(), &sb_data, &ev).await;
-                            }
+                        //sb not initialized yet
+                        let sb_data = Switchboard::new(client.clone(), room.room_id().to_owned(), client.user_id().unwrap().to_owned());
+                        {
+                            Self::handle_messages(client.clone(), &room.room_id(), &sb_data, &ev).await;
+                        }
 
-                            msn_client.get_switchboards().add(room_id.clone(), sb_data);
-                             //send RNG command
-                             let session_id = identifiers::get_sb_session_id();
+                        msn_client.get_switchboards().add(room_id.clone(), sb_data);
+                        //send RNG command
+                        let session_id = identifiers::get_sb_session_id();
 
-                             let ticket = general_purpose::STANDARD.encode(format!("{target_room_id};{token};{target_matrix_id}", target_room_id = &room_id, token = &client.access_token().unwrap(), target_matrix_id = target.to_string()));
+                        let ticket = general_purpose::STANDARD.encode(format!("{target_room_id};{token};{target_matrix_id}", target_room_id = &room_id, token = &client.access_token().unwrap(), target_matrix_id = target.to_string()));
 
-                             event_sender.send(NotificationEventFactory::get_switchboard_init(target_msn_user, session_id, ticket));
-                          
-                    }  
+                        event_sender.send(NotificationEventFactory::get_switchboard_init(target_msn_user, session_id, ticket));
+                    }
                 }
             }
-       // }
-    }
-}
-
-
-fn try_fetch_in_direct_targets(direct_targets: &HashSet<OwnedUserId>, me: &UserId) -> Option<OwnedUserId> {
-    log::info!("TryGetDirectTarget - target count: {}, me: {}", direct_targets.len(), &me);
-    for direct_target in direct_targets {
-        if(direct_target != me) {
-            log::info!("TryGetDirectTarget - found {}", &direct_target);
-            return Some(direct_target.clone());
+            // }
         }
     }
-    log::info!("TryGetDirectTarget - found none");
-    return None;
-}
 
-async fn get_direct_target_that_isnt_me(direct_targets: &HashSet<OwnedUserId>, room: &Room, me: &UserId) -> Option<OwnedUserId> {
-   let mut maybe = Self::try_fetch_in_direct_targets(direct_targets, me);
-    if maybe.is_none() {
-       let members = room.members(RoomMemberships::union(RoomMemberships::JOIN, RoomMemberships::INVITE)).await.unwrap();
-       log::info!("TryGetDirectTarget2 - members count: {}, me: {}", members.len(), &me);
-       for member in members {
-        if member.user_id() != me {
-            maybe = Some(member.user_id().to_owned());
-            log::info!("TryGetDirectTarget2 - members found: {}", &member.user_id());
+
+    fn try_fetch_in_direct_targets(direct_targets: &HashSet<OwnedUserId>, me: &UserId) -> Option<OwnedUserId> {
+        log::info!("TryGetDirectTarget - target count: {}, me: {}", direct_targets.len(), &me);
+        for direct_target in direct_targets {
+            if (direct_target != me) {
+                log::info!("TryGetDirectTarget - found {}", &direct_target);
+                return Some(direct_target.clone());
+            }
         }
-       }
+        log::info!("TryGetDirectTarget - found none");
+        return None;
     }
-   return maybe;
-}
 
-pub async fn find_or_create_dm_room(client: &Client, user_id: &UserId) -> matrix_sdk::Result<Room> {
-    if let Some(found) = client.get_dm_room(user_id) {
-        return Ok(found);
+    async fn get_m_direct_account_data(client: &Client) -> Result<Option<DirectEventContent>, Error> {
+
+        if let Some(raw_content) = client.account().fetch_account_data(GlobalAccountDataEventType::Direct).await? {
+            return  Ok(Some(raw_content.deserialize_as::<DirectEventContent>()?));
+        } else {
+            warn!("fetched account data was none");
+            return Ok(None)
+        }
     }
-    return client.create_dm(user_id).await;
-}
 
+    async fn find_direct_target_from_account_data(client: &Client, room_id: &OwnedRoomId) -> Option<OwnedUserId> {
+
+        info!("find_direct_target_from_account_data");
+        if let Ok(Some(event_content)) =  Self::get_m_direct_account_data(client).await {
+
+            for (current_user, dm_rooms) in event_content.0 {
+                if dm_rooms.contains(room_id) {
+                    info!("find_direct_target_from_account_data: Found: {}", &room_id);
+                    return Some(current_user)
+                }
+            }
+        }
+        info!("find_direct_target_from_account_data was None");
+        return None;
+
+    }
+
+    async fn get_direct_target_that_isnt_me(direct_targets: &HashSet<OwnedUserId>, room: &Room, me: &UserId, client: &Client) -> Option<OwnedUserId> {
+        let maybe_found_direct_target = Self::try_fetch_in_direct_targets(direct_targets, me);
+        if maybe_found_direct_target.is_some() {
+            return maybe_found_direct_target;
+        }
+
+        let maybe_found_m_direct = Self::find_direct_target_from_account_data(client, &room.room_id().to_owned()).await;
+        if maybe_found_m_direct.is_some() {
+            return maybe_found_m_direct;
+        }
+
+        let members = room.members(RoomMemberships::union(RoomMemberships::ACTIVE, RoomMemberships::LEAVE)).await.unwrap();
+        log::info!("TryGetDirectTarget2 - members count: {}, me: {}", members.len(), &me);
+        for member in members {
+            if member.user_id() != me {
+                log::info!("TryGetDirectTarget2 - members found: {}", &member.user_id());
+                return Some(member.user_id().to_owned());
+            }
+        }
+
+        return None;
+
+    }
+
+    pub async fn find_or_create_dm_room(client: &Client, user_id: &UserId) -> matrix_sdk::Result<Room> {
+        if let Some(found) = client.get_dm_room(user_id) {
+            return Ok(found);
+        }
+        return client.create_dm(user_id).await;
+    }
 }

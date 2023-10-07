@@ -8,7 +8,7 @@ use substring::Substring;
 use yaserde::{de::{self, from_str}, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
-use super::{errors::Errors, p2p::slp_context::SlpContext};
+use super::{tachyon_error::TachyonError, p2p::slp_context::SlpContext};
 
 // Documentation source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/MSN_Object
 
@@ -90,13 +90,13 @@ impl SlpContext for MSNObject {
 }
 
 impl FromStr for MSNObject {
-    type Err = Errors;
+    type Err = TachyonError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Ok(deserialized) = from_str::<MSNObject>(s) {
             return Ok(deserialized);
           } else {
-              return Err(Errors::PayloadDeserializeError);
+              return Err(TachyonError::PayloadDeserializeError);
           }    }
 }
 
@@ -267,7 +267,7 @@ impl Display for MSNObjectType {
 }
 
 impl TryFrom<i32> for MSNObjectType {
-    type Error = Errors;
+    type Error = TachyonError;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         match value {
@@ -289,7 +289,7 @@ impl TryFrom<i32> for MSNObjectType {
             x if x == MSNObjectType::Scene as i32 => Ok(MSNObjectType::Scene),
             x if x == MSNObjectType::WebcamDynamicDisplayPicture as i32 => Ok(MSNObjectType::WebcamDynamicDisplayPicture),
             _ => {
-                Err(Errors::PayloadDeserializeError)
+                Err(TachyonError::PayloadDeserializeError)
             }
         }
     }

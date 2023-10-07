@@ -1,4 +1,4 @@
-use crate::models::{errors::Errors, msn_user::MSNUser};
+use crate::models::{tachyon_error::TachyonError, msn_user::MSNUser};
 
 use super::p2p_transport_packet::P2PTransportPacket;
 
@@ -20,13 +20,13 @@ impl PendingPacket {
         self.chunks.push(packet);
     }
 
-    pub fn get_packet(&self) -> Result<P2PTransportPacket, Errors> {
+    pub fn get_packet(&self) -> Result<P2PTransportPacket, TachyonError> {
         if !self.packet.is_payload_chunked() {
             return Ok(self.packet.to_owned());
         }
 
         if !self.is_complete() {
-            return Err(Errors::PayloadNotComplete);
+            return Err(TachyonError::PayloadNotComplete);
         }
 
         return Ok(self.merge_chunks());

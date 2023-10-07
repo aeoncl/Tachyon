@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::models::errors::Errors;
+use crate::models::tachyon_error::TachyonError;
 
 use super::{factories::{P2PPayloadFactory, SlpPayloadFactory}, p2p_payload::P2PPayload, slp_payload::SlpPayload};
 
@@ -8,7 +8,7 @@ pub struct SlpPayloadHandler;
 
 impl SlpPayloadHandler {
 
-    pub fn handle(slp_payload: &SlpPayload) -> Result<SlpPayload, Errors> {
+    pub fn handle(slp_payload: &SlpPayload) -> Result<SlpPayload, TachyonError> {
         let error = String::from("error");
         let content_type = slp_payload.get_content_type().unwrap_or(&error);
             match content_type.as_str() {
@@ -37,17 +37,17 @@ impl SlpPayloadHandler {
                     return Ok(slp_payload_response);
                 },
                 "application/x-msnmsgr-sessionclosebody" => {
-                    return Err(Errors::PayloadNotComplete);
+                    return Err(TachyonError::PayloadNotComplete);
                     
                 }
                 _ => {
                     info!("not handled slp payload: {:?}", slp_payload);
-                   return Err(Errors::PayloadNotComplete);
+                   return Err(TachyonError::PayloadNotComplete);
                 }
             }
     }
 
-    pub fn handle_p2p(slp_payload: &SlpPayload) -> Result<P2PPayload, Errors> {
+    pub fn handle_p2p(slp_payload: &SlpPayload) -> Result<P2PPayload, TachyonError> {
         let slp_payload_response = SlpPayloadHandler::handle(slp_payload)?;
         let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
         p2p_payload_response.set_payload(slp_payload_response.to_string().as_bytes().to_owned());

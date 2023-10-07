@@ -2,7 +2,7 @@ use matrix_sdk::ruma::OwnedUserId;
 
 use crate::generated::payloads::PresenceStatus;
 
-use super::{capabilities::{ClientCapabilities, ClientCapabilitiesFactory}, errors::Errors, msn_object::MSNObject, owned_user_id_traits::{FromMsnAddr, ToMsnAddr}, uuid::{PUID, UUID}};
+use super::{capabilities::{ClientCapabilities, ClientCapabilitiesFactory}, tachyon_error::TachyonError, msn_object::MSNObject, owned_user_id_traits::{FromMsnAddr, ToMsnAddr}, uuid::{PUID, UUID}};
 
 #[derive(Clone, Debug)]
 pub struct PartialMSNUser {
@@ -119,15 +119,15 @@ impl MSNUser {
     /**
      * Parses from a msn_addr;{endpoint_guid} string
      */
-    pub fn from_mpop_addr_string(mpop_string: String) -> Result<MSNUser, Errors> {
+    pub fn from_mpop_addr_string(mpop_string: String) -> Result<MSNUser, TachyonError> {
        if let Some((msn_addr, endpoint_guid)) = mpop_string.split_once(";") {
            let  trimmed_msn_addr = msn_addr.trim().to_string();
-            let trimmed_endpoint_guid = endpoint_guid.trim().strip_prefix("{").ok_or(Errors::PayloadDeserializeError)?.strip_suffix("}").ok_or(Errors::PayloadDeserializeError)?;
+            let trimmed_endpoint_guid = endpoint_guid.trim().strip_prefix("{").ok_or(TachyonError::PayloadDeserializeError)?.strip_suffix("}").ok_or(TachyonError::PayloadDeserializeError)?;
             let mut out : MSNUser = MSNUser::new(trimmed_msn_addr);
             out.set_endpoint_guid(trimmed_endpoint_guid.to_string());
             return Ok(out);
        }
-       return Err(Errors::PayloadDeserializeError);
+       return Err(TachyonError::PayloadDeserializeError);
     }
 
     pub fn get_msn_addr(&self) -> String {

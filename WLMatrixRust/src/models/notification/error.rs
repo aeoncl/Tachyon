@@ -1,6 +1,6 @@
 use matrix_sdk::HttpError;
 
-use crate::models::errors::Errors;
+use crate::models::tachyon_error::TachyonError;
 
 #[derive(Debug, Clone)]
 
@@ -77,8 +77,8 @@ impl From<HttpError> for MsnpErrorCode {
 		}
 	}
 
-	impl From<Errors> for MsnpErrorCode {
-    fn from(value: Errors) -> Self {
+	impl From<TachyonError> for MsnpErrorCode {
+    fn from(value: TachyonError) -> Self {
 		return MsnpErrorCode::InternalServerError;
     }
 }	

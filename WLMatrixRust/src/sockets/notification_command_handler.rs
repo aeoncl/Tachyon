@@ -11,6 +11,7 @@ use tokio::sync::broadcast::{self, Receiver, Sender};
 use tokio::task::JoinHandle;
 
 use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR};
+use crate::generated::msnab_datatypes::types::RoleId;
 use crate::generated::payloads::{PresenceStatus, PrivateEndpointData};
 use crate::models::msg_payload::factories::MsgPayloadFactory;
 use crate::models::msn_user::MSNUser;
@@ -56,35 +57,38 @@ impl NotificationCommandHandler {
                             match msg {
                                 NotificationEvent::AddressBookUpdateEvent(content) => {
 
+                                    info!("ABNotify: Sending AB Notify");
 
                                     let sender = sender.clone();
-                                    let mut stop_receiver = ab_notify_task_stop_sender.subscribe();
+                                   // let mut stop_receiver = ab_notify_task_stop_sender.subscribe();
+                                    let _result = sender.send(format!("NOT {payload_size}\r\n{payload}", payload_size = content.payload.len(), payload = content.payload));
+                                    _result.expect("SENDING NOT, NOT TO BE AN ERROR");
 
-                                    if let Some(jh) = join_handle {
-                                        if !jh.is_finished() {
-                                            ab_notify_task_stop_sender.send(());
-                                        }
-                                    }
-
-                                    join_handle = Some(task::spawn(async move {
-
-                                        info!("ABNotify: Spawning ab notify task");
-
-                                        let mut interval = time::interval(Duration::from_secs(5));
-                                        interval.tick().await;
-
-                                        tokio::select! {
-                                            abort = stop_receiver.recv()  => {
-                                                info!("ABNotify: Aborting task");
-                                                return;
-                                            }, 
-                                            tick = interval.tick() => {
-                                                let _result = sender.send(format!("NOT {payload_size}\r\n{payload}", payload_size = content.payload.len(), payload = content.payload));
-                                                info!("ABNotify: Send command");
-                                                return;
-                                            }
-                                        }
-                                    }));
+                                    // if let Some(jh) = join_handle {
+                                    //     if !jh.is_finished() {
+                                    //         ab_notify_task_stop_sender.send(());
+                                    //     }
+                                    // }
+                                    //
+                                    // join_handle = Some(task::spawn(async move {
+                                    //
+                                    //     info!("ABNotify: Spawning ab notify task");
+                                    //
+                                    //     let mut interval = time::interval(Duration::from_secs(5));
+                                    //     interval.tick().await;
+                                    //
+                                    //     tokio::select! {
+                                    //         abort = stop_receiver.recv()  => {
+                                    //             info!("ABNotify: Aborting task");
+                                    //             return;
+                                    //         },
+                                    //         tick = interval.tick() => {
+                                    //             let _result = sender.send(format!("NOT {payload_size}\r\n{payload}", payload_size = content.payload.len(), payload = content.payload));
+                                    //             info!("ABNotify: Send command");
+                                    //             return;
+                                    //         }
+                                    //     }
+                                    // }));
 
                                 },
                                 NotificationEvent::HotmailNotificationEvent(content) => {
@@ -288,6 +292,10 @@ impl CommandHandler for NotificationCommandHandler {
                     self.msn_client.as_mut().ok_or(MsnpError::internal_server_error(&tr_id))?.init_contact_list(&ad_payload);
                 } else {
                     info!("Add to Contact List received: {:?}", &ad_payload);
+                    // ad_payload.domains.iter().flat_map(|d| d.get_contacts_for_role(&RoleId::Reverse)).for_each(|c| -> {
+                    // TODO SEND PRESENCE
+                   // });
+                    //SYNC CONTACT LIST FROM MSNClient
                 }
                 return Ok(format!("ADL {tr_id} OK\r\n", tr_id=tr_id));
             },
