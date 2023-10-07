@@ -11,7 +11,8 @@ use matrix_sdk::media::{MediaFormat, MediaRequest};
 use matrix_sdk::ruma::{OwnedUserId, UserId};
 use substring::Substring;
 use tokio::sync::broadcast::{self, Receiver, Sender};
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR};
 use crate::models::msg_payload::factories::MsgPayloadFactory;
@@ -45,7 +46,7 @@ pub struct SwitchboardCommandHandler {
     target_matrix_id: Option<OwnedUserId>,
     target_msn_addr: String,
     matrix_client: Option<Client>,
-    sender: Sender<SocketEvent>,
+    sender: UnboundedSender<SocketEvent>,
     switchboard: Option<Switchboard>,
     sb_bridge: Option<P2PClient>,
     stop_sender: Option<oneshot::Sender<()>>,
@@ -64,7 +65,7 @@ impl Drop for SwitchboardCommandHandler {
 }
 
 impl SwitchboardCommandHandler {
-    pub fn new(sender: Sender<SocketEvent>) -> SwitchboardCommandHandler {
+    pub fn new(sender: UnboundedSender<SocketEvent>) -> SwitchboardCommandHandler {
         return SwitchboardCommandHandler {
             protocol_version: Arc::new(-1),
             msn_addr: String::new(),
@@ -84,8 +85,8 @@ impl SwitchboardCommandHandler {
 
     fn start_receiving(
         &mut self,
-        mut sb_receiver: Receiver<SwitchboardEvent>,
-        mut p2p_receiver: Receiver<P2PEvent>,
+        mut sb_receiver: UnboundedReceiver<SwitchboardEvent>,
+        mut p2p_receiver: UnboundedReceiver<P2PEvent>,
         mut stop_listener: oneshot::Receiver<()>,
     ) {
         let sender = self.sender.clone();
@@ -271,7 +272,7 @@ impl SwitchboardCommandHandler {
         self.switchboard = Some(switchboard.clone());
         let sb_receiver = switchboard.get_receiver();
 
-        let (p2p_sender, p2p_receiver) = broadcast::channel::<P2PEvent>(100);
+        let (p2p_sender, p2p_receiver) = mpsc::unbounded_channel::<P2PEvent>();
         self.sb_bridge = Some(P2PClient::new(p2p_sender));
 
         let (stop_sender, mut stop_receiver) = oneshot::channel::<()>();

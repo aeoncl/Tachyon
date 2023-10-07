@@ -8,6 +8,7 @@ use matrix_sdk::matrix_auth::{MatrixSession, MatrixSessionTokens};
 use matrix_sdk::ruma::__private_macros::user_id;
 use matrix_sdk::ruma::OwnedRoomId;
 use tokio::sync::{broadcast::Sender, oneshot};
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{AB_LOCATOR, generated::{msnab_datatypes::types::{ArrayOfAnnotation, ContactTypeEnum, MemberState, RoleId}, msnab_sharingservice::factories::{AnnotationFactory, ContactFactory, MemberFactory}, payloads::PresenceStatus}, models::{abch::events::AddressBookEventFactory, msg_payload::factories::MsgPayloadFactory, owned_user_id_traits::ToMsnAddr}, MSN_CLIENT_LOCATOR, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, SETTINGS_LOCATOR, utils::{emoji::emoji_to_smiley, identifiers::{self, get_matrix_device_id}}};
 use crate::models::tachyon_error::TachyonError;
@@ -23,7 +24,7 @@ pub struct WLMatrixClient {
 #[derive(Debug, Clone)]
 struct WLMatrixContext {
     me: MSNUser,
-    event_sender: Sender<NotificationEvent>,
+    event_sender: UnboundedSender<NotificationEvent>,
 }
 
 
@@ -85,12 +86,12 @@ impl WLMatrixClient {
         }
     }
 
-    pub async fn listen(matrix_client: Client, user: MSNUser, event_sender: Sender<NotificationEvent>) -> Result<Self, ()> {
+    pub async fn listen(matrix_client: Client, user: MSNUser, event_sender: UnboundedSender<NotificationEvent>) -> Result<Self, ()> {
         let kill_sender = Self::start_matrix_loop(matrix_client, user, event_sender).await;
         Ok(WLMatrixClient { stop_loop_sender: Some(kill_sender) })
     }
 
-    pub async fn start_matrix_loop(matrix_client: Client, msn_user: MSNUser, event_sender: Sender<NotificationEvent>) -> oneshot::Sender<()> {
+    pub async fn start_matrix_loop(matrix_client: Client, msn_user: MSNUser, event_sender: UnboundedSender<NotificationEvent>) -> oneshot::Sender<()> {
         Self::register_events(&matrix_client, &msn_user, event_sender.clone());
         let (stop_sender, mut stop_receiver) = oneshot::channel::<()>();
 
@@ -144,7 +145,7 @@ impl WLMatrixClient {
         return SyncSettings::new().timeout(Duration::from_secs(5)).filter(Filter::FilterDefinition(filters)).set_presence(PresenceState::Online);
     }
 
-    fn register_events(matrix_client: &Client, msn_user: &MSNUser, event_sender: Sender<NotificationEvent>) {
+    fn register_events(matrix_client: &Client, msn_user: &MSNUser, event_sender: UnboundedSender<NotificationEvent>) {
         matrix_client.add_event_handler_context(WLMatrixContext { me: msn_user.clone(), event_sender });
 
         // Registering all events
@@ -349,7 +350,7 @@ impl WLMatrixClient {
 
 
     //TODO handle the fact that room member events also broadcast name change & psm change
-    async fn handle_presence_event(ev: PresenceEvent, client: Client, me: MSNUser, ns_sender: Sender<NotificationEvent>) {
+    async fn handle_presence_event(ev: PresenceEvent, client: Client, me: MSNUser, ns_sender: UnboundedSender<NotificationEvent>) {
         if ev.sender == client.user_id().unwrap() {
 
             //TODO handle me changing avatars
@@ -398,7 +399,7 @@ impl WLMatrixClient {
         }
     }
 
-    async fn handle_stripped_room_member_event(ev: StrippedRoomMemberEvent, room: Room, client: Client, me: MSNUser, event_sender: Sender<NotificationEvent>) -> bool {
+    async fn handle_stripped_room_member_event(ev: StrippedRoomMemberEvent, room: Room, client: Client, me: MSNUser, event_sender: UnboundedSender<NotificationEvent>) -> bool {
         let mut notify_ab = false;
         let ab_sender = AB_LOCATOR.get_sender();
         let matrix_token = client.access_token().unwrap();
@@ -471,7 +472,7 @@ impl WLMatrixClient {
         return notify_ab;
     }
 
-    async fn handle_sync_room_member_event(ev: SyncRoomMemberEvent, room: Room, client: Client, me: MSNUser, event_sender: Sender<NotificationEvent>) {
+    async fn handle_sync_room_member_event(ev: SyncRoomMemberEvent, room: Room, client: Client, me: MSNUser, event_sender: UnboundedSender<NotificationEvent>) {
         let my_user_id = client.user_id().unwrap();
         let mut notify_ab = false;
         if let SyncRoomMemberEvent::Original(ev) = &ev {
@@ -524,7 +525,7 @@ impl WLMatrixClient {
         }
     }
 
-    async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, room: Room, client: Client, event_sender: Sender<NotificationEvent>) {
+    async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, room: Room, client: Client, event_sender: UnboundedSender<NotificationEvent>) {
         if let SyncRoomMessageEvent::Original(ev) = ev {
             let joined_members = room.members(RoomMemberships::JOIN).await.unwrap_or(Vec::new());
 

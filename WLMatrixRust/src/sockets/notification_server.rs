@@ -7,6 +7,8 @@ use tokio::{
     net::TcpListener,
     sync::broadcast::{self, Sender},
 };
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::sockets::msnp_command::MSNPCommand;
 
@@ -30,9 +32,9 @@ impl TCPServer for NotificationServer {
         
         loop {
             let (mut socket, _addr) = listener.accept().await.unwrap();
-            let (tx, mut rx) = broadcast::channel::<String>(100);
+            let (tx, mut rx) = mpsc::unbounded_channel::<String>();
             let mut parser = MSNPCommandParser::new();
-            let mut command_handler = self.get_command_handler(tx.clone());
+            let mut command_handler = self.get_command_handler(tx);
 
 
             let _result = tokio::spawn(async move {
@@ -103,7 +105,7 @@ impl NotificationServer {
         };
     }
 
-    fn get_command_handler(&self, sender: Sender<String>) -> Box<dyn CommandHandler> {
+    fn get_command_handler(&self, sender: UnboundedSender<String>) -> Box<dyn CommandHandler> {
             return Box::new(NotificationCommandHandler::new(sender));
     }
 

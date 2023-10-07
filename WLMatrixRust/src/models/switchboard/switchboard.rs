@@ -2,7 +2,9 @@ use std::{collections::HashSet, mem, str::FromStr, sync::{Arc, Mutex}};
 
 use log::info;
 use matrix_sdk::{attachment::AttachmentConfig, Client, ruma::{events::room::{MediaSource, message::RoomMessageEventContent}, OwnedEventId, OwnedRoomId, OwnedUserId}};
-use tokio::sync::{broadcast::{self, error::SendError, Receiver, Sender}};
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::error::SendError;
 
 use crate::{models::{msg_payload::MsgPayload, msn_user::MSNUser, p2p::file::File}, MSN_CLIENT_LOCATOR, utils::emoji::smiley_to_emoji};
 
@@ -20,8 +22,8 @@ pub(crate) struct SwitchboardInner {
     target_room_id: OwnedRoomId,
     matrix_client: Client,
     creator_id: OwnedUserId,
-    sb_event_sender: Sender<SwitchboardEvent>,
-    sb_event_queued_listener: Mutex<Option<Receiver<SwitchboardEvent>>>,
+    sb_event_sender: UnboundedSender<SwitchboardEvent>,
+    sb_event_queued_listener: Mutex<Option<UnboundedReceiver<SwitchboardEvent>>>,
 }
 
 impl Drop for SwitchboardInner {
@@ -32,7 +34,7 @@ impl Drop for SwitchboardInner {
 
 impl Switchboard {
     pub fn new(matrix_client: Client, target_room_id: OwnedRoomId, creator_id: OwnedUserId) -> Self {
-        let (sb_event_sender, sb_event_queued_listener) = broadcast::channel::<SwitchboardEvent>(100);
+        let (sb_event_sender, sb_event_queued_listener) = mpsc::unbounded_channel::<SwitchboardEvent>();
 
         let inner = Arc::new(SwitchboardInner {
             events_sent: Mutex::new(HashSet::new()),
@@ -93,36 +95,37 @@ impl Switchboard {
     }
 
     /** Sends a received message to the Client */
-    pub fn on_message_received(&self, msg: MsgPayload, sender: MSNUser, event_id: Option<String>) -> Result<usize, SendError<SwitchboardEvent>> {
+    pub fn on_message_received(&self, msg: MsgPayload, sender: MSNUser, event_id: Option<String>) -> Result<(), SendError<SwitchboardEvent>> {
         if let Some(event_id) = event_id {
             if self.is_ignored_event(&event_id) {
-                return Ok(0);
+                return Ok(());
             }
         }
         let content = MessageEventContent{ msg, sender };
         return self.dispatch_event(SwitchboardEvent::MessageEvent(content));
     }
 
-    pub fn on_file_received(&self, sender: MSNUser, filename: String, source: MediaSource, filesize: usize, event_id: String) -> Result<usize, SendError<SwitchboardEvent>> {
+    pub fn on_file_received(&self, sender: MSNUser, filename: String, source: MediaSource, filesize: usize, event_id: String) -> Result<(), SendError<SwitchboardEvent>> {
         if self.is_ignored_event(&event_id) {
-            return Ok(0);
+            return Ok(());
         }
         let client_data = MSN_CLIENT_LOCATOR.get().unwrap();
 
         return self.dispatch_event(FileUploadEventContent::new(sender,client_data.get_user(), filename, source, filesize).into());
     }
 
-    pub fn get_receiver(&mut self) -> Receiver<SwitchboardEvent> {
-        let mut lock = self.inner.sb_event_queued_listener.lock().unwrap();
+    pub fn get_receiver(&mut self) -> UnboundedReceiver<SwitchboardEvent> {
+        let mut lock = self.inner.sb_event_queued_listener.lock().expect("a switchboard receiver lock to not be poisoned");
+
         if lock.is_none() {
-            return self.inner.sb_event_sender.subscribe();
-        } else {
-            let receiver = mem::replace(&mut *lock, None).unwrap();
-            return receiver;
+            panic!("we expect a Switchboard to have a tokio receiver available")
         }
+
+        let receiver = mem::replace(&mut *lock, None).expect("taking the receiver of a switchboard should work once");
+        return receiver;
     }
 
-    fn dispatch_event(&self, event: SwitchboardEvent)-> Result<usize, SendError<SwitchboardEvent>> {
+    fn dispatch_event(&self, event: SwitchboardEvent) -> Result<(), tokio::sync::mpsc::error::SendError<SwitchboardEvent>> {
         return self.inner.sb_event_sender.send(event);
     }
 

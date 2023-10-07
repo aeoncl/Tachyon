@@ -10,7 +10,7 @@ use std::{
 use log::{debug, info, warn};
 use matrix_sdk::media::MediaEventContent;
 use rand::Rng;
-use tokio::sync::broadcast::Sender;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::models::{
     tachyon_error::TachyonError,
@@ -41,7 +41,7 @@ use super::{
 
 #[derive(Debug)]
 pub struct InnerP2PClient {
-    sender: Sender<P2PEvent>,
+    sender: UnboundedSender<P2PEvent>,
 
     //p2ppayload package number & P2PTransport packet
     inbound_chunked_packets: Mutex<HashMap<u16, PendingPacket>>,
@@ -72,7 +72,7 @@ pub struct P2PClient {
 }
 
 impl P2PClient {
-    pub fn new(sender: Sender<P2PEvent>) -> Self {
+    pub fn new(sender: UnboundedSender<P2PEvent>) -> Self {
         let mut rng = rand::thread_rng();
         let seq_number = rng.gen::<u32>();
 

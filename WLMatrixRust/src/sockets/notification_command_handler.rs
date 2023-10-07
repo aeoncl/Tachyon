@@ -8,6 +8,8 @@ use matrix_sdk::Client;
 use substring::Substring;
 use tokio::{task, time};
 use tokio::sync::broadcast::{self, Receiver, Sender};
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
 
 use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR};
@@ -32,7 +34,7 @@ use super::msnp_command::MSNPCommand;
 pub struct NotificationCommandHandler {
     matrix_token: String,
     msn_addr: String,
-    sender: Sender<String>,
+    sender: UnboundedSender<String>,
     msnp_version: i16,
     msn_client: Option<MSNClient>,
     matrix_client: Option<Client>,
@@ -43,7 +45,7 @@ pub struct NotificationCommandHandler {
 
 impl NotificationCommandHandler {
 
-    fn start_receiving(&mut self, mut notification_receiver: Receiver<NotificationEvent>) {
+    fn start_receiving(&mut self, mut notification_receiver: UnboundedReceiver<NotificationEvent>) {
 
         let sender = self.sender.clone();
         tokio::spawn(async move {
@@ -53,7 +55,7 @@ impl NotificationCommandHandler {
             loop {
                 tokio::select! {
                     command_to_send = notification_receiver.recv() => {
-                        if let Ok(msg) = command_to_send {
+                        if let Some(msg) = command_to_send {
                             match msg {
                                 NotificationEvent::AddressBookUpdateEvent(content) => {
 
@@ -134,7 +136,7 @@ impl NotificationCommandHandler {
                                 }
                             }
                         } else {
-                            info!("bad message received in notif command handler -> exitting.");
+                            info!("NotificationEvent pipe was closed -> breaking out the loop.");
                             break;
                         }
                       
@@ -146,7 +148,7 @@ impl NotificationCommandHandler {
     
 
 
-    pub fn new(sender: Sender<String>) -> NotificationCommandHandler {
+    pub fn new(sender: UnboundedSender<String>) -> NotificationCommandHandler {
         return NotificationCommandHandler {
             sender: sender,
             matrix_token: String::new(),
@@ -264,7 +266,7 @@ impl CommandHandler for NotificationCommandHandler {
                         //   let serialized = test_msg.serialize();
                         //   self.sender.send(format!("MSG Hotmail Hotmail {payload_size}\r\n{payload}", payload_size=serialized.len(), payload=&serialized));
 
-                        let (notification_sender, notification_receiver) = broadcast::channel::<NotificationEvent>(30);
+                        let (notification_sender, notification_receiver) = mpsc::unbounded_channel::<NotificationEvent>();
                         self.start_receiving(notification_receiver);
 
                         let wlmatrix_client = WLMatrixClient::listen(matrix_client.clone(), msn_user.clone(), notification_sender).await.unwrap();
@@ -373,7 +375,7 @@ impl CommandHandler for NotificationCommandHandler {
                         }
 
                       
-                        let _result: Result<usize, broadcast::error::SendError<String>> = self.sender.send(iln);
+                        let _result = self.sender.send(iln);
                         let _result = self.sender.send(ubx);
                     }
 

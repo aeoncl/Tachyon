@@ -11,7 +11,7 @@ use actix_web::App;
 use actix_web::HttpServer;
 use actix_web::middleware::Logger;
 use chrono::Local;
-use env_logger::Builder;
+use env_logger::{Builder, Target};
 use lazy_static::lazy_static;
 use log::info;
 use log::LevelFilter;
@@ -84,7 +84,7 @@ async fn main() {
 
 fn setup_logs() {
     let target = Box::new(File::create("C:\\temp\\log.txt").expect("Can't create file"));
-
+    log_print_panics::init();
     Builder::new()
         .format(|buf, record| {
             writeln!(
@@ -98,6 +98,7 @@ fn setup_logs() {
             )
         })
         .target(env_logger::Target::Pipe(target))
+        .target(Target::Stdout)
         .filter(Some("wlmatrix_rust") , LevelFilter::Info)
         .filter(Some("matrix-sdk"), LevelFilter::Debug)
         .init();
