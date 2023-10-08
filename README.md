@@ -1,3 +1,7 @@
+<p align="center">
+<img src="https://github.com/aeoncl/wlmatrix-rust/assets/48886723/cbbb6462-6118-4dc6-b7dc-2d69c6472d4e"  width="40%" />
+</p>
+
 # WLMatrix
 WLMatrix is a **translation layer** between **MSNP18** & **the Matrix API**. The project started originally in 2020 in C++ but was rewritten entirely in **Rust** leveraging the **Matrix Rust SDK**.
 *The goal is to compile WLMatrix as a .dll library and inject it in the process of MsnMsgr.exe. Redirect all the calls to localhost and voilà, you got a new backend and an amazing client relevant again !*
