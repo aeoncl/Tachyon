@@ -1,5 +1,5 @@
-<p align="center">
-<img src="https://github.com/aeoncl/wlmatrix-rust/assets/48886723/cbbb6462-6118-4dc6-b7dc-2d69c6472d4e"  width="40%" />
+<p align=center>
+<img src="https://github.com/aeoncl/wlmatrix-rust/assets/48886723/7691e064-30bf-4253-99db-62f77b57d9ac"  width="40%" />
 </p>
 
 # WLMatrix
