@@ -1,8 +1,10 @@
 use std::{fmt::Display, str::FromStr};
+use std::num::ParseIntError;
+use anyhow::anyhow;
+use crate::models::tachyon_error::PayloadError;
 
-use super::tachyon_error;
 
-/** Source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/Client_Capabilities */
+/** sauce: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/Client_Capabilities */
 
 pub enum Capabilities {
 
@@ -111,13 +113,13 @@ impl ClientCapabilities {
 }
 
 impl FromStr for ClientCapabilities {
-    type Err = tachyon_error::TachyonError;
+    type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_string();
         let split: Vec<&str> = s.split(":").collect();
-        let cap : u32 = split.get(0).unwrap_or(&"0").parse().unwrap();
-        let cap_ext : u32 = split.get(1).unwrap_or(&"0").parse().unwrap();
+        let cap : u32 = split.get(0).unwrap_or(&"0").parse().map_err(|e : ParseIntError| PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!(e) } )?;
+        let cap_ext : u32 = split.get(1).unwrap_or(&"0").parse().map_err(|e: ParseIntError| PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!(e) } )?;
         return Ok(ClientCapabilities::new(cap, cap_ext));
     }
 }

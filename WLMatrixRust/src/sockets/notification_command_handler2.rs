@@ -1,0 +1,450 @@
+use std::path::Path;
+use std::str::FromStr;
+use anyhow::anyhow;
+
+use log::{error, info, warn};
+use matrix_sdk::Client;
+use matrix_sdk::event_handler::EventHandlerResult;
+use substring::Substring;
+use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+
+use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR};
+use crate::generated::payloads::{PresenceStatus, PrivateEndpointData};
+use crate::models::msg_payload::factories::MsgPayloadFactory;
+use crate::models::msn_user::MSNUser;
+use crate::models::notification::adl_payload::ADLPayload;
+use crate::models::notification::error::{MSNPErrorCode, MSNPServerError, MSNPServerErrorType};
+use crate::models::notification::events::notification_event::NotificationEvent;
+use crate::models::notification::msn_client::MSNClient;
+use crate::models::notification::user_notification_type::UserNotificationType;
+use crate::models::p2p::slp_payload::SlpPayload;
+use crate::models::p2p::slp_payload_handler::SlpPayloadHandler;
+use crate::models::tachyon_error::{MatrixError, MessageError, TachyonError};
+use crate::models::tachyon_error::PayloadError::StringPayloadParsingError;
+use crate::models::tachyon_error::TachyonError::PayloadError;
+use crate::models::uuid::UUID;
+use crate::models::wlmatrix_client::WLMatrixClient;
+use crate::sockets::msnp_command::MSNPCommand;
+use crate::utils::identifiers::trim_endpoint_guid;
+
+struct ClientContext {
+    matrix_token: Option<String>,
+    msn_addr: Option<String>,
+    msnp_version: Option<i16>,
+    msn_client: Option<MSNClient>,
+    matrix_client: Option<Client>,
+    needs_initial_presence: bool,
+}
+
+impl ClientContext {
+    pub fn new() -> Self {
+        Self {
+            matrix_token: None,
+            msn_addr: None,
+            msnp_version: None,
+            msn_client: None,
+            matrix_client: None,
+            needs_initial_presence: true,
+        }
+    }
+}
+
+pub fn handle_commands(mut command_receiver: UnboundedReceiver<MSNPCommand>, socket_sender: UnboundedSender<String>) {
+    let _result = tokio::spawn(async move {
+        let mut client_context = ClientContext::new();
+
+        while let Some(command) = command_receiver.recv().await {
+            {
+                if let None = client_context.msnp_version {
+                    handle_ver_command(&command, &socket_sender).and_then(|ver| {
+                        client_context.msnp_version = Some(ver);
+                        Ok(())
+                    })
+                } else {
+                    handle_command(&command, &socket_sender, &mut client_context).await
+                }
+            }.unwrap_or_else(|err: MSNPServerError| {
+                error!("An MSNP Error has occured: {:?}", &err);
+                let tr_id = err.tr_id.unwrap_or(String::new());
+                let _res = socket_sender.send(format!("{} {}\r\n", err.code as u16, tr_id));
+
+                if let MSNPServerErrorType::FatalError = err.kind {
+                    let _res = socket_sender.send(format!("OUT\r\n"));
+                }
+            });
+        }
+
+        //Cleanup
+        info!("Cleanup Command handler");
+        MATRIX_CLIENT_LOCATOR.remove();
+        MSN_CLIENT_LOCATOR.remove();
+
+    });
+}
+
+async fn handle_command(command: &MSNPCommand, socket_sender: &UnboundedSender<String>, client_context: &mut ClientContext) -> Result<(), MSNPServerError> {
+    let msnp_version = client_context.msnp_version.expect("MSNPVersion to be initialized");
+
+    match client_context.msnp_version.expect("MSNPVersion to be initialized") {
+        18 => {
+            handle_msnp_18_command(command, socket_sender, client_context).await
+        }
+        _ => {
+            Err(MSNPServerError::new_with_msg(false, None, MSNPErrorCode::NotExpected, format!("MSNPVersion not supported: {}", &msnp_version)))
+        }
+    }
+}
+
+fn handle_ver_command(command: &MSNPCommand, socket_sender: &UnboundedSender<String>) -> Result<i16, MSNPServerError> {
+    let split = command.split();
+    let tr_id = split.get(1)
+        .ok_or(MSNPServerError::fatal_error_no_source(format!("VER trid is missing: {:?}", &command)))?;
+
+    if command.operand != "VER" {
+        return Err(MSNPServerError::fatal_error_no_source(format!("The first command wasn't VER, abort negotiation: {:?}", &command)).into());
+    }
+
+    // 0  1    2      3     4
+    //=>VER 1 MSNP18 MSNP17 CVR0\r\n
+    //<=VER 1 MSNP18
+
+    let ver: i16 = split[2].substring(4, split[2].chars().count()).parse::<i16>()
+        .map_err(|e| MSNPServerError::new(true, Some(tr_id.to_string()), MSNPErrorCode::InvalidParameter, StringPayloadParsingError { payload: command.to_string(), sauce: anyhow!(e) }.into()))?;
+
+    let _result = socket_sender.send(format!("VER {} MSNP{}\r\n", split[1], ver));
+
+    return Ok(ver);
+}
+
+async fn handle_msnp_18_command(command: &MSNPCommand, socket_sender: &UnboundedSender<String>, client_context: &mut ClientContext) -> Result<(), MSNPServerError> {
+    let split = command.split();
+    match command.operand.as_str() {
+        "CVR" => {
+            //    0  1    2     3     4    5      6          7          8          9
+            //=> CVR 2 0x0409 winnt 6.0.0 i386 MSNMSGR 14.0.8117.0416 msmsgs login@email.com
+            //<= CVR 2 14.0.8117.0416 14.0.8117.0416 14.0.8117.0416 localhost localhost
+
+            client_context.msn_addr = Some(split[9].to_string());
+            let tr_id = split[1];
+            let client_version = split[7];
+
+            let _result = socket_sender.send(format!(
+                "CVR {tr_id} {version} {version} {version} {host} {host}\r\n",
+                tr_id = tr_id,
+                version = client_version,
+                host = "localhost"
+            ));
+        }
+        "USR" => {
+            /*
+             I phase :
+                     0   1  2  3      4
+                 >>> USR 3 SSO I login@test.com
+                 <<< USR 3 SSO S MBI_KEY_OLD LAhAAUzdC+JvuB33nooLSa6Oh0oDFCbKrN57EVTY0Dmca8Reb3C1S1czlP12N8VU
+             S phase :
+                     0   1  2  3     4      5                          6
+                 >>> USR 4 SSO S t=ssotoken ???charabia {55192CF5-588E-4ABE-9CDF-395B616ED85B}
+                 <<< USR 4 OK login@test.com 1 0
+             */
+
+            let tr_id = split[1];
+            let auth_type = split[2];
+            let phase = split[3];
+            let msn_addr = client_context.msn_addr.as_ref().expect("MSNAddr to be in context");
+
+            if auth_type == "SHA" {
+                let _result = socket_sender.send(format!("USR {tr_id} OK {msn_addr} 1 0\r\n", tr_id = &tr_id, msn_addr = &msn_addr));
+            } else if auth_type == "SSO" {
+                if phase == "I" {
+                    let login = split[4];
+                    let _usr_result = socket_sender.send(format!("USR {tr_id} SSO S MBI_KEY_OLD LAhAAUzdC+JvuB33nooLSa6Oh0oDFCbKrN57EVTY0Dmca8Reb3C1S1czlP12N8VU\r\n", tr_id = &tr_id));
+
+                    let shields_payload = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"9999\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"200\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
+                    let _shields_result = socket_sender.send(format!("GCF 0 {shields_size}\r\n{shields_payload}", shields_payload = shields_payload, shields_size = shields_payload.len()));
+                } else if phase == "S" {
+                    let matrix_token = split[4][2..split[4].chars().count()].to_string();
+                    client_context.matrix_token = Some(matrix_token.clone());
+
+                    let trimmed_endpoint_guid = trim_endpoint_guid(split[6]).map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e.into()))?;
+
+                    let mut msn_user = MSNUser::new(msn_addr.clone());
+                    msn_user.set_endpoint_guid(trimmed_endpoint_guid.to_string());
+
+
+                    let matrix_client = WLMatrixClient::login(msn_user.get_matrix_id(), matrix_token.clone(), &Path::new(format!("C:\\temp\\{}", &msn_addr).as_str())).await.map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e))?;
+                    //Token valid, client authenticated. Initializing shared data structures
+
+                    MATRIX_CLIENT_LOCATOR.set(matrix_client.clone());
+                    client_context.matrix_client = Some(matrix_client.clone());
+
+                    let msn_client = MSNClient::new(matrix_client, msn_user.clone(), 18);
+                    MSN_CLIENT_LOCATOR.set(msn_client.clone());
+                    client_context.msn_client = Some(msn_client.clone());
+
+                    socket_sender.send(format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\n", tr_id = &tr_id, email = &msn_addr));
+
+                    let msmsgs_profile_msg = MsgPayloadFactory::get_msmsgs_profile(&msn_client.get_user().get_puid(), msn_addr.clone(), matrix_token.clone()).serialize();
+                    socket_sender.send(format!("MSG Hotmail Hotmail {profile_payload_size}\r\n{profile_payload}", profile_payload_size = msmsgs_profile_msg.len(), profile_payload = &msmsgs_profile_msg));
+
+                    let oim_payload = MsgPayloadFactory::get_initial_mail_data_notification().serialize();
+                    socket_sender.send(format!("MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}", oim_payload_size = oim_payload.len(), oim_payload = &oim_payload));
+
+                    let mpop_endpoints = msn_client.get_mpop_endpoints().await.map_err(|e| MSNPServerError::from_source(e.into()))?;
+
+                    let mut endpoints = String::new();
+                    for endpoint in mpop_endpoints {
+                        endpoints.push_str(endpoint.to_string().as_str());
+                    }
+                    socket_sender.send(format!("UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", email = &msn_addr, private_endpoint_payload_size = endpoints_payload.len(), private_endpoint_payload = &endpoints_payload));
+
+
+                    //   let test_msg = MsgPayloadFactory::get_system_msg(String::from("1"), String::from("17"));
+                    //   let serialized = test_msg.serialize();
+                    //   self.sender.send(format!("MSG Hotmail Hotmail {payload_size}\r\n{payload}", payload_size=serialized.len(), payload=&serialized));
+                }
+            }
+        }
+        "PNG" => {
+            socket_sender.send(String::from("QNG 60\r\n"));
+        }
+        "ADL" => {
+            /*       0  1  2   payload
+                   >>> ADL 6 68 <ml l="1"><d n="matrix.org"><c n="u.user" l="3" t="1"/></d></ml>
+                   <<< ADL 6 OK
+               */
+            let tr_id = split[1];
+            let ad_payload = ADLPayload::from_str(&command.payload).map_err(|e| MSNPServerError::fatal_error_with_trid(tr_id.to_string(), e.into()))?;
+            if ad_payload.is_initial() {
+                info!("Initial Contact List received: {:?}", &ad_payload);
+                client_context.msn_client.as_mut().expect("MSN Client to be in context").init_contact_list(&ad_payload);
+            } else {
+                info!("Add to Contact List received: {:?}", &ad_payload);
+                // ad_payload.domains.iter().flat_map(|d| d.get_contacts_for_role(&RoleId::Reverse)).for_each(|c| -> {
+                // TODO SEND PRESENCE
+                // });
+                //SYNC CONTACT LIST FROM MSNClient
+            }
+
+            socket_sender.send(format!("ADL {tr_id} OK\r\n", tr_id = tr_id));
+        }
+        "RML" => {
+            /*       0  1  2   payload
+                >>> RML 6 68 <ml l="1"><d n="matrix.org"><c n="u.user" l="3" t="1"/></d></ml>
+                <<< RML 6 OK
+            */
+
+            let tr_id = split[1];
+            let ad_payload = ADLPayload::from_str(&command.payload).map_err(|e| MSNPServerError::fatal_error_with_trid(tr_id.to_string(), e.into()))?;
+            info!("Remove to Contact List received: {:?}", &ad_payload);
+            //TODO Actually update the contact list from MSNUser
+            socket_sender.send(format!("RML {tr_id} OK\r\n", tr_id = tr_id));
+        }
+        "UUX" => {
+            /*       0  1  2
+                >>> UUX 8 130 payload
+                <<< UUX 8 0
+            */
+            let tr_id = split[1];
+            let payload = &command.payload;
+            if payload.starts_with("<PrivateEndpointData>") {
+                let matrix_client = client_context.matrix_client.as_ref().expect("Matrix Client to be in context");
+                let private_endpoint_data = PrivateEndpointData::from_str(payload).map_err(|e| MSNPServerError::fatal_error_with_trid(tr_id.to_string(), e.into()))?;
+                handle_device_name_update(&private_endpoint_data, matrix_client).await.map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e.into()))?;
+            } else {
+                warn!("Unknown UXX payload received: {:?}", &command)
+            }
+
+            socket_sender.send(format!("UUX {tr_id} 0\r\n", tr_id = tr_id));
+        }
+        "BLP" => {
+            /*
+                >>> BLP 9 AL
+                <<< BLP 9 AL
+            */
+            socket_sender.send(format!("{}\r\n", command.command));
+        }
+        "CHG" => {
+
+            // >>> CHG 11 NLN 2789003324:48 0
+            // <<< CHG 11 NLN 2789003324:48 0
+
+            let tr_id = split[1];
+            let status = PresenceStatus::from_str(split[2]).unwrap_or(PresenceStatus::NLN);
+            client_context.msn_client.as_mut().expect("MSN Client to be in client context").get_user_mut().set_status(status.clone());
+
+            //TODO SET PRESENCE
+            // matrix_client.account().set_presence(status.clone().into(), None).await;
+
+            let _result = socket_sender.send(format!("{}\r\n", command.command));
+
+            if client_context.needs_initial_presence {
+                client_context.needs_initial_presence = false;
+
+
+                {
+                    // THIS WHOLE BLOCK SHOULD BE IN AN ASYNC TASK
+
+                    let all_contacts = client_context.msn_client.as_ref().expect("MSN Client to be present").get_contacts(true).await;
+                    let contacts_chunks: Vec<&[MSNUser]> = all_contacts.chunks(5).collect();
+
+                    for contacts_chunk in contacts_chunks {
+                        let mut iln = String::new();
+                        let mut ubx = String::new();
+
+                        for contact in contacts_chunk {
+                            let mut status = contact.get_status();
+
+                            if contact.get_status() == PresenceStatus::FLN {
+                                status = PresenceStatus::HDN;
+                            }
+                            let mut msn_obj = String::new();
+
+
+                            if let Some(display_pic) = contact.get_display_picture().as_ref() {
+                                msn_obj = display_pic.to_string();
+                            }
+
+                            let current_iln = format!("ILN {tr_id} {status} 1:{msn_addr} {nickname} {client_capabilities} {msn_obj}\r\n", tr_id = tr_id, client_capabilities = &contact.get_capabilities(), msn_addr = &contact.get_msn_addr(), status = status.to_string(), nickname = &contact.get_display_name(), msn_obj = &msn_obj);
+                            iln.push_str(current_iln.as_str());
+
+                            let current_ubx_payload = format!("<PSM>{status_msg}</PSM><CurrentMedia></CurrentMedia><EndpointData id=\"{{{machine_guid}}}\"><Capabilities>{client_capabilities}</Capabilities></EndpointData>", status_msg = &contact.get_psm(), client_capabilities = &contact.get_capabilities(), machine_guid = &contact.get_endpoint_guid());
+                            let current_ubx = format!("UBX 1:{msn_addr} {ubx_payload_size}\r\n{ubx_payload}", msn_addr = &contact.get_msn_addr(), ubx_payload_size = current_ubx_payload.len(), ubx_payload = current_ubx_payload);
+                            ubx.push_str(current_ubx.as_str());
+                        }
+
+
+                        let _result = socket_sender.send(iln);
+                        let _result = socket_sender.send(ubx);
+                    }
+                }
+            }
+        }
+        "PRP" => {
+            // >>> PRP 13 MFN display%20name
+            // <<< PRP 13 MFN display%20name
+            let _result = socket_sender.send(format!("{}\r\n", command.command));
+        }
+        "UUN" => {
+            // >>> UUN 14 aeoncl@matrix.org;{0ab73364-6ccf-507b-bb66-a967fe281cd0} 4 14 | goawyplzthxbye
+            // UUN 29 aeontest1@shlasouf.local 7 26 | aeontest2@shlasouf.local 1
+            // <<< UUN 14 OK
+
+            let tr_id = split[1];
+            let receiver = split[2].to_string();
+            let receiver_split: Vec<&str> = receiver.split(';').collect();
+            let receiver_msn_addr = receiver_split.get(0).unwrap_or(&receiver.as_str()).to_string();
+            let endpoint_guid = parse_endpoint_guid(receiver_split.get(1));
+
+            let notification_type = split[3];
+
+            let notification_type_parsed: UserNotificationType = num::FromPrimitive::from_i32(i32::from_str(notification_type).unwrap()).unwrap();
+
+            if &receiver_msn_addr == client_context.msn_addr.as_ref().expect("MSNAddr to be in context") {
+                //this for me
+                if command.payload.as_str() == "goawyplzthxbye" {
+                    handle_device_logout(client_context.matrix_client.as_ref().expect("Matrix Client to be in context"), endpoint_guid).await;
+                } else if command.payload.as_str() == "gtfo" {
+                    //TODO
+                }
+                socket_sender.send(format!("UUN {tr_id} OK\r\n", tr_id = tr_id));
+            } else {
+                // this not for me
+                if command.payload.contains("MSNSLP/1.0") {
+                    //slp payload
+                    let slp_request = SlpPayload::from_str(command.payload.as_str()).map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e.into()))?;
+                    let slp_response = SlpPayloadHandler::handle(&slp_request).map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e.into()))?;
+
+                    let payload = slp_response.to_string();
+                    socket_sender.send(format!("UUN {tr_id} OK\r\nUBN {msn_addr} {notification_type} {payload_size}\r\n{payload}", tr_id = tr_id, msn_addr = &receiver_msn_addr, notification_type = &notification_type, payload = &payload, payload_size = payload.len()));
+                } else {
+                    warn!("Unhandled UUN command payload: {:?}", &command);
+                    socket_sender.send(format!("UUN {tr_id} OK\r\n", tr_id = tr_id));
+                }
+            }
+        }
+        "XFR" => {
+            // >>> XFR 17 SB
+            // <<< XFR 17 SB 127.0.0.1:1864 CKI token
+
+            let tr_id = split[1];
+            let request_type = split[2];
+            if request_type == "SB" {
+                socket_sender.send(format!("XFR {tr_id} {req_type} 127.0.0.1:1864 CKI {token}\r\n",
+                                           tr_id = tr_id,
+                                           req_type = request_type,
+                                           token = client_context.matrix_token.as_ref().expect("Token to be in context")));
+            } else {
+                warn!("Got unsupported XFR command: {:?}", &command);
+                //TODO propagate this error
+                socket_sender.send(format!("{error_code} {tr_id}\r\n", error_code = MSNPErrorCode::InternalServerError as i32, tr_id = tr_id));
+            }
+        }
+        _ => {
+            warn!("Unhandled command (Unknown Operand): {}", &command )
+        }
+    }
+
+    return Ok(());
+}
+
+
+async fn handle_device_logout(matrix_client: &Client, endpoint_guid: String) {
+    let devices = matrix_client.devices().await.unwrap().devices;
+    for device in devices {
+        let current_endpoint_guid = UUID::from_string(&device.device_id.to_string()).to_string();
+        if current_endpoint_guid == endpoint_guid {
+            let result = matrix_client.delete_devices(&[device.device_id], None).await;
+            //TODO handle user credential input. (Maybe via opening a web page in browser or in msn using COM object call)
+        }
+    }
+}
+
+
+fn parse_endpoint_guid(maybe_endpoint_guid: Option<&&str>) -> String {
+    if let Some(mut endpoind_guid) = maybe_endpoint_guid {
+        return endpoind_guid.to_string().substring(1, endpoind_guid.len() - 1).to_string();
+    }
+    return String::new();
+}
+
+async fn handle_device_name_update(private_endpoint_data: &PrivateEndpointData, matrix_client: &Client) -> Result<(), MatrixError> {
+    let device_id = matrix_client.device_id().expect("Matrix Client to have a device id");
+    matrix_client.rename_device(device_id, &private_endpoint_data.ep_name).await?;
+    Ok(())
+}
+
+
+fn start_server_loop(matrix_client: Client, msn_user: MSNUser, msnp_version: i16, socket_sender: UnboundedSender<String>) -> oneshot::Sender<()> {
+    let (notification_event_sender, mut notification_event_receiver) = mpsc::unbounded_channel::<Result<NotificationEvent, TachyonError>>();
+
+    let matrix_sync_loop_killer = WLMatrixClient::listen(matrix_client, msn_user, notification_event_sender);
+
+    tokio::spawn(async move {
+        loop {
+            if let Some(notification_event) = notification_event_receiver.recv().await {
+                if let Err(err) = notification_event {
+                    error!("An error occured in the matrix loop: {:?}", err);
+                } else {
+                    match msnp_version {
+                        18 => {
+                            handle_msnp_18_event(&notification_event.unwrap());
+                        }
+                        _ => {
+                            warn!("Unhandled MSNP Version (NotificationEventLoop)")
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    return matrix_sync_loop_killer;
+}
+
+fn handle_msnp_18_event(notification_event: &NotificationEvent) {
+
+
+
+
+}

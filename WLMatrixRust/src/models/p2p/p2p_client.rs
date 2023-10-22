@@ -13,7 +13,6 @@ use rand::Rng;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::models::{
-    tachyon_error::TachyonError,
     msn_user::MSNUser,
     p2p::{
         app_id::AppID,
@@ -24,6 +23,7 @@ use crate::models::{
         slp_payload::EufGUID,
     },
 };
+use crate::models::tachyon_error::PayloadError;
 
 use super::{
     events::{content::message_event_content::MessageEventContent, p2p_event::P2PEvent},
@@ -515,7 +515,7 @@ impl P2PClient {
         slp_payload: &SlpPayload,
         sender: &MSNUser,
         receiver: &MSNUser
-    ) -> Result<Option<SlpPayload>, TachyonError> {
+    ) -> Result<Option<SlpPayload>, PayloadError> {
         let error = String::from("error");
         let content_type = slp_payload.get_content_type().unwrap_or(&error);
         match content_type.as_str() {
@@ -553,11 +553,11 @@ impl P2PClient {
                 return Ok(Some(slp_payload_response));
             }
             "application/x-msnmsgr-sessionclosebody" => {
-                return Err(TachyonError::PayloadNotComplete);
+                return Err(PayloadError::PayloadBytesMissing);
             }
             _ => {
                 info!("not handled slp payload: {:?}", slp_payload);
-                return Err(TachyonError::PayloadNotComplete);
+                return Err(PayloadError::PayloadBytesMissing);
             }
         }
     }
@@ -567,7 +567,7 @@ impl P2PClient {
         slp_payload: &SlpPayload,
         sender: &MSNUser,
         receiver: &MSNUser
-    ) -> Result<Option<SlpPayload>, TachyonError> {
+    ) -> Result<Option<SlpPayload>, PayloadError> {
         debug!(
             "handle_sessionreqbody: is_invite: {}, is_200_ok: {} - {:?}",
             &slp_payload.is_invite(),
@@ -586,7 +586,7 @@ impl P2PClient {
 
             let session_id = slp_payload
             .get_body_property(&String::from("SessionID"))
-            .ok_or(TachyonError::PayloadDeserializeError)?
+            .ok_or(PayloadError::MandatoryPartNotFound { name: "SessionID".to_string(), payload: slp_payload.to_string() })?
             .parse::<u32>()?;
 
 

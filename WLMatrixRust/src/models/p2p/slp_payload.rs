@@ -4,6 +4,7 @@
  */
 
 use std::{fmt::Display, str::{from_utf8, FromStr}};
+use anyhow::anyhow;
 
 use base64::{Engine, engine::general_purpose};
 use linked_hash_map::LinkedHashMap;
@@ -11,7 +12,8 @@ use log::warn;
 use num::FromPrimitive;
 use substring::Substring;
 
-use crate::models::{tachyon_error::TachyonError, msn_object::MSNObject, msn_user::MSNUser};
+use crate::models::{msn_object::MSNObject, msn_user::MSNUser};
+use crate::models::tachyon_error::PayloadError;
 
 use super::{app_id::AppID, slp_context::{PreviewData, SlpContext}};
 
@@ -77,7 +79,7 @@ impl SlpPayload {
         return None;
     }
 
-    pub fn get_euf_guid(&self) -> Result<Option<EufGUID>, TachyonError> {
+    pub fn get_euf_guid(&self) -> Result<Option<EufGUID>, PayloadError> {
         let euf_guid = self.get_body_property(&String::from("EUF-GUID"));
         if euf_guid.is_none() {
             return Ok(None);
@@ -88,7 +90,7 @@ impl SlpPayload {
         return Ok(Some(euf_guid));
     }
 
-    pub fn get_app_id(&self) -> Result<Option<AppID>, TachyonError> {
+    pub fn get_app_id(&self) -> Result<Option<AppID>, PayloadError> {
         let app_id = self.get_body_property(&String::from("AppID"));
         if app_id.is_none() {
             return  Ok(None);
@@ -119,18 +121,18 @@ impl SlpPayload {
 }
 
 impl FromStr for SlpPayload {
-    type Err = TachyonError;
+    type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
 
-        if let Some((headers, body)) = s.split_once("\r\n\r\n") {
+         let (headers, body) = s.split_once("\r\n\r\n").ok_or(PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("There was no header body boundary in Slp Payload") } )?;
             let mut out = SlpPayload::new();
             let headers_split: Vec<&str> = headers.split("\r\n").collect();
 
-            out.first_line = headers_split.get(0).ok_or(TachyonError::PayloadDeserializeError)?.to_string();
+            out.first_line = headers_split.get(0).ok_or(PayloadError::StringPayloadParsingError{ payload: s.to_string(), sauce: anyhow!("Could not get the first line from Slp Payload: {:?}", &headers_split) })?.to_string();
 
             for i in 1..headers_split.len() {
-                let current = headers_split.get(i).unwrap().to_string();
+                let current = headers_split.get(i).ok_or(PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Could not get header at index {} in headers: {:?}", &i, &headers_split) })?.to_string();
 
                 if let Some((name, value)) =  current.split_once(":"){
                     out.add_header(name.trim().to_string(), value.trim().to_string());
@@ -139,23 +141,21 @@ impl FromStr for SlpPayload {
 
             let body_split: Vec<&str> = body.split("\r\n").collect();
             for i in 0..body_split.len() {
-                let current = body_split.get(i).unwrap().to_string();
+                let current = body_split.get(i).ok_or(PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Could not get body element at index: {} for body: {:?}", &i, &body_split) })?.to_string();
                 if let Some((name, value)) =  current.split_once(":"){
                     out.add_body_property(name.trim().to_string(), value.trim().to_string());
                 }
             }
 
-            return Ok(out);
-        }
-       return Err(TachyonError::PayloadDeserializeError);
+            Ok(out)
     }
 }
 
 impl TryFrom<&Vec<u8>> for SlpPayload {
-    type Error = TachyonError;
+    type Error = PayloadError;
 
     fn try_from(value: &Vec<u8>) -> Result<Self, Self::Error> {
-        let str = from_utf8(value)?;
+        let str = from_utf8(value).map_err(|e|PayloadError::BinaryPayloadParsingError { payload: value.to_owned(), sauce: anyhow!(e) })?;
         return SlpPayload::from_str(str);
     }
 }
@@ -227,7 +227,7 @@ impl Display for EufGUID {
 }
 
 impl TryFrom<&str> for EufGUID {
-    type Error = TachyonError;
+    type Error = PayloadError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
@@ -250,7 +250,7 @@ impl TryFrom<&str> for EufGUID {
                 return Ok(EufGUID::Activity);
             },
             _=> {
-                return Err(TachyonError::PayloadDeserializeError);
+                return Err(PayloadError::StringPayloadParsingError { payload: value.to_string(), sauce: anyhow!("Unknown EUF-GUID") });
             }
         }
     }

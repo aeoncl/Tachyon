@@ -1,19 +1,19 @@
 use std::{collections::HashSet, path::Path, time::Duration};
 
+use anyhow::anyhow;
 use base64::{Engine, engine::general_purpose};
 use js_int::UInt;
-use log::{error, info, warn};
-use matrix_sdk::{AuthSession, Client, ClientBuilder, config::SyncSettings, Error, event_handler::Ctx, room::{Room, RoomMember}, RoomMemberships, RoomState, ruma::{api::{client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::Filter}}, device_id, events::{direct::{DirectEvent, DirectEventContent}, GlobalAccountDataEvent, GlobalAccountDataEventType, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, presence::PresenceEvent, room::{member::{MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent}, message::{FileMessageEventContent, MessageType, RoomMessageEventContent, SyncRoomMessageEvent}}, typing::SyncTypingEvent}, OwnedUserId, presence::PresenceState, RoomId, UserId}, ServerName, StateStoreExt};
+use log::{info, warn};
+use matrix_sdk::{AuthSession, Client, ClientBuilder, config::SyncSettings, Error, event_handler::Ctx, room::{Room, RoomMember}, RoomMemberships, RoomState, ruma::{api::{client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::Filter}}, device_id, events::{direct::{DirectEvent, DirectEventContent}, GlobalAccountDataEvent, GlobalAccountDataEventType, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, presence::PresenceEvent, room::{member::{MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent}, message::{FileMessageEventContent, MessageType, RoomMessageEventContent, SyncRoomMessageEvent}}, typing::SyncTypingEvent}, OwnedUserId, presence::PresenceState, RoomId, UserId}, ServerName};
 use matrix_sdk::matrix_auth::{MatrixSession, MatrixSessionTokens};
-use matrix_sdk::ruma::__private_macros::user_id;
 use matrix_sdk::ruma::OwnedRoomId;
-use tokio::sync::{broadcast::Sender, oneshot};
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::oneshot;
 
 use crate::{AB_LOCATOR, generated::{msnab_datatypes::types::{ArrayOfAnnotation, ContactTypeEnum, MemberState, RoleId}, msnab_sharingservice::factories::{AnnotationFactory, ContactFactory, MemberFactory}, payloads::PresenceStatus}, models::{abch::events::AddressBookEventFactory, msg_payload::factories::MsgPayloadFactory, owned_user_id_traits::ToMsnAddr}, MSN_CLIENT_LOCATOR, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, SETTINGS_LOCATOR, utils::{emoji::emoji_to_smiley, identifiers::{self, get_matrix_device_id}}};
 use crate::models::tachyon_error::TachyonError;
 
-use super::{msn_user::MSNUser, notification::{error::MsnpErrorCode, events::notification_event::{NotificationEvent, NotificationEventFactory}}, switchboard::switchboard::Switchboard};
+use super::{msn_user::MSNUser, notification::events::notification_event::{NotificationEvent, NotificationEventFactory}, switchboard::switchboard::Switchboard};
 
 #[derive(Debug)]
 pub struct WLMatrixClient {
@@ -24,7 +24,7 @@ pub struct WLMatrixClient {
 #[derive(Debug, Clone)]
 struct WLMatrixContext {
     me: MSNUser,
-    event_sender: UnboundedSender<NotificationEvent>,
+    event_sender: UnboundedSender<Result<NotificationEvent, TachyonError>>,
 }
 
 
@@ -53,45 +53,26 @@ impl WLMatrixClient {
         return client_builder;
     }
 
-    pub async fn login(matrix_id: OwnedUserId, token: String, store_path: &Path) -> Result<Client, MsnpErrorCode> {
+    pub async fn login(matrix_id: OwnedUserId, token: String, store_path: &Path) -> Result<Client, TachyonError> {
         let device_id = get_matrix_device_id();
         let device_id = device_id!(device_id.as_str()).to_owned();
 
-        match Self::get_matrix_client_builder(matrix_id.server_name())
+        let client =  Self::get_matrix_client_builder(matrix_id.server_name())
             .sqlite_store(store_path, None)
             .build()
-            .await
-        {
-            Ok(client) => {
-                if let Err(err) = client
-                    .restore_session(AuthSession::Matrix(MatrixSession {
-                        meta: matrix_sdk::SessionMeta { user_id: matrix_id, device_id: device_id },
-                        tokens: MatrixSessionTokens { access_token: token, refresh_token: None },
-                    }))
-                    .await
-                {
-                    log::error!("An error has occured logging in via token: {}", err);
-                    return Err(MsnpErrorCode::AuthFail);
-                }
+            .await?;
 
-                if let Err(_check_connection_status) = client.whoami().await {
-                    return Err(MsnpErrorCode::AuthFail);
-                }
-                return Ok(client);
-            }
-            Err(_err) => {
-                log::error!("An error has occured building the client: {}", _err);
-                return Err(MsnpErrorCode::AuthFail);
-            }
-        }
+        client.restore_session(AuthSession::Matrix(MatrixSession {
+            meta: matrix_sdk::SessionMeta { user_id: matrix_id, device_id },
+            tokens: MatrixSessionTokens { access_token: token, refresh_token: None },
+        }))
+            .await.map_err(|e| TachyonError::AuthenticationError{sauce: anyhow!(e).context("Restore session failed")})?;
+
+        client.whoami().await.map_err(|e| TachyonError::AuthenticationError{sauce: anyhow!(e).context("Call to whoami() failed")})?;
+        return Ok(client);
     }
 
-    pub async fn listen(matrix_client: Client, user: MSNUser, event_sender: UnboundedSender<NotificationEvent>) -> Result<Self, ()> {
-        let kill_sender = Self::start_matrix_loop(matrix_client, user, event_sender).await;
-        Ok(WLMatrixClient { stop_loop_sender: Some(kill_sender) })
-    }
-
-    pub async fn start_matrix_loop(matrix_client: Client, msn_user: MSNUser, event_sender: UnboundedSender<NotificationEvent>) -> oneshot::Sender<()> {
+    pub fn listen(matrix_client: Client, msn_user: MSNUser, event_sender: UnboundedSender<Result<NotificationEvent, TachyonError>>) -> oneshot::Sender<()> {
         Self::register_events(&matrix_client, &msn_user, event_sender.clone());
         let (stop_sender, mut stop_receiver) = oneshot::channel::<()>();
 
@@ -145,7 +126,7 @@ impl WLMatrixClient {
         return SyncSettings::new().timeout(Duration::from_secs(5)).filter(Filter::FilterDefinition(filters)).set_presence(PresenceState::Online);
     }
 
-    fn register_events(matrix_client: &Client, msn_user: &MSNUser, event_sender: UnboundedSender<NotificationEvent>) {
+    fn register_events(matrix_client: &Client, msn_user: &MSNUser, event_sender: UnboundedSender<Result<NotificationEvent, TachyonError>>) {
         matrix_client.add_event_handler_context(WLMatrixContext { me: msn_user.clone(), event_sender });
 
         // Registering all events
@@ -160,7 +141,7 @@ impl WLMatrixClient {
             |ev: StrippedRoomMemberEvent, room: Room, client: Client, context: Ctx<WLMatrixContext>| async move {
                 let notify_ab = Self::handle_stripped_room_member_event(ev, room, client, context.me.clone(), context.event_sender.clone()).await;
                 if notify_ab {
-                    context.event_sender.send(NotificationEventFactory::get_ab_updated(context.me.clone()));
+                    context.event_sender.send(Ok(NotificationEventFactory::get_ab_updated(context.me.clone())));
                 }
             }
         });
@@ -350,7 +331,7 @@ impl WLMatrixClient {
 
 
     //TODO handle the fact that room member events also broadcast name change & psm change
-    async fn handle_presence_event(ev: PresenceEvent, client: Client, me: MSNUser, ns_sender: UnboundedSender<NotificationEvent>) {
+    async fn handle_presence_event(ev: PresenceEvent, client: Client, me: MSNUser, ns_sender: UnboundedSender<Result<NotificationEvent, TachyonError>>) {
         if ev.sender == client.user_id().unwrap() {
 
             //TODO handle me changing avatars
@@ -369,7 +350,7 @@ impl WLMatrixClient {
             info!("Received Presence Event: {:?} - ev: {:?}", &presence_status, &ev);
 
             if PresenceStatus::FLN == presence_status {
-                ns_sender.send(NotificationEventFactory::get_disconnect(user));
+                ns_sender.send(Ok(NotificationEventFactory::get_disconnect(user)));
             } else {
                 user.set_status(presence_status);
                 if let Some(display_name) = ev.content.displayname {
@@ -392,14 +373,14 @@ impl WLMatrixClient {
                     }
                 }
 
-                ns_sender.send(NotificationEventFactory::get_presence(user));
+                ns_sender.send(Ok(NotificationEventFactory::get_presence(user)));
             }
         } else {
             warn!("Could not find user in repo (presence) {}", &event_sender);
         }
     }
 
-    async fn handle_stripped_room_member_event(ev: StrippedRoomMemberEvent, room: Room, client: Client, me: MSNUser, event_sender: UnboundedSender<NotificationEvent>) -> bool {
+    async fn handle_stripped_room_member_event(ev: StrippedRoomMemberEvent, room: Room, client: Client, me: MSNUser, event_sender: UnboundedSender<Result<NotificationEvent, TachyonError>>) -> bool {
         let mut notify_ab = false;
         let ab_sender = AB_LOCATOR.get_sender();
         let matrix_token = client.access_token().unwrap();
@@ -472,7 +453,7 @@ impl WLMatrixClient {
         return notify_ab;
     }
 
-    async fn handle_sync_room_member_event(ev: SyncRoomMemberEvent, room: Room, client: Client, me: MSNUser, event_sender: UnboundedSender<NotificationEvent>) {
+    async fn handle_sync_room_member_event(ev: SyncRoomMemberEvent, room: Room, client: Client, me: MSNUser, event_sender: UnboundedSender<Result<NotificationEvent, TachyonError>>) {
         let my_user_id = client.user_id().unwrap();
         let mut notify_ab = false;
         if let SyncRoomMemberEvent::Original(ev) = &ev {
@@ -500,7 +481,7 @@ impl WLMatrixClient {
         }
 
         if notify_ab {
-            event_sender.send(NotificationEventFactory::get_ab_updated(me.clone()));
+            event_sender.send(Ok(NotificationEventFactory::get_ab_updated(me.clone())));
         }
     }
 
@@ -525,7 +506,7 @@ impl WLMatrixClient {
         }
     }
 
-    async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, room: Room, client: Client, event_sender: UnboundedSender<NotificationEvent>) {
+    async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, room: Room, client: Client, event_sender: UnboundedSender<Result<NotificationEvent, TachyonError>>) {
         if let SyncRoomMessageEvent::Original(ev) = ev {
             let joined_members = room.members(RoomMemberships::JOIN).await.unwrap_or(Vec::new());
 
@@ -556,7 +537,7 @@ impl WLMatrixClient {
 
                         let ticket = general_purpose::STANDARD.encode(format!("{target_room_id};{token};{target_matrix_id}", target_room_id = &room_id, token = &client.access_token().unwrap(), target_matrix_id = target.to_string()));
 
-                        event_sender.send(NotificationEventFactory::get_switchboard_init(target_msn_user, session_id, ticket));
+                        event_sender.send(Ok(NotificationEventFactory::get_switchboard_init(target_msn_user, session_id, ticket)));
                     }
                 }
             }

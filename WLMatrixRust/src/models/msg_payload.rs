@@ -1,10 +1,8 @@
 use std::{collections::HashMap, str::FromStr};
+use anyhow::anyhow;
 
 use lazy_static::lazy_static;
-
-use crate::models::tachyon_error::TachyonError;
-
-use super::tachyon_error;
+use crate::models::tachyon_error::PayloadError;
 
 lazy_static! {
     static ref TEMPLATE : String = String::from("MIME-Version: 1.0\r\nContent-Type: ");
@@ -70,7 +68,7 @@ impl MsgPayload {
 }
 
 impl FromStr for MsgPayload {
-    type Err = tachyon_error::TachyonError;
+    type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
 
@@ -93,7 +91,10 @@ impl FromStr for MsgPayload {
 
                         if name == String::from("Content-Type") {
                             let value_split : Vec<&str> = value.split(";").collect();
-                            let mime_type = value_split.get(0).ok_or(TachyonError::PayloadDeserializeError)?.trim().to_string();
+                            let mime_type = value_split.get(0)
+                                .ok_or(PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Could not extract content-type from MSG Payload") })?
+                                .trim().to_string();
+                            
                             out.content_type = mime_type;
                         } else {
                             if name != String::from("MIME-Version") {
@@ -107,7 +108,7 @@ impl FromStr for MsgPayload {
             return Ok(out);
 
         }
-        return Err(TachyonError::PayloadDeserializeError);
+        return Err(PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("MSG Payload did not contain body header separator") });
     }
 }
 
@@ -158,9 +159,9 @@ pub mod factories {
             return out;
         }
 
-        pub fn get_system_msg(msg_type: String, arg1: String) -> MsgPayload {
+        pub fn get_system_msg(msg_type: String, arg1: String, arg2: String) -> MsgPayload {
             let mut out = MsgPayload::new("application/x-msmsgssystemmessage");
-            out.set_body(format!("Type: {msg_type}\r\nArg1: {arg1}", msg_type = msg_type, arg1 = arg1));
+            out.set_body(format!("Type: {msg_type}\r\nArg1: {arg1}\r\nArg2: {arg2}", msg_type = msg_type, arg1 = arg1, arg2 = arg2));
             out.disable_trailing_terminators();
             return out;
         }

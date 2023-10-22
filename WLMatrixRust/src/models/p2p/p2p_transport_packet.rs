@@ -1,10 +1,11 @@
 use core::fmt;
 use std::{fmt::Display, str::{from_utf8_unchecked, FromStr}};
+use anyhow::anyhow;
 
 use byteorder::{BigEndian, ByteOrder};
 use log::info;
 
-use crate::models::tachyon_error::TachyonError;
+use crate::models::tachyon_error::{PayloadError, TachyonError};
 
 use super::{factories::TLVFactory, opcode::OperationCode, p2p_payload::P2PPayload, tlv::{extract_tlvs, TLV, ValueType}};
 
@@ -247,13 +248,13 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
     }
     
     impl TryFrom<&[u8]> for P2PTransportPacket {
-        type Error = TachyonError;
+        type Error = PayloadError;
 
         fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
             let header_length = bytes.get(0).unwrap_or(&0).to_owned() as usize;
 
             if header_length < 8 {
-                return Err(TachyonError::PayloadNotComplete);
+                return Err(PayloadError::BinaryPayloadParsingError { payload: bytes.to_owned(), sauce: anyhow!("Header of P2PTransport packet must be of size 8, but was: {}", &header_length) });
             }
             
             let op_code = bytes.get(1).unwrap_or(&0).to_owned();
@@ -279,7 +280,7 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
     }
 
     impl FromStr for P2PTransportPacket {
-        type Err = TachyonError;
+        type Err = PayloadError;
     
         fn from_str(s: &str) -> Result<Self, Self::Err> {
             let bytes = s.as_bytes();

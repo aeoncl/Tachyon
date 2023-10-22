@@ -46,6 +46,8 @@ sha1 = "0.10.5"
 num = "0.4"
 num-derive = "0.3.3"
 num-traits = "0.2.15"
+thiserror = "1.0.49"
+anyhow= "1.0.75"
 log-print-panics = { version = "2.1.2", features = ["with-backtrace"] }
 [dependencies.matrix-sdk]
 path = "matrix-rust-sdk/crates/matrix-sdk"

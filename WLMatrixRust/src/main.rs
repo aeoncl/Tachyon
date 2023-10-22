@@ -74,7 +74,9 @@ async fn main() {
     .service(sha1auth)
     .service(get_profile_pic)
     .service(get_text_ad)
-    .service(get_banner))
+    .service(get_banner)
+    .service(wlidsvcconfig)
+    .service(ppcrlconfig))
     .bind(("127.0.0.1", 8080)).unwrap()
     .run();
 
@@ -99,8 +101,10 @@ fn setup_logs() {
         })
         .target(env_logger::Target::Pipe(target))
         .target(Target::Stdout)
+        .filter(Some("actix_web"), LevelFilter::Info)
         .filter(Some("wlmatrix_rust") , LevelFilter::Info)
         .filter(Some("matrix-sdk"), LevelFilter::Debug)
+        .filter(None, LevelFilter::Warn)
         .init();
 
     //Some("wlmatrix_rust")    

@@ -1,32 +1,33 @@
 use std::path::Path;
 use std::str::FromStr;
-use std::time::Duration;
 
+use anyhow::anyhow;
 use async_trait::async_trait;
-use log::info;
+use log::{info, warn};
 use matrix_sdk::Client;
 use substring::Substring;
-use tokio::{task, time};
-use tokio::sync::broadcast::{self, Receiver, Sender};
-use tokio::sync::mpsc;
+use tokio::sync::broadcast::{self};
+use tokio::sync::{mpsc, oneshot};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
 
 use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR};
-use crate::generated::msnab_datatypes::types::RoleId;
 use crate::generated::payloads::{PresenceStatus, PrivateEndpointData};
 use crate::models::msg_payload::factories::MsgPayloadFactory;
 use crate::models::msn_user::MSNUser;
 use crate::models::notification::adl_payload::ADLPayload;
-use crate::models::notification::error::{MsnpError, MsnpErrorCode};
+use crate::models::notification::error::{MSNPErrorCode, MSNPServerError};
 use crate::models::notification::events::notification_event::NotificationEvent;
 use crate::models::notification::msn_client::MSNClient;
 use crate::models::notification::user_notification_type::UserNotificationType;
 use crate::models::p2p::slp_payload::SlpPayload;
 use crate::models::p2p::slp_payload_handler::SlpPayloadHandler;
+use crate::models::tachyon_error::{MatrixError, TachyonError};
+use crate::models::tachyon_error::PayloadError::StringPayloadParsingError;
 use crate::models::uuid::UUID;
 use crate::models::wlmatrix_client::WLMatrixClient;
 use crate::repositories::repository::Repository;
+use crate::utils::identifiers::trim_endpoint_guid;
 
 use super::command_handler::CommandHandler;
 use super::msnp_command::MSNPCommand;
@@ -38,24 +39,26 @@ pub struct NotificationCommandHandler {
     msnp_version: i16,
     msn_client: Option<MSNClient>,
     matrix_client: Option<Client>,
-    wlmatrix_client: Option<WLMatrixClient>,
+    matrix_loop_killer: Option<oneshot::Sender<()>>,
     needs_initial_presence: bool
 
 }
 
 impl NotificationCommandHandler {
 
-    fn start_receiving(&mut self, mut notification_receiver: UnboundedReceiver<NotificationEvent>) {
+    fn start_receiving(&mut self, mut notification_receiver: UnboundedReceiver<Result<NotificationEvent, TachyonError>>) {
 
         let sender = self.sender.clone();
         tokio::spawn(async move {
 
             let (ab_notify_task_stop_sender, ab_notify_task_stop_receiver) = broadcast::channel::<()>(1);
-            let mut join_handle: Option<JoinHandle<()>> = None;;
+            let mut join_handle: Option<JoinHandle<()>> = None;
             loop {
                 tokio::select! {
                     command_to_send = notification_receiver.recv() => {
-                        if let Some(msg) = command_to_send {
+
+                        //Todo handle Errors
+                        if let Some(Ok(msg)) = command_to_send {
                             match msg {
                                 NotificationEvent::AddressBookUpdateEvent(content) => {
 
@@ -150,13 +153,13 @@ impl NotificationCommandHandler {
 
     pub fn new(sender: UnboundedSender<String>) -> NotificationCommandHandler {
         return NotificationCommandHandler {
-            sender: sender,
+            sender,
             matrix_token: String::new(),
             msn_client: None,
             matrix_client: None,
             msnp_version: -1,
             msn_addr: String::new(),
-            wlmatrix_client: None,
+            matrix_loop_killer: None,
             needs_initial_presence: true,
         };
     }
@@ -168,21 +171,24 @@ impl NotificationCommandHandler {
 #[async_trait]
 impl CommandHandler for NotificationCommandHandler {
 
-    async fn handle_command(&mut self, command: &MSNPCommand) -> Result<String, MsnpError> {
+    async fn handle_command(&mut self, command: &MSNPCommand) -> Result<String, MSNPServerError> {
         let split = command.split();
         match command.operand.as_str() {
             "VER" => {
                 // 0  1    2      3     4
                 //=>VER 1 MSNP18 MSNP17 CVR0\r\n
-                //<=VER 1 MSNP18
+                //<=VER 1 MSNP18\r\n
+
+                let tr_id = split.get(1)
+                    .ok_or(MSNPServerError::fatal_error_no_source(format!("VER trid is missing: {:?}", &command)))?;
+
                 let ver: i16 = split[2]
                     .substring(4, split[2].chars().count())
                     .parse::<i16>()
-                    .unwrap();
+                    .map_err(|e| MSNPServerError::new(true, Some(tr_id.to_string()), MSNPErrorCode::InvalidParameter, StringPayloadParsingError { payload: command.to_string(), sauce: anyhow!(e) }.into()))?;
 
                 self.msnp_version = ver;
-                //<=VER 1 MSNP18\r\n
-                return Ok(format!("VER {} MSNP{}\r\n", split[1], ver).to_string());
+                return Ok(format!("VER {} MSNP{}\r\n", tr_id, ver).to_string());
             }
             "CVR" => {
                 //    0  1    2     3     4    5      6          7          8          9
@@ -224,17 +230,18 @@ impl CommandHandler for NotificationCommandHandler {
                         self.matrix_token = split[4][2..split[4].chars().count()].to_string();
                         
                         let endpoint_guid = split[6].to_string();
-                        let trimmed_endpoint_guid = endpoint_guid.trim().strip_prefix("{").ok_or(MsnpError::internal_server_error(tr_id))?.strip_suffix("}").ok_or(MsnpError::internal_server_error(tr_id))?;
+                        let trimmed_endpoint_guid = trim_endpoint_guid(split[6]).map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e.into()))?;
 
                         let mut msn_user = MSNUser::new(self.msn_addr.clone());
                         msn_user.set_endpoint_guid(trimmed_endpoint_guid.to_string());
 
-                        let matrix_client = WLMatrixClient::login(msn_user.get_matrix_id(), self.matrix_token.clone(), &Path::new(format!("C:\\temp\\{}", &self.msn_addr).as_str())).await.or(Err(MsnpError::auth_fail(&tr_id)))?;
+                        let matrix_client = WLMatrixClient::login(msn_user.get_matrix_id(), self.matrix_token.clone(), &Path::new(format!("C:\\temp\\{}", &self.msn_addr).as_str())).await.map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e))?;
 
                         let mut msn_client = MSNClient::new(matrix_client.clone(), msn_user.clone(), self.msnp_version);
 
                         //Token valid, client authenticated. Initializing shared data structures
                         self.msn_client = Some(msn_client.clone());
+                        self.matrix_client = Some(matrix_client.clone());
                         MATRIX_CLIENT_LOCATOR.set(matrix_client.clone());
                         MSN_CLIENT_LOCATOR.set(msn_client.clone());
 
@@ -248,29 +255,24 @@ impl CommandHandler for NotificationCommandHandler {
                           
                         self.sender.send(format!("MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}", oim_payload_size=oim_payload.len(), oim_payload=&oim_payload));
 
-                        match msn_client.get_mpop_endpoints().await {
-                            Ok(mpop_endpoints) => {
-                                let mut endpoints = String::new();
-                                for endpoint in mpop_endpoints {
-                                    endpoints.push_str(endpoint.to_string().as_str());
-                                }
-                               let endpoints_payload = format!("<Data>{endpoints}</Data>", endpoints = endpoints);
-                               self.sender.send(format!("UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", email=self.msn_addr, private_endpoint_payload_size= endpoints_payload.len(), private_endpoint_payload=&endpoints_payload));
-                            }, 
-                            Err(err_code) => {
-                                return Err(MsnpError::new(err_code, tr_id.to_string()));
-                            }
-                        }
+                        let mut mpop_endpoints = msn_client.get_mpop_endpoints().await.map_err(|e| MSNPServerError::from_source(e.into()))?;
 
-                        //   let test_msg = MsgPayloadFactory::get_system_msg(String::from("1"), String::from("17"));
-                        //   let serialized = test_msg.serialize();
-                        //   self.sender.send(format!("MSG Hotmail Hotmail {payload_size}\r\n{payload}", payload_size=serialized.len(), payload=&serialized));
 
-                        let (notification_sender, notification_receiver) = mpsc::unbounded_channel::<NotificationEvent>();
-                        self.start_receiving(notification_receiver);
+                        let endpoints = mpop_endpoints.drain(..).map(|e| e.to_string()).reduce(|cur: String, nxt: String| cur + &nxt).unwrap_or_default();
 
-                        let wlmatrix_client = WLMatrixClient::listen(matrix_client.clone(), msn_user.clone(), notification_sender).await.unwrap();
-                        self.wlmatrix_client.insert(wlmatrix_client);
+                        let endpoints_payload = format!("<Data>{endpoints}</Data>", endpoints = endpoints);
+                            self.sender.send(format!("UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", email=self.msn_addr, private_endpoint_payload_size= endpoints_payload.len(), private_endpoint_payload=&endpoints_payload));
+
+
+                        let test_msg = MsgPayloadFactory::get_system_msg(String::from("1"), String::from("17"), String::from("2"));
+                        let serialized = test_msg.serialize();
+                        self.sender.send(format!("MSG Hotmail Hotmail {payload_size}\r\n{payload}", payload_size=serialized.len(), payload=&serialized));
+
+                        let (notification_event_sender, mut notification_event_receiver) = mpsc::unbounded_channel::<Result<NotificationEvent, TachyonError>>();
+                        self.start_receiving(notification_event_receiver);
+
+                        let matrix_loop_killer = WLMatrixClient::listen(matrix_client.clone(), msn_user.clone(), notification_event_sender);
+                        self.matrix_loop_killer.insert(matrix_loop_killer);
                        // return Ok(format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\nMSG Hotmail Hotmail {msmsgs_profile_payload_size}\r\n{payload}MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", tr_id = tr_id, email=&self.msn_addr, msmsgs_profile_payload_size= msmsgs_profile_msg.len(), payload=msmsgs_profile_msg, oim_payload = oim_payload, oim_payload_size = oim_payload.len(), private_endpoint_payload_size = endpoints_payload.len(), private_endpoint_payload = endpoints_payload));
                         return Ok(String::new());
                     }
@@ -288,10 +290,10 @@ impl CommandHandler for NotificationCommandHandler {
                 */
                 let tr_id = split[1];
 
-                let ad_payload = ADLPayload::from_str(&command.payload).or(Err(MsnpError::internal_server_error(&tr_id)))?;
+                let ad_payload = ADLPayload::from_str(&command.payload).map_err(|e| MSNPServerError::fatal_error_with_trid(tr_id.to_string(), e.into()))?;
                 if ad_payload.is_initial() {
                     info!("Initial Contact List received: {:?}", &ad_payload);
-                    self.msn_client.as_mut().ok_or(MsnpError::internal_server_error(&tr_id))?.init_contact_list(&ad_payload);
+                    self.msn_client.as_mut().expect("MSN Client to be in context").init_contact_list(&ad_payload);
                 } else {
                     info!("Add to Contact List received: {:?}", &ad_payload);
                     // ad_payload.domains.iter().flat_map(|d| d.get_contacts_for_role(&RoleId::Reverse)).for_each(|c| -> {
@@ -307,9 +309,9 @@ impl CommandHandler for NotificationCommandHandler {
                     <<< RML 6 OK
                 */
                 let tr_id = split[1];
-
-                let ad_payload = ADLPayload::from_str(&command.payload).or(Err(MsnpError::internal_server_error(&tr_id)))?;
+                let ad_payload = ADLPayload::from_str(&command.payload).map_err(|e| MSNPServerError::fatal_error_with_trid(tr_id.to_string(), e.into()))?;
                 info!("Remove to Contact List received: {:?}", &ad_payload);
+                //TODO Actually update the contact list from MSNUser
                 return Ok(format!("RML {tr_id} OK\r\n", tr_id=tr_id));
             },
             "UUX" => {
@@ -320,7 +322,11 @@ impl CommandHandler for NotificationCommandHandler {
                 let tr_id = split[1];
                 let payload = &command.payload;
                 if payload.starts_with("<PrivateEndpointData>") {
-                    self.handle_device_name_update(payload.as_str()).await;
+                    let matrix_client = self.matrix_client.as_ref().expect("Matrix Client to be in context");
+                    let private_endpoint_data = PrivateEndpointData::from_str(payload).map_err(|e| MSNPServerError::fatal_error_with_trid(tr_id.to_string(), e.into()))?;
+                    Self::handle_device_name_update(&private_endpoint_data, matrix_client).await.map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e.into()))?;
+                } else {
+                    warn!("Unknown UXX payload received: {:?}", &command)
                 }
                 return Ok(format!("UUX {tr_id} 0\r\n", tr_id=tr_id));
             },
@@ -336,7 +342,7 @@ impl CommandHandler for NotificationCommandHandler {
 
                 let status = PresenceStatus::from_str(split[2]).unwrap_or(PresenceStatus::NLN);
 
-                self.msn_client.as_mut().ok_or(MsnpError::internal_server_error(tr_id))?.get_user_mut().set_status(status.clone());
+                self.msn_client.as_mut().expect("MSN Client to be in client context").get_user_mut().set_status(status.clone());
 
                 if let Some(matrix_client) = self.matrix_client.as_ref() {
                     //SET PRESENCE
@@ -418,17 +424,17 @@ impl CommandHandler for NotificationCommandHandler {
                     // this not for me
                     if command.payload.contains("MSNSLP/1.0") {
                         //slp payload
-                        let slp_request = SlpPayload::from_str(command.payload.as_str()).unwrap();
-                        let slp_response = SlpPayloadHandler::handle(&slp_request).unwrap();
+                        let slp_request = SlpPayload::from_str(command.payload.as_str()).map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e.into()))?;
+                        let slp_response = SlpPayloadHandler::handle(&slp_request).map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e.into()))?;
 
                         let payload = slp_response.to_string();
                         return Ok(format!("UUN {tr_id} OK\r\nUBN {msn_addr} {notification_type} {payload_size}\r\n{payload}", tr_id = tr_id, msn_addr= &receiver_msn_addr, notification_type=&notification_type, payload=&payload, payload_size = payload.len()));
+                    } else {
+                        warn!("Unhandled UUN command payload: {:?}", &command);
                     }
-
 
                     return Ok(format!("UUN {tr_id} OK\r\n", tr_id = tr_id));                
                 }
-
 
                 let payload = command.payload.as_str();
                 //return format!("UUN {tr_id} OK\r\nUBN {msn_addr} 5 {payload_size}\r\n{payload}", tr_id = tr_id, msn_addr= &receiver_msn_addr, payload=&payload, payload_size = payload.len());
@@ -445,7 +451,7 @@ impl CommandHandler for NotificationCommandHandler {
                         req_type = request_type, 
                         token = &self.matrix_token));
                 }
-                return Ok(format!("{error_code} {tr_id}\r\n", error_code=MsnpErrorCode::InternalServerError as i32, tr_id=tr_id));
+                return Ok(format!("{error_code} {tr_id}\r\n", error_code=MSNPErrorCode::InternalServerError as i32, tr_id=tr_id));
             },
             _ => {
                 return Ok(String::new());
@@ -466,22 +472,19 @@ impl Drop for NotificationCommandHandler {
             MATRIX_CLIENT_LOCATOR.remove();
             MSN_CLIENT_LOCATOR.remove();
         }
+
+        if let Some(killer) = self.matrix_loop_killer.take() {
+            killer.send(());
+        }
     }
 }
 
 impl NotificationCommandHandler {
 
-    async fn handle_device_name_update(&self, payload: &str) {
-
-        if let Ok(private_endpoint_data) = PrivateEndpointData::from_str(payload) {
-            if let Some(matrix_client) = MATRIX_CLIENT_LOCATOR.get() {
-
-                 let device_id = matrix_client.device_id().unwrap();
-                 matrix_client.rename_device(device_id, &private_endpoint_data.ep_name).await.unwrap_or_default();
-
-            }
-        }
-
+    async fn handle_device_name_update(private_endpoint_data: &PrivateEndpointData, matrix_client: &Client) -> Result<(), MatrixError> {
+        let device_id = matrix_client.device_id().expect("Matrix Client to have a device id");
+        matrix_client.rename_device(device_id, &private_endpoint_data.ep_name).await?;
+        Ok(())
     }
 
     async fn handle_device_logout(&self, endpoint_guid : String) {

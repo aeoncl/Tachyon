@@ -103,8 +103,8 @@ async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<H
 
     let matrix_client =  MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let profile = matrix_client.account().get_profile().await?;
-    let display_name = profile.displayname.ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    let profile = matrix_client.account().get_profile().await.unwrap();
+    let display_name = profile.displayname.unwrap_or(me.get_msn_addr());
 
     //let psm = matrix_client.account().get_presence().await?.status_msg.unwrap_or_default();
     //TODO fetch account data

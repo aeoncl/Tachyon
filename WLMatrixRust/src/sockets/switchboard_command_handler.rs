@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+use anyhow::anyhow;
 
 use async_trait::async_trait;
 use base64::{Engine, engine::general_purpose};
@@ -18,7 +19,7 @@ use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR};
 use crate::models::msg_payload::factories::MsgPayloadFactory;
 use crate::models::msg_payload::MsgPayload;
 use crate::models::msn_user::MSNUser;
-use crate::models::notification::error::{MsnpError, MsnpErrorCode};
+use crate::models::notification::error::{MSNPErrorCode, MSNPServerError};
 use crate::models::owned_user_id_traits::{FromMsnAddr, ToMsnAddr};
 use crate::models::p2p::events::p2p_event::P2PEvent;
 use crate::models::p2p::p2p_client::P2PClient;
@@ -28,6 +29,8 @@ use crate::models::p2p::session::file_transfer_session_content::FileTransferSess
 use crate::models::p2p::session::p2p_session_type::P2PSessionType;
 use crate::models::switchboard::events::switchboard_event::SwitchboardEvent;
 use crate::models::switchboard::switchboard::Switchboard;
+use crate::models::tachyon_error::TachyonError;
+use crate::models::tachyon_error::TachyonError::MatrixError;
 use crate::models::uuid::UUID;
 use crate::models::wlmatrix_client::WLMatrixClient;
 use crate::repositories::msn_user_repository::MSNUserRepository;
@@ -284,7 +287,7 @@ impl SwitchboardCommandHandler {
 
 #[async_trait]
 impl CommandHandler for SwitchboardCommandHandler {
-    async fn handle_command(&mut self, command: &MSNPCommand) -> Result<String, MsnpError> {
+    async fn handle_command(&mut self, command: &MSNPCommand) -> Result<String, MSNPServerError> {
         let split = command.split();
         match command.operand.as_str() {
             "ANS" => {
@@ -308,10 +311,8 @@ impl CommandHandler for SwitchboardCommandHandler {
                     .to_string();
                 self.target_room_id = split_token.get(0).unwrap().to_string();
                 self.matrix_token = split_token.get(1).unwrap().to_string();
-                self.target_matrix_id = Some(
-                    UserId::parse(split_token.get(2).unwrap())
-                        .or(Err(MsnpError::internal_server_error(&tr_id)))?,
-                );
+               self.target_matrix_id = Some(UserId::parse(split_token.get(2).unwrap()).unwrap());
+
                 self.target_msn_addr = self.target_matrix_id.as_ref().unwrap().to_msn_addr();
 
                 self.matrix_client = MATRIX_CLIENT_LOCATOR.get().clone();
@@ -362,7 +363,7 @@ impl CommandHandler for SwitchboardCommandHandler {
                 }
                 return Ok(format!(
                     "{error_code} {tr_id}\r\n",
-                    error_code = MsnpErrorCode::AuthFail as i32,
+                    error_code = MSNPErrorCode::AuthFail as i32,
                     tr_id = tr_id
                 ));
             }

@@ -15,7 +15,8 @@ pub mod app_id;
 pub mod factories {
     use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
-    use crate::models::{tachyon_error::TachyonError, msn_user::MSNUser, uuid::UUID};
+    use crate::models::{msn_user::MSNUser, uuid::UUID};
+    use crate::models::tachyon_error::PayloadError;
 
     use super::{p2p_payload::P2PPayload, p2p_transport_packet::P2PTransportPacket, slp_context::PreviewData, slp_payload::{EufGUID, SlpPayload}, tlv::TLV};
 
@@ -130,24 +131,42 @@ SessionID: 2216804035
 
     impl SlpPayloadFactory {
 
-        pub fn get_200_ok_session(invite: &SlpPayload) -> Result<SlpPayload, TachyonError>  {
+        pub fn get_200_ok_session(invite: &SlpPayload) -> Result<SlpPayload, PayloadError>  {
             let mut out = SlpPayload::new();
             out.first_line = String::from("MSNSLP/1.0 200 OK");
-            out.add_header(String::from("To"), invite.get_header(&String::from("From")).unwrap().to_owned());
-            out.add_header(String::from("From"), invite.get_header(&String::from("To")).unwrap().to_owned());
-            out.add_header(String::from("Via"), invite.get_header(&String::from("Via")).unwrap().to_owned());
-            let cseq = invite.headers.get("CSeq").unwrap().parse::<i32>().unwrap() + 1;
+            out.add_header(String::from("To"), invite.get_header(&String::from("From"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("From"), payload: format!("{:?}", &invite) })?
+                .to_owned());
+
+            out.add_header(String::from("From"), invite.get_header(&String::from("To"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("To"), payload: format!("{:?}", &invite) })?
+                .to_owned());
+
+            out.add_header(String::from("Via"), invite.get_header(&String::from("Via"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Via"), payload: format!("{:?}", &invite) })?
+                .to_owned());
+
+            let cseq = invite.headers.get("CSeq")
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("CSeq"), payload: format!("{:?}", &invite) })?
+                .parse::<i32>()? + 1;
+
             out.add_header(String::from("CSeq"), cseq.to_string());
-            out.add_header(String::from("Call-ID"), invite.get_header(&String::from("Call-ID")).unwrap().to_owned());
+
+            out.add_header(String::from("Call-ID"), invite.get_header(&String::from("Call-ID"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Call-ID"), payload: format!("{:?}", &invite) })?
+                .to_owned());
+
             out.add_header(String::from("Max-Forwards"), String::from("0"));
             out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-sessionreqbody"));
 
-            out.add_body_property(String::from("SessionID"), invite.get_body_property(&String::from("SessionID")).unwrap().to_owned());
+            out.add_body_property(String::from("SessionID"), invite.get_body_property(&String::from("SessionID"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("SessionID"), payload: format!("{:?}", &invite) })?
+                .to_owned());
 
             return Ok(out);
         }
 
-        pub fn get_file_transfer_request(sender: &MSNUser, receiver: &MSNUser, context: &PreviewData, session_id: u32) -> Result<SlpPayload, TachyonError> {
+        pub fn get_file_transfer_request(sender: &MSNUser, receiver: &MSNUser, context: &PreviewData, session_id: u32) -> Result<SlpPayload, PayloadError> {
             let mut out = SlpPayload::new();
             out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver.get_mpop_identifier());
             out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.get_mpop_identifier()));
@@ -169,24 +188,40 @@ SessionID: 2216804035
             return Ok(out);
         }
 
-        pub fn get_200_ok_indirect_connect(invite: &SlpPayload) -> Result<SlpPayload, TachyonError> {
+        pub fn get_200_ok_indirect_connect(invite: &SlpPayload) -> Result<SlpPayload, PayloadError> {
             let mut out = SlpPayloadFactory::get_200_ok_direct_connect(invite)?;
             out.add_body_property(String::from("Bridge"), String::from("SBBridge"));
             return Ok(out);
         }
 
-        pub fn get_200_ok_direct_connect(invite: &SlpPayload) -> Result<SlpPayload, TachyonError> {
+        pub fn get_200_ok_direct_connect(invite: &SlpPayload) -> Result<SlpPayload, PayloadError> {
             let mut out = SlpPayload::new();
             out.first_line = String::from("MSNSLP/1.0 200 OK");
 
             
-            out.add_header(String::from("To"), invite.get_header(&String::from("From")).unwrap().to_owned());
-            out.add_header(String::from("From"), invite.get_header(&String::from("To")).unwrap().to_owned());
-            out.add_header(String::from("Via"), invite.get_header(&String::from("Via")).unwrap().to_owned());
+            out.add_header(String::from("To"), invite.get_header(&String::from("From"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("From"), payload: format!("{:?}", &invite) })?
+                .to_owned());
 
-            let cseq = invite.headers.get("CSeq").unwrap().parse::<i32>().unwrap() + 1;
+
+            out.add_header(String::from("From"), invite.get_header(&String::from("To"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("To"), payload: format!("{:?}", &invite) })?
+                .to_owned());
+
+            out.add_header(String::from("Via"), invite.get_header(&String::from("Via"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Via"), payload: format!("{:?}", &invite) })?
+                .to_owned());
+
+            let cseq = invite.headers.get("CSeq")
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("CSeq"), payload: format!("{:?}", &invite) })?
+                .parse::<i32>()? + 1;
+
             out.add_header(String::from("CSeq"), cseq.to_string());
-            out.add_header(String::from("Call-ID"), invite.get_header(&String::from("Call-ID")).unwrap().to_owned());
+
+            out.add_header(String::from("Call-ID"), invite.get_header(&String::from("Call-ID"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Call-ID"), payload: format!("{:?}", &invite) })?
+                .to_owned());
+
             out.add_header(String::from("Max-Forwards"), String::from("0"));
             out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-transrespbody"));
 
@@ -209,18 +244,33 @@ SessionID: 2216804035
             return Ok(out);
         }
 
-        pub fn get_200_ok_direct_connect_bad_port(invite: &SlpPayload) -> Result<SlpPayload, TachyonError> {
+        pub fn get_200_ok_direct_connect_bad_port(invite: &SlpPayload) -> Result<SlpPayload, PayloadError> {
             let mut out = SlpPayload::new();
             out.first_line = String::from("MSNSLP/1.0 200 OK");
 
             
-            out.add_header(String::from("To"), invite.get_header(&String::from("From")).unwrap().to_owned());
-            out.add_header(String::from("From"), invite.get_header(&String::from("To")).unwrap().to_owned());
-            out.add_header(String::from("Via"), invite.get_header(&String::from("Via")).unwrap().to_owned());
+            out.add_header(String::from("To"), invite.get_header(&String::from("From"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("From"), payload: format!("{:?}", &invite) })?
+                .to_owned());
 
-            let cseq = invite.headers.get("CSeq").unwrap().parse::<i32>().unwrap() + 1;
+
+            out.add_header(String::from("From"), invite.get_header(&String::from("To"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("To"), payload: format!("{:?}", &invite) })?
+                .to_owned());
+
+            out.add_header(String::from("Via"), invite.get_header(&String::from("Via"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Via"), payload: format!("{:?}", &invite) })?
+                .to_owned());
+
+            let cseq = invite.headers.get("CSeq")
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("CSeq"), payload: format!("{:?}", &invite) })?
+                .parse::<i32>()? + 1;
             out.add_header(String::from("CSeq"), cseq.to_string());
-            out.add_header(String::from("Call-ID"), invite.get_header(&String::from("Call-ID")).unwrap().to_owned());
+
+            out.add_header(String::from("Call-ID"), invite.get_header(&String::from("Call-ID"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Call-ID"), payload: format!("{:?}", &invite) })?
+                .to_owned());
+
             out.add_header(String::from("Max-Forwards"), String::from("0"));
             out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-transrespbody"));
 
@@ -243,18 +293,32 @@ SessionID: 2216804035
             return Ok(out);
         }
 
-        pub fn get_500_error_direct_connect(invite: &SlpPayload, bridge: String) -> Result<SlpPayload, TachyonError> {
+        pub fn get_500_error_direct_connect(invite: &SlpPayload, bridge: String) -> Result<SlpPayload, PayloadError> {
             let mut out = SlpPayload::new();
             out.first_line = String::from("MSNSLP/1.0 500 Internal Error");
 
             
-            out.add_header(String::from("To"), invite.get_header(&String::from("From")).unwrap().to_owned());
-            out.add_header(String::from("From"), invite.get_header(&String::from("To")).unwrap().to_owned());
-            out.add_header(String::from("Via"), invite.get_header(&String::from("Via")).unwrap().to_owned());
+            out.add_header(String::from("To"), invite.get_header(&String::from("From"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("From"), payload: format!("{:?}", &invite) })?
+                .to_owned());
 
-            let cseq = invite.headers.get("CSeq").unwrap().parse::<i32>().unwrap() + 1;
+            out.add_header(String::from("From"), invite.get_header(&String::from("To"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("To"), payload: format!("{:?}", &invite) })?
+                .to_owned());
+
+            out.add_header(String::from("Via"), invite.get_header(&String::from("Via"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Via"), payload: format!("{:?}", &invite) })?
+                .to_owned());
+
+            let cseq = invite.headers.get("CSeq")
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("CSeq"), payload: format!("{:?}", &invite) })?
+                .parse::<i32>()? + 1;
+
             out.add_header(String::from("CSeq"), cseq.to_string());
-            out.add_header(String::from("Call-ID"), invite.get_header(&String::from("Call-ID")).unwrap().to_owned());
+            out.add_header(String::from("Call-ID"), invite.get_header(&String::from("Call-ID"))
+                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Call-ID"), payload: format!("{:?}", &invite) })?
+                .to_owned());
+
             out.add_header(String::from("Max-Forwards"), String::from("0"));
             out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-transrespbody"));
 

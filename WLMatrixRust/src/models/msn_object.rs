@@ -1,5 +1,6 @@
 use std::{fmt::{self, Display}, str::FromStr};
 
+use anyhow::anyhow;
 use base64::{Engine, engine::general_purpose};
 use byteorder::ByteOrder;
 use sha1::{Digest, Sha1};
@@ -8,9 +9,11 @@ use substring::Substring;
 use yaserde::{de::{self, from_str}, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
-use super::{tachyon_error::TachyonError, p2p::slp_context::SlpContext};
+use crate::models::tachyon_error::PayloadError;
 
-// Documentation source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/MSN_Object
+use super::p2p::slp_context::SlpContext;
+
+// Documentation sauce: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/MSN_Object
 
 
 #[derive(Clone, Debug, YaDeserialize, Default)]
@@ -90,14 +93,11 @@ impl SlpContext for MSNObject {
 }
 
 impl FromStr for MSNObject {
-    type Err = TachyonError;
+    type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Ok(deserialized) = from_str::<MSNObject>(s) {
-            return Ok(deserialized);
-          } else {
-              return Err(TachyonError::PayloadDeserializeError);
-          }    }
+        from_str::<MSNObject>(s).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Could not parse string to MSNObject for : {}", e) })
+    }
 }
 
 impl yaserde::YaSerialize for &MSNObject {
@@ -267,7 +267,7 @@ impl Display for MSNObjectType {
 }
 
 impl TryFrom<i32> for MSNObjectType {
-    type Error = TachyonError;
+    type Error = PayloadError;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         match value {
@@ -289,7 +289,7 @@ impl TryFrom<i32> for MSNObjectType {
             x if x == MSNObjectType::Scene as i32 => Ok(MSNObjectType::Scene),
             x if x == MSNObjectType::WebcamDynamicDisplayPicture as i32 => Ok(MSNObjectType::WebcamDynamicDisplayPicture),
             _ => {
-                Err(TachyonError::PayloadDeserializeError)
+                Err(PayloadError::EnumParsingError { payload: value.to_string(), sauce: anyhow!("Couldn't parse int to MSNObjectType") })
             }
         }
     }

@@ -1,11 +1,13 @@
 use std::{fmt::Display, str::FromStr};
+use anyhow::anyhow;
 
 use substring::Substring;
 use yaserde::{de::from_str, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
-use crate::{generated::msnab_datatypes::types::RoleId, models::tachyon_error::TachyonError};
+use crate::{generated::msnab_datatypes::types::RoleId};
 use crate::models::msn_user::PartialMSNUser;
+use crate::models::tachyon_error::PayloadError;
 
 #[derive(Debug, Clone, Default, YaSerialize, YaDeserialize)]
 #[yaserde(rename = "ml")]
@@ -109,14 +111,10 @@ impl Display for ADLPayload {
 }
 
 impl FromStr for ADLPayload {
-    type Err = TachyonError;
+    type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-      if let Ok(deserialized) = from_str::<ADLPayload>(s) {
-        return Ok(deserialized);
-      } else {
-          return Err(TachyonError::PayloadDeserializeError);
-      }
+         from_str::<ADLPayload>(s).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Couldn't deserialize ADL Payload: {} - error: {}",s, e) })
     }
 }
 
