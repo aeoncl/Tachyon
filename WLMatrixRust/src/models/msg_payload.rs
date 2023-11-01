@@ -115,7 +115,7 @@ impl FromStr for MsgPayload {
 pub mod factories {
     use chrono::Local;
 
-    use crate::models::{msn_user::MSNUser, p2p::p2p_transport_packet::P2PTransportPacket, uuid::PUID};
+    use crate::models::{msn_user::MSNUser, p2p::p2p_transport_packet::P2PTransportPacket, uuid::PUID, msn_object::MSNObject};
 
     use super::MsgPayload;
 
@@ -198,6 +198,13 @@ pub mod factories {
             return out;
         }
 
+        pub fn get_msnobj_datacast(msn_object: &MSNObject) -> MsgPayload {
+            let mut out = MsgPayload::new("text/x-msnmsgr-datacast");
+            
+            out.body = format!("ID: 3\r\nData: {}\r\n", msn_object.to_string_not_encoded());
+            out.disable_charset();
+            out
+        }
         pub fn get_p2p(source: &MSNUser, destination: &MSNUser, payload: &P2PTransportPacket) -> MsgPayload {
             let mut out = MsgPayload::new("application/x-msnmsgrp2p");
             out.add_header(String::from("P2P-Dest"), format!("{msn_addr};{{{endpoint_guid}}}", msn_addr = &destination.get_msn_addr(), endpoint_guid = &destination.get_endpoint_guid()));

@@ -580,6 +580,7 @@ impl P2PClient {
                 .get_euf_guid()
                 .expect("EUF-GUID to be valid")
                 .expect("EUF-GUID to be here");
+
             let app_id = slp_payload
                 .get_app_id()
                 .expect("AppID to be valid");
@@ -608,14 +609,12 @@ impl P2PClient {
                 },
                 EufGUID::MSNObject => {
                     let context = *slp_payload.get_context_as_msnobj().expect("MSNObject to be present here");
-                    if app_id.expect("AppId to be present here") == AppID::DisplayPictureTransfer {
                         self.inner.sender.send(P2PEvent::MSNObjectRequested(MSNObjectRequestedEventContent{
                             msn_object: context,
                             session_id: session_id,
                             inviter: sender.clone(),
                             invitee: receiver.clone()
                         }));
-                    }
                 },
                 EufGUID::SharePhoto => {
                     
@@ -716,7 +715,7 @@ impl P2PClient {
 mod tests {
     use std::str::from_utf8_unchecked;
 
-    use tokio::sync::broadcast;
+    use tokio::sync::{broadcast, mpsc};
 
     use crate::sockets::{msnp_command::MSNPCommandParser, switchboard_command_handler::SwitchboardCommandHandler, events::socket_event::SocketEvent, command_handler::CommandHandler};
 
@@ -1249,7 +1248,7 @@ mod tests {
         test1.append(&mut test3);
         test1.append(&mut test4);
 
-        let (sb_sender, mut sb_receiver) = broadcast::channel::<SocketEvent>(10);
+        let (sb_sender, mut sb_receiver) = mpsc::unbounded_channel::<SocketEvent>();
 
         let mut handler = SwitchboardCommandHandler::new(sb_sender);
 

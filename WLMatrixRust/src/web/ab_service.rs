@@ -7,6 +7,7 @@ use substring::Substring;
 use yaserde::{de::from_str, ser::to_string};
 
 use crate::{AB_LOCATOR, generated::{msnab_datatypes::types::{ContactType, ContactTypeEnum}, msnab_sharingservice::{bindings::{AbfindContactsPagedMessageSoapEnvelope, AbfindContactsPagedResponseMessageSoapEnvelope, AbgroupAddMessageSoapEnvelope}, factories::{ABGroupAddResponseFactory, ContactFactory, FindContactsPagedResponseFactory, UpdateDynamicItemResponseFactory}}}, MATRIX_CLIENT_LOCATOR, models::{msn_user::MSNUser, uuid::UUID}, MSN_CLIENT_LOCATOR, repositories::repository::Repository, web::error::WebError};
+use crate::generated::msnab_sharingservice::factories::{AddMemberResponseFactory, DeleteMemberResponseFactory};
 
 use super::webserver::DEFAULT_CACHE_KEY;
 
@@ -30,8 +31,13 @@ pub async fn soap_adress_book_service(body: web::Bytes, request: HttpRequest) ->
                 },
                 "http://www.msn.com/webservices/AddressBook/UpdateDynamicItem" => {
                     return update_dynamic_item(body, request).await;
-                }
-
+                },
+                "http://www.msn.com/webservices/AddressBook/AddMember" => {
+                    return add_member(body, request).await;
+                },
+                "http://www.msn.com/webservices/AddressBook/DeleteMember" => {
+                    return delete_member(body, request).await;
+                },
                 _ => {}
             }
         } else {
@@ -131,3 +137,22 @@ async fn update_dynamic_item(body: web::Bytes, request: HttpRequest) -> Result<H
     .append_header(("Content-Type", "application/soap+xml"))
     .body(response_serialized));
 }
+
+async fn add_member(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
+    let response = AddMemberResponseFactory::get_response();
+    let response_serialized = to_string(&response)?;
+
+    return Ok(HttpResponseBuilder::new(StatusCode::OK)
+        .append_header(("Content-Type", "application/soap+xml"))
+        .body(response_serialized));
+}
+
+async fn delete_member(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
+    let response = DeleteMemberResponseFactory::get_response();
+    let response_serialized = to_string(&response)?;
+
+    return Ok(HttpResponseBuilder::new(StatusCode::OK)
+        .append_header(("Content-Type", "application/soap+xml"))
+        .body(response_serialized));
+}
+

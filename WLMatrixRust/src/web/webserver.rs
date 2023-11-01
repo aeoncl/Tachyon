@@ -119,6 +119,15 @@ pub async fn sha1auth(body: web::Bytes) -> Result<HttpResponse, WebError> {
 }
 
 
+#[get("/ppcrlconfig.srf")]
+pub async fn ppcrlconfigsrf() -> HttpResponse {
+    info!("Downloading ppcrlconfig.srf");
+    let data: &'static [u8] = *PPCRLCONFIG;
+    return HttpResponseBuilder::new(StatusCode::OK)
+        .append_header(("Content-Type", "application/octet-stream"))
+        .body(data);
+}
+
 #[get("/ppcrlconfig.bin")]
 pub async fn ppcrlconfig() -> HttpResponse {
     info!("Downloading ppcrlconfig");
@@ -128,9 +137,9 @@ pub async fn ppcrlconfig() -> HttpResponse {
         .body(data);
 }
 
-#[get("/wlidsvcconfig.xml")]
+#[get("/PPCRLconfig.srf")]
 pub async fn wlidsvcconfig() -> HttpResponse {
-    info!("Downloading wlidsvcconfig.xml");
+    info!("PPCRLconfig.srf Downloading wlidsvcconfig.xml");
     let data: &'static [u8] = *WLIDSVCCONFIG;
     return HttpResponseBuilder::new(StatusCode::OK)
         .append_header(("Content-Type", "text/xml"))

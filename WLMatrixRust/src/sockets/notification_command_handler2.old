@@ -190,13 +190,11 @@ async fn handle_msnp_18_command(command: &MSNPCommand, socket_sender: &Unbounded
                     let oim_payload = MsgPayloadFactory::get_initial_mail_data_notification().serialize();
                     socket_sender.send(format!("MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}", oim_payload_size = oim_payload.len(), oim_payload = &oim_payload));
 
-                    let mpop_endpoints = msn_client.get_mpop_endpoints().await.map_err(|e| MSNPServerError::from_source(e.into()))?;
+                    let mut mpop_endpoints = msn_client.get_mpop_endpoints().await.map_err(|e| MSNPServerError::from_source(e.into()))?;
+                    let endpoints = mpop_endpoints.drain(..).map(|e| e.to_string()).reduce(|cur: String, nxt: String| cur + &nxt).unwrap_or_default();
+                    let endpoints_payload = format!("<Data>{endpoints}</Data>", endpoints = endpoints);
+                    socket_sender.send(format!("UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", email=self.msn_addr, private_endpoint_payload_size= endpoints_payload.len(), private_endpoint_payload=&endpoints_payload));
 
-                    let mut endpoints = String::new();
-                    for endpoint in mpop_endpoints {
-                        endpoints.push_str(endpoint.to_string().as_str());
-                    }
-                    socket_sender.send(format!("UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", email = &msn_addr, private_endpoint_payload_size = endpoints_payload.len(), private_endpoint_payload = &endpoints_payload));
 
 
                     //   let test_msg = MsgPayloadFactory::get_system_msg(String::from("1"), String::from("17"));

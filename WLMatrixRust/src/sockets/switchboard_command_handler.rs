@@ -6,15 +6,17 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use base64::{Engine, engine::general_purpose};
 use log::{error, info};
+use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::{Client, RoomMemberships};
 use matrix_sdk::config::RequestConfig;
 use matrix_sdk::media::{MediaFormat, MediaRequest};
-use matrix_sdk::ruma::{OwnedUserId, UserId};
+use matrix_sdk::ruma::{OwnedUserId, UserId, MxcUri};
 use substring::Substring;
 use tokio::sync::broadcast::{self, Receiver, Sender};
 use tokio::sync::{mpsc, oneshot};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
+use crate::models::msn_object::MSNObjectType;
 use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR};
 use crate::models::msg_payload::factories::MsgPayloadFactory;
 use crate::models::msg_payload::MsgPayload;
@@ -34,6 +36,7 @@ use crate::models::tachyon_error::TachyonError::MatrixError;
 use crate::models::uuid::UUID;
 use crate::models::wlmatrix_client::WLMatrixClient;
 use crate::repositories::msn_user_repository::MSNUserRepository;
+use crate::utils::ffmpeg;
 use crate::utils::identifiers::{self, matrix_room_id_to_annoying_matrix_room_id};
 
 use super::command_handler::CommandHandler;
@@ -158,16 +161,57 @@ impl SwitchboardCommandHandler {
                             P2PEvent::MSNObjectRequested(content) => {
                                 info!("RECEIVED MSNObjectRequestedEvent: {:?}", &content);
                                 let msn_obj = &content.msn_object;
-                                let base64encoded_id =  msn_obj.location.trim_end_matches(".tmp");
-                                let base64decoded_id = general_purpose::STANDARD.decode(base64encoded_id).expect("MSNObj location to be base64encoded");
+                                //TODO ERROR HANDLING
 
-                                let avatar_url = String::from_utf8(base64decoded_id).expect("MSNObj location to be UTF-8");
-                                let msn_user_repo = MSNUserRepository::new(matrix_client.clone());
-                                if let Ok(avatar_bytes) = msn_user_repo.get_avatar_from_string(avatar_url.clone()).await {
-                                    sb_bridge.send_msn_object(content.session_id, avatar_bytes, content.invitee, content.inviter);
+
+                                let base64decoded_id  = if msn_obj.location == "0" && msn_obj.friendly.is_some(){
+                                    general_purpose::STANDARD.decode(msn_obj.friendly.as_ref().unwrap()).expect("MSNObj friendly to be base64encoded")
                                 } else {
-                                    error!("Could not download avatar for: {}", &avatar_url);
-                                    //TODO sent SLP error
+                                    let base64encoded_id =  msn_obj.location.trim_end_matches(".tmp");
+                                    general_purpose::STANDARD.decode(base64encoded_id).expect("MSNObj location to be base64encoded")
+                                };
+
+                                match msn_obj.obj_type {
+                                    MSNObjectType::Avatar | MSNObjectType::DisplayPicture => {
+                                        let avatar_url = String::from_utf8(base64decoded_id).expect("MSNObj location to be UTF-8");
+                                        let msn_user_repo = MSNUserRepository::new(matrix_client.clone());
+                                        if let Ok(avatar_bytes) = msn_user_repo.get_avatar_from_string(avatar_url.clone()).await {
+                                            sb_bridge.send_msn_object(content.session_id, avatar_bytes, content.invitee, content.inviter);
+                                        } else {
+                                            error!("Could not download avatar for: {}", &avatar_url);
+                                            //TODO sent SLP error
+                                        }
+                                    },
+                                    MSNObjectType::SharedFile => todo!(),
+                                    MSNObjectType::Background => todo!(),
+                                    MSNObjectType::History => todo!(),
+                                    MSNObjectType::DynamicDisplayPicture => todo!(),
+                                    MSNObjectType::Wink => todo!(),
+                                    MSNObjectType::MapFile => todo!(),
+                                    MSNObjectType::DynamicBackground => todo!(),
+                                    MSNObjectType::VoiceClip => {
+                                        let uri = String::from_utf8(base64decoded_id).expect("MSNObj location to be UTF-8");
+                                        let owned_mxc_uri = <&MxcUri>::try_from(uri.as_str()).unwrap().to_owned();
+
+
+                                        
+                                        let media_request = MediaRequest{ source: MediaSource::Plain(uri.into()), format: MediaFormat::File };
+                                        let media_client = &matrix_client.media();
+                                        let media = media_client.get_media_content(&media_request, true).await.unwrap(); //TODO exception handling
+
+                                        let converted_media = ffmpeg::convert_audio_message(media).await; //TODO change this double conversion shit
+
+
+                                        sb_bridge.send_msn_object(content.session_id, converted_media, content.invitee, content.inviter);
+                                        //TODO sent SLP error
+                                    },
+                                    MSNObjectType::PluginState => todo!(),
+                                    MSNObjectType::RoamingObject => todo!(),
+                                    MSNObjectType::SignatureSound => todo!(),
+                                    MSNObjectType::UnknownYet => todo!(),
+                                    MSNObjectType::Scene => todo!(),
+                                    MSNObjectType::WebcamDynamicDisplayPicture => todo!(),
+                                    MSNObjectType::CustomEmoticon => todo!()
                                 }
                             }
                             _ => {

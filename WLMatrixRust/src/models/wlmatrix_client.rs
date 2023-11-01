@@ -4,14 +4,15 @@ use anyhow::anyhow;
 use base64::{Engine, engine::general_purpose};
 use js_int::UInt;
 use log::{info, warn};
-use matrix_sdk::{AuthSession, Client, ClientBuilder, config::SyncSettings, Error, event_handler::Ctx, room::{Room, RoomMember}, RoomMemberships, RoomState, ruma::{api::{client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::Filter}}, device_id, events::{direct::{DirectEvent, DirectEventContent}, GlobalAccountDataEvent, GlobalAccountDataEventType, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, presence::PresenceEvent, room::{member::{MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent}, message::{FileMessageEventContent, MessageType, RoomMessageEventContent, SyncRoomMessageEvent}}, typing::SyncTypingEvent}, OwnedUserId, presence::PresenceState, RoomId, UserId}, ServerName};
+use matrix_sdk::{AuthSession, Client, ClientBuilder, config::SyncSettings, Error, event_handler::Ctx, room::{Room, RoomMember}, RoomMemberships, RoomState, ruma::{api::{client::{filter::{FilterDefinition, RoomFilter}, sync::sync_events::v3::Filter}}, device_id, events::{direct::{DirectEvent, DirectEventContent}, GlobalAccountDataEvent, GlobalAccountDataEventType, OriginalSyncMessageLikeEvent, OriginalSyncStateEvent, presence::PresenceEvent, room::{member::{MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent}, message::{FileMessageEventContent, MessageType, RoomMessageEventContent, SyncRoomMessageEvent, ImageMessageEventContent, VideoMessageEventContent, AudioMessageEventContent}, MediaSource}, typing::SyncTypingEvent}, OwnedUserId, presence::PresenceState, RoomId, UserId}, ServerName, media::{MediaRequest, MediaFormat}};
 use matrix_sdk::matrix_auth::{MatrixSession, MatrixSessionTokens};
 use matrix_sdk::ruma::OwnedRoomId;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
 
-use crate::{AB_LOCATOR, generated::{msnab_datatypes::types::{ArrayOfAnnotation, ContactTypeEnum, MemberState, RoleId}, msnab_sharingservice::factories::{AnnotationFactory, ContactFactory, MemberFactory}, payloads::PresenceStatus}, models::{abch::events::AddressBookEventFactory, msg_payload::factories::MsgPayloadFactory, owned_user_id_traits::ToMsnAddr}, MSN_CLIENT_LOCATOR, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, SETTINGS_LOCATOR, utils::{emoji::emoji_to_smiley, identifiers::{self, get_matrix_device_id}}};
+use crate::{AB_LOCATOR, generated::{msnab_datatypes::types::{ArrayOfAnnotation, ContactTypeEnum, MemberState, RoleId}, msnab_sharingservice::factories::{AnnotationFactory, ContactFactory, MemberFactory}, payloads::PresenceStatus}, models::{abch::events::AddressBookEventFactory, msg_payload::factories::MsgPayloadFactory, owned_user_id_traits::ToMsnAddr, msn_object::MSNObjectFactory}, MSN_CLIENT_LOCATOR, repositories::{msn_user_repository::MSNUserRepository, repository::Repository}, SETTINGS_LOCATOR, utils::{emoji::emoji_to_smiley, identifiers::{self, get_matrix_device_id}}};
 use crate::models::tachyon_error::TachyonError;
+use crate::utils::ffmpeg::convert_audio_message;
 
 use super::{msn_user::MSNUser, notification::events::notification_event::{NotificationEvent, NotificationEventFactory}, switchboard::switchboard::Switchboard};
 
@@ -177,20 +178,101 @@ impl WLMatrixClient {
     async fn handle_messages(matrix_client: Client, room_id: &RoomId, switchboard: &Switchboard, msg_event: &OriginalSyncMessageLikeEvent<RoomMessageEventContent>) {
         info!("Handle message!");
 
-        let user_repo = MSNUserRepository::new(matrix_client);
+        let user_repo = MSNUserRepository::new(matrix_client.clone());
 
         let sender = user_repo.get_msnuser(&room_id, &msg_event.sender, false).await.unwrap();
 
-        if let MessageType::Text(content) = &msg_event.content.msgtype {
-            let msg = MsgPayloadFactory::get_message(emoji_to_smiley(&content.body));
-            switchboard.on_message_received(msg, sender, Some(msg_event.event_id.to_string()));
-        } else if let MessageType::File(content) = &msg_event.content.msgtype {
-            log::info!("Received a file: {:?}", &content);
-            switchboard.on_file_received(sender, content.body.clone(), content.source.clone(), WLMatrixClient::get_size_or_default(&content), msg_event.event_id.to_string());
+        match &msg_event.content.msgtype {
+            MessageType::Text(content) => {
+                let msg = MsgPayloadFactory::get_message(emoji_to_smiley(&content.body));
+                switchboard.on_message_received(msg, sender, Some(msg_event.event_id.to_string()));
+            },
+            MessageType::File(content) => {
+                log::info!("Received a file: {:?}", &content);
+                switchboard.on_file_received(sender, content.body.clone(), content.source.clone(), WLMatrixClient::get_size_or_default_file(&content), msg_event.event_id.to_string());
+            },
+            MessageType::Audio(content) => {
+
+                if let MediaSource::Plain(source) = &content.source {
+                    let base64_mxc = general_purpose::STANDARD.encode(source.to_string());
+                    
+                    let media_request = MediaRequest{ source: MediaSource::Plain(source.to_owned()), format: MediaFormat::File };
+                    let media_client = &matrix_client.media();
+                    let media = media_client.get_media_content(&media_request, true).await.unwrap(); //TODO exception handling
+
+                    let converted_media = convert_audio_message(media).await;
+
+
+                    let obj = MSNObjectFactory::get_voice_message(&converted_media, sender.get_msn_addr(), Some(base64_mxc));
+                    let msg = MsgPayloadFactory::get_msnobj_datacast(&obj);
+                    switchboard.on_message_received(msg, sender, Some(msg_event.event_id.to_string()));
+                } else {
+                    warn!("Encrypted audio message received {:?}", msg_event);
+                }
+
+              
+                //switchboard.on_file_received(sender, content.body.clone(), content.source.clone(), WLMatrixClient::get_size_or_default_audio(&content), msg_event.event_id.to_string());
+            },
+            MessageType::Image(content) => {
+                switchboard.on_file_received(sender, content.body.clone(), content.source.clone(), WLMatrixClient::get_size_or_default_image(&content), msg_event.event_id.to_string());
+            },
+            MessageType::Video(content)=> {
+                switchboard.on_file_received(sender, content.body.clone(), content.source.clone(), WLMatrixClient::get_size_or_default_video(&content), msg_event.event_id.to_string());
+            },
+            MessageType::Emote(content) => {
+                log::info!("Received an Emote: {:?}", &content);
+            },
+            MessageType::Location(content) => {
+                log::info!("Received location message: {:?} - plain text representation: {}", &content, content.plain_text_representation());
+            },
+            MessageType::Notice(content) => {
+                log::info!("Received a Notice: {:?}", &content);
+            },
+            MessageType::ServerNotice(content)=> {
+                log::info!("Received a ServerNotice: {:?}", &content);
+            },
+            MessageType::VerificationRequest(content)=> {
+                log::info!("Received a VerificationRequest: {:?}", &content);
+
+            },
+            MessageType::_Custom(content) => {
+                log::info!("Received a Custom Event: {:?}", &content);
+            },
+            _ => {}
         }
     }
 
-    fn get_size_or_default(content: &FileMessageEventContent) -> usize {
+    fn get_size_or_default_file(content: &FileMessageEventContent) -> usize {
+        let mut size: i32 = 0;
+        if let Some(info) = content.info.as_ref() {
+            if let Ok(valid_size) = i32::try_from(info.size.unwrap_or(UInt::new(0).unwrap())) {
+                size = valid_size;
+            }
+        }
+        return usize::try_from(size).expect("Matrix file size to be a usize");
+    }
+
+    fn get_size_or_default_audio(content: &AudioMessageEventContent) -> usize {
+        let mut size: i32 = 0;
+        if let Some(info) = content.info.as_ref() {
+            if let Ok(valid_size) = i32::try_from(info.size.unwrap_or(UInt::new(0).unwrap())) {
+                size = valid_size;
+            }
+        }
+        return usize::try_from(size).expect("Matrix file size to be a usize");
+    }
+
+    fn get_size_or_default_image(content: &ImageMessageEventContent) -> usize {
+        let mut size: i32 = 0;
+        if let Some(info) = content.info.as_ref() {
+            if let Ok(valid_size) = i32::try_from(info.size.unwrap_or(UInt::new(0).unwrap())) {
+                size = valid_size;
+            }
+        }
+        return usize::try_from(size).expect("Matrix file size to be a usize");
+    }
+
+    fn get_size_or_default_video(content: &VideoMessageEventContent) -> usize {
         let mut size: i32 = 0;
         if let Some(info) = content.info.as_ref() {
             if let Ok(valid_size) = i32::try_from(info.size.unwrap_or(UInt::new(0).unwrap())) {
@@ -204,7 +286,7 @@ impl WLMatrixClient {
         let joined_members = room.members(RoomMemberships::JOIN).await.unwrap_or(Vec::new());
 
         let mut notify_ab = false;
-        if joined_members.len() >= 0 && joined_members.len() <= 2 {
+        if joined_members.len() <= 2 {
             //1O1 DM Room
             info!("Room is One on One Direct !!");
             notify_ab = notify_ab || Self::handle_1v1_dm2(ev, room, client, mtx_token, msn_addr, joined_members).await;

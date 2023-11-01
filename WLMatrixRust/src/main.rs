@@ -32,6 +32,7 @@ use crate::repositories::repository::Repository;
 use crate::sockets::notification_server::NotificationServer;
 use crate::sockets::switchboard_server::SwitchboardServer;
 use crate::sockets::tcpserver::TCPServer;
+use crate::utils::ffmpeg;
 
 mod sockets;
 mod generated;
@@ -76,7 +77,8 @@ async fn main() {
     .service(get_text_ad)
     .service(get_banner)
     .service(wlidsvcconfig)
-    .service(ppcrlconfig))
+    .service(ppcrlconfig)
+    .service(ppcrlconfigsrf))
     .bind(("127.0.0.1", 8080)).unwrap()
     .run();
 
@@ -102,7 +104,7 @@ fn setup_logs() {
         .target(env_logger::Target::Pipe(target))
         .target(Target::Stdout)
         .filter(Some("actix_web"), LevelFilter::Info)
-        .filter(Some("wlmatrix_rust") , LevelFilter::Info)
+        .filter(Some("wlmatrix_rust") , LevelFilter::Debug)
         .filter(Some("matrix-sdk"), LevelFilter::Debug)
         .filter(None, LevelFilter::Warn)
         .init();

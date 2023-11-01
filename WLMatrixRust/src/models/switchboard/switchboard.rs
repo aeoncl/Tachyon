@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::mpsc::error::SendError;
 
-use crate::{models::{msg_payload::MsgPayload, msn_user::MSNUser, p2p::file::File}, MSN_CLIENT_LOCATOR, utils::emoji::smiley_to_emoji};
+use crate::{models::{msg_payload::MsgPayload, msn_user::MSNUser, p2p::file::File, msn_object::MSNObject}, MSN_CLIENT_LOCATOR, utils::emoji::smiley_to_emoji};
 
 use super::{events::{content::{file_upload_event_content::FileUploadEventContent, message_event_content::MessageEventContent}, switchboard_event::SwitchboardEvent}, switchboard_error::SwitchboardError};
 

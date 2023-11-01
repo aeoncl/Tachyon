@@ -9,5 +9,3 @@ pub mod switchboard_server;
 pub mod msnp2p_command;
 pub mod echoserver;
 pub mod events;
-pub mod notification_command_handler2;
-pub mod notification_server2;
