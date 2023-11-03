@@ -129,6 +129,18 @@ impl P2PPayload {
         return false;
     }
 
+    pub fn is_msn_obj_transfer(&self) -> bool {
+        info!("is msn obj transfer");
+        if !self.payload.is_empty() {
+            info!("tf: {}, session_id: {}", &self.tf_combination, &self.session_id);
+
+            if self.tf_combination == 4 || self.tf_combination == 5 && self.session_id > 0 {
+                return true;
+            }
+        }
+        return false;
+    }
+
     pub fn append(&mut self, payload: &mut P2PPayload) -> usize {
         let added_size = payload.payload.len();
         self.payload.append(payload.payload.as_mut());

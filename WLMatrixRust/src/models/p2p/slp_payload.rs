@@ -14,6 +14,7 @@ use substring::Substring;
 
 use crate::models::{msn_object::MSNObject, msn_user::MSNUser};
 use crate::models::tachyon_error::PayloadError;
+use crate::models::uuid::UUID;
 
 use super::{app_id::AppID, slp_context::{PreviewData, SlpContext}};
 
@@ -52,7 +53,7 @@ impl SlpPayload {
 
     pub fn get_sender(&self) -> Option<MSNUser> {
         if let Some(from) = self.get_header(&String::from("From")) {
-            let from_trimmed = from.to_owned().substring(1, from.len()-1).to_string();
+            let from_trimmed = from.to_owned().substring(9, from.len()-1).to_string();
             return Some(MSNUser::from_mpop_addr_string(from_trimmed).unwrap_or(MSNUser::default()));
         }
         return None;
@@ -60,7 +61,7 @@ impl SlpPayload {
 
     pub fn get_receiver(&self) -> Option<MSNUser> {
         if let Some(to) = self.get_header(&String::from("To")) {
-            let to_trimmed = to.to_owned().substring(1, to.len()-1).to_string();
+            let to_trimmed = to.to_owned().substring(9, to.len()-1).to_string();
             return Some(MSNUser::from_mpop_addr_string(to_trimmed).unwrap_or(MSNUser::default()));
         }
         return None;
@@ -100,6 +101,20 @@ impl SlpPayload {
         let app_id = u32::from_str(app_id.as_str())?;
         let app_id: Option<AppID> = FromPrimitive::from_u32(app_id);
         return Ok(app_id);
+    }
+
+    pub fn get_call_id(&self) -> Result<Option<UUID>, PayloadError> {
+        let call_id = self.get_header(&"Call-ID".into());
+        if call_id.is_none() {
+            return  Ok(None);
+        }
+
+        let mut call_id = call_id.unwrap().as_str();
+        call_id = call_id.trim().strip_prefix("{").unwrap_or(call_id);
+
+        call_id = call_id.strip_suffix("}").unwrap_or(call_id);
+
+        return Ok(Some(UUID::parse(call_id).unwrap())); //TODO HANDLE ERROR CORRECTLY
     }
 
     pub fn get_context_as_msnobj(&self) -> Option<Box<MSNObject>> {

@@ -1,3 +1,6 @@
 [submodule "WLMatrixRust/matrix-rust-sdk"]
 	path = WLMatrixRust/matrix-rust-sdk
 	url = https://github.com/aeoncl/matrix-rust-sdk.git
+[submodule "WLMatrixRust/lib/libsiren"]
+	path = WLMatrixRust/lib/libsiren
+	url = https://github.com/aeoncl/libsiren

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -13,10 +14,11 @@ use matrix_sdk::media::{MediaFormat, MediaRequest};
 use matrix_sdk::ruma::{OwnedUserId, UserId, MxcUri};
 use substring::Substring;
 use tokio::sync::broadcast::{self, Receiver, Sender};
+use log::debug;
 use tokio::sync::{mpsc, oneshot};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-use crate::models::msn_object::MSNObjectType;
+use crate::models::msn_object::{MSNObject, MSNObjectType};
 use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR};
 use crate::models::msg_payload::factories::MsgPayloadFactory;
 use crate::models::msg_payload::MsgPayload;
@@ -35,6 +37,7 @@ use crate::models::tachyon_error::TachyonError;
 use crate::models::tachyon_error::TachyonError::MatrixError;
 use crate::models::uuid::UUID;
 use crate::models::wlmatrix_client::WLMatrixClient;
+use crate::repositories::msn_client_locator::MSNClientLocator;
 use crate::repositories::msn_user_repository::MSNUserRepository;
 use crate::utils::ffmpeg;
 use crate::utils::identifiers::{self, matrix_room_id_to_annoying_matrix_room_id};
@@ -135,6 +138,9 @@ impl SwitchboardCommandHandler {
                                 //Todo change this
                                 //P2P_REPO.set_seq_number(content.packet.get_next_sequence_number());
                                 let msgs : Vec<String> = content.packets.iter().map(|packet| {
+                                    debug!("SBBridge OUT: {:?}", packet);
+
+
                                     let payload = MsgPayloadFactory::get_p2p(&content.sender, &content.receiver, &packet).serialize();
                                     format!("MSG {msn_addr} {display_name} {payload_size}\r\n{payload}", msn_addr = &content.sender.get_msn_addr(), display_name = &content.sender.get_display_name(), payload_size = payload.len(), payload = &payload)
                                 }).collect();
@@ -159,61 +165,61 @@ impl SwitchboardCommandHandler {
                                  }
                             },
                             P2PEvent::MSNObjectRequested(content) => {
-                                info!("RECEIVED MSNObjectRequestedEvent: {:?}", &content);
-                                let msn_obj = &content.msn_object;
-                                //TODO ERROR HANDLING
+                            info!("RECEIVED MSNObjectRequestedEvent: {:?}", &content);
+                            let msn_obj = &content.msn_object;
+                            //TODO ERROR HANDLING
 
 
-                                let base64decoded_id  = if msn_obj.location == "0" && msn_obj.friendly.is_some(){
-                                    general_purpose::STANDARD.decode(msn_obj.friendly.as_ref().unwrap()).expect("MSNObj friendly to be base64encoded")
-                                } else {
-                                    let base64encoded_id =  msn_obj.location.trim_end_matches(".tmp");
-                                    general_purpose::STANDARD.decode(base64encoded_id).expect("MSNObj location to be base64encoded")
-                                };
+                            let base64decoded_id  = if msn_obj.location == "0" && msn_obj.friendly.is_some(){
+                            general_purpose::STANDARD.decode(msn_obj.friendly.as_ref().unwrap()).expect("MSNObj friendly to be base64encoded")
+                            } else {
+                            let base64encoded_id =  msn_obj.location.trim_end_matches(".tmp");
+                            general_purpose::STANDARD.decode(base64encoded_id).expect("MSNObj location to be base64encoded")
+                            };
 
-                                match msn_obj.obj_type {
-                                    MSNObjectType::Avatar | MSNObjectType::DisplayPicture => {
-                                        let avatar_url = String::from_utf8(base64decoded_id).expect("MSNObj location to be UTF-8");
-                                        let msn_user_repo = MSNUserRepository::new(matrix_client.clone());
-                                        if let Ok(avatar_bytes) = msn_user_repo.get_avatar_from_string(avatar_url.clone()).await {
-                                            sb_bridge.send_msn_object(content.session_id, avatar_bytes, content.invitee, content.inviter);
-                                        } else {
-                                            error!("Could not download avatar for: {}", &avatar_url);
-                                            //TODO sent SLP error
-                                        }
+                            match msn_obj.obj_type {
+                            MSNObjectType::Avatar | MSNObjectType::DisplayPicture => {
+                            let avatar_url = String::from_utf8(base64decoded_id).expect("MSNObj location to be UTF-8");
+                            let msn_user_repo = MSNUserRepository::new(matrix_client.clone());
+                            if let Ok(avatar_bytes) = msn_user_repo.get_avatar_from_string(avatar_url.clone()).await {
+                            sb_bridge.send_msn_object(content.session_id, content.call_id.clone(), avatar_bytes, content.invitee, content.inviter);
+                            } else {
+                            error!("Could not download avatar for: {}", &avatar_url);
+                            //TODO sent SLP error
+                            }
                                     },
-                                    MSNObjectType::SharedFile => todo!(),
-                                    MSNObjectType::Background => todo!(),
-                                    MSNObjectType::History => todo!(),
-                                    MSNObjectType::DynamicDisplayPicture => todo!(),
-                                    MSNObjectType::Wink => todo!(),
-                                    MSNObjectType::MapFile => todo!(),
-                                    MSNObjectType::DynamicBackground => todo!(),
-                                    MSNObjectType::VoiceClip => {
-                                        let uri = String::from_utf8(base64decoded_id).expect("MSNObj location to be UTF-8");
-                                        let owned_mxc_uri = <&MxcUri>::try_from(uri.as_str()).unwrap().to_owned();
+                            MSNObjectType::SharedFile => todo!(),
+                            MSNObjectType::Background => todo!(),
+                            MSNObjectType::History => todo!(),
+                            MSNObjectType::DynamicDisplayPicture => todo!(),
+                            MSNObjectType::Wink => todo!(),
+                            MSNObjectType::MapFile => todo!(),
+                            MSNObjectType::DynamicBackground => todo!(),
+                            MSNObjectType::VoiceClip => {
+                            let uri = String::from_utf8(base64decoded_id).expect("MSNObj location to be UTF-8");
+                            let owned_mxc_uri = <&MxcUri>::try_from(uri.as_str()).unwrap().to_owned();
 
 
                                         
-                                        let media_request = MediaRequest{ source: MediaSource::Plain(uri.into()), format: MediaFormat::File };
-                                        let media_client = &matrix_client.media();
-                                        let media = media_client.get_media_content(&media_request, true).await.unwrap(); //TODO exception handling
+                            let media_request = MediaRequest{ source: MediaSource::Plain(uri.into()), format: MediaFormat::File };
+                            let media_client = &matrix_client.media();
+                            let media = media_client.get_media_content(&media_request, true).await.unwrap(); //TODO exception handling
 
-                                        let converted_media = ffmpeg::convert_audio_message(media).await; //TODO change this double conversion shit
+                            let converted_media = ffmpeg::convert_audio_message(media).await; //TODO change this double conversion shit
 
 
-                                        sb_bridge.send_msn_object(content.session_id, converted_media, content.invitee, content.inviter);
-                                        //TODO sent SLP error
-                                    },
-                                    MSNObjectType::PluginState => todo!(),
-                                    MSNObjectType::RoamingObject => todo!(),
-                                    MSNObjectType::SignatureSound => todo!(),
-                                    MSNObjectType::UnknownYet => todo!(),
-                                    MSNObjectType::Scene => todo!(),
-                                    MSNObjectType::WebcamDynamicDisplayPicture => todo!(),
-                                    MSNObjectType::CustomEmoticon => todo!()
-                                }
+                            sb_bridge.send_msn_object(content.session_id, content.call_id.clone(), converted_media, content.invitee, content.inviter);
+                            //TODO sent SLP error
+                            },
+                            MSNObjectType::PluginState => todo!(),
+                            MSNObjectType::RoamingObject => todo!(),
+                            MSNObjectType::SignatureSound => todo!(),
+                            MSNObjectType::UnknownYet => todo!(),
+                            MSNObjectType::Scene => todo!(),
+                            MSNObjectType::WebcamDynamicDisplayPicture => todo!(),
+                            MSNObjectType::CustomEmoticon => todo!()
                             }
+                             }
                             _ => {
                             }
                         }
@@ -470,35 +476,70 @@ impl CommandHandler for SwitchboardCommandHandler {
                     .unwrap();
 
                 if let Ok(payload) = MsgPayload::from_str(command.payload.as_str()) {
-                    if "application/x-msnmsgrp2p" == payload.content_type.as_str() {
-                        //P2P, send to SBBridge
-                        if let Some(sb_bridge) = self.sb_bridge.as_mut() {
-                            if let Ok(mut p2p_packet) = P2PTransportPacket::from_str(&payload.body)
-                            {
-                                let source = MSNUser::from_mpop_addr_string(
-                                    payload
-                                        .get_header(&String::from("P2P-Src"))
-                                        .unwrap()
-                                        .to_owned(),
-                                )
-                                .unwrap();
-                                let dest = MSNUser::from_mpop_addr_string(
-                                    payload
-                                        .get_header(&String::from("P2P-Dest"))
-                                        .unwrap()
-                                        .to_owned(),
-                                )
-                                .unwrap();
 
-                                sb_bridge.on_message_received(PendingPacket::new(
-                                    p2p_packet, source, dest,
-                                ));
+                    match payload.content_type.as_str() {
+                        "application/x-msnmsgrp2p" => {
+                            if let Some(sb_bridge) = self.sb_bridge.as_mut() {
+                                if let Ok(mut p2p_packet) = P2PTransportPacket::from_str(&payload.body)
+                                {
+                                    let source = MSNUser::from_mpop_addr_string(
+                                        payload
+                                            .get_header(&String::from("P2P-Src"))
+                                            .unwrap()
+                                            .to_owned(),
+                                    )
+                                        .unwrap();
+                                    let dest = MSNUser::from_mpop_addr_string(
+                                        payload
+                                            .get_header(&String::from("P2P-Dest"))
+                                            .unwrap()
+                                            .to_owned(),
+                                    )
+                                        .unwrap();
+
+                                    sb_bridge.on_message_received(PendingPacket::new(
+                                        p2p_packet, source, dest,
+                                    ));
+                                }
                             }
-                        }
-                    } else {
-                        // Send to SB
-                        if let Some(sb_handle) = self.switchboard.as_ref() {
-                            sb.send_message(payload).await;
+                        },
+                        "text/x-msnmsgr-datacast" => {
+                            let split: Vec<&str> = payload.body.split_terminator("\r\n").collect();
+                            let body_map : HashMap<String, String> = split.iter().map_while(|e| {
+                                if e.is_empty() {
+                                    None
+                                } else {
+                                   let split = e.split_once(":").expect("datacast MSG body field to be key value");
+                                   Some((split.0.trim().to_owned(), split.1.trim().to_owned()))
+                                }
+                            } ).collect();
+
+                            let id = body_map.get("ID").unwrap();
+                            let data = body_map.get("Data").unwrap();
+                            match id.as_str() {
+                                "3" => {
+                                    //Datacast is MSNObj type
+                                    // Data is MSNObj as string
+                                    if let Some(sb_bridge) = self.sb_bridge.as_mut() {
+
+                                        let obj = MSNObject::from_str(data.as_str()).unwrap();
+
+                                        let target = MSN_CLIENT_LOCATOR.get().expect("MSN Client to be present").get_user();
+                                        let inviter = MSNUser::new(self.target_msn_addr.clone());
+                                        sb_bridge.initiate_session(inviter, target, P2PSessionType::MSNObject(obj));
+                                    }
+
+                                    }
+                                _ => {
+
+                                }
+                            }
+
+                        },
+                        _ => {
+                            if let Some(sb_handle) = self.switchboard.as_ref() {
+                                sb.send_message(payload).await;
+                            }
                         }
                     }
                 }

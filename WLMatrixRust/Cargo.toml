@@ -49,6 +49,8 @@ thiserror = "1.0.49"
 anyhow= "1.0.75"
 log-print-panics = { version = "2.1.2", features = ["with-backtrace"] }
 ffmpeg-cli = "0.1.0"
+wav = "1.0.0"
+bytemuck = "1.14.0"
 
 [dependencies.matrix-sdk]
 path = "matrix-rust-sdk/crates/matrix-sdk"
@@ -61,4 +63,8 @@ features = ["e2e-encryption", "bundled-sqlite", "image-proc"]
 
 [dev-dependencies]
 actix-rt = "2.7.0"
+
+[build-dependencies]
+bindgen = "0.69.0"
+cc = "1.0.83"
 

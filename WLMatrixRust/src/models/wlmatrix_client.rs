@@ -192,24 +192,25 @@ impl WLMatrixClient {
                 switchboard.on_file_received(sender, content.body.clone(), content.source.clone(), WLMatrixClient::get_size_or_default_file(&content), msg_event.event_id.to_string());
             },
             MessageType::Audio(content) => {
-
-                if let MediaSource::Plain(source) = &content.source {
-                    let base64_mxc = general_purpose::STANDARD.encode(source.to_string());
-                    
-                    let media_request = MediaRequest{ source: MediaSource::Plain(source.to_owned()), format: MediaFormat::File };
-                    let media_client = &matrix_client.media();
-                    let media = media_client.get_media_content(&media_request, true).await.unwrap(); //TODO exception handling
-
-                    let converted_media = convert_audio_message(media).await;
-
-
-                    let obj = MSNObjectFactory::get_voice_message(&converted_media, sender.get_msn_addr(), Some(base64_mxc));
-                    let msg = MsgPayloadFactory::get_msnobj_datacast(&obj);
-                    switchboard.on_message_received(msg, sender, Some(msg_event.event_id.to_string()));
-                } else {
-                    warn!("Encrypted audio message received {:?}", msg_event);
-                }
-
+                match &content.source {
+                    MediaSource::Plain(source) => {
+                        let base64_mxc = general_purpose::STANDARD.encode(source.to_string());
+                
+                        let media_request = MediaRequest{ source: MediaSource::Plain(source.to_owned()), format: MediaFormat::File };
+                        let media_client = &matrix_client.media();
+                        let media = media_client.get_media_content(&media_request, true).await.unwrap(); //TODO exception handling
+    
+                        let converted_media = convert_audio_message(media).await;
+    
+    
+                        let obj = MSNObjectFactory::get_voice_message(&converted_media, sender.get_msn_addr(), Some(base64_mxc));
+                        let msg = MsgPayloadFactory::get_msnobj_datacast(&obj);
+                        switchboard.on_message_received(msg, sender, Some(msg_event.event_id.to_string()));
+                    },
+                    MediaSource::Encrypted(source) => {
+                        warn!("Encrypted audio message received {:?}", msg_event);
+                    }
+                };
               
                 //switchboard.on_file_received(sender, content.body.clone(), content.source.clone(), WLMatrixClient::get_size_or_default_audio(&content), msg_event.event_id.to_string());
             },

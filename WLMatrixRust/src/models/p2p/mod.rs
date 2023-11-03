@@ -13,9 +13,13 @@ pub mod session;
 pub mod app_id;
 
 pub mod factories {
+    use base64::Engine;
+    use base64::engine::general_purpose;
     use byteorder::{BigEndian, ByteOrder, LittleEndian};
+    use yaserde::YaSerialize;
 
     use crate::models::{msn_user::MSNUser, uuid::UUID};
+    use crate::models::msn_object::MSNObject;
     use crate::models::tachyon_error::PayloadError;
 
     use super::{p2p_payload::P2PPayload, p2p_transport_packet::P2PTransportPacket, slp_context::PreviewData, slp_payload::{EufGUID, SlpPayload}, tlv::TLV};
@@ -131,6 +135,20 @@ SessionID: 2216804035
 
     impl SlpPayloadFactory {
 
+        pub fn get_session_bye(sender: &MSNUser, receiver: &MSNUser, call_id: UUID, session_id: String) -> Result<SlpPayload, PayloadError> {
+            let mut out = SlpPayload::new();
+            out.first_line = format!("BYE MSNMSGR:{mpop_id} MSNSLP/1.0", mpop_id = receiver.get_mpop_identifier());
+            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.get_mpop_identifier()));
+            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = sender.get_mpop_identifier()));
+            out.add_header(String::from("Via"), format!("MSNSLP/1.0/TLP ;branch={{{branch_uuid}}}", branch_uuid = UUID::new().to_string()));
+            out.add_header(String::from("CSeq"), String::from("0"));
+            out.add_header(String::from("Call-ID"), format!("{{{call_id}}}", call_id = call_id.to_string()));
+            out.add_header(String::from("Max-Forwards"), String::from("0"));
+            out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-sessionclosebody"));
+            out.add_body_property(String::from("SessionID"), session_id);
+            return Ok(out);
+        }
+
         pub fn get_200_ok_session(invite: &SlpPayload) -> Result<SlpPayload, PayloadError>  {
             let mut out = SlpPayload::new();
             out.first_line = String::from("MSNSLP/1.0 200 OK");
@@ -185,6 +203,30 @@ SessionID: 2216804035
 
             out.add_body_property(String::from("Context"), context.to_string());
 
+            return Ok(out);
+        }
+
+        pub fn get_msn_object_request(sender: &MSNUser, receiver: &MSNUser, context: &MSNObject, session_id: u32) -> Result<SlpPayload, PayloadError> {
+
+
+            let context_b64 = general_purpose::STANDARD.encode(context.to_string_not_encoded());
+
+            let mut out = SlpPayload::new();
+            out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver.get_mpop_identifier());
+            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.get_mpop_identifier()));
+            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = sender.get_mpop_identifier()));
+            out.add_header(String::from("Via"), format!("MSNSLP/1.0/TLP ;branch={{{branch_uuid}}}", branch_uuid = UUID::new().to_string()));
+
+            out.add_header(String::from("CSeq"), String::from("0"));
+            out.add_header(String::from("Call-ID"), format!("{{{call_id}}}", call_id = UUID::new().to_string()));
+            out.add_header(String::from("Max-Forwards"), String::from("0"));
+            out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-sessionreqbody"));
+
+            out.add_body_property(String::from("EUF-GUID"), EufGUID::MSNObject.to_string());
+            out.add_body_property(String::from("SessionID"), session_id.to_string());
+            out.add_body_property(String::from("AppID"), String::from("20"));
+            out.add_body_property(String::from("RequestFlags"), String::from("18"));
+            out.add_body_property(String::from("Context"), context_b64);
             return Ok(out);
         }
 

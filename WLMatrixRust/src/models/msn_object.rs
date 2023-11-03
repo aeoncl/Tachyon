@@ -539,6 +539,13 @@ mod tests {
     }
 
     #[test]
+    fn testttt() {
+        let str = "bQBzAG4AbQBzAGcAcgBfADIAMAAyADMAXwAxADEAXwAxAF8AMQAyAF8AMwA4AF8ANAAxAF8ANQA4ADEAXwAyAAAA";
+        let test = MSNObject::decode_friendly(str);
+        println!("Friendly: {}", test);
+
+    }
+    #[test]
     fn serialize_deserialize_test() {
 
         let msn_obj = MSNObject {
