@@ -613,7 +613,6 @@ pub enum RoleId {
 	Pending = 0x10
 }
 
-
 impl Default for RoleId {
     fn default() -> Self {
         RoleId::Allow

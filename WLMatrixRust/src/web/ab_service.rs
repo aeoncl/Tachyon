@@ -2,11 +2,12 @@ use std::{str::{from_utf8, FromStr}};
 
 use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, post, web};
 use http::{header::HeaderName, StatusCode};
-use log::info;
+use log::{info, warn};
 use substring::Substring;
 use yaserde::{de::from_str, ser::to_string};
 
 use crate::{AB_LOCATOR, generated::{msnab_datatypes::types::{ContactType, ContactTypeEnum}, msnab_sharingservice::{bindings::{AbfindContactsPagedMessageSoapEnvelope, AbfindContactsPagedResponseMessageSoapEnvelope, AbgroupAddMessageSoapEnvelope}, factories::{ABGroupAddResponseFactory, ContactFactory, FindContactsPagedResponseFactory, UpdateDynamicItemResponseFactory}}}, MATRIX_CLIENT_LOCATOR, models::{msn_user::MSNUser, uuid::UUID}, MSN_CLIENT_LOCATOR, repositories::repository::Repository, web::error::WebError};
+use crate::generated::msnab_sharingservice::factories::{AddMemberResponseFactory, DeleteMemberResponseFactory};
 
 use super::webserver::DEFAULT_CACHE_KEY;
 
@@ -30,8 +31,13 @@ pub async fn soap_adress_book_service(body: web::Bytes, request: HttpRequest) ->
                 },
                 "http://www.msn.com/webservices/AddressBook/UpdateDynamicItem" => {
                     return update_dynamic_item(body, request).await;
-                }
-
+                },
+                "http://www.msn.com/webservices/AddressBook/AddMember" => {
+                    return add_member(body, request).await;
+                },
+                "http://www.msn.com/webservices/AddressBook/DeleteMember" => {
+                    return delete_member(body, request).await;
+                },
                 _ => {}
             }
         } else {
@@ -66,9 +72,7 @@ async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest) -> Resul
     let request = from_str::<AbfindContactsPagedMessageSoapEnvelope>(body)?;
     let header = request.header.ok_or(StatusCode::BAD_REQUEST)?;
     let ticket_token = &header.ab_auth_header.ticket_token;
-    let matrix_token = header
-        .ab_auth_header
-        .ticket_token
+    let matrix_token = ticket_token
         .substring(2, ticket_token.len())
         .to_string();
 
@@ -79,9 +83,24 @@ async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest) -> Resul
     let response : AbfindContactsPagedResponseMessageSoapEnvelope;
     
     let matrix_client =  MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    //TODO !important Check request token against currently logged user in the matrix client
+
 
     let me_mtx_id = msn_client.get_user().get_matrix_id();
-    let me_display_name = matrix_client.account().get_display_name().await?.unwrap_or(msn_client.get_user_msn_addr());
+
+    let me_display_name = match matrix_client.account().get_display_name().await {
+        Err(e) => {
+            warn!("Error while fetching the display name of logged user: {}", e);
+            msn_client.get_user_msn_addr()
+        },
+        Ok(None) => {
+            msn_client.get_user_msn_addr()
+        }
+        Ok(Some(maybe_display_name)) => {
+            maybe_display_name
+        }
+    };
+
 
     if header.application_header.partner_scenario.as_str() == "Initial" {
             //Fetch contacts from the ADL command
@@ -118,3 +137,22 @@ async fn update_dynamic_item(body: web::Bytes, request: HttpRequest) -> Result<H
     .append_header(("Content-Type", "application/soap+xml"))
     .body(response_serialized));
 }
+
+async fn add_member(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
+    let response = AddMemberResponseFactory::get_response();
+    let response_serialized = to_string(&response)?;
+
+    return Ok(HttpResponseBuilder::new(StatusCode::OK)
+        .append_header(("Content-Type", "application/soap+xml"))
+        .body(response_serialized));
+}
+
+async fn delete_member(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
+    let response = DeleteMemberResponseFactory::get_response();
+    let response_serialized = to_string(&response)?;
+
+    return Ok(HttpResponseBuilder::new(StatusCode::OK)
+        .append_header(("Content-Type", "application/soap+xml"))
+        .body(response_serialized));
+}
+

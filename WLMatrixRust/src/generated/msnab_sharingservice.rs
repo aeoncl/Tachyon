@@ -4783,6 +4783,9 @@ pub mod factories {
     use lazy_static::lazy_static;
 
     use crate::{generated::msnab_datatypes::types::*, models::uuid::UUID};
+    use crate::generated::msnab_sharingservice::bindings::{AbcontactAddResponseMessageSoapEnvelope, AddMemberResponseMessageSoapEnvelope, DeleteMemberResponseMessageSoapEnvelope, SoapAbcontactAddResponseMessage, SoapAddMemberResponseMessage, SoapDeleteMemberResponseMessage};
+    use crate::generated::msnab_sharingservice::ports::{AddMemberResponseMessage, DeleteMemberResponseMessage};
+    use crate::generated::msnab_sharingservice::types::{AbcontactAddResponse, AddMemberResponse, DeleteMemberResponse};
 
     use super::{bindings::{AbfindContactsPagedResponseMessageSoapEnvelope, AbgroupAddResponseMessageSoapEnvelope, FindMembershipResponseMessageSoapEnvelope, SoapAbfindContactsPagedResponseMessage, SoapAbgroupAddResponseMessage, SoapFindMembershipResponseMessage, SoapUpdateDynamicItemResponseMessage, UpdateDynamicItemResponseMessageSoapEnvelope}, messages::{AbgroupAddResponseMessage, FindMembershipResponseMessage, ServiceHeaderContainer, UpdateDynamicItemResponseMessage}, ports, types::{Ab, AbfindContactsPagedResultType, AbgroupAddResponse, AbgroupAddResultType, FindMembershipResponse, Groups, MembershipResult}};
 
@@ -4960,6 +4963,59 @@ pub mod factories {
             return UpdateDynamicItemResponseMessageSoapEnvelope{ header: Some(HeaderFactory::get_service_header(cache_key)), body: body };
         }
     }
+
+    pub struct AddMemberResponseFactory;
+    impl AddMemberResponseFactory {
+        pub fn get_response() -> AddMemberResponseMessageSoapEnvelope {
+            let body_content = AddMemberResponseMessage {
+                add_member_response: AddMemberResponse {}
+            };
+
+            let body = SoapAddMemberResponseMessage{
+                body: body_content,
+                fault: None,
+            };
+            return AddMemberResponseMessageSoapEnvelope::new(body);
+        }
+    }
+
+    pub struct ABContactAddResponseFactory;
+
+    impl ABContactAddResponseFactory {
+        pub fn get_response(contact_uuid: &UUID) -> AbcontactAddResponseMessageSoapEnvelope {
+
+            let body_body_content =  AbcontactAddResponse {
+                ab_contact_add_result: None,
+            };
+
+            let body_content = ports::AbcontactAddResponseMessage {
+                ab_contact_add_response: body_body_content,
+            };
+
+            let body =  SoapAbcontactAddResponseMessage{
+                body: body_content,
+                fault: None,
+            };
+
+            return AbcontactAddResponseMessageSoapEnvelope::new(body);
+        }
+    }
+
+    pub struct DeleteMemberResponseFactory;
+    impl DeleteMemberResponseFactory {
+        pub fn get_response() -> DeleteMemberResponseMessageSoapEnvelope {
+            let body_content = DeleteMemberResponseMessage {
+                delete_member_response: DeleteMemberResponse {}
+            };
+
+            let body = SoapDeleteMemberResponseMessage{
+                body: body_content,
+                fault: None,
+            };
+            return DeleteMemberResponseMessageSoapEnvelope::new(body);
+        }
+    }
+
 
     pub struct AnnotationFactory;
         

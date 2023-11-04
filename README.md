@@ -1,10 +1,10 @@
+# Tachyon
+Tachyon is a **translation layer** between **MSNP18** & **the Matrix API**. 
+
 <p align=center>
 <img src="https://github.com/aeoncl/wlmatrix-rust/assets/48886723/7691e064-30bf-4253-99db-62f77b57d9ac"  width="40%" />
 </p>
 
-# WLMatrix
-WLMatrix is a **translation layer** between **MSNP18** & **the Matrix API**. The project started originally in 2020 in C++ but was rewritten entirely in **Rust** leveraging the **Matrix Rust SDK**.
-*The goal is to compile WLMatrix as a .dll library and inject it in the process of MsnMsgr.exe. Redirect all the calls to localhost and voilà, you got a new backend and an amazing client relevant again !*
 ## What's sort of working now
  - Redirection to localhost
  - User/Password login
@@ -16,11 +16,12 @@ WLMatrix is a **translation layer** between **MSNP18** & **the Matrix API**. The
  - File upload
  - Multiple Points of Presence (showing all your logged in sessions)
  - E2E encryption (kinda, no client validation)
- - You can talk in more than 1o1 rooms but cannot initiate them, inviting contacts does nothing in the backend
+ - Vocal messages
+ - Group dms (they appear when someone else talks in them)
 
 ## What's next
  - Photo sharing
- - Vocal messages
+ - Contact management (Add, remove, etc)
  - Handle all the default matrix messages types (m.notice, etc)
  - Presence updates when presence disabled on homeserver
  - Add & Delete contacts

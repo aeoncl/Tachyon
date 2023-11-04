@@ -1,10 +1,10 @@
 use core::fmt;
 use std::{fmt::Display, str::from_utf8_unchecked};
+use anyhow::anyhow;
 
 use byteorder::{BigEndian, ByteOrder};
 use log::info;
-
-use crate::models::errors::Errors;
+use crate::models::tachyon_error::PayloadError;
 
 use super::{slp_payload::SlpPayload, tlv::{extract_tlvs, TLV, ValueType}};
 
@@ -39,11 +39,11 @@ impl P2PPayload {
         return P2PPayload{ header_length: 0, tf_combination, package_number: 0, session_id, tlvs: Vec::new(), payload: Vec::new() };
     }
 
-    pub fn deserialize(bytes: &[u8], payload_length: usize) -> Result<Self, Errors> {
+    pub fn deserialize(bytes: &[u8], payload_length: usize) -> Result<Self, PayloadError> {
         let header_length = bytes.get(0).unwrap_or(&0).to_owned() as usize;
 
         if header_length < 8 {
-            return Err(Errors::PayloadDeserializeError);
+            return Err(PayloadError::BinaryPayloadParsingError { payload: bytes.to_owned(), sauce: anyhow!("P2PPayload must be of size 8 but was {}", &header_length) });
         }
 
         let tf_combination = bytes.get(1).unwrap_or(&0).to_owned();
@@ -59,7 +59,7 @@ impl P2PPayload {
 
         let mut payload_length_to_take = payload_length;
         if payload_length > bytes.len() {
-            return Err(Errors::PayloadNotComplete);
+            return Err(PayloadError::BinaryPayloadParsingError {payload: bytes.to_owned(), sauce: anyhow!("P2PPayload was chunked, payload length is supposed to be: {} but packet length was: {}", &payload_length, &bytes.len() )});
         }
 
         let payload = bytes[8+tlvs_length..payload_length_to_take].to_owned();
@@ -103,14 +103,14 @@ impl P2PPayload {
         return 0;
     }
 
-    pub fn get_payload_as_slp(&self) -> Result<SlpPayload, Errors> {
+    pub fn get_payload_as_slp(&self) -> Result<SlpPayload, PayloadError> {
 
         if !self.payload.is_empty() {
             if self.tf_combination <= 0x01 && self.session_id == 0x0000 {
                 return SlpPayload::try_from(&self.payload);
             }
         }
-        return Err(Errors::PayloadDoesNotContainsSLP);
+        return Err(PayloadError::PayloadDoesNotContainsSLP);
     }
 
     pub fn get_payload_bytes(&self) -> &Vec<u8> {
@@ -123,6 +123,18 @@ impl P2PPayload {
             info!("tf: {}, session_id: {}", &self.tf_combination, &self.session_id);
 
             if self.tf_combination == 6 || self.tf_combination == 7 && self.session_id > 0 {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    pub fn is_msn_obj_transfer(&self) -> bool {
+        info!("is msn obj transfer");
+        if !self.payload.is_empty() {
+            info!("tf: {}, session_id: {}", &self.tf_combination, &self.session_id);
+
+            if self.tf_combination == 4 || self.tf_combination == 5 && self.session_id > 0 {
                 return true;
             }
         }

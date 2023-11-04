@@ -1,4 +1,6 @@
 use std::{convert::Infallible, fmt::Display, io::Read, str::FromStr};
+use actix_web::dev::Payload;
+use anyhow::anyhow;
 
 use matrix_sdk::ruma::presence::PresenceState;
 use strum_macros::{EnumString, ToString};
@@ -6,7 +8,8 @@ use substring::Substring;
 use yaserde::{de::{self, from_str}, ser::to_string};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
-use crate::models::{capabilities::ClientCapabilities, errors::Errors};
+use crate::models::{capabilities::ClientCapabilities};
+use crate::models::tachyon_error::PayloadError;
 
 #[derive(Debug, Clone, Default, YaSerialize, YaDeserialize)]
 
@@ -29,19 +32,17 @@ impl EndpointData{
 }
 
 impl FromStr for EndpointData {
-    type Err = Errors;
+    type Err = PayloadError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-      if let Ok(deserialized) = from_str::<EndpointData>(s) {
-        return Ok(deserialized);
-      } else {
-          return Err(Errors::PayloadDeserializeError);
-      }
+    fn from_str(s: &str) -> Result<Self, Self::Err> { 
+        from_str::<EndpointData>(s).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Couldn't parse EndpointData Payload") })
     }
 }
 
 impl Display for EndpointData {
 
+
+    //Todo remove this fmt method, you can configure yaserde to remove the XML tag
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Ok(serialized) = to_string(self) {
             let wesh = serialized.substring(38, serialized.len());
@@ -78,14 +79,10 @@ impl PrivateEndpointData {
 
 
 impl FromStr for PrivateEndpointData {
-    type Err = Errors;
+    type Err = PayloadError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-      if let Ok(deserialized) = from_str::<PrivateEndpointData>(s) {
-        return Ok(deserialized);
-      } else {
-          return Err(Errors::PayloadDeserializeError);
-      }
+    fn from_str(s: &str) -> Result<Self, PayloadError> {
+       from_str::<PrivateEndpointData>(s).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Couldn't deserialize Private Endpoint Data: error: {}", e) } )
     }
 }
 

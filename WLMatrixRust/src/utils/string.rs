@@ -9,3 +9,7 @@ where
         B::write_u16(&mut buf[s..], c);
     }
 }
+
+pub fn map_empty_string_to_option(value: String) -> Option<String> {
+    if !value.is_empty() {Some(value)} else {None}
+}

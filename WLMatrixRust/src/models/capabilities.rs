@@ -1,8 +1,10 @@
 use std::{fmt::Display, str::FromStr};
+use std::num::ParseIntError;
+use anyhow::anyhow;
+use crate::models::tachyon_error::PayloadError;
 
-use super::errors;
 
-/** Source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/Client_Capabilities */
+/** sauce: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/Client_Capabilities */
 
 pub enum Capabilities {
 
@@ -78,10 +80,41 @@ pub enum Capabilities {
 }
 
 pub enum ExtendedCapabilities {
+    None = 0x0,
+    IsSmsOnly = 0x01,
+    SupportsVoiceOverMsnp = 0x02,
+    SupportsUucpSipStack = 0x04,
+    SupportsApplicationMessages = 0x08,
     // RTC Video enabled
     RTCVideoEnabled = 0x10,
     // Supports P2PV2
     SupportsP2PV2 = 0x20,
+    IsAuthenticatedWebIMUser = 0x40,
+    Supports1On1ViaGroup = 0x80,
+    SupportsOfflineIM = 0x100,
+    SupportsSharingVideo = 0x200,
+    SupportsNudges = 0x400,
+    CircleVoiceIMEnabled = 0x800,
+    SharingEnabled = 0x1000,
+    MobileSuspendIMFanoutDisable = 0x2000,
+    _0x4000 = 0x4000,
+    SupportsPeerToPeerMixerRelay = 0x8000,
+    _0x10000 = 0x10000,
+    ConvWindowFileTransfer = 0x20000,
+    VideoCallSupports16x9 = 0x40000,
+    SupportsPeerToPeerEnveloping = 0x80000,
+    _0x100000 = 0x100000,
+    _0x200000 = 0x200000,
+    YahooIMDisabled = 0x400000,
+    SIPTunnelVersion2 = 0x800000,
+    VoiceClipSupportsWMAFormat = 0x1000000,
+    VoiceClipSupportsCircleIM = 0x2000000,
+    SupportsSocialNewsObjectTypes = 0x4000000,
+    CustomEmoticonsCapable = 0x8000000,
+    SupportsUTF8MoodMessages = 0x10000000,
+    FTURNCapable = 0x20000000,
+    SupportsP4Activity = 0x40000000,
+    SupportsMultipartyConversations = 0x80000000,
 }
 #[derive(Clone, Debug, Default)]
 
@@ -111,13 +144,13 @@ impl ClientCapabilities {
 }
 
 impl FromStr for ClientCapabilities {
-    type Err = errors::Errors;
+    type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_string();
         let split: Vec<&str> = s.split(":").collect();
-        let cap : u32 = split.get(0).unwrap_or(&"0").parse().unwrap();
-        let cap_ext : u32 = split.get(1).unwrap_or(&"0").parse().unwrap();
+        let cap : u32 = split.get(0).unwrap_or(&"0").parse().map_err(|e : ParseIntError| PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!(e) } )?;
+        let cap_ext : u32 = split.get(1).unwrap_or(&"0").parse().map_err(|e: ParseIntError| PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!(e) } )?;
         return Ok(ClientCapabilities::new(cap, cap_ext));
     }
 }
@@ -189,8 +222,40 @@ pub struct ClientCapabilitiesFactory;
 impl ClientCapabilitiesFactory {
 
     pub fn  get_default_capabilities() -> ClientCapabilities {
-        let standard_cap = Capabilities::RendersGifs as u32 + Capabilities::RendersIsf as u32 + Capabilities::WebcamDetected as u32  + Capabilities::SupportsTunneledSip as u32 + Capabilities::SupportsChunking as u32 + Capabilities::HasSpace as u32 + Capabilities::SupportsWinks as u32 + Capabilities::SupportsMSNSearch as u32 + Capabilities::SupportsVoiceIM as u32 + Capabilities::SupportsSipInvite as u32 + Capabilities::MsgrVersion10 as u32 + Capabilities::SupportsP2PTurn as u32 + Capabilities::SupportsP2PBootstrapViaUUN as u32;
-        let extended_cap = ExtendedCapabilities::RTCVideoEnabled as u32 + ExtendedCapabilities::SupportsP2PV2 as u32;
+        let standard_cap = Capabilities::RendersGifs as u32
+            + Capabilities::RendersIsf as u32
+            + Capabilities::WebcamDetected as u32
+            + Capabilities::SupportsTunneledSip as u32
+            + Capabilities::SupportsChunking as u32
+            + Capabilities::HasSpace as u32
+            + Capabilities::SupportsWinks as u32
+            + Capabilities::SupportsMSNSearch as u32
+            + Capabilities::SupportsVoiceIM as u32
+            + Capabilities::SupportsSipInvite as u32
+            + Capabilities::MsgrVersion10 as u32
+            + Capabilities::SupportsP2PTurn as u32
+            + Capabilities::SupportsP2PBootstrapViaUUN as u32;
+
+        let extended_cap = ExtendedCapabilities::RTCVideoEnabled as u32
+            + ExtendedCapabilities::SupportsP2PV2 as u32
+            + ExtendedCapabilities::Supports1On1ViaGroup  as u32
+            + ExtendedCapabilities::SupportsOfflineIM as u32
+            + ExtendedCapabilities::SupportsSharingVideo as u32
+            + ExtendedCapabilities::SupportsNudges as u32
+            + ExtendedCapabilities::SharingEnabled as u32
+            + ExtendedCapabilities::_0x4000 as u32
+            + ExtendedCapabilities::SupportsPeerToPeerMixerRelay as u32
+            + ExtendedCapabilities::_0x10000 as u32
+            + ExtendedCapabilities::ConvWindowFileTransfer as u32
+            + ExtendedCapabilities::SupportsPeerToPeerEnveloping as u32
+            + ExtendedCapabilities::_0x100000 as u32
+            + ExtendedCapabilities::SIPTunnelVersion2 as u32
+            + ExtendedCapabilities::SupportsSocialNewsObjectTypes as u32
+            + ExtendedCapabilities::CustomEmoticonsCapable as u32
+            + ExtendedCapabilities::SupportsUTF8MoodMessages as u32
+            + ExtendedCapabilities::SupportsP4Activity as u32
+            + ExtendedCapabilities::SupportsMultipartyConversations as u32;
+
         return ClientCapabilities::new(standard_cap, extended_cap);
     }
 

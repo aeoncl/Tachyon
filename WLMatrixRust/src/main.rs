@@ -2,6 +2,9 @@
 #[macro_use] extern crate num_derive;
 #[macro_use] extern crate serde_derive;
 
+include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
+use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::sync::Arc;
@@ -10,7 +13,7 @@ use actix_web::App;
 use actix_web::HttpServer;
 use actix_web::middleware::Logger;
 use chrono::Local;
-use env_logger::Builder;
+use env_logger::{Builder, Target};
 use lazy_static::lazy_static;
 use log::info;
 use log::LevelFilter;
@@ -25,10 +28,14 @@ use crate::repositories::ab_locator::ABLocator;
 use crate::repositories::matrix_client_locator::MatrixClientLocator;
 use crate::repositories::msn_client_locator::MSNClientLocator;
 use crate::repositories::p2p_repository::P2PRepository;
+use crate::repositories::settings_locator::SettingsLocator;
+
 use crate::repositories::repository::Repository;
 use crate::sockets::notification_server::NotificationServer;
+use crate::sockets::p2p_server::P2PServer;
 use crate::sockets::switchboard_server::SwitchboardServer;
 use crate::sockets::tcpserver::TCPServer;
+use crate::utils::ffmpeg;
 
 mod sockets;
 mod generated;
@@ -42,18 +49,18 @@ lazy_static! {
     static ref MATRIX_CLIENT_LOCATOR: Arc<MatrixClientLocator> = Arc::new(MatrixClientLocator::new());
     static ref AB_LOCATOR : Arc<ABLocator> = Arc::new(ABLocator::new());
     static ref P2P_REPO : Arc<P2PRepository> = Arc::new(P2PRepository::new());
+    static ref SETTINGS_LOCATOR: Arc<SettingsLocator> = Arc::new(SettingsLocator::from(env::args()));
 }
 
 #[tokio::main]
 async fn main() {
-
-    setup_logs();    
+    setup_logs();
 
     let notif_server = NotificationServer::new("127.0.0.1".to_string(), 1863);
     let switchboard_server = SwitchboardServer::new("127.0.0.1".to_string(), 1864);
     
-    //let direct_p2p_server = P2PServer::new("127.0.0.1".to_string(), 1865);
-    //let direct_p2p_server_future = direct_p2p_server.listen();
+    let direct_p2p_server = P2PServer::new("127.0.0.1".to_string(), 1865);
+    let direct_p2p_server_future = direct_p2p_server.listen();
 
     //let echo_server = EchoServer::new("127.0.0.1".to_string(), 7001);
     //let echo_server_future = echo_server.listen();
@@ -71,17 +78,20 @@ async fn main() {
     .service(sha1auth)
     .service(get_profile_pic)
     .service(get_text_ad)
-    .service(get_banner))
+    .service(get_banner)
+    .service(wlidsvcconfig)
+    .service(ppcrlconfig)
+    .service(ppcrlconfigsrf))
     .bind(("127.0.0.1", 8080)).unwrap()
     .run();
 
-    let _test = join!(notif_server_future, switchboard_server_future, http_server);
+    let _test = join!(notif_server_future, switchboard_server_future, http_server, direct_p2p_server_future);
     println!("See you next time 👀!");
 }
 
 fn setup_logs() {
     let target = Box::new(File::create("C:\\temp\\log.txt").expect("Can't create file"));
-
+    log_print_panics::init();
     Builder::new()
         .format(|buf, record| {
             writeln!(
@@ -95,8 +105,11 @@ fn setup_logs() {
             )
         })
         .target(env_logger::Target::Pipe(target))
+        .target(Target::Stdout)
+        .filter(Some("actix_web"), LevelFilter::Info)
         .filter(Some("wlmatrix_rust") , LevelFilter::Debug)
-        .filter(Some("matrix-sdk"), LevelFilter::Info)
+        .filter(Some("matrix-sdk"), LevelFilter::Debug)
+        .filter(None, LevelFilter::Warn)
         .init();
 
     //Some("wlmatrix_rust")    

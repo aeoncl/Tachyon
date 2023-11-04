@@ -4,6 +4,7 @@ use std::{
         atomic::{AtomicI16, Ordering}, RwLock, RwLockWriteGuard,
     },
 };
+use anyhow::anyhow;
 
 use chashmap::CHashMap;
 use log::debug;
@@ -21,8 +22,9 @@ use crate::{
     },
     repositories::{msn_user_repository::MSNUserRepository, switchboard_repository::SwitchboardRepository},
 };
+use crate::models::tachyon_error::MatrixError;
 
-use super::{adl_payload::ADLPayload, error::MsnpErrorCode};
+use super::{adl_payload::ADLPayload, error::MSNPErrorCode};
 
 #[derive(Clone, Debug)]
 pub struct MSNClient {
@@ -58,15 +60,15 @@ impl MSNClient {
     }
 
     pub fn get_user(&self) -> MSNUser {
-        return self.inner.user.read().unwrap().clone();
+        return self.inner.user.read().expect("user to be present in the msn_client").clone();
     }
 
     pub fn get_user_msn_addr(&self) -> String {
-        return self.inner.user.read().unwrap().get_msn_addr();
+        return self.get_user().get_msn_addr();
     }
 
     pub fn get_user_mut(&mut self) -> RwLockWriteGuard<MSNUser> {
-        return self.inner.user.write().unwrap();
+        return self.inner.user.write().expect("mutable user to be present in the msn_client");
     }
 
     pub fn set_msnp_version(&mut self, msnp_version: i16) {
@@ -90,20 +92,18 @@ impl MSNClient {
         Ok(())
     }
 
-    pub async fn get_mpop_endpoints(&self) -> Result<Vec<MPOPEndpoint>, MsnpErrorCode> {
+    pub async fn get_mpop_endpoints(&self) -> Result<Vec<MPOPEndpoint>, MatrixError> {
         let client = &self.inner.matrix_client;
         let devices = client.devices().await?.devices;
 
         let mut endpoints: Vec<MPOPEndpoint> = Vec::new();
 
-        let this_device_id = client
-            .device_id()
-            .ok_or(MsnpErrorCode::InternalServerError)?;
+        let this_device_id = client.device_id().expect("The client to be logged-in when fetching MPOP endpoints");
 
         for device in devices {
             if device.device_id != this_device_id {
                 let machine_guid =
-                    format!("{{{}}}", UUID::from_string(&device.device_id.to_string()));
+                    format!("{{{}}}", UUID::from_string(&device.device_id.as_str()));
                 let endpoint_name = device.display_name.unwrap_or(device.device_id.to_string());
 
                 let endpoint = EndpointData::new(
@@ -129,7 +129,7 @@ impl MSNClient {
             let email_domain = &domain.domain;
 
             for contact in &domain.contacts {
-                let contact_list_types = contact.get_list_types();
+                let contact_list_types = contact.get_roles();
 
                 let msn_addr = format!("{}@{}", &contact.email_part, &email_domain);
                 let partial_user = PartialMSNUser::new(msn_addr);

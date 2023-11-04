@@ -7,6 +7,8 @@ use tokio::{
     net::TcpListener,
     sync::broadcast::{self, Sender},
 };
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{models::uuid::UUID, sockets::msnp_command::MSNPCommand};
 
@@ -30,7 +32,7 @@ impl SwitchboardServer {
         };
     }
 
-    fn get_command_handler(&self, sender: Sender<SocketEvent>) -> Box<dyn CommandHandler> {
+    fn get_command_handler(&self, sender: UnboundedSender<SocketEvent>) -> Box<dyn CommandHandler> {
         return Box::new(SwitchboardCommandHandler::new(sender));
     }
 
@@ -46,8 +48,8 @@ impl TCPServer for SwitchboardServer {
 
         loop {
             let (mut socket, _addr) = listener.accept().await.unwrap();
-            let (tx, mut rx) = broadcast::channel::<SocketEvent>(100);
-            let mut command_handler = self.get_command_handler(tx.clone());
+            let (tx, mut rx) = mpsc::unbounded_channel::<SocketEvent>();
+            let mut command_handler = self.get_command_handler(tx);
             let mut parser = MSNPCommandParser::new();
 
 
@@ -111,20 +113,3 @@ impl TCPServer for SwitchboardServer {
         }
     }
 }
-
-/*
-
-  match msg {
-                                SocketEvent::Single(msg) => {
-                                    info!("SW {} -> {}",&uuid.to_string(), &msg);
-                                    write.write_all(msg.as_bytes()).await;
-                                },
-                                SocketEvent::Multiple(msgs) => {
-                                    for msg in msgs {
-                                        info!("SW {} -> {}",&uuid.to_string(), &msg);
-                                        write.write_all(msg.as_bytes()).await;
-                                    }
-                                }
-                            }
-
- */

@@ -16,6 +16,7 @@ use crate::generated::ppcrl_webservice::*;
 use crate::generated::ppcrl_webservice::factories::RST2ResponseFactory;
 use crate::models::msn_user::MSNUser;
 use crate::models::owned_user_id_traits::FromMsnAddr;
+use crate::models::wlmatrix_client::WLMatrixClient;
 use crate::utils::identifiers::get_matrix_device_id;
 
 use super::error::WebError;
@@ -29,7 +30,10 @@ lazy_static! {
 lazy_static_include_bytes! {
     MSGR_CONFIG_XML => "assets/web/MsgrConfig.xml",
     BANNER => "assets/web/banner.html",
-    TEXT_AD => "assets/web/ads/textad.xml"
+    TEXT_AD => "assets/web/ads/textad.xml",
+    PPCRLCONFIG => "assets/web/ppcrlconfig.bin",
+    WLIDSVCCONFIG => "assets/web/wlidsvcconfig.xml",
+    PPCRLCHECK => "assets/web/ppcrlcheck.srf.html"
 }
 
 #[post("/")]
@@ -48,7 +52,7 @@ pub async fn rst2(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse
     let matrix_id = OwnedUserId::from_msn_addr(&username_token.username);
     let msn_user = MSNUser::from_matrix_id(matrix_id.clone());
 
-    let client = Client::builder().disable_ssl_verification().server_name(matrix_id.server_name()).build().await?;
+    let client = WLMatrixClient::get_matrix_client_builder(matrix_id.server_name()).build().await?;
     
     match client.matrix_auth().login_username(matrix_id.as_str(), username_token.password.as_str()).device_id(get_matrix_device_id().as_str()).initial_device_display_name("WLMatrix").await {
         Ok(result) => {
@@ -112,4 +116,40 @@ pub async fn sha1auth(body: web::Bytes) -> Result<HttpResponse, WebError> {
     let redirect_url = decode(&captures[1])?.into_owned();
     info!("Redirect to {}", &redirect_url);
     return Ok(HttpResponseBuilder::new(StatusCode::FOUND).append_header(("Location", redirect_url.as_str())).finish());
+}
+
+
+#[get("/ppcrlconfig.srf")]
+pub async fn ppcrlconfigsrf() -> HttpResponse {
+    info!("Downloading ppcrlconfig.srf");
+    let data: &'static [u8] = *PPCRLCONFIG;
+    return HttpResponseBuilder::new(StatusCode::OK)
+        .append_header(("Content-Type", "application/octet-stream"))
+        .body(data);
+}
+
+#[get("/ppcrlconfig.bin")]
+pub async fn ppcrlconfig() -> HttpResponse {
+    info!("Downloading ppcrlconfig");
+    let data: &'static [u8] = *PPCRLCONFIG;
+    return HttpResponseBuilder::new(StatusCode::OK)
+        .append_header(("Content-Type", "application/octet-stream"))
+        .body(data);
+}
+
+#[get("/PPCRLconfig.srf")]
+pub async fn wlidsvcconfig() -> HttpResponse {
+    info!("PPCRLconfig.srf Downloading wlidsvcconfig.xml");
+    let data: &'static [u8] = *WLIDSVCCONFIG;
+    return HttpResponseBuilder::new(StatusCode::OK)
+        .append_header(("Content-Type", "text/xml"))
+        .body(data);
+}
+
+#[get("/ppcrlcheck.srf")]
+pub async fn ppcrlcheck() -> HttpResponse {
+    let data: &'static [u8] = *PPCRLCHECK;
+    return HttpResponseBuilder::new(StatusCode::OK)
+        .append_header(("Content-Type", "text/html"))
+        .body(data);
 }

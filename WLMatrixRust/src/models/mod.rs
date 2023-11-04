@@ -1,5 +1,5 @@
 pub mod uuid;
-pub mod errors;
+pub mod tachyon_error;
 pub mod msn_user;
 pub mod capabilities;
 pub mod notification;

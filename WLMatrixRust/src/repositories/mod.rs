@@ -5,3 +5,4 @@ pub mod msn_user_repository;
 pub mod msn_client_locator;
 pub mod matrix_client_locator;
 pub mod ab_locator;
+pub mod settings_locator;

@@ -3,7 +3,8 @@ use std::{fmt::Display, str::FromStr};
 use byteorder::{ByteOrder, LittleEndian, ReadBytesExt};
 use uuid::Uuid;
 
-use crate::models::notification::error::MsnpErrorCode;
+use crate::models::notification::error::MSNPErrorCode;
+use crate::models::tachyon_error::TachyonError;
 
 #[derive(Clone, Debug)]
 pub struct PUID {
@@ -50,11 +51,11 @@ impl UUID {
         return UUID{ uuid: Uuid::new_v4() };
     }
 
-    pub fn from_string(s: &String) -> UUID {
+    pub fn from_string(s: &str) -> UUID {
         return UUID { uuid: Uuid::new_v5(&Uuid::NAMESPACE_OID, s.as_bytes()) }
     }
 
-    pub fn parse(s: &str) -> Result<UUID, MsnpErrorCode> {
+    pub fn parse(s: &str) -> Result<UUID, TachyonError> {
         return Ok(Self::from_uuid(Uuid::parse_str(s)?));
     }
 

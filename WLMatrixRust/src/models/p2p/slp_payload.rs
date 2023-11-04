@@ -4,6 +4,7 @@
  */
 
 use std::{fmt::Display, str::{from_utf8, FromStr}};
+use anyhow::anyhow;
 
 use base64::{Engine, engine::general_purpose};
 use linked_hash_map::LinkedHashMap;
@@ -11,7 +12,9 @@ use log::warn;
 use num::FromPrimitive;
 use substring::Substring;
 
-use crate::models::{errors::Errors, msn_object::MSNObject, msn_user::MSNUser};
+use crate::models::{msn_object::MSNObject, msn_user::MSNUser};
+use crate::models::tachyon_error::PayloadError;
+use crate::models::uuid::UUID;
 
 use super::{app_id::AppID, slp_context::{PreviewData, SlpContext}};
 
@@ -50,7 +53,7 @@ impl SlpPayload {
 
     pub fn get_sender(&self) -> Option<MSNUser> {
         if let Some(from) = self.get_header(&String::from("From")) {
-            let from_trimmed = from.to_owned().substring(1, from.len()-1).to_string();
+            let from_trimmed = from.to_owned().substring(9, from.len()-1).to_string();
             return Some(MSNUser::from_mpop_addr_string(from_trimmed).unwrap_or(MSNUser::default()));
         }
         return None;
@@ -58,7 +61,7 @@ impl SlpPayload {
 
     pub fn get_receiver(&self) -> Option<MSNUser> {
         if let Some(to) = self.get_header(&String::from("To")) {
-            let to_trimmed = to.to_owned().substring(1, to.len()-1).to_string();
+            let to_trimmed = to.to_owned().substring(9, to.len()-1).to_string();
             return Some(MSNUser::from_mpop_addr_string(to_trimmed).unwrap_or(MSNUser::default()));
         }
         return None;
@@ -77,7 +80,7 @@ impl SlpPayload {
         return None;
     }
 
-    pub fn get_euf_guid(&self) -> Result<Option<EufGUID>, Errors> {
+    pub fn get_euf_guid(&self) -> Result<Option<EufGUID>, PayloadError> {
         let euf_guid = self.get_body_property(&String::from("EUF-GUID"));
         if euf_guid.is_none() {
             return Ok(None);
@@ -88,7 +91,7 @@ impl SlpPayload {
         return Ok(Some(euf_guid));
     }
 
-    pub fn get_app_id(&self) -> Result<Option<AppID>, Errors> {
+    pub fn get_app_id(&self) -> Result<Option<AppID>, PayloadError> {
         let app_id = self.get_body_property(&String::from("AppID"));
         if app_id.is_none() {
             return  Ok(None);
@@ -98,6 +101,20 @@ impl SlpPayload {
         let app_id = u32::from_str(app_id.as_str())?;
         let app_id: Option<AppID> = FromPrimitive::from_u32(app_id);
         return Ok(app_id);
+    }
+
+    pub fn get_call_id(&self) -> Result<Option<UUID>, PayloadError> {
+        let call_id = self.get_header(&"Call-ID".into());
+        if call_id.is_none() {
+            return  Ok(None);
+        }
+
+        let mut call_id = call_id.unwrap().as_str();
+        call_id = call_id.trim().strip_prefix("{").unwrap_or(call_id);
+
+        call_id = call_id.strip_suffix("}").unwrap_or(call_id);
+
+        return Ok(Some(UUID::parse(call_id).unwrap())); //TODO HANDLE ERROR CORRECTLY
     }
 
     pub fn get_context_as_msnobj(&self) -> Option<Box<MSNObject>> {
@@ -119,18 +136,18 @@ impl SlpPayload {
 }
 
 impl FromStr for SlpPayload {
-    type Err = Errors;
+    type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
 
-        if let Some((headers, body)) = s.split_once("\r\n\r\n") {
+         let (headers, body) = s.split_once("\r\n\r\n").ok_or(PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("There was no header body boundary in Slp Payload") } )?;
             let mut out = SlpPayload::new();
             let headers_split: Vec<&str> = headers.split("\r\n").collect();
 
-            out.first_line = headers_split.get(0).ok_or(Errors::PayloadDeserializeError)?.to_string();
+            out.first_line = headers_split.get(0).ok_or(PayloadError::StringPayloadParsingError{ payload: s.to_string(), sauce: anyhow!("Could not get the first line from Slp Payload: {:?}", &headers_split) })?.to_string();
 
             for i in 1..headers_split.len() {
-                let current = headers_split.get(i).unwrap().to_string();
+                let current = headers_split.get(i).ok_or(PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Could not get header at index {} in headers: {:?}", &i, &headers_split) })?.to_string();
 
                 if let Some((name, value)) =  current.split_once(":"){
                     out.add_header(name.trim().to_string(), value.trim().to_string());
@@ -139,23 +156,21 @@ impl FromStr for SlpPayload {
 
             let body_split: Vec<&str> = body.split("\r\n").collect();
             for i in 0..body_split.len() {
-                let current = body_split.get(i).unwrap().to_string();
+                let current = body_split.get(i).ok_or(PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Could not get body element at index: {} for body: {:?}", &i, &body_split) })?.to_string();
                 if let Some((name, value)) =  current.split_once(":"){
                     out.add_body_property(name.trim().to_string(), value.trim().to_string());
                 }
             }
 
-            return Ok(out);
-        }
-       return Err(Errors::PayloadDeserializeError);
+            Ok(out)
     }
 }
 
 impl TryFrom<&Vec<u8>> for SlpPayload {
-    type Error = Errors;
+    type Error = PayloadError;
 
     fn try_from(value: &Vec<u8>) -> Result<Self, Self::Error> {
-        let str = from_utf8(value)?;
+        let str = from_utf8(value).map_err(|e|PayloadError::BinaryPayloadParsingError { payload: value.to_owned(), sauce: anyhow!(e) })?;
         return SlpPayload::from_str(str);
     }
 }
@@ -227,7 +242,7 @@ impl Display for EufGUID {
 }
 
 impl TryFrom<&str> for EufGUID {
-    type Error = Errors;
+    type Error = PayloadError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
@@ -250,7 +265,7 @@ impl TryFrom<&str> for EufGUID {
                 return Ok(EufGUID::Activity);
             },
             _=> {
-                return Err(Errors::PayloadDeserializeError);
+                return Err(PayloadError::StringPayloadParsingError { payload: value.to_string(), sauce: anyhow!("Unknown EUF-GUID") });
             }
         }
     }

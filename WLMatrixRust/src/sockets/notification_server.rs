@@ -1,12 +1,15 @@
 use std::str::from_utf8_unchecked;
 
 use async_trait::async_trait;
-use log::info;
+use log::{error, info};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, BufReader},
     net::TcpListener,
     sync::broadcast::{self, Sender},
 };
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::UnboundedSender;
+use crate::models::notification::error::MSNPServerErrorType;
 
 use crate::sockets::msnp_command::MSNPCommand;
 
@@ -30,9 +33,9 @@ impl TCPServer for NotificationServer {
         
         loop {
             let (mut socket, _addr) = listener.accept().await.unwrap();
-            let (tx, mut rx) = broadcast::channel::<String>(100);
+            let (tx, mut rx) = mpsc::unbounded_channel::<String>();
             let mut parser = MSNPCommandParser::new();
-            let mut command_handler = self.get_command_handler(tx.clone());
+            let mut command_handler = self.get_command_handler(tx);
 
 
             let _result = tokio::spawn(async move {
@@ -67,22 +70,27 @@ impl TCPServer for NotificationServer {
                                             }
                                         },
                                         Err(err) => {
+                                            error!("An MSNP Error has occured: {:?}", &err);
+                                            if let Some(tr_id) = &err.tr_id {
+                                                let error = format!("{error_code} {tr_id}\r\n", error_code = err.code as i32, tr_id = tr_id);
+                                                log::error!("NS -> {}", &error);
+                                                write.write_all(error.as_bytes()).await;
+                                            }
 
-                                            let error = format!("{error_code} {tr_id}\r\n", error_code = err.code as i32, tr_id= err.tr_id);
-                                            let out = "OUT\r\n";
-                                            log::error!("NS -> {}", &error);
-                                            log::error!("NS -> {}", &out);
-                                            write.write_all(error.as_bytes()).await;
-                                            write.write_all(out.as_bytes()).await;
+                                            if let MSNPServerErrorType::FatalError = err.kind {
+                                                let out = "OUT\r\n";
+                                                log::error!("NS -> {}", &out);
+                                                write.write_all(out.as_bytes()).await;
+                                            }
+
                                         }
                                     }
-
                             }
                             buffer = [0u8; 2048];
                         },
                         command_to_send = rx.recv() => {
                             let msg = command_to_send.unwrap();
-                            info!("NS => {}", &msg);
+                            info!("NS -> {}", &msg);
                             write.write_all(msg.as_bytes()).await;
                         }
                     }
@@ -103,7 +111,7 @@ impl NotificationServer {
         };
     }
 
-    fn get_command_handler(&self, sender: Sender<String>) -> Box<dyn CommandHandler> {
+    fn get_command_handler(&self, sender: UnboundedSender<String>) -> Box<dyn CommandHandler> {
             return Box::new(NotificationCommandHandler::new(sender));
     }
 

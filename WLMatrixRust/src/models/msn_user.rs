@@ -1,8 +1,10 @@
+use anyhow::anyhow;
 use matrix_sdk::ruma::OwnedUserId;
 
 use crate::generated::payloads::PresenceStatus;
+use crate::models::tachyon_error::PayloadError;
 
-use super::{capabilities::{ClientCapabilities, ClientCapabilitiesFactory}, errors::Errors, msn_object::MSNObject, owned_user_id_traits::{FromMsnAddr, ToMsnAddr}, uuid::{PUID, UUID}};
+use super::{capabilities::{ClientCapabilities, ClientCapabilitiesFactory}, msn_object::MSNObject, owned_user_id_traits::{FromMsnAddr, ToMsnAddr}, uuid::{PUID, UUID}};
 
 #[derive(Clone, Debug)]
 pub struct PartialMSNUser {
@@ -119,15 +121,20 @@ impl MSNUser {
     /**
      * Parses from a msn_addr;{endpoint_guid} string
      */
-    pub fn from_mpop_addr_string(mpop_string: String) -> Result<MSNUser, Errors> {
-       if let Some((msn_addr, endpoint_guid)) = mpop_string.split_once(";") {
-           let  trimmed_msn_addr = msn_addr.trim().to_string();
-            let trimmed_endpoint_guid = endpoint_guid.trim().strip_prefix("{").ok_or(Errors::PayloadDeserializeError)?.strip_suffix("}").ok_or(Errors::PayloadDeserializeError)?;
+    pub fn from_mpop_addr_string(mpop_string: String) -> Result<MSNUser, PayloadError> {
+       let (msn_addr, endpoint_guid) = mpop_string.split_once(";").ok_or(PayloadError::StringPayloadParsingError { payload: mpop_string.clone(), sauce: anyhow!("Couldn't split MPOP String on ;") })?;
+
+        let  trimmed_msn_addr = msn_addr.trim().to_string();
+            let trimmed_endpoint_guid = endpoint_guid.trim()
+                .strip_prefix("{")
+                .ok_or(PayloadError::StringPayloadParsingError { payload: endpoint_guid.to_string(), sauce: anyhow!("Couldn't strip {{ prefix from endpoint_guid") })?
+                .strip_suffix("}")
+                .ok_or(PayloadError::StringPayloadParsingError { payload: endpoint_guid.to_string(), sauce: anyhow!("Couldn't strip }} suffix from endpoint_guid") })?;
+
             let mut out : MSNUser = MSNUser::new(trimmed_msn_addr);
             out.set_endpoint_guid(trimmed_endpoint_guid.to_string());
             return Ok(out);
-       }
-       return Err(Errors::PayloadDeserializeError);
+
     }
 
     pub fn get_msn_addr(&self) -> String {
