@@ -18,13 +18,6 @@ lazy_static_include_bytes! {
 static SIREN_FRAME_SIZE : usize = 640usize;
 
 pub async fn convert_audio_message(audio: Vec<u8>) -> Vec<u8> {
-
-    let log_file_uuid = UUID::new();
-
-
-    let mut ogg = std::fs::File::create(format!("C:\\temp\\ogg{}.ogg", &log_file_uuid)).unwrap();
-    ogg.write_all(&audio);
-
     let mut child = Command::new("ffmpeg")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -53,28 +46,10 @@ pub async fn convert_audio_message(audio: Vec<u8>) -> Vec<u8> {
     });
 
     let output = child.wait_with_output().await.expect("Failed to read stdout");
-   return convert_to_siren(output.stdout, &log_file_uuid);
+   return convert_to_siren(output.stdout);
 }
 
-pub fn remove_wave_header(wave_pcm16: &mut Vec<u8>) {
-
-    let wave_as_str = unsafe { String::from_utf8_unchecked(wave_pcm16.clone()) };
-    let data_index = wave_as_str.find("data").expect("data field to be present in PCM 16 WAVE") + 7;
-    debug!("Wave data starts at index: {}", data_index);
-   let wave_header = wave_pcm16.drain(0..data_index);
-
-   debug!("DEBUG WAVE HEADER REMOVED: {:?}", wave_header.as_slice())
-   //assert_eq!(&wave_header.as_slice()[36..40], "data".as_bytes())
-}
-
-pub fn convert_to_siren(mut wave_pcm16: Vec<u8>, log_file_uuid: &UUID) -> Vec<u8> {
-
-
-    //let mut wave_file = std::fs::File::create(format!("C:\\temp\\wave_{}.wav", log_file_uuid)).unwrap();
-    // wave_file.write_all(&wave_pcm16);
-
-    // remove_wave_header(&mut wave_pcm16);
-    
+pub fn convert_to_siren(mut wave_pcm16: Vec<u8>) -> Vec<u8> {
     let mut buffer: Vec<u8> = vec![0; SIREN_FRAME_SIZE / 16];
     let encoder: *mut crate::stSirenEncoder = unsafe { Siren7_NewEncoder(16000) };
 
@@ -84,19 +59,10 @@ pub fn convert_to_siren(mut wave_pcm16: Vec<u8>, log_file_uuid: &UUID) -> Vec<u8
         buffer.to_owned()
     }).collect();
 
-
     let siren_wave_header: SirenWavHeader = unsafe { *encoder }.WavHeader;
-
     let mut siren_wave_header_as_bytes : Vec<u8> = unsafe { any_as_u8_slice(&siren_wave_header).to_vec() };
-    
     siren_wave_header_as_bytes.append(&mut data_part);
-
     unsafe { Siren7_CloseEncoder(encoder); }
-
-    
-    let mut siren_file = std::fs::File::create(format!("C:\\temp\\siren_{}.wav", log_file_uuid)).unwrap();
-    siren_file.write_all(&siren_wave_header_as_bytes);
-
 
     return siren_wave_header_as_bytes;
 }
@@ -115,7 +81,6 @@ mod tests {
     use std::{mem, thread};
     use byteorder::{LittleEndian, ByteOrder};
     use ffmpeg_cli::FfmpegBuilder;
-    use wav::BitDepth;
     use crate::utils::ffmpeg::any_as_u8_slice;
     use crate::{PCMWavHeader, RiffHeader, Siren7_CloseEncoder, Siren7_EncodeFrame, Siren7_NewEncoder, SirenEncoder, SirenWavHeader};
     use crate::models::uuid::UUID;
@@ -130,59 +95,6 @@ mod tests {
     #[test]
     fn siren_encoder_test() {
 
-        let frame_size = 640 as usize;
-
-        let encoder: *mut crate::stSirenEncoder = unsafe { Siren7_NewEncoder(16000) };
-
-
-        let mut raw_wav: Vec<u8> =  MSN_EXPORTED_WAV.to_vec();
-
-        let mut file: Cursor<Vec<u8>> = Cursor::new(raw_wav);
-
-        let (header, data) = wav::read(&mut file).expect("WAV to be valid PCM WAVE");
-
-        let mut data_bytes : Vec<u8> = data.as_sixteen().unwrap().to_owned().into_iter().flat_map(|x|{
-            let mut buffer = [0; 2];
-            LittleEndian::write_i16(&mut buffer, x);
-            buffer.to_owned()
-
-        }).collect();
-
-        let mut buffer: Vec<u8> = vec![0; frame_size / 16];
-
-        let mut result: Vec<u8> = data_bytes.chunks_mut(frame_size).flat_map(|c| {
-            buffer.fill(0);
-            if c.len() < frame_size {
-                let mut last_chunk = c.to_vec();
-                last_chunk.resize(frame_size, 0);
-                unsafe { Siren7_EncodeFrame(encoder, last_chunk.as_mut_ptr(), buffer.as_mut_ptr()) };
-                buffer.to_owned()
-            } else {
-                unsafe { Siren7_EncodeFrame(encoder, c.as_mut_ptr(), buffer.as_mut_ptr()) };
-                buffer.to_owned()
-            }
-        }).collect();
-
-
-        let waveHeader: SirenWavHeader = unsafe { *encoder }.WavHeader;
-
-        let mut header : Vec<u8> = unsafe { any_as_u8_slice(&waveHeader).to_vec() };
-
-        header.append(&mut result);
-
-        let mut file = std::fs::File::create(format!("C:\\temp\\out_test_{}.raw", UUID::new())).unwrap();
-        file.write_all(&header);
-
-        println!("{:?}", waveHeader);
-
-
-
-   //     let result = result[0..(unsafe { *encoder }).WavHeader.DataSize as usize].to_vec();
-
-        let test1 = 3;
-
-
-        unsafe { Siren7_CloseEncoder(encoder); }
     }
 
     #[test]

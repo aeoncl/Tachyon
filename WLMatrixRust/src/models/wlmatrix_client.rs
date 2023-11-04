@@ -201,8 +201,7 @@ impl WLMatrixClient {
                         let media = media_client.get_media_content(&media_request, true).await.unwrap(); //TODO exception handling
     
                         let converted_media = convert_audio_message(media).await;
-    
-    
+
                         let obj = MSNObjectFactory::get_voice_message(&converted_media, sender.get_msn_addr(), Some(base64_mxc));
                         let msg = MsgPayloadFactory::get_msnobj_datacast(&obj);
                         switchboard.on_message_received(msg, sender, Some(msg_event.event_id.to_string()));
