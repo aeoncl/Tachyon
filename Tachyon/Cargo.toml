@@ -51,7 +51,7 @@ log-print-panics = { version = "2.1.2", features = ["with-backtrace"] }
 ffmpeg-cli = "0.1.0"
 
 [dependencies.matrix-sdk]
-path = "matrix-rust-sdk/crates/matrix-sdk"
+path = "lib/matrix-rust-sdk/crates/matrix-sdk"
 features = ["e2e-encryption", "bundled-sqlite", "image-proc"]
 
 #[package.metadata.vcpkg]
