@@ -1,9 +1,9 @@
-# Tachyon
-Tachyon is a **translation layer** between **MSNP18** & **the Matrix API**. 
-
 <p align=center>
 <img src="https://github.com/aeoncl/wlmatrix-rust/assets/48886723/7691e064-30bf-4253-99db-62f77b57d9ac"  width="40%" />
 </p>
+
+# Tachyon
+Tachyon is a **translation layer** between **MSNP18** & **the Matrix API**. 
 
 ## What's sort of working now
  - Redirection to localhost
@@ -35,7 +35,7 @@ Tachyon is a **translation layer** between **MSNP18** & **the Matrix API**.
  - Custom Games & Activities
 
 ## Components
-There are three distinct components making WLMatrix tick:
+There are three distinct components making Tachyon tick:
 
  1. **Notification Server** - TCP Server listening on port 1863: This server handles the meat of MSNP18.
  2. **Switchboard Server** (or Mixer) - TCP Server listening on port 1864: This server handles rooms. One room per TCP connection.
