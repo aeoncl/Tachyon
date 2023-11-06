@@ -1,21 +1,18 @@
+use thiserror::Error;
+use crate::models::conversion::error::ConversionError;
 
-
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum SwitchboardError {
-    MatrixSdkError(matrix_sdk::Error),
+    #[error(transparent)]
+    MatrixSdkError(#[from] matrix_sdk::Error),
+    #[error("Couldn't find matrix room")]
     MatrixRoomNotFound,
-    MimeError(mime::FromStrError),
+    #[error(transparent)]
+    MatrixHttpError(#[from] matrix_sdk::HttpError),
+    #[error(transparent)]
+    MimeError(#[from] mime::FromStrError),
+    #[error(transparent)]
+    ConversionError(#[from] ConversionError),
+    #[error("Unkown switchboard error")]
     UnknownError
-}
-
-impl From<matrix_sdk::Error> for SwitchboardError {
-    fn from(err: matrix_sdk::Error) -> SwitchboardError {
-        SwitchboardError::MatrixSdkError(err)
-    }
-}
-
-impl From<mime::FromStrError> for SwitchboardError {
-    fn from(err: mime::FromStrError) -> SwitchboardError {
-        SwitchboardError::MimeError(err)
-    }
 }

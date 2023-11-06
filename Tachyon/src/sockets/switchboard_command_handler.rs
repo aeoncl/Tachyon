@@ -154,6 +154,16 @@ impl SwitchboardCommandHandler {
                                      error!("There was an error downloading the file to send: {:?} {}", &media_request, file_content.unwrap_err());
                                  }
                             },
+                            P2PEvent::MSNObjectReceived(content) => {
+                                match &content.msn_object.obj_type {
+                                    MSNObjectType::VoiceClip => {
+                                        switchboard.send_voice_message(content.file_content).await;
+                                    },
+                                    _ =>{
+                                        info!("Received a yet unsupported MSNObject type: {:?}", &content.msn_object);
+                                    }
+                                }
+                            },
                             P2PEvent::MSNObjectRequested(content) => {
                             info!("RECEIVED MSNObjectRequestedEvent: {:?}", &content);
                             let msn_obj = &content.msn_object;
@@ -195,7 +205,7 @@ impl SwitchboardCommandHandler {
                             let media_client = &matrix_client.media();
                             let media = media_client.get_media_content(&media_request, true).await.unwrap(); //TODO exception handling
 
-                            let converted_media = audio_conversion::convert_audio_message(media).await.unwrap(); //TODO change this double conversion shit
+                            let converted_media = audio_conversion::convert_incoming_audio_message(media).await.unwrap(); //TODO change this double conversion shit
 
 
                             sb_bridge.send_msn_object(content.session_id, content.call_id.clone(), converted_media, content.invitee, content.inviter);
@@ -434,6 +444,11 @@ impl CommandHandler for SwitchboardCommandHandler {
                     //that's me !
                 } else {
                     let user_to_add = OwnedUserId::from_msn_addr(&msn_addr_to_add);
+
+                    if self.target_msn_addr.is_empty() {
+                        //Todo fetch the dm room target from matrix events and stuff
+                        self.target_msn_addr = msn_addr_to_add.clone();
+                    }
 
                     let client = self.matrix_client.as_ref().unwrap().clone();
 

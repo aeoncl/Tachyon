@@ -1,12 +1,17 @@
 use std::{collections::HashSet, mem, str::FromStr, sync::{Arc, Mutex}};
+use js_int::UInt;
 
 use log::info;
-use matrix_sdk::{attachment::AttachmentConfig, Client, ruma::{events::room::{MediaSource, message::RoomMessageEventContent}, OwnedEventId, OwnedRoomId, OwnedUserId}};
+use matrix_sdk::{attachment::AttachmentConfig, Client, Media, ruma::{events::room::{MediaSource, message::RoomMessageEventContent}, OwnedEventId, OwnedRoomId, OwnedUserId}};
+use matrix_sdk::ruma::events::AnyMessageLikeEventContent;
+use matrix_sdk::ruma::events::room::message::{AudioInfo, AudioMessageEventContent, MessageType};
+use mime::Mime;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::mpsc::error::SendError;
 
 use crate::{models::{msg_payload::MsgPayload, msn_user::MSNUser, p2p::file::File, msn_object::MSNObject}, MSN_CLIENT_LOCATOR, utils::emoji::smiley_to_emoji};
+use crate::models::conversion::audio_conversion::convert_siren_to_opus;
 
 use super::{events::{content::{file_upload_event_content::FileUploadEventContent, message_event_content::MessageEventContent}, switchboard_event::SwitchboardEvent}, switchboard_error::SwitchboardError};
 
@@ -63,11 +68,27 @@ impl Switchboard {
 
         let config = AttachmentConfig::new().generate_thumbnail(None);
         let response = room.send_attachment(file.filename.as_str(), &mime, file.bytes, config).await?;
-
         info!("Sent file to server: {:?}", &response);
 
         self.add_to_events_sent(response.event_id.to_string());
         Ok(response.event_id)
+    }
+
+    pub async fn send_voice_message(&self, wav_siren_audio: Vec<u8>) -> Result<OwnedEventId, SwitchboardError>  {
+        let ogg_opus_audio = convert_siren_to_opus(wav_siren_audio).await?;
+        let room = self.inner.matrix_client.get_room(&self.inner.target_room_id).ok_or(SwitchboardError::MatrixRoomNotFound)?;
+
+        let mime_type = Mime::from_str("audio/opus")?;
+        let upload_resp = self.inner.matrix_client.media().upload(&mime_type, ogg_opus_audio).await?;
+
+        let media_source = MediaSource::Plain(upload_resp.content_uri);
+
+        let content = AudioMessageEventContent::new("Voice Message".into(), media_source);
+        let event = AnyMessageLikeEventContent::RoomMessage(RoomMessageEventContent::from(MessageType::Audio(content)));
+
+        let send_resp = room.send(event, None).await?;
+        self.add_to_events_sent(send_resp.event_id.to_string());
+        Ok(send_resp.event_id)
     }
 
     /* Sends a Message to the other participants of the Switchboard */

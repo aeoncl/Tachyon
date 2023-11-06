@@ -8,7 +8,7 @@ use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::events::room::message::{AudioMessageEventContent, FileMessageEventContent, ImageMessageEventContent, MessageType, RoomMessageEventContent, SyncRoomMessageEvent, VideoMessageEventContent};
 
 use crate::matrix::direct_target_resolver;
-use crate::models::conversion::audio_conversion::convert_audio_message;
+use crate::models::conversion::audio_conversion::convert_incoming_audio_message;
 use crate::models::msg_payload::factories::MsgPayloadFactory;
 use crate::models::msn_object::MSNObjectFactory;
 use crate::models::msn_user::MSNUser;
@@ -64,7 +64,7 @@ async fn handle_message(matrix_client: Client, room_id: &RoomId, switchboard: &S
                     let media = media_client.get_media_content(&media_request, true).await.unwrap(); //TODO exception handling
                     let media_length = get_size_or_default_audio(&content);
 
-                    match convert_audio_message(media).await {
+                    match convert_incoming_audio_message(media).await {
                         Ok(converted_media) => {
                             if converted_media.len() <= 30000 {
                                 //30Ko is the max allowed size of a voice message for WLM 2009

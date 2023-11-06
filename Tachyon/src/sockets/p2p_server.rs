@@ -14,7 +14,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
-use crate::models::conversion::audio_conversion::convert_audio_message;
+use crate::models::conversion::audio_conversion::convert_incoming_audio_message;
 use crate::{MATRIX_CLIENT_LOCATOR, P2P_REPO};
 use crate::models::msn_object::MSNObjectType;
 use crate::models::msn_user::MSNUser;
@@ -117,6 +117,9 @@ impl TCPServer for P2PServer {
                             if let Some(msg) = command_to_send.as_ref() {
 
                                 match msg {
+                                    P2PEvent::MSNObjectReceived(_osef_staline) => {
+
+                                    },
                                     P2PEvent::FileReceived(content) => {}
                                     P2PEvent::Message(content) => {
 
@@ -169,7 +172,7 @@ impl TCPServer for P2PServer {
                                         let media_client = &matrix_client.media();
                                         let media = media_client.get_media_content(&media_request, true).await.unwrap(); //TODO exception handling
 
-                                        let converted_media = convert_audio_message(media).await.unwrap(); //TODO change this double conversion shit
+                                        let converted_media = convert_incoming_audio_message(media).await.unwrap(); //TODO change this double conversion shit
 
 
                                         p2p_session.send_msn_object(content.session_id, content.call_id.clone(), converted_media, content.invitee.clone(), content.inviter.clone());

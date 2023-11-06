@@ -8,7 +8,7 @@ use std::{
 };
 use std::io::Write;
 
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use matrix_sdk::media::MediaEventContent;
 use rand::Rng;
 use tokio::sync::mpsc::UnboundedSender;
@@ -24,6 +24,8 @@ use crate::models::{
         slp_payload::EufGUID,
     }, uuid::UUID,
 };
+use crate::models::msn_object::MSNObject;
+use crate::models::p2p::events::content::msb_object_received_event_content::MSNObjectReceivedEventContent;
 use crate::models::tachyon_error::PayloadError;
 use crate::P2P_REPO;
 
@@ -64,6 +66,9 @@ pub struct InnerP2PClient {
     /** a map of session_ids / files */
     pending_files: Mutex<HashMap<u32, File>>,
 
+    /** a map of session_ids / files */
+    pending_msn_object: Mutex<HashMap<u32, MSNObject>>,
+
     /** a map of session_ids / FileUploadEventContent */
     pending_outbound_sessions: Mutex<HashMap<u32, P2PSession>>,
 }
@@ -89,6 +94,7 @@ impl P2PClient {
                 package_number: Mutex::new(150),
                 pending_outbound_sessions: Mutex::new(HashMap::new()),
                 transport_session_status: AtomicI32::new(P2PSessionStatus::NONE as i32),
+                pending_msn_object: Mutex::new(HashMap::new()),
             }),
         };
     }
@@ -231,7 +237,7 @@ impl P2PClient {
                 } else {
                     //TODO reply error slp
                 }
-            } else if payload.is_file_transfer() || payload.is_msn_obj_transfer() {
+            } else if payload.is_file_transfer() {
                 info!(
                     "file transfer packet received!, retrieveing pending file: {}",
                     &payload.session_id
@@ -239,8 +245,6 @@ impl P2PClient {
 
 
                 let pl = payload.get_payload_bytes().clone();
-                let mut file = std::fs::File::create("C:\\temp\\out.raw").unwrap();
-                file.write_all(&pl);
 
                 let file = self
                     .inner
@@ -248,6 +252,7 @@ impl P2PClient {
                     .lock()
                     .expect("pending_files to be unlocked")
                     .remove(&payload.session_id);
+
                 if let Some(mut file) = file {
                     file.bytes = payload.get_payload_bytes().clone();
                     self.inner
@@ -257,6 +262,27 @@ impl P2PClient {
                         }));
                 }
                 self.reply_ack(&msg);
+            } else if payload.is_msn_obj_transfer()  {
+                info!(
+                    "msn object packet received! {}",
+                    &payload.session_id
+                );
+                let bytes  = payload.get_payload_bytes().clone();
+
+                let maybe_msn_obj = self
+                    .inner
+                    .pending_msn_object
+                    .lock()
+                    .expect("pending_files to be unlocked")
+                    .remove(&payload.session_id);
+
+                if let Some(received_msn_obj) = maybe_msn_obj {
+                    self.inner.sender.send(P2PEvent::MSNObjectReceived(MSNObjectReceivedEventContent{ msn_object: received_msn_obj, file_content: bytes}));
+                } else {
+                    error!("BRUH OU EST MON MSN OBJ ????");
+                }
+
+
             }
         }
     }
@@ -489,6 +515,17 @@ impl P2PClient {
                 );
             },
             P2PSessionType::MSNObject(ref obj) => {
+
+                self.inner
+                    .pending_msn_object
+                    .lock()
+                    .expect("pending_msn_object to be unlocked")
+                    .insert(
+                        session_id,
+                        obj.clone(),
+                    );
+                //TODO refactor this disgrace of a freaking class i dont understand anything anymore
+
                 slp_request = Some(
                     SlpPayloadFactory::get_msn_object_request(
                         &inviter, &invitee, obj, session_id,
@@ -515,6 +552,7 @@ impl P2PClient {
 
         let session: P2PSession =
             P2PSession::new(session_type, session_id, inviter.clone(), invitee.clone());
+
         self.inner
             .pending_outbound_sessions
             .lock()
@@ -631,20 +669,16 @@ let slp_payload_response = SlpPayloadFactory::get_500_error_direct_connect(
                 },
                 EufGUID::MSNObject => {
 
-
-
-
                     let context = *slp_payload.get_context_as_msnobj().expect("MSNObject to be present here");
 
                     self.inner
-                        .pending_files
+                        .pending_msn_object
                         .lock()
-                        .expect("pending_files to be unlocked")
+                        .expect("pending_msn_object to be unlocked")
                         .insert(
                             session_id,
-                            File::new(context.size as usize, context.friendly.as_ref().unwrap_or(&String::new()).to_string()),
+                            context.clone(),
                         );
-
 
                         self.inner.sender.send(P2PEvent::MSNObjectRequested(MSNObjectRequestedEventContent{
                             msn_object: context,

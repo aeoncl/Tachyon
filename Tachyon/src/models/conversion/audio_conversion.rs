@@ -16,7 +16,44 @@ lazy_static_include_bytes! {
 
 static SIREN_FRAME_SIZE : usize = 640usize;
 
-pub async fn convert_audio_message(audio: Vec<u8>) -> Result<Vec<u8>, ConversionError> {
+pub async fn convert_siren_to_opus(audio: Vec<u8>) -> Result<Vec<u8>, ConversionError> {
+    let mut child = Command::new("ffmpeg")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .arg("-f")
+        .arg("wav")
+        .arg("-c:a")
+        .arg("msnsiren")
+        .arg("-i")
+        .arg("pipe:0")
+        .arg("-ac")
+        .arg("1")
+        .arg("-b:a")
+        .arg("10K")
+        .arg("-c:a")
+        .arg("libopus")
+        .arg("-f")
+        .arg("ogg")
+        .arg("pipe:1")
+        .kill_on_drop(true)
+        .spawn()?;
+
+    let mut stdin = child.stdin.take().expect("FFMPEG stdin to be present");
+
+    tokio::spawn(async move{
+        stdin.write_all(&audio).await.expect("Failed to write to stdin");
+    });
+
+    let output = child.wait_with_output().await?;
+
+    if !output.status.success() {
+        return Err(ConversionError::FFMPEG_OUTPUT {message: from_utf8(&output.stderr)?.to_string() });
+    }
+    return Ok(output.stdout);
+}
+
+pub async fn convert_incoming_audio_message(audio: Vec<u8>) -> Result<Vec<u8>, ConversionError> {
     let mut child = Command::new("ffmpeg")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
