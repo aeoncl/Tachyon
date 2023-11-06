@@ -4887,7 +4887,7 @@ pub mod factories {
 
     impl ContactFactory {
 
-        pub fn get_me_contact(uuid: &UUID, msn_addr: &String, display_name: &String) -> ContactType {
+        pub fn get_me_contact(uuid: &UUID, msn_addr: &String, display_name: &String, profile_update: bool) -> ContactType {
 
             let now = Local::now();
 
@@ -4897,6 +4897,10 @@ pub mod factories {
             annotation_array.push(AnnotationFactory::get_mbea(Some(false)));
             annotation_array.push(AnnotationFactory::get_gtc(Some(true)));
             annotation_array.push(AnnotationFactory::get_blp(Some(true)));
+
+            if profile_update {
+                annotation_array.push(AnnotationFactory::get_live_profile_expression_last_changed(Local::now()));
+            }
 
             let array_of_annotations = ArrayOfAnnotation{ annotation: annotation_array };
 
@@ -4917,7 +4921,7 @@ pub mod factories {
 
     impl FindContactsPagedResponseFactory {
 
-        pub fn get_response(uuid: UUID, cache_key: String, msn_addr: String, display_name: String, contacts: Vec<ContactType>) -> AbfindContactsPagedResponseMessageSoapEnvelope {
+        pub fn get_response(uuid: UUID, cache_key: String, msn_addr: String, display_name: String, contacts: Vec<ContactType>, profile_update: bool) -> AbfindContactsPagedResponseMessageSoapEnvelope {
 
             let now = Local::now();
     
@@ -4929,7 +4933,7 @@ pub mod factories {
             let ab = Ab{ ab_id: UUID::nil().to_string(), ab_info: ab_info_type, last_change: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), dynamic_item_last_changed: String::from("0001-01-01T00:00:00"), recent_activity_item_last_changed: None, create_date: create_date.clone(), properties_changed: String::new() };
             
             let mut contact_array = contacts;
-            contact_array.push(ContactFactory::get_me_contact(&uuid, &msn_addr, &display_name));
+            contact_array.push(ContactFactory::get_me_contact(&uuid, &msn_addr, &display_name, profile_update));
             let array_of_contact = ArrayOfContactType{ contact: contact_array };
 
             let mut favorite_annotation_arary : Vec<Annotation> = Vec::new();
@@ -5027,6 +5031,11 @@ pub mod factories {
             } else {
                 return String::from("0");
             }
+        }
+
+        pub fn get_live_profile_expression_last_changed(value: DateTime<Local>) -> Annotation {
+            let formatted_value = value.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+            return Annotation { name: String::from("Live.Profile.Expression.LastChanged"), value: Some(formatted_value) };
         }
 
         pub fn get_roam_live_properties(value : Option<bool>) -> Annotation {

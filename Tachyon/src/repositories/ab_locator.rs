@@ -12,25 +12,31 @@ pub struct ABLocator {
 
 impl ABLocator {
     pub fn new() -> Self {
-        let (sender, mut receiver) = broadcast::channel::<AddressBookEvent>(100);
+        let (sender, mut receiver) = broadcast::channel::<AddressBookEvent>(10000);
         let contact_receiver = receiver.resubscribe();
         return Self { contact_receiver: Mutex::new(contact_receiver), member_receiver: Mutex::new(receiver), sender};
     }
 
-    pub async fn get_contacts(&self, ticket_token: &str) -> Result<Vec<ContactType>, ()>{
+    pub async fn get_contacts(&self, ticket_token: &str) -> Result<(Vec<ContactType>, bool), ()>{
         let mut out = Vec::new();
         let mut contact_receiver = self.contact_receiver.lock().or(Err(()))?;
+        let mut profile_update = false;
 
         while !contact_receiver.is_empty() {
            match contact_receiver.recv().await {
             Ok(event) => {
-                if let AddressBookEvent::ContactEvent(ev) = event {
-                    if &ev.token == ticket_token {
-                        out.push(ev.contact);
-                    }
-                }
-                //out.push(value)
 
+                match event {
+                    AddressBookEvent::ContactEvent(ev) => {
+                        if &ev.token == ticket_token {
+                            out.push(ev.contact);
+                        }
+                    },
+                    AddressBookEvent::ExpressionProfileUpdateEvent => {
+                        profile_update = true;
+                    },
+                    _ => {}
+                }
             },
             Err(err) => {
                 log::error!("An error has occured consuming contact events: {}", err);
@@ -38,7 +44,7 @@ impl ABLocator {
            }
         }
 
-        return Ok(out);
+        return Ok((out, profile_update));
     }
 
     pub async fn get_membership_events(&self, ticket_token: &String) -> Result<Vec<AddressBookEvent>, ()>{

@@ -4,6 +4,7 @@ use crate::generated::msnab_datatypes::types::{BaseMember, ContactType, RoleId};
 pub enum AddressBookEvent {
     ContactEvent(ContactEventContent),
     MembershipEvent(MembershipEventContent),
+    ExpressionProfileUpdateEvent,
     CircleEvent
 }
 

@@ -11,9 +11,12 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
 
-use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR};
+use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR, SETTINGS_LOCATOR};
 use crate::generated::payloads::{PresenceStatus, PrivateEndpointData};
+use crate::matrix::loop_bootstrap::listen;
+use crate::matrix::matrix_client::login;
 use crate::models::msg_payload::factories::MsgPayloadFactory;
+use crate::models::msn_object::MSNObject;
 use crate::models::msn_user::MSNUser;
 use crate::models::notification::adl_payload::ADLPayload;
 use crate::models::notification::error::{MSNPErrorCode, MSNPServerError};
@@ -25,9 +28,9 @@ use crate::models::p2p::slp_payload_handler::SlpPayloadHandler;
 use crate::models::tachyon_error::{MatrixError, TachyonError};
 use crate::models::tachyon_error::PayloadError::StringPayloadParsingError;
 use crate::models::uuid::UUID;
-use crate::models::wlmatrix_client::WLMatrixClient;
 use crate::repositories::repository::Repository;
 use crate::utils::identifiers::trim_endpoint_guid;
+use crate::utils::string::decode_url;
 
 use super::command_handler::CommandHandler;
 use super::msnp_command::MSNPCommand;
@@ -46,7 +49,7 @@ pub struct NotificationCommandHandler {
 
 impl NotificationCommandHandler {
 
-    fn start_receiving(&mut self, mut notification_receiver: UnboundedReceiver<Result<NotificationEvent, TachyonError>>) {
+    fn start_receiving(&mut self, mut notification_receiver: UnboundedReceiver<NotificationEvent>) {
 
         let sender = self.sender.clone();
         tokio::spawn(async move {
@@ -58,7 +61,7 @@ impl NotificationCommandHandler {
                     command_to_send = notification_receiver.recv() => {
 
                         //Todo handle Errors
-                        if let Some(Ok(msg)) = command_to_send {
+                        if let Some(msg) = command_to_send {
                             match msg {
                                 NotificationEvent::AddressBookUpdateEvent(content) => {
 
@@ -232,12 +235,18 @@ impl CommandHandler for NotificationCommandHandler {
                         let endpoint_guid = split[6].to_string();
                         let trimmed_endpoint_guid = trim_endpoint_guid(split[6]).map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e.into()))?;
 
+
+
                         let mut msn_user = MSNUser::new(self.msn_addr.clone());
                         msn_user.set_endpoint_guid(trimmed_endpoint_guid.to_string());
 
-                        let matrix_client = WLMatrixClient::login(msn_user.get_matrix_id(), self.matrix_token.clone(), &Path::new(format!("C:\\temp\\{}", &self.msn_addr).as_str())).await.map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e))?;
 
-                        let mut msn_client = MSNClient::new(matrix_client.clone(), msn_user.clone(), self.msnp_version);
+
+                        let matrix_client = login(msn_user.get_matrix_id(), self.matrix_token.clone(), &Path::new(format!("C:\\temp\\{}", &self.msn_addr).as_str()), SETTINGS_LOCATOR.homeserver_url.clone(), true).await.map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e))?;
+
+
+                        let (notification_event_sender, mut notification_event_receiver) = mpsc::unbounded_channel::<NotificationEvent>();
+                        let mut msn_client = MSNClient::new(matrix_client.clone(), msn_user.clone(), self.msnp_version,  notification_event_sender.clone());
 
                         //Token valid, client authenticated. Initializing shared data structures
                         self.msn_client = Some(msn_client.clone());
@@ -268,10 +277,9 @@ impl CommandHandler for NotificationCommandHandler {
                         let serialized = test_msg.serialize();
                         self.sender.send(format!("MSG Hotmail Hotmail {payload_size}\r\n{payload}", payload_size=serialized.len(), payload=&serialized));
 
-                        let (notification_event_sender, mut notification_event_receiver) = mpsc::unbounded_channel::<Result<NotificationEvent, TachyonError>>();
                         self.start_receiving(notification_event_receiver);
 
-                        let matrix_loop_killer = WLMatrixClient::listen(matrix_client.clone(), msn_user.clone(), notification_event_sender);
+                        let matrix_loop_killer = listen(matrix_client.clone(), msn_client);
                         self.matrix_loop_killer.insert(matrix_loop_killer);
                        // return Ok(format!("USR {tr_id} OK {email} 1 0\r\nSBS 0 null\r\nMSG Hotmail Hotmail {msmsgs_profile_payload_size}\r\n{payload}MSG Hotmail Hotmail {oim_payload_size}\r\n{oim_payload}UBX 1:{email} {private_endpoint_payload_size}\r\n{private_endpoint_payload}", tr_id = tr_id, email=&self.msn_addr, msmsgs_profile_payload_size= msmsgs_profile_msg.len(), payload=msmsgs_profile_msg, oim_payload = oim_payload, oim_payload_size = oim_payload.len(), private_endpoint_payload_size = endpoints_payload.len(), private_endpoint_payload = endpoints_payload));
                         return Ok(String::new());
@@ -291,16 +299,8 @@ impl CommandHandler for NotificationCommandHandler {
                 let tr_id = split[1];
 
                 let ad_payload = ADLPayload::from_str(&command.payload).map_err(|e| MSNPServerError::fatal_error_with_trid(tr_id.to_string(), e.into()))?;
-                if ad_payload.is_initial() {
-                    info!("Initial Contact List received: {:?}", &ad_payload);
-                    self.msn_client.as_mut().expect("MSN Client to be in context").init_contact_list(&ad_payload);
-                } else {
-                    info!("Add to Contact List received: {:?}", &ad_payload);
-                    // ad_payload.domains.iter().flat_map(|d| d.get_contacts_for_role(&RoleId::Reverse)).for_each(|c| -> {
-                    // TODO SEND PRESENCE
-                   // });
-                    //SYNC CONTACT LIST FROM MSNClient
-                }
+                info!("Add to Contact List received: {:?}", &ad_payload);
+                self.msn_client.as_mut().expect("MSN Client to be in context").add_to_contact_list(&ad_payload);
                 return Ok(format!("ADL {tr_id} OK\r\n", tr_id=tr_id));
             },
             "RML" => {
@@ -310,8 +310,7 @@ impl CommandHandler for NotificationCommandHandler {
                 */
                 let tr_id = split[1];
                 let ad_payload = ADLPayload::from_str(&command.payload).map_err(|e| MSNPServerError::fatal_error_with_trid(tr_id.to_string(), e.into()))?;
-                info!("Remove to Contact List received: {:?}", &ad_payload);
-                //TODO Actually update the contact list from MSNUser
+                self.msn_client.as_mut().expect("MSN Client to be in context").remove_from_contact_list(&ad_payload);
                 return Ok(format!("RML {tr_id} OK\r\n", tr_id=tr_id));
             },
             "UUX" => {
@@ -341,12 +340,23 @@ impl CommandHandler for NotificationCommandHandler {
                 let tr_id = split[1];
 
                 let status = PresenceStatus::from_str(split[2]).unwrap_or(PresenceStatus::NLN);
+                let capabilities = split[3];
+                let avatar = split[4];
 
-                self.msn_client.as_mut().expect("MSN Client to be in client context").get_user_mut().set_status(status.clone());
+                {
+                    let mut me = self.msn_client.as_mut().expect("MSN Client to be in client context").get_user_mut();
+                    me.set_status(status.clone());
 
+                    if avatar != "0" {
+                        let avatar_decoded = decode_url(avatar).map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e.into()))?;
+                        let msn_obj = MSNObject::from_str(avatar_decoded.as_str()).map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e.into()))?;
+                        me.set_display_picture(Some(msn_obj));
+                    } else {
+                        me.set_display_picture(None);
+                    }
+                }
                 if let Some(matrix_client) = self.matrix_client.as_ref() {
-                    //SET PRESENCE
-                   // matrix_client.account().set_presence(status.clone().into(), None).await;
+                    //matrix_client.account().set_presence(status.clone().into(), None).await;
                 }
 
                 if self.needs_initial_presence {
@@ -361,7 +371,7 @@ impl CommandHandler for NotificationCommandHandler {
 
                         for contact in contacts_chunk {
                             let mut status = contact.get_status();
-                    
+
                             if contact.get_status() == PresenceStatus::FLN {
                                status = PresenceStatus::HDN;
                             }
@@ -380,7 +390,7 @@ impl CommandHandler for NotificationCommandHandler {
                             ubx.push_str(current_ubx.as_str());
                         }
 
-                      
+
                         let _result = self.sender.send(iln);
                         let _result = self.sender.send(ubx);
                     }
@@ -388,6 +398,7 @@ impl CommandHandler for NotificationCommandHandler {
                 }
 
                 // >>> CHG 11 NLN 2789003324:48 0
+                // >>> CHG 11 NLN 2789003324:48  %3Cmsnobj%20Creator%3D%22aeontest1%40shlasouf.local%22%20Type%3D%223%22%20SHA1D%3D%22Cqe%2FwD9gdClugwA%2BMGKwVgVD7BI%3D%22%20Size%3D%2227100%22%20Location%3D%220%22%20Friendly%3D%22QQBlAG8AbgBUAGUAcwB0ADEAAAA%3D%22%2F%3E
                 // <<< CHG 11 NLN 2789003324:48 0
                 return Ok(format!("{}\r\n", command.command));
             },
@@ -395,6 +406,15 @@ impl CommandHandler for NotificationCommandHandler {
                 // >>> PRP 13 MFN display%20name
                 // <<< PRP 13 MFN display%20name
 
+                let res_type = split[2];
+
+                if res_type == "MFN" {
+                    let display_name = split[3];
+                    {
+                        let mut me = self.msn_client.as_mut().expect("MSN Client to be in client context").get_user_mut();
+                        me.set_display_name(display_name.to_string());
+                    }
+                }
                 return Ok(format!("{}\r\n", command.command));
             },
             "UUN" => {

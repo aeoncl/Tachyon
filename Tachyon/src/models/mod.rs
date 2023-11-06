@@ -7,6 +7,7 @@ pub mod switchboard;
 pub mod p2p;
 pub mod msg_payload;
 pub mod msn_object;
-pub mod wlmatrix_client;
 pub mod owned_user_id_traits;
 pub mod abch;
+
+pub mod conversion;

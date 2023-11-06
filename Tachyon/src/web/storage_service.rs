@@ -11,6 +11,7 @@ use substring::Substring;
 use yaserde::{de::from_str, ser::to_string};
 
 use crate::{generated::msnstorage_service::{bindings::{DeleteRelationshipsMessageSoapEnvelope, GetProfileMessageSoapEnvelope, UpdateDocumentMessageSoapEnvelope, UpdateProfileMessageSoapEnvelope}, factories::{DeleteRelationshipsResponseFactory, GetProfileResponseFactory, UpdateDocumentResponseFactory, UpdateProfileResponseFactory}, types::StorageUserHeader}, MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR, repositories::repository::Repository, utils::identifiers::parse_mxc, web::{error::WebError, webserver::DEFAULT_CACHE_KEY}};
+use crate::repositories::msn_user_repository::MSNUserRepository;
 
 #[post("/storageservice/SchematizedStore.asmx")]
 pub async fn soap_storage_service(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
@@ -67,24 +68,11 @@ pub async fn get_profile_pic(path: web::Path<(String, String)>, request: HttpReq
 
     
     let (server_part , mxc_part) = parse_mxc(&mxc);
-
-    // let homeserver_url = Url::parse(format!("https://{}", server_part).as_str())?;
-
     let client= Client::builder().disable_ssl_verification().server_name(parsed_mxc.server_name().unwrap()).build().await?;
     
     let media_request = MediaRequest{ source: MediaSource::Plain(parsed_mxc), format: MediaFormat::Thumbnail(MediaThumbnailSize{ method: Method::Scale, width: UInt::new(200).unwrap(), height: UInt::new(200).unwrap() })};
     let image = client.media().get_media_content(&media_request, false).await?;
     return Ok(HttpResponseBuilder::new(StatusCode::OK).append_header(("Content-Type", "image/jpeg")).body(image));
-
-    
-
-
-   // let matrix_client = client_repo.find(&matrix_token).ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-  // let documentstream = response.body.body.get_profile_response.get_profile_result.expression_profile.photo.document_streams.document_stream.get_mut(0).unwrap();
-
-   //let profile_pic = matrix_client.account().get_avatar(MediaFormat::Thumbnail(MediaThumbnailSize{ method: Method::Scale, width: UInt::new(200).unwrap(), height: UInt::new(200).unwrap() })).await?.unwrap();
-   //let encoded = base64::encode(&profile_pic);
-
 }
 
 async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
@@ -93,15 +81,21 @@ async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<H
 
     let header = request.header.ok_or(StatusCode::BAD_REQUEST)?;
     let storage_user_header = header.storage_user_header.ok_or(StatusCode::BAD_REQUEST)?;
+
     let ticket_token = storage_user_header.ticket_token;
     let matrix_token = ticket_token.substring(2, ticket_token.len()).to_string();
 
-
-    let msn_client = MSN_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    let mut msn_client = MSN_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let me = msn_client.get_user();
 
     let matrix_client =  MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_repo = MSNUserRepository::new(matrix_client.clone());
+
+    if matrix_token != matrix_client.access_token().ok_or(StatusCode::UNAUTHORIZED)? {
+        return Err(StatusCode::UNAUTHORIZED)?;
+    }
+
 
     let profile = matrix_client.account().get_profile().await.unwrap();
     let display_name = profile.displayname.unwrap_or(me.get_msn_addr());
@@ -184,7 +178,7 @@ async fn delete_relationships(body: web::Bytes, request: HttpRequest) -> Result<
             
             if let Some(current_res_id) = object_handle.resource_id {
                 
-                if(current_res_id.ends_with("205") && resource_id.ends_with("118")) {
+                if current_res_id.ends_with("205") && resource_id.ends_with("118") {
                     //We are deleting a profile pic
                     let matrix_client = MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
                     let mtx_avatar_response = matrix_client.account().set_avatar_url(None).await?;

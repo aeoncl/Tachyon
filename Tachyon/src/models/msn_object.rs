@@ -11,6 +11,7 @@ use yaserde::{de::{self, from_str}, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
 use crate::models::tachyon_error::PayloadError;
+use crate::utils::identifiers::compute_sha1;
 use crate::utils::string::map_empty_string_to_option;
 
 use super::p2p::slp_context::SlpContext;
@@ -301,7 +302,7 @@ impl MSNObject {
 
     fn get_sha1c(&self) -> String {
         let sha1_input = format!("Creator{creator}Type{obj_type}SHA1D{sha1d}Size{size}Location{location}Friendly{friendly}", creator = &self.creator, size = &self.size, obj_type = self.obj_type.clone() as i32, location = &self.location, friendly = self.get_friendly_base64_or_default(), sha1d = &self.sha1d);
-        return MSNObjectFactory::compute_sha1(sha1_input.as_bytes());
+        return compute_sha1(sha1_input.as_bytes());
     }
 
     pub fn to_string_not_encoded(&self) -> String {
@@ -433,30 +434,26 @@ pub struct MSNObjectFactory;
 impl MSNObjectFactory {
 
     pub fn get_display_picture(image: &[u8], creator_msn_addr: String, location: String, friendly: Option<String>) -> MSNObject {
-        let sha1d = Self::compute_sha1(&image);
+        let sha1d = compute_sha1(&image);
 
         return MSNObject::new(creator_msn_addr, MSNObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MSNObjectContentType::D), false);
     }
 
+    pub fn get_me_display_picture(image: &[u8], creator_msn_addr: String, friendly: Option<String>) -> MSNObject {
+        let sha1d = compute_sha1(&image);
+        return MSNObject::new(creator_msn_addr, MSNObjectType::DisplayPicture, "0".into(), sha1d, image.len(), friendly, None, false);
+    }
+
     pub fn get_voice_message(data: &[u8], creator_msn_addr: String, friendly: Option<String>) -> MSNObject {
-        let sha1d = Self::compute_sha1(&data);
+        let sha1d = compute_sha1(&data);
         return MSNObject::new(creator_msn_addr, MSNObjectType::VoiceClip,"0".into(), sha1d, data.len(),  friendly, None, false);
     }
 
     pub fn get_contact_display_picture(image: &[u8], creator_msn_addr: String, location: String, friendly: Option<String>) -> MSNObject {
-        let sha1d = Self::compute_sha1(&image);
+        let sha1d = compute_sha1(&image);
 
         return MSNObject::new(creator_msn_addr, MSNObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MSNObjectContentType::D), false);
     }
-
-    pub(self) fn compute_sha1(data: &[u8]) -> String {
-        let mut hasher = Sha1::new();
-        hasher.update(data);
-        let result = hasher.finalize();
-        return general_purpose::STANDARD.encode(&result);
-    }
-
-
 }
 
 mod tests {

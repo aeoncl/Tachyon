@@ -1,9 +1,12 @@
 use anyhow::anyhow;
+use base64::Engine;
+use base64::engine::general_purpose;
 use lazy_static::lazy_static;
-use matrix_sdk::ruma::{OwnedRoomId, RoomId};
+use matrix_sdk::ruma::{MxcUri, OwnedMxcUri, OwnedRoomId, RoomId};
 use rand::Rng;
 use regex::Regex;
 use crate::models::tachyon_error::PayloadError;
+use sha1::{Digest, Sha1};
 
 use crate::models::uuid::UUID;
 
@@ -11,10 +14,16 @@ lazy_static! {
     static ref MXC_REGEX: Regex = Regex::new(r"mxc://(.+)/(.+)").unwrap();
 }
 
-pub fn matrix_room_id_to_annoying_matrix_room_id(matrix_room_id: &String) -> OwnedRoomId {
-    let mtx_room_id : OwnedRoomId = <&RoomId>::try_from(matrix_room_id.as_str()).unwrap().to_owned();
+pub fn matrix_room_id_to_annoying_matrix_room_id(matrix_room_id: &str) -> OwnedRoomId {
+    let mtx_room_id : OwnedRoomId = <&RoomId>::try_from(matrix_room_id).unwrap().to_owned();
     return mtx_room_id;
 }
+
+pub fn matrix_mxc_id_to_annoying_matrix_mxc_id(mxc_uri: &str) -> OwnedMxcUri {
+    let mtx_room_id : OwnedMxcUri = <&MxcUri>::try_from(mxc_uri).unwrap().to_owned();
+    return mtx_room_id;
+}
+
 
 pub fn get_device_uuid() -> String {
     return UUID::from_string(&mac_address::get_mac_address().unwrap().unwrap().to_string()).to_string();
@@ -48,6 +57,13 @@ pub fn get_sb_session_id() -> String{
     let mut rng = rand::thread_rng();
     let n2: u16 = rng.gen();
     return n2.to_string();
+}
+
+pub fn compute_sha1(data: &[u8]) -> String {
+    let mut hasher = Sha1::new();
+    hasher.update(data);
+    let result = hasher.finalize();
+    return general_purpose::STANDARD.encode(&result);
 }
 
 

@@ -1,12 +1,13 @@
 use anyhow::anyhow;
 use matrix_sdk::ruma::OwnedUserId;
+use matrix_sdk::ruma::serde::PartialEqAsRefStr;
 
 use crate::generated::payloads::PresenceStatus;
 use crate::models::tachyon_error::PayloadError;
 
 use super::{capabilities::{ClientCapabilities, ClientCapabilitiesFactory}, msn_object::MSNObject, owned_user_id_traits::{FromMsnAddr, ToMsnAddr}, uuid::{PUID, UUID}};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PartialMSNUser {
     msn_addr: String,
     matrix_id : OwnedUserId,

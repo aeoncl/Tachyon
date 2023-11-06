@@ -1,31 +1,32 @@
+use std::str::from_utf8_unchecked;
+
 use async_trait::async_trait;
 use base64::Engine;
+use base64::engine::general_purpose;
+use log::error;
 use log::info;
-use matrix_sdk::ruma::MxcUri;
+use matrix_sdk::media::MediaFormat;
+use matrix_sdk::media::MediaRequest;
 use matrix_sdk::ruma::events::room::MediaSource;
+use matrix_sdk::ruma::MxcUri;
+use tokio::io::AsyncReadExt;
+use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::net::TcpListener;
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::mpsc;
+use crate::models::conversion::audio_conversion::convert_audio_message;
+use crate::{MATRIX_CLIENT_LOCATOR, P2P_REPO};
+use crate::models::msn_object::MSNObjectType;
 use crate::models::msn_user::MSNUser;
 use crate::models::p2p::events::p2p_event::P2PEvent;
 use crate::models::p2p::p2p_client::P2PClient;
 use crate::models::p2p::pending_packet::PendingPacket;
-use crate::models::p2p::session::p2p_session::P2PSession;
-use crate::models::uuid::UUID;
-use crate::{MATRIX_CLIENT_LOCATOR, P2P_REPO};
-use matrix_sdk::media::MediaFormat;
-use crate::ffmpeg;
-use crate::sockets::msnp2p_command::P2PCommandParser;
-use tokio::io::AsyncReadExt;
-use tokio::io::AsyncWriteExt;
-use log::error;
-use super::tcpserver::TCPServer;
-use matrix_sdk::media::MediaRequest;
-use base64::engine::general_purpose;
-use std::str::from_utf8_unchecked;
-use crate::models::msn_object::MSNObjectType;
 use crate::repositories::msn_user_repository::MSNUserRepository;
 use crate::sockets::msnp2p_command::P2PCommand;
+use crate::sockets::msnp2p_command::P2PCommandParser;
+
+use super::tcpserver::TCPServer;
+
 pub struct P2PServer {
     url: String,
     port: u32
@@ -35,8 +36,7 @@ pub struct P2PServer {
 #[async_trait]
 impl TCPServer for P2PServer {
 
-//TODO FIND A WAY TO RETRIEVE THE SWITCHBOARD, MAYBE BY THE USERS ID
-//GET RID OF P2PREPO
+//TODO GET RID OF P2PREPO
 
     async fn listen(&self) {
         let listener = TcpListener::bind(format!("{}:{}", self.url, self.port))
@@ -169,7 +169,7 @@ impl TCPServer for P2PServer {
                                         let media_client = &matrix_client.media();
                                         let media = media_client.get_media_content(&media_request, true).await.unwrap(); //TODO exception handling
 
-                                        let converted_media = ffmpeg::convert_audio_message(media).await; //TODO change this double conversion shit
+                                        let converted_media = convert_audio_message(media).await.unwrap(); //TODO change this double conversion shit
 
 
                                         p2p_session.send_msn_object(content.session_id, content.call_id.clone(), converted_media, content.invitee.clone(), content.inviter.clone());

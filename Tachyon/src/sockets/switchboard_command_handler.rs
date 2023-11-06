@@ -2,26 +2,25 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
-use anyhow::anyhow;
 
 use async_trait::async_trait;
 use base64::{Engine, engine::general_purpose};
 use log::{error, info};
-use matrix_sdk::ruma::events::room::MediaSource;
-use matrix_sdk::{Client, RoomMemberships};
+use log::debug;
+use matrix_sdk::{Client, Room, RoomMemberships};
 use matrix_sdk::config::RequestConfig;
 use matrix_sdk::media::{MediaFormat, MediaRequest};
-use matrix_sdk::ruma::{OwnedUserId, UserId, MxcUri};
+use matrix_sdk::ruma::{MxcUri, OwnedUserId, UserId};
+use matrix_sdk::ruma::events::room::MediaSource;
 use substring::Substring;
-use tokio::sync::broadcast::{self, Receiver, Sender};
-use log::debug;
 use tokio::sync::{mpsc, oneshot};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-use crate::models::msn_object::{MSNObject, MSNObjectType};
 use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR};
+use crate::models::conversion::audio_conversion;
 use crate::models::msg_payload::factories::MsgPayloadFactory;
 use crate::models::msg_payload::MsgPayload;
+use crate::models::msn_object::{MSNObject, MSNObjectType};
 use crate::models::msn_user::MSNUser;
 use crate::models::notification::error::{MSNPErrorCode, MSNPServerError};
 use crate::models::owned_user_id_traits::{FromMsnAddr, ToMsnAddr};
@@ -33,13 +32,8 @@ use crate::models::p2p::session::file_transfer_session_content::FileTransferSess
 use crate::models::p2p::session::p2p_session_type::P2PSessionType;
 use crate::models::switchboard::events::switchboard_event::SwitchboardEvent;
 use crate::models::switchboard::switchboard::Switchboard;
-use crate::models::tachyon_error::TachyonError;
-use crate::models::tachyon_error::TachyonError::MatrixError;
 use crate::models::uuid::UUID;
-use crate::models::wlmatrix_client::WLMatrixClient;
-use crate::repositories::msn_client_locator::MSNClientLocator;
 use crate::repositories::msn_user_repository::MSNUserRepository;
-use crate::utils::ffmpeg;
 use crate::utils::identifiers::{self, matrix_room_id_to_annoying_matrix_room_id};
 
 use super::command_handler::CommandHandler;
@@ -135,12 +129,8 @@ impl SwitchboardCommandHandler {
                         let msg = p2p_event.expect("P2P Pipe to not lag");
                         match msg {
                             P2PEvent::Message(content) => {
-                                //Todo change this
-                                //P2P_REPO.set_seq_number(content.packet.get_next_sequence_number());
                                 let msgs : Vec<String> = content.packets.iter().map(|packet| {
                                     debug!("SBBridge OUT: {:?}", packet);
-
-
                                     let payload = MsgPayloadFactory::get_p2p(&content.sender, &content.receiver, &packet).serialize();
                                     format!("MSG {msn_addr} {display_name} {payload_size}\r\n{payload}", msn_addr = &content.sender.get_msn_addr(), display_name = &content.sender.get_display_name(), payload_size = payload.len(), payload = &payload)
                                 }).collect();
@@ -188,13 +178,13 @@ impl SwitchboardCommandHandler {
                             //TODO sent SLP error
                             }
                                     },
-                            MSNObjectType::SharedFile => todo!(),
-                            MSNObjectType::Background => todo!(),
-                            MSNObjectType::History => todo!(),
-                            MSNObjectType::DynamicDisplayPicture => todo!(),
-                            MSNObjectType::Wink => todo!(),
-                            MSNObjectType::MapFile => todo!(),
-                            MSNObjectType::DynamicBackground => todo!(),
+                            MSNObjectType::SharedFile => {},
+                            MSNObjectType::Background => {},
+                            MSNObjectType::History => {},
+                            MSNObjectType::DynamicDisplayPicture => {},
+                            MSNObjectType::Wink => {},
+                            MSNObjectType::MapFile => {},
+                            MSNObjectType::DynamicBackground => {},
                             MSNObjectType::VoiceClip => {
                             let uri = String::from_utf8(base64decoded_id).expect("MSNObj location to be UTF-8");
                             let owned_mxc_uri = <&MxcUri>::try_from(uri.as_str()).unwrap().to_owned();
@@ -205,19 +195,19 @@ impl SwitchboardCommandHandler {
                             let media_client = &matrix_client.media();
                             let media = media_client.get_media_content(&media_request, true).await.unwrap(); //TODO exception handling
 
-                            let converted_media = ffmpeg::convert_audio_message(media).await; //TODO change this double conversion shit
+                            let converted_media = audio_conversion::convert_audio_message(media).await.unwrap(); //TODO change this double conversion shit
 
 
                             sb_bridge.send_msn_object(content.session_id, content.call_id.clone(), converted_media, content.invitee, content.inviter);
                             //TODO sent SLP error
                             },
-                            MSNObjectType::PluginState => todo!(),
-                            MSNObjectType::RoamingObject => todo!(),
-                            MSNObjectType::SignatureSound => todo!(),
-                            MSNObjectType::UnknownYet => todo!(),
-                            MSNObjectType::Scene => todo!(),
-                            MSNObjectType::WebcamDynamicDisplayPicture => todo!(),
-                            MSNObjectType::CustomEmoticon => todo!()
+                            MSNObjectType::PluginState => {},
+                            MSNObjectType::RoamingObject => {},
+                            MSNObjectType::SignatureSound => {},
+                            MSNObjectType::UnknownYet => {},
+                            MSNObjectType::Scene => {},
+                            MSNObjectType::WebcamDynamicDisplayPicture => {},
+                            MSNObjectType::CustomEmoticon => {}
                             }
                              }
                             _ => {
@@ -333,6 +323,13 @@ impl SwitchboardCommandHandler {
 
         self.start_receiving(sb_receiver, p2p_receiver, stop_receiver);
     }
+
+    async fn find_or_create_dm_room(client: &Client, user_id: &UserId) -> matrix_sdk::Result<Room> {
+        if let Some(found) = client.get_dm_room(user_id) {
+            return Ok(found);
+        }
+        return client.create_dm(user_id).await;
+    }
 }
 
 #[async_trait]
@@ -440,7 +437,8 @@ impl CommandHandler for SwitchboardCommandHandler {
 
                     let client = self.matrix_client.as_ref().unwrap().clone();
 
-                    let target_room = WLMatrixClient::find_or_create_dm_room(&client, &user_to_add).await.unwrap(); //TODO handle this
+                    let target_room = Self::find_or_create_dm_room(&client, &user_to_add).await.unwrap(); //TODO handle this
+
                     self.target_room_id = target_room.room_id().to_string();
                     let client_data = MSN_CLIENT_LOCATOR.get().unwrap();
 
@@ -515,9 +513,9 @@ impl CommandHandler for SwitchboardCommandHandler {
                             } ).collect();
 
                             let id = body_map.get("ID").unwrap();
-                            let data = body_map.get("Data").unwrap();
                             match id.as_str() {
                                 "3" => {
+                                    let data = body_map.get("Data").unwrap();
                                     //Datacast is MSNObj type
                                     // Data is MSNObj as string
                                     if let Some(sb_bridge) = self.sb_bridge.as_mut() {

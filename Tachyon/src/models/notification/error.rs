@@ -163,6 +163,10 @@ impl MSNPServerError {
 					MatrixError::IdParseError(err) => {
 						Self::new(true, tr_id, MSNPErrorCode::InternalServerError, source.into())
 					}
+
+					MatrixError::SdkError(err) => {
+						Self::new(true, tr_id, MSNPErrorCode::InternalServerError, source.into())
+					}
 				}
 			},
 			TachyonError::UUIDConversionError(_err) => {
@@ -177,6 +181,9 @@ impl MSNPServerError {
 				Self::new(true, tr_id, MSNPErrorCode::InternalServerError, source.into())
 			}
 			MatrixError::IdParseError(err) => {
+				Self::new(true, tr_id, MSNPErrorCode::InternalServerError, source.into())
+			}
+			MatrixError::SdkError(_) => {
 				Self::new(true, tr_id, MSNPErrorCode::InternalServerError, source.into())
 			}
 		}

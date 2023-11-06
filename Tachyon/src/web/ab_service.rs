@@ -76,6 +76,8 @@ async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest) -> Resul
         .substring(2, ticket_token.len())
         .to_string();
 
+
+
     let cache_key = &header.application_header.cache_key.unwrap_or_default();
 
     let msn_client = MSN_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -83,8 +85,11 @@ async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest) -> Resul
     let response : AbfindContactsPagedResponseMessageSoapEnvelope;
     
     let matrix_client =  MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-    //TODO !important Check request token against currently logged user in the matrix client
 
+
+    if matrix_token != matrix_client.access_token().ok_or(StatusCode::UNAUTHORIZED)? {
+        return Err(StatusCode::UNAUTHORIZED)?;
+    }
 
     let me_mtx_id = msn_client.get_user().get_matrix_id();
 
@@ -106,13 +111,12 @@ async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest) -> Resul
             //Fetch contacts from the ADL command
             let contacts_as_msn_usr = msn_client.get_contacts(false).await;
             let contact_list = msn_user_to_contact_type(&contacts_as_msn_usr);
-            response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, contact_list);
+            response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, contact_list, false);
         //    let empty_response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name.clone(), Vec::new());
          //   response = empty_response;
-        
     } else {
-        let contact_list = AB_LOCATOR.get_contacts(&matrix_token).await.unwrap();
-        response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, contact_list);
+        let (contact_list, profile_update) = AB_LOCATOR.get_contacts(&matrix_token).await.unwrap();
+        response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, contact_list, profile_update);
     }
 
     let response_serialized = to_string(&response)?;

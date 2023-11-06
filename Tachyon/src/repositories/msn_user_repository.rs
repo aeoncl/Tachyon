@@ -1,6 +1,7 @@
 use base64::{Engine, engine::general_purpose};
 use js_int::UInt;
 use matrix_sdk::{Client, Error, media::{MediaFormat, MediaRequest, MediaThumbnailSize}, Room, ruma::{api::client::media::get_content_thumbnail::v3::Method, events::room::MediaSource, MxcUri, OwnedMxcUri, RoomId, UserId}, StoreError};
+use matrix_sdk::crypto::vodozemac::base64_encode;
 
 use crate::{generated::payloads::PresenceStatus, models::{msn_object::{MSNObject, MSNObjectFactory}, msn_user::MSNUser}};
 
@@ -52,7 +53,7 @@ impl MSNUserRepository {
 
 
     pub async fn get_avatar(&self, avatar_mxc: OwnedMxcUri) -> Result<Vec<u8>, Error> {
-        let media_request = MediaRequest{ source: MediaSource::Plain(avatar_mxc), format: MediaFormat::Thumbnail(MediaThumbnailSize{ method: Method::Scale, width: UInt::new(200).unwrap(), height: UInt::new(200).unwrap() })};
+        let media_request = MediaRequest{ source: MediaSource::Plain(avatar_mxc), format:MediaFormat::Thumbnail(MediaThumbnailSize{ method: Method::Scale, width: UInt::new(200).unwrap(), height: UInt::new(200).unwrap()}) };
         return self.matrix_client.media().get_media_content(&media_request, true).await;
     }
 
@@ -66,7 +67,7 @@ impl MSNUserRepository {
                 let content = &original.content;
                 let msn_addr = out.get_msn_addr();
                 out.set_display_name(content.displayname.as_ref().unwrap_or(&msn_addr).to_owned());
-                out.set_status(PresenceStatus::NLN);
+                out.set_status(PresenceStatus::default());
                 
 
                 if let Some(avatar_mxc) = content.avatar_url.as_ref() {
@@ -95,8 +96,12 @@ impl MSNUserRepository {
     }
 
     pub fn avatar_to_msn_obj(&self, avatar_bytes: &Vec<u8>, msn_addr: String, avatar_mxc: &OwnedMxcUri) -> MSNObject {
-        let base64_mxc = general_purpose::STANDARD.encode(avatar_mxc.to_string());
+        let base64_mxc = base64_encode(avatar_mxc.to_string());
         return MSNObjectFactory::get_display_picture(&avatar_bytes, msn_addr.clone(),format!("{}.tmp", base64_mxc), None);
-    } 
+    }
+
+    pub fn avatar_to_me_msn_obj(&self, avatar_bytes: &Vec<u8>, msn_addr: String, friendly: String) -> MSNObject {
+        return MSNObjectFactory::get_me_display_picture(&avatar_bytes, msn_addr.clone(),Some(friendly));
+    }
 
 }

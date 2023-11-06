@@ -238,7 +238,7 @@ pub enum PresenceStatus {
 impl Default for PresenceStatus {
 
     fn default() -> Self {
-        return PresenceStatus::NLN;
+        return PresenceStatus::HDN;
     }
 }
 

@@ -4,9 +4,8 @@ use actix_web::{get, HttpRequest, HttpResponse, HttpResponseBuilder, post, web};
 use http::StatusCode;
 use lazy_static::lazy_static;
 use log::info;
-use matrix_sdk::Client;
-use matrix_sdk::ruma::OwnedUserId;
 use matrix_sdk::ruma::api::client::error::{ErrorBody, ErrorKind};
+use matrix_sdk::ruma::OwnedUserId;
 use regex::Regex;
 use urlencoding::decode;
 use yaserde::de::from_str;
@@ -14,9 +13,10 @@ use yaserde::ser::to_string;
 
 use crate::generated::ppcrl_webservice::*;
 use crate::generated::ppcrl_webservice::factories::RST2ResponseFactory;
+use crate::matrix::matrix_client::get_matrix_client_builder;
 use crate::models::msn_user::MSNUser;
 use crate::models::owned_user_id_traits::FromMsnAddr;
-use crate::models::wlmatrix_client::WLMatrixClient;
+use crate::SETTINGS_LOCATOR;
 use crate::utils::identifiers::get_matrix_device_id;
 
 use super::error::WebError;
@@ -52,7 +52,9 @@ pub async fn rst2(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse
     let matrix_id = OwnedUserId::from_msn_addr(&username_token.username);
     let msn_user = MSNUser::from_matrix_id(matrix_id.clone());
 
-    let client = WLMatrixClient::get_matrix_client_builder(matrix_id.server_name()).build().await?;
+
+    //TODO pass disable ssl through config
+    let client = get_matrix_client_builder(matrix_id.server_name(), SETTINGS_LOCATOR.homeserver_url.clone(), true).build().await?;
     
     match client.matrix_auth().login_username(matrix_id.as_str(), username_token.password.as_str()).device_id(get_matrix_device_id().as_str()).initial_device_display_name("WLMatrix").await {
         Ok(result) => {

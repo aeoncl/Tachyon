@@ -47,7 +47,9 @@ pub enum MatrixError {
     #[error(transparent)]
     WebError(#[from] HttpError),
     #[error(transparent)]
-    IdParseError(#[from] IdParseError)
+    IdParseError(#[from] IdParseError),
+    #[error(transparent)]
+    SdkError(#[from] matrix_sdk::Error)
 }
 
 #[derive(Error, Debug)]

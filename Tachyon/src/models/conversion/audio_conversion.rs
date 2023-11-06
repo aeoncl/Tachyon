@@ -1,14 +1,13 @@
-use std::io::{Write, Cursor};
+use std::io::Write;
 use std::process::Stdio;
-use std::str::from_utf8_unchecked;
-use byteorder::{LittleEndian, ByteOrder};
-use log::debug;
-use serde::de;
+use std::str::from_utf8;
+
+use byteorder::ByteOrder;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
-use crate::models::uuid::UUID;
-use crate::{Siren7_NewEncoder, SirenWavHeader, Siren7_EncodeFrame, Siren7_CloseEncoder};
+use crate::{Siren7_CloseEncoder, Siren7_EncodeFrame, Siren7_NewEncoder, SirenWavHeader};
+use crate::models::conversion::error::ConversionError;
 
 lazy_static_include_bytes! {
             MSNWAV => "assets/sound/aeoncl_02_11_23@12_45_58.wav"
@@ -17,7 +16,7 @@ lazy_static_include_bytes! {
 
 static SIREN_FRAME_SIZE : usize = 640usize;
 
-pub async fn convert_audio_message(audio: Vec<u8>) -> Vec<u8> {
+pub async fn convert_audio_message(audio: Vec<u8>) -> Result<Vec<u8>, ConversionError> {
     let mut child = Command::new("ffmpeg")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -36,17 +35,22 @@ pub async fn convert_audio_message(audio: Vec<u8>) -> Vec<u8> {
         .arg("pcm_s16le")
         .arg("pipe:1")
         .kill_on_drop(true)
-        .spawn().unwrap();
+        .spawn()?;
 
-    let mut stdin = child.stdin.take().expect("Failed to open stdin");
+    let mut stdin = child.stdin.take().expect("FFMPEG stdin to be present");
 
 
     tokio::spawn(async move{
         stdin.write_all(&audio).await.expect("Failed to write to stdin");
     });
 
-    let output = child.wait_with_output().await.expect("Failed to read stdout");
-   return convert_to_siren(output.stdout);
+    let output = child.wait_with_output().await?;
+
+    if !output.status.success() {
+        return Err(ConversionError::FFMPEG_OUTPUT {message: from_utf8(&output.stderr)?.to_string() });
+    }
+
+    return Ok(convert_to_siren(output.stdout));
 }
 
 pub fn convert_to_siren(mut wave_pcm16: Vec<u8>) -> Vec<u8> {
@@ -76,13 +80,11 @@ unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
 
 
 mod tests {
-    use std::io::{Cursor, Write};
+    use std::thread;
+    use std::io::Write;
     use std::process::{Command, Stdio};
-    use std::{mem, thread};
-    use byteorder::{LittleEndian, ByteOrder};
-    use ffmpeg_cli::FfmpegBuilder;
-    use crate::utils::ffmpeg::any_as_u8_slice;
-    use crate::{PCMWavHeader, RiffHeader, Siren7_CloseEncoder, Siren7_EncodeFrame, Siren7_NewEncoder, SirenEncoder, SirenWavHeader};
+
+    use crate::{Siren7_CloseEncoder, Siren7_EncodeFrame, Siren7_NewEncoder};
     use crate::models::uuid::UUID;
 
     lazy_static_include_bytes! {

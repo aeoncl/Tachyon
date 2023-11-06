@@ -1,7 +1,6 @@
 use async_trait::async_trait;
-use crate::models::notification::error::MSNPServerError;
 
-use crate::models::tachyon_error::TachyonError;
+use crate::models::notification::error::MSNPServerError;
 
 use super::msnp_command::MSNPCommand;
 
