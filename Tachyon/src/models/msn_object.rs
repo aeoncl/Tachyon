@@ -460,6 +460,7 @@ mod tests {
     use std::str::FromStr;
 
     use crate::models::{msn_object::{MSNObject, MSNObjectType, MSNObjectContentType}, p2p::slp_context::SlpContext};
+    use crate::utils::identifiers::compute_sha1;
 
     use super::MSNObjectFactory;
 
@@ -473,7 +474,7 @@ mod tests {
 
     #[test]
     fn compute_sha1d() {
-        let sha1d = MSNObjectFactory::compute_sha1(&AVATAR_BYTES);
+        let sha1d = compute_sha1(&AVATAR_BYTES);
         assert_eq!("1u3ees4vbHswj+6ud7vJ1g24Lz0=", &sha1d);
     }
 

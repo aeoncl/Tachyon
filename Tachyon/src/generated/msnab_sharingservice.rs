@@ -13,10 +13,10 @@ use log::{debug, warn};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
 use crate::generated::msnab_datatypes::types::*;
+use crate::generated::msnab_sharingservice::messages::RequestHeaderContainer;
 
 pub const SOAP_ENCODING: &str = "http://www.w3.org/2003/05/soap-encoding";
-#[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-pub struct Header {}
+pub type Header = RequestHeaderContainer;
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
     rename = "Fault",
@@ -206,7 +206,11 @@ pub mod messages {
         pub ab_contact_add_response: types::AbcontactAddResponse,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "ABContactDeleteResponseMessage")]
+    #[yaserde(rename = "ABContactDeleteResponseMessage",
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+    prefix = "nsi1",
+    default_namespace="nsi1"
+    )]
     pub struct AbcontactDeleteResponseMessage {
         #[yaserde(default)]
         pub ab_contact_delete_response: Option<String>,
@@ -248,21 +252,23 @@ pub mod messages {
         pub ab_group_contact_delete_response: types::AbgroupContactDeleteResponse,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "ABContactUpdateResponseMessage")]
+    #[yaserde(rename = "ABContactUpdateResponse")]
     pub struct AbcontactUpdateResponseMessage {
         #[yaserde(flatten, default)]
         pub ab_contact_update_response: types::AbcontactUpdateResponse,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "AddMemberResponseMessage")]
+    #[yaserde(rename = "AddMemberResponse")]
     pub struct AddMemberResponseMessage {
         #[yaserde(flatten, default)]
         pub add_member_response: types::AddMemberResponse,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "DeleteMemberResponseMessage")]
+    #[yaserde(rename = "DeleteMemberResponse",
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+    default_namespace="nsi1")]
     pub struct DeleteMemberResponseMessage {
-        #[yaserde(flatten, default)]
+        #[yaserde(flatten)]
         pub delete_member_response: types::DeleteMemberResponse,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
@@ -690,27 +696,30 @@ pub mod types {
     pub type AbcontactAdd = AbcontactAddRequestType;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "ABContactAddRequestType")]
+    #[yaserde(rename = "ABContactAddRequestType"
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+    prefix = "nsi1",
+    default_namespace="nsi1"
+    )]
     pub struct AbcontactAddRequestType {
-        #[yaserde(rename = "abId", default)]
+        #[yaserde(rename = "abId", prefix = "nsi1")]
         pub ab_id: Guid,
-        #[yaserde(rename = "contacts", default)]
+        #[yaserde(rename = "contacts", prefix = "nsi1")]
         pub contacts: Option<ArrayOfContactType>,
-        #[yaserde(rename = "options", default)]
+        #[yaserde(rename = "options", prefix = "nsi1")]
         pub options: Option<Options>,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(rename = "ABContactAddResultType")]
     pub struct AbcontactAddResultType {
-        #[yaserde(rename = "guid", default)]
+        #[yaserde(rename = "guid")]
         pub guid: Guid,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
         rename = "ABContactAddResponse",
         namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
-        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
-        prefix = "nsi1"
+        default_namespace = "nsi1"
     )]
     pub struct AbcontactAddResponse {
         #[yaserde(rename = "ABContactAddResult", default)]
@@ -719,11 +728,15 @@ pub mod types {
     pub type AbcontactDelete = AbcontactDeleteRequestType;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "ABContactDeleteRequestType")]
+    #[yaserde(rename = "ABContactDeleteRequestType",
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+    namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+    prefix = "nsi1",
+    default_namespace="nsi1")]
     pub struct AbcontactDeleteRequestType {
-        #[yaserde(rename = "abId", default)]
+        #[yaserde(rename = "abId", prefix = "nsi1")]
         pub ab_id: Guid,
-        #[yaserde(rename = "contacts", default)]
+        #[yaserde(rename = "contacts", prefix = "nsi1")]
         pub contacts: Option<ArrayOfContactType>,
     }
 
@@ -867,7 +880,10 @@ pub mod types {
     pub type AbcontactUpdate = AbcontactUpdateRequestType;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "ABContactUpdateRequestType")]
+    #[yaserde(rename = "ABContactUpdateRequestType",
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+    prefix = "nsi1",
+    default_namespace="nsi1")]
     pub struct AbcontactUpdateRequestType {
         #[yaserde(rename = "abId", default)]
         pub ab_id: Guid,
@@ -880,8 +896,8 @@ pub mod types {
     #[yaserde(
         rename = "ABContactUpdateResponse",
         namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
-        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
         prefix = "nsi1"
+        default_namespace="nsi1"
     )]
     pub struct AbcontactUpdateResponse {}
     pub type AbgroupContactDelete = AbgroupContactDeleteRequestType;
@@ -913,7 +929,10 @@ pub mod types {
         pub membership: Vec<Membership>,
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "AddMemberRequestType")]
+    #[yaserde(rename = "AddMemberRequestType",
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+    prefix = "nsi1",
+    default_namespace="nsi1")]
     pub struct AddMemberRequestType {
         #[yaserde(rename = "serviceHandle", default)]
         pub service_handle: HandleType,
@@ -924,14 +943,17 @@ pub mod types {
     #[yaserde(
         rename = "AddMemberResponse",
         namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
-        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
         prefix = "nsi1"
+        default_namespace="nsi1"
     )]
     pub struct AddMemberResponse {}
     pub type DeleteMember = DeleteMemberRequestType;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "DeleteMemberRequestType")]
+    #[yaserde(rename = "DeleteMemberRequestType",
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+    prefix = "nsi1",
+    default_namespace="nsi1")]
     pub struct DeleteMemberRequestType {
         #[yaserde(rename = "serviceHandle", default)]
         pub service_handle: HandleType,
@@ -942,10 +964,7 @@ pub mod types {
     }
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
-        rename = "DeleteMemberResponse",
-        namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
-        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
-        prefix = "nsi1"
+        rename = "DeleteMemberResponse"
     )]
     pub struct DeleteMemberResponse {}
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
@@ -1340,33 +1359,6 @@ pub mod ports {
 
     pub type AddServiceResponseMessage = messages::AddServiceResponseMessage;
 
-    #[async_trait]
-    pub trait SharingServicePortType {
-        async fn find_membership(
-            &self,
-            find_membership_message: FindMembershipMessage,
-        ) -> Result<FindMembershipResponseMessage, Option<SoapFault>>;
-        async fn find_membership_by_role(
-            &self,
-            find_membership_by_role_message: FindMembershipByRoleMessage,
-        ) -> Result<FindMembershipByRoleResponseMessage, Option<SoapFault>>;
-        async fn add_member(
-            &self,
-            add_member_message: AddMemberMessage,
-        ) -> Result<AddMemberResponseMessage, Option<SoapFault>>;
-        async fn delete_member(
-            &self,
-            delete_member_message: DeleteMemberMessage,
-        ) -> Result<DeleteMemberResponseMessage, Option<SoapFault>>;
-        async fn create_circle(
-            &self,
-            create_circle_message: CreateCircleMessage,
-        ) -> Result<CreateCircleResponseMessage, Option<SoapFault>>;
-        async fn add_service(
-            &self,
-            add_service_message: AddServiceMessage,
-        ) -> Result<AddServiceResponseMessage, Option<SoapFault>>;
-    }
     pub type AbfindAllMessage = messages::AbfindAllMessage;
 
     pub type AbfindAllResponseMessage = messages::AbfindAllResponseMessage;
@@ -1442,86 +1434,6 @@ pub mod ports {
     pub type AbfindByContactsMessage = messages::AbfindByContactsMessage;
 
     pub type AbfindByContactsResponseMessage = messages::AbfindByContactsResponseMessage;
-
-    #[async_trait]
-    pub trait AbservicePortType {
-        async fn ab_find_all(
-            &self,
-            abfind_all_message: AbfindAllMessage,
-        ) -> Result<AbfindAllResponseMessage, Option<SoapFault>>;
-        async fn ab_contact_add(
-            &self,
-            abcontact_add_message: AbcontactAddMessage,
-        ) -> Result<AbcontactAddResponseMessage, Option<SoapFault>>;
-        async fn ab_contact_delete(
-            &self,
-            abcontact_delete_message: AbcontactDeleteMessage,
-        ) -> Result<AbcontactDeleteResponseMessage, Option<SoapFault>>;
-        async fn delete_contact(
-            &self,
-            delete_contact_message: DeleteContactMessage,
-        ) -> Result<DeleteContactResponseMessage, Option<SoapFault>>;
-        async fn ab_group_contact_add(
-            &self,
-            abgroup_contact_add_message: AbgroupContactAddMessage,
-        ) -> Result<AbgroupContactAddResponseMessage, Option<SoapFault>>;
-        async fn ab_group_add(
-            &self,
-            abgroup_add_message: AbgroupAddMessage,
-        ) -> Result<AbgroupAddResponseMessage, Option<SoapFault>>;
-        async fn ab_group_update(
-            &self,
-            abgroup_update_message: AbgroupUpdateMessage,
-        ) -> Result<AbgroupUpdateResponseMessage, Option<SoapFault>>;
-        async fn ab_group_delete(
-            &self,
-            abgroup_delete_message: AbgroupDeleteMessage,
-        ) -> Result<AbgroupDeleteResponseMessage, Option<SoapFault>>;
-        async fn ab_group_contact_delete(
-            &self,
-            abgroup_contact_delete_message: AbgroupContactDeleteMessage,
-        ) -> Result<AbgroupContactDeleteResponseMessage, Option<SoapFault>>;
-        async fn ab_contact_update(
-            &self,
-            abcontact_update_message: AbcontactUpdateMessage,
-        ) -> Result<AbcontactUpdateResponseMessage, Option<SoapFault>>;
-        async fn ab_add(
-            &self,
-            abadd_message: AbaddMessage,
-        ) -> Result<AbaddResponseMessage, Option<SoapFault>>;
-        async fn update_dynamic_item(
-            &self,
-            update_dynamic_item_message: UpdateDynamicItemMessage,
-        ) -> Result<UpdateDynamicItemResponseMessage, Option<SoapFault>>;
-        async fn ab_find_contacts_paged(
-            &self,
-            abfind_contacts_paged_message: AbfindContactsPagedMessage,
-        ) -> Result<AbfindContactsPagedResponseMessage, Option<SoapFault>>;
-        async fn find_friends_in_common(
-            &self,
-            find_friends_in_common_message: FindFriendsInCommonMessage,
-        ) -> Result<FindFriendsInCommonResponseMessage, Option<SoapFault>>;
-        async fn create_contact(
-            &self,
-            create_contact_message: CreateContactMessage,
-        ) -> Result<CreateContactResponseMessage, Option<SoapFault>>;
-        async fn manage_wl_connection(
-            &self,
-            manage_wl_connection_message: ManageWLConnectionMessage,
-        ) -> Result<ManageWLConnectionResponseMessage, Option<SoapFault>>;
-        async fn break_connection(
-            &self,
-            break_connection_message: BreakConnectionMessage,
-        ) -> Result<BreakConnectionResponseMessage, Option<SoapFault>>;
-        async fn add_dynamic_item(
-            &self,
-            add_dynamic_item_message: AddDynamicItemMessage,
-        ) -> Result<AddDynamicItemResponseMessage, Option<SoapFault>>;
-        async fn ab_find_by_contacts(
-            &self,
-            abfind_by_contacts_message: AbfindByContactsMessage,
-        ) -> Result<AbfindByContactsResponseMessage, Option<SoapFault>>;
-    }
     pub type GetContactsRecentActivityMessage = messages::GetContactsRecentActivityMessage;
 
     pub type GetContactsRecentActivityResponseMessage =
@@ -1532,56 +1444,17 @@ pub mod ports {
     pub type GetBatchRecentActivityResponseMessage =
         messages::GetBatchRecentActivityResponseMessage;
 
-    #[async_trait]
-    pub trait WhatsUpServicePortType {
-        async fn get_contacts_recent_activity(
-            &self,
-            get_contacts_recent_activity_message: GetContactsRecentActivityMessage,
-        ) -> Result<GetContactsRecentActivityResponseMessage, Option<SoapFault>>;
-        async fn get_batch_recent_activity(
-            &self,
-            get_batch_recent_activity_message: GetBatchRecentActivityMessage,
-        ) -> Result<GetBatchRecentActivityResponseMessage, Option<SoapFault>>;
-    }
 }
-
 pub mod bindings {
     use async_trait::async_trait;
     use yaserde::{YaDeserialize, YaSerialize};
     use yaserde::de::from_str;
     use yaserde::ser::to_string;
+    use crate::generated::msnab_sharingservice::messages::ServiceHeader;
 
     use super::*;
     use super::messages::{RequestHeaderContainer, ServiceHeaderContainer};
 
-    impl SharingServiceBinding {
-        async fn send_soap_request<T: YaSerialize>(
-            &self,
-            request: &T,
-            action: &str,
-        ) -> SoapResponse {
-            let body = to_string(request).expect("failed to generate xml");
-            debug!("SOAP Request: {}", body);
-            let mut req = self
-                .client
-                .post(&self.url)
-                .body(body)
-                .header("Content-Type", "text/xml")
-                .header("Soapaction", action);
-            if let Some(credentials) = &self.credentials {
-                req = req.basic_auth(
-                    credentials.0.to_string(),
-                    Option::Some(credentials.1.to_string()),
-                );
-            }
-            let res = req.send().await?;
-            let status = res.status();
-            debug!("SOAP Status: {}", status);
-            let txt = res.text().await.unwrap_or_default();
-            debug!("SOAP Response: {}", txt);
-            Ok((status, txt))
-        }
-    }
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapFindMembershipMessage {
         #[yaserde(rename = "FindMembership", prefix="soap")]
@@ -1748,17 +1621,12 @@ pub mod bindings {
     #[yaserde(
         rename = "Envelope",
         namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+        namespace = "xsd: http://www.w3.org/2001/XMLSchema",
+        namespace = "soapenc: http://schemas.xmlsoap.org/soap/encoding/"
         prefix = "soap"
     )]
     pub struct AddMemberMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
         pub header: Option<Header>,
         #[yaserde(rename = "Body", prefix = "soap")]
@@ -1768,11 +1636,7 @@ pub mod bindings {
     impl AddMemberMessageSoapEnvelope {
         pub fn new(body: SoapAddMemberMessage) -> Self {
             AddMemberMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
                 header: None,
             }
         }
@@ -1780,7 +1644,7 @@ pub mod bindings {
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAddMemberResponseMessage {
-        #[yaserde(rename = "AddMemberResponseMessage", default)]
+        #[yaserde(rename = "AddMemberResponse", default)]
         pub body: ports::AddMemberResponseMessage,
         #[yaserde(rename = "Fault", default)]
         pub fault: Option<SoapFault>,
@@ -1789,32 +1653,23 @@ pub mod bindings {
     #[yaserde(
         rename = "Envelope",
         namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+        namespace = "xsd: http://www.w3.org/2001/XMLSchema",
+        namespace = "soapenc: http://schemas.xmlsoap.org/soap/encoding/",
         prefix = "soap"
     )]
     pub struct AddMemberResponseMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<Header>,
+        pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapAddMemberResponseMessage,
     }
 
     impl AddMemberResponseMessageSoapEnvelope {
-        pub fn new(body: SoapAddMemberResponseMessage) -> Self {
+        pub fn new(body: SoapAddMemberResponseMessage, header: ServiceHeaderContainer) -> Self {
             AddMemberResponseMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
-                header: None,
+                header: Some(header),
             }
         }
     }
@@ -1830,17 +1685,12 @@ pub mod bindings {
     #[yaserde(
         rename = "Envelope",
         namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+        namespace = "xsd: http://www.w3.org/2001/XMLSchema",
+        namespace = "soapenc: http://schemas.xmlsoap.org/soap/encoding/"
         prefix = "soap"
     )]
     pub struct DeleteMemberMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
         pub header: Option<Header>,
         #[yaserde(rename = "Body", prefix = "soap")]
@@ -1850,11 +1700,7 @@ pub mod bindings {
     impl DeleteMemberMessageSoapEnvelope {
         pub fn new(body: SoapDeleteMemberMessage) -> Self {
             DeleteMemberMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
                 header: None,
             }
         }
@@ -1862,7 +1708,7 @@ pub mod bindings {
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapDeleteMemberResponseMessage {
-        #[yaserde(rename = "DeleteMemberResponseMessage", default)]
+        #[yaserde(rename = "DeleteMemberResponse", default)]
         pub body: ports::DeleteMemberResponseMessage,
         #[yaserde(rename = "Fault", default)]
         pub fault: Option<SoapFault>,
@@ -1871,32 +1717,23 @@ pub mod bindings {
     #[yaserde(
         rename = "Envelope",
         namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+        namespace = "xsd: http://www.w3.org/2001/XMLSchema",
+        namespace = "soapenc: http://schemas.xmlsoap.org/soap/encoding/",
         prefix = "soap"
     )]
     pub struct DeleteMemberResponseMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<Header>,
+        pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapDeleteMemberResponseMessage,
     }
 
     impl DeleteMemberResponseMessageSoapEnvelope {
-        pub fn new(body: SoapDeleteMemberResponseMessage) -> Self {
+        pub fn new(body: SoapDeleteMemberResponseMessage, header: ServiceHeaderContainer) -> Self {
             DeleteMemberResponseMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
-                header: None,
+                header: Some(header),
             }
         }
     }
@@ -2065,246 +1902,6 @@ pub mod bindings {
         }
     }
 
-    impl Default for SharingServiceBinding {
-        fn default() -> Self {
-            SharingServiceBinding {
-                client: reqwest::Client::new(),
-                url: "http://www.msn.com/webservices/AddressBook".to_string(),
-                credentials: Option::None,
-            }
-        }
-    }
-    impl SharingServiceBinding {
-        pub fn new(url: &str, credentials: Option<(String, String)>) -> Self {
-            SharingServiceBinding {
-                client: reqwest::Client::new(),
-                url: url.to_string(),
-                credentials,
-            }
-        }
-    }
-    pub struct SharingServiceBinding {
-        client: reqwest::Client,
-        url: String,
-        credentials: Option<(String, String)>,
-    }
-    #[async_trait]
-    impl ports::SharingServicePortType for SharingServiceBinding {
-        async fn find_membership(
-            &self,
-            find_membership_message: ports::FindMembershipMessage,
-        ) -> Result<ports::FindMembershipResponseMessage, Option<SoapFault>> {
-            let __request = FindMembershipMessageSoapEnvelope::new(SoapFindMembershipMessage {
-                body: find_membership_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/FindMembership",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: FindMembershipResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn find_membership_by_role(
-            &self,
-            find_membership_by_role_message: ports::FindMembershipByRoleMessage,
-        ) -> Result<ports::FindMembershipByRoleResponseMessage, Option<SoapFault>> {
-            let __request =
-                FindMembershipByRoleMessageSoapEnvelope::new(SoapFindMembershipByRoleMessage {
-                    body: find_membership_by_role_message,
-                    xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-                });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/FindMembershipByRole",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: FindMembershipByRoleResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn add_member(
-            &self,
-            add_member_message: ports::AddMemberMessage,
-        ) -> Result<ports::AddMemberResponseMessage, Option<SoapFault>> {
-            let __request = AddMemberMessageSoapEnvelope::new(SoapAddMemberMessage {
-                body: add_member_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/AddMember",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: AddMemberResponseMessageSoapEnvelope = from_str(&response).map_err(|err| {
-                warn!("Failed to unmarshal SOAP response: {:?}", err);
-                None
-            })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn delete_member(
-            &self,
-            delete_member_message: ports::DeleteMemberMessage,
-        ) -> Result<ports::DeleteMemberResponseMessage, Option<SoapFault>> {
-            let __request = DeleteMemberMessageSoapEnvelope::new(SoapDeleteMemberMessage {
-                body: delete_member_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/DeleteMember",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: DeleteMemberResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn create_circle(
-            &self,
-            create_circle_message: ports::CreateCircleMessage,
-        ) -> Result<ports::CreateCircleResponseMessage, Option<SoapFault>> {
-            let __request = CreateCircleMessageSoapEnvelope::new(SoapCreateCircleMessage {
-                body: create_circle_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/CreateCircle",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: CreateCircleResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn add_service(
-            &self,
-            add_service_message: ports::AddServiceMessage,
-        ) -> Result<ports::AddServiceResponseMessage, Option<SoapFault>> {
-            let __request = AddServiceMessageSoapEnvelope::new(SoapAddServiceMessage {
-                body: add_service_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/AddService",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: AddServiceResponseMessageSoapEnvelope = from_str(&response).map_err(|err| {
-                warn!("Failed to unmarshal SOAP response: {:?}", err);
-                None
-            })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-    }
-
-    impl AbserviceBinding {
-        async fn send_soap_request<T: YaSerialize>(
-            &self,
-            request: &T,
-            action: &str,
-        ) -> SoapResponse {
-            let body = to_string(request).expect("failed to generate xml");
-            debug!("SOAP Request: {}", body);
-            let mut req = self
-                .client
-                .post(&self.url)
-                .body(body)
-                .header("Content-Type", "text/xml")
-                .header("Soapaction", action);
-            if let Some(credentials) = &self.credentials {
-                req = req.basic_auth(
-                    credentials.0.to_string(),
-                    Option::Some(credentials.1.to_string()),
-                );
-            }
-            let res = req.send().await?;
-            let status = res.status();
-            debug!("SOAP Status: {}", status);
-            let txt = res.text().await.unwrap_or_default();
-            debug!("SOAP Response: {}", txt);
-            Ok((status, txt))
-        }
-    }
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAbfindAllMessage {
         #[yaserde(rename = "ABFindAll", default)]
@@ -2387,9 +1984,15 @@ pub mod bindings {
         }
     }
 
+
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
+    #[yaserde(
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+    prefix = "nsi1",
+    default_namespace="nsi1"
+    )]
     pub struct SoapAbcontactAddMessage {
-        #[yaserde(rename = "ABContactAdd", default)]
+        #[yaserde(rename = "ABContactAdd", prefix="nsi1")]
         pub body: ports::AbcontactAddMessage,
         #[yaserde(attribute)]
         pub xmlns: Option<String>,
@@ -2398,6 +2001,9 @@ pub mod bindings {
     #[yaserde(
         rename = "Envelope",
         namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+        namespace = "xsd: http://www.w3.org/2001/XMLSchema",
+        namespace = "soapenc: http://schemas.xmlsoap.org/soap/encoding/"
         prefix = "soap"
     )]
     pub struct AbcontactAddMessageSoapEnvelope {
@@ -2410,7 +2016,7 @@ pub mod bindings {
         #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
         pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<Header>,
+        pub header: Option<RequestHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapAbcontactAddMessage,
     }
@@ -2430,7 +2036,7 @@ pub mod bindings {
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAbcontactAddResponseMessage {
-        #[yaserde(rename = "AbcontactAddResponseMessage", default)]
+        #[yaserde(rename = "ABContactAddResponse", default)]
         pub body: ports::AbcontactAddResponseMessage,
         #[yaserde(rename = "Fault", default)]
         pub fault: Option<SoapFault>,
@@ -2439,39 +2045,35 @@ pub mod bindings {
     #[yaserde(
         rename = "Envelope",
         namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance"
+        namespace = "xsd: http://www.w3.org/2001/XMLSchema"
         prefix = "soap"
     )]
     pub struct AbcontactAddResponseMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<Header>,
+        pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapAbcontactAddResponseMessage,
     }
 
     impl AbcontactAddResponseMessageSoapEnvelope {
-        pub fn new(body: SoapAbcontactAddResponseMessage) -> Self {
+        pub fn new(body: SoapAbcontactAddResponseMessage, header: ServiceHeaderContainer) -> Self {
             AbcontactAddResponseMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
-                header: None,
+                header: Some(header),
             }
         }
     }
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
+    #[yaserde(
+    rename = "SoapAbcontactDeleteMessage",
+    namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+    prefix = "nsi1",
+    default_namespace="nsi1"
+    )]
     pub struct SoapAbcontactDeleteMessage {
-        #[yaserde(rename = "ABContactDelete", default)]
+        #[yaserde(rename = "ABContactDelete", prefix = "nsi1")]
         pub body: ports::AbcontactDeleteMessage,
         #[yaserde(attribute)]
         pub xmlns: Option<String>,
@@ -2480,6 +2082,9 @@ pub mod bindings {
     #[yaserde(
         rename = "Envelope",
         namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+        namespace = "xsd: http://www.w3.org/2001/XMLSchema",
+        namespace = "soapenc: http://schemas.xmlsoap.org/soap/encoding/"
         prefix = "soap"
     )]
     pub struct AbcontactDeleteMessageSoapEnvelope {
@@ -2512,7 +2117,7 @@ pub mod bindings {
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAbcontactDeleteResponseMessage {
-        #[yaserde(rename = "AbcontactDeleteResponseMessage", default)]
+        #[yaserde(rename = "ABContactDeleteResponse", default)]
         pub body: ports::AbcontactDeleteResponseMessage,
         #[yaserde(rename = "Fault", default)]
         pub fault: Option<SoapFault>,
@@ -2521,32 +2126,23 @@ pub mod bindings {
     #[yaserde(
         rename = "Envelope",
         namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+        namespace = "xsd: http://www.w3.org/2001/XMLSchema",
+        namespace = "soapenc: http://schemas.xmlsoap.org/soap/encoding/"
         prefix = "soap"
     )]
     pub struct AbcontactDeleteResponseMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<Header>,
+        pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapAbcontactDeleteResponseMessage,
     }
 
     impl AbcontactDeleteResponseMessageSoapEnvelope {
-        pub fn new(body: SoapAbcontactDeleteResponseMessage) -> Self {
+        pub fn new(body: SoapAbcontactDeleteResponseMessage, header: ServiceHeaderContainer) -> Self {
             AbcontactDeleteResponseMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
-                header: None,
+                header: Some(header),
             }
         }
     }
@@ -3040,17 +2636,12 @@ pub mod bindings {
     #[yaserde(
         rename = "Envelope",
         namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+        namespace = "xsd: http://www.w3.org/2001/XMLSchema",
+        namespace = "soapenc: http://schemas.xmlsoap.org/soap/encoding/"
         prefix = "soap"
     )]
     pub struct AbcontactUpdateMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
         pub header: Option<Header>,
         #[yaserde(rename = "Body", prefix = "soap")]
@@ -3060,11 +2651,7 @@ pub mod bindings {
     impl AbcontactUpdateMessageSoapEnvelope {
         pub fn new(body: SoapAbcontactUpdateMessage) -> Self {
             AbcontactUpdateMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
                 header: None,
             }
         }
@@ -3072,7 +2659,7 @@ pub mod bindings {
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAbcontactUpdateResponseMessage {
-        #[yaserde(rename = "AbcontactUpdateResponseMessage", default)]
+        #[yaserde(rename = "ABContactUpdateResponse", default)]
         pub body: ports::AbcontactUpdateResponseMessage,
         #[yaserde(rename = "Fault", default)]
         pub fault: Option<SoapFault>,
@@ -3081,32 +2668,23 @@ pub mod bindings {
     #[yaserde(
         rename = "Envelope",
         namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+        namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+        namespace = "xsd: http://www.w3.org/2001/XMLSchema",
+        namespace = "soapenc: http://schemas.xmlsoap.org/soap/encoding/",
         prefix = "soap"
     )]
     pub struct AbcontactUpdateResponseMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<Header>,
+        pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapAbcontactUpdateResponseMessage,
     }
 
     impl AbcontactUpdateResponseMessageSoapEnvelope {
-        pub fn new(body: SoapAbcontactUpdateResponseMessage) -> Self {
+        pub fn new(body: SoapAbcontactUpdateResponseMessage, header: ServiceHeaderContainer) -> Self {
             AbcontactUpdateResponseMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
-                header: None,
+                header: Some(header),
             }
         }
     }
@@ -3834,652 +3412,6 @@ pub mod bindings {
         }
     }
 
-    impl Default for AbserviceBinding {
-        fn default() -> Self {
-            AbserviceBinding {
-                client: reqwest::Client::new(),
-                url: "http://www.msn.com/webservices/AddressBook".to_string(),
-                credentials: Option::None,
-            }
-        }
-    }
-    impl AbserviceBinding {
-        pub fn new(url: &str, credentials: Option<(String, String)>) -> Self {
-            AbserviceBinding {
-                client: reqwest::Client::new(),
-                url: url.to_string(),
-                credentials,
-            }
-        }
-    }
-    pub struct AbserviceBinding {
-        client: reqwest::Client,
-        url: String,
-        credentials: Option<(String, String)>,
-    }
-    #[async_trait]
-    impl ports::AbservicePortType for AbserviceBinding {
-        async fn ab_find_all(
-            &self,
-            abfind_all_message: ports::AbfindAllMessage,
-        ) -> Result<ports::AbfindAllResponseMessage, Option<SoapFault>> {
-            let __request = AbfindAllMessageSoapEnvelope::new(SoapAbfindAllMessage {
-                body: abfind_all_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/ABFindAll",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: AbfindAllResponseMessageSoapEnvelope = from_str(&response).map_err(|err| {
-                warn!("Failed to unmarshal SOAP response: {:?}", err);
-                None
-            })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn ab_contact_add(
-            &self,
-            abcontact_add_message: ports::AbcontactAddMessage,
-        ) -> Result<ports::AbcontactAddResponseMessage, Option<SoapFault>> {
-            let __request = AbcontactAddMessageSoapEnvelope::new(SoapAbcontactAddMessage {
-                body: abcontact_add_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/ABContactAdd",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: AbcontactAddResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn ab_contact_delete(
-            &self,
-            abcontact_delete_message: ports::AbcontactDeleteMessage,
-        ) -> Result<ports::AbcontactDeleteResponseMessage, Option<SoapFault>> {
-            let __request = AbcontactDeleteMessageSoapEnvelope::new(SoapAbcontactDeleteMessage {
-                body: abcontact_delete_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/ABContactDelete",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: AbcontactDeleteResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn delete_contact(
-            &self,
-            delete_contact_message: ports::DeleteContactMessage,
-        ) -> Result<ports::DeleteContactResponseMessage, Option<SoapFault>> {
-            let __request = DeleteContactMessageSoapEnvelope::new(SoapDeleteContactMessage {
-                body: delete_contact_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/DeleteContact",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: DeleteContactResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn ab_group_contact_add(
-            &self,
-            abgroup_contact_add_message: ports::AbgroupContactAddMessage,
-        ) -> Result<ports::AbgroupContactAddResponseMessage, Option<SoapFault>> {
-            let __request =
-                AbgroupContactAddMessageSoapEnvelope::new(SoapAbgroupContactAddMessage {
-                    body: abgroup_contact_add_message,
-                    xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-                });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/ABGroupContactAdd",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: AbgroupContactAddResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn ab_group_add(
-            &self,
-            abgroup_add_message: ports::AbgroupAddMessage,
-        ) -> Result<ports::AbgroupAddResponseMessage, Option<SoapFault>> {
-            let __request = AbgroupAddMessageSoapEnvelope::new(SoapAbgroupAddMessage {
-                body: abgroup_add_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/ABGroupAdd",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: AbgroupAddResponseMessageSoapEnvelope = from_str(&response).map_err(|err| {
-                warn!("Failed to unmarshal SOAP response: {:?}", err);
-                None
-            })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn ab_group_update(
-            &self,
-            abgroup_update_message: ports::AbgroupUpdateMessage,
-        ) -> Result<ports::AbgroupUpdateResponseMessage, Option<SoapFault>> {
-            let __request = AbgroupUpdateMessageSoapEnvelope::new(SoapAbgroupUpdateMessage {
-                body: abgroup_update_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/ABGroupUpdate",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: AbgroupUpdateResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn ab_group_delete(
-            &self,
-            abgroup_delete_message: ports::AbgroupDeleteMessage,
-        ) -> Result<ports::AbgroupDeleteResponseMessage, Option<SoapFault>> {
-            let __request = AbgroupDeleteMessageSoapEnvelope::new(SoapAbgroupDeleteMessage {
-                body: abgroup_delete_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/ABGroupDelete",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: AbgroupDeleteResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn ab_group_contact_delete(
-            &self,
-            abgroup_contact_delete_message: ports::AbgroupContactDeleteMessage,
-        ) -> Result<ports::AbgroupContactDeleteResponseMessage, Option<SoapFault>> {
-            let __request =
-                AbgroupContactDeleteMessageSoapEnvelope::new(SoapAbgroupContactDeleteMessage {
-                    body: abgroup_contact_delete_message,
-                    xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-                });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/ABGroupContactDelete",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: AbgroupContactDeleteResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn ab_contact_update(
-            &self,
-            abcontact_update_message: ports::AbcontactUpdateMessage,
-        ) -> Result<ports::AbcontactUpdateResponseMessage, Option<SoapFault>> {
-            let __request = AbcontactUpdateMessageSoapEnvelope::new(SoapAbcontactUpdateMessage {
-                body: abcontact_update_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/ABContactUpdate",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: AbcontactUpdateResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn ab_add(
-            &self,
-            abadd_message: ports::AbaddMessage,
-        ) -> Result<ports::AbaddResponseMessage, Option<SoapFault>> {
-            let __request = AbaddMessageSoapEnvelope::new(SoapAbaddMessage {
-                body: abadd_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/ABAdd",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: AbaddResponseMessageSoapEnvelope = from_str(&response).map_err(|err| {
-                warn!("Failed to unmarshal SOAP response: {:?}", err);
-                None
-            })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn update_dynamic_item(
-            &self,
-            update_dynamic_item_message: ports::UpdateDynamicItemMessage,
-        ) -> Result<ports::UpdateDynamicItemResponseMessage, Option<SoapFault>> {
-            let __request =
-                UpdateDynamicItemMessageSoapEnvelope::new(SoapUpdateDynamicItemMessage {
-                    body: update_dynamic_item_message,
-                    xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-                });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/UpdateDynamicItem",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: UpdateDynamicItemResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn ab_find_contacts_paged(
-            &self,
-            abfind_contacts_paged_message: ports::AbfindContactsPagedMessage,
-        ) -> Result<ports::AbfindContactsPagedResponseMessage, Option<SoapFault>> {
-            let __request =
-                AbfindContactsPagedMessageSoapEnvelope::new(SoapAbfindContactsPagedMessage {
-                    body: abfind_contacts_paged_message,
-                });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/ABFindContactsPaged",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: AbfindContactsPagedResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn find_friends_in_common(
-            &self,
-            find_friends_in_common_message: ports::FindFriendsInCommonMessage,
-        ) -> Result<ports::FindFriendsInCommonResponseMessage, Option<SoapFault>> {
-            let __request =
-                FindFriendsInCommonMessageSoapEnvelope::new(SoapFindFriendsInCommonMessage {
-                    body: find_friends_in_common_message,
-                    xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-                });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/FindFriendsInCommon",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: FindFriendsInCommonResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn create_contact(
-            &self,
-            create_contact_message: ports::CreateContactMessage,
-        ) -> Result<ports::CreateContactResponseMessage, Option<SoapFault>> {
-            let __request = CreateContactMessageSoapEnvelope::new(SoapCreateContactMessage {
-                body: create_contact_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/CreateContact",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: CreateContactResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn manage_wl_connection(
-            &self,
-            manage_wl_connection_message: ports::ManageWLConnectionMessage,
-        ) -> Result<ports::ManageWLConnectionResponseMessage, Option<SoapFault>> {
-            let __request =
-                ManageWLConnectionMessageSoapEnvelope::new(SoapManageWLConnectionMessage {
-                    body: manage_wl_connection_message,
-                    xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-                });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/ManageWLConnection",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: ManageWLConnectionResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn break_connection(
-            &self,
-            break_connection_message: ports::BreakConnectionMessage,
-        ) -> Result<ports::BreakConnectionResponseMessage, Option<SoapFault>> {
-            let __request = BreakConnectionMessageSoapEnvelope::new(SoapBreakConnectionMessage {
-                body: break_connection_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/BreakConnection",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: BreakConnectionResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn add_dynamic_item(
-            &self,
-            add_dynamic_item_message: ports::AddDynamicItemMessage,
-        ) -> Result<ports::AddDynamicItemResponseMessage, Option<SoapFault>> {
-            let __request = AddDynamicItemMessageSoapEnvelope::new(SoapAddDynamicItemMessage {
-                body: add_dynamic_item_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/AddDynamicItem",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: AddDynamicItemResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn ab_find_by_contacts(
-            &self,
-            abfind_by_contacts_message: ports::AbfindByContactsMessage,
-        ) -> Result<ports::AbfindByContactsResponseMessage, Option<SoapFault>> {
-            let __request = AbfindByContactsMessageSoapEnvelope::new(SoapAbfindByContactsMessage {
-                body: abfind_by_contacts_message,
-                xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-            });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/ABFindByContacts",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: AbfindByContactsResponseMessageSoapEnvelope =
-                from_str(&response).map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-    }
-
-    impl WhatsUpServiceBinding {
-        async fn send_soap_request<T: YaSerialize>(
-            &self,
-            request: &T,
-            action: &str,
-        ) -> SoapResponse {
-            let body = to_string(request).expect("failed to generate xml");
-            debug!("SOAP Request: {}", body);
-            let mut req = self
-                .client
-                .post(&self.url)
-                .body(body)
-                .header("Content-Type", "text/xml")
-                .header("Soapaction", action);
-            if let Some(credentials) = &self.credentials {
-                req = req.basic_auth(
-                    credentials.0.to_string(),
-                    Option::Some(credentials.1.to_string()),
-                );
-            }
-            let res = req.send().await?;
-            let status = res.status();
-            debug!("SOAP Status: {}", status);
-            let txt = res.text().await.unwrap_or_default();
-            debug!("SOAP Response: {}", txt);
-            Ok((status, txt))
-        }
-    }
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapGetContactsRecentActivityMessage {
         #[yaserde(rename = "GetContactsRecentActivity", default)]
@@ -4643,149 +3575,15 @@ pub mod bindings {
             }
         }
     }
-
-    impl Default for WhatsUpServiceBinding {
-        fn default() -> Self {
-            WhatsUpServiceBinding {
-                client: reqwest::Client::new(),
-                url: "http://www.msn.com/webservices/AddressBook".to_string(),
-                credentials: Option::None,
-            }
-        }
-    }
-    impl WhatsUpServiceBinding {
-        pub fn new(url: &str, credentials: Option<(String, String)>) -> Self {
-            WhatsUpServiceBinding {
-                client: reqwest::Client::new(),
-                url: url.to_string(),
-                credentials,
-            }
-        }
-    }
-    pub struct WhatsUpServiceBinding {
-        client: reqwest::Client,
-        url: String,
-        credentials: Option<(String, String)>,
-    }
-    #[async_trait]
-    impl ports::WhatsUpServicePortType for WhatsUpServiceBinding {
-        async fn get_contacts_recent_activity(
-            &self,
-            get_contacts_recent_activity_message: ports::GetContactsRecentActivityMessage,
-        ) -> Result<ports::GetContactsRecentActivityResponseMessage, Option<SoapFault>> {
-            let __request = GetContactsRecentActivityMessageSoapEnvelope::new(
-                SoapGetContactsRecentActivityMessage {
-                    body: get_contacts_recent_activity_message,
-                    xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-                },
-            );
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/GetContactsRecentActivity",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: GetContactsRecentActivityResponseMessageSoapEnvelope = from_str(&response)
-                .map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-        async fn get_batch_recent_activity(
-            &self,
-            get_batch_recent_activity_message: ports::GetBatchRecentActivityMessage,
-        ) -> Result<ports::GetBatchRecentActivityResponseMessage, Option<SoapFault>> {
-            let __request =
-                GetBatchRecentActivityMessageSoapEnvelope::new(SoapGetBatchRecentActivityMessage {
-                    body: get_batch_recent_activity_message,
-                    xmlns: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
-                });
-
-            let (status, response) = self
-                .send_soap_request(
-                    &__request,
-                    "http://www.msn.com/webservices/AddressBook/GetBatchRecentActivity",
-                )
-                .await
-                .map_err(|err| {
-                    warn!("Failed to send SOAP request: {:?}", err);
-                    None
-                })?;
-
-            let r: GetBatchRecentActivityResponseMessageSoapEnvelope = from_str(&response)
-                .map_err(|err| {
-                    warn!("Failed to unmarshal SOAP response: {:?}", err);
-                    None
-                })?;
-            if status.is_success() {
-                Ok(r.body.body)
-            } else {
-                Err(r.body.fault)
-            }
-        }
-    }
 }
-
-pub mod services {
-    use async_trait::async_trait;
-    use yaserde::{YaDeserialize, YaSerialize};
-    use yaserde::de::from_str;
-    use yaserde::ser::to_string;
-
-    use super::*;
-
-    pub struct SharingService {}
-    impl SharingService {
-        pub fn new_client(
-            credentials: Option<(String, String)>,
-        ) -> bindings::SharingServiceBinding {
-            bindings::SharingServiceBinding::new(
-                "https://contacts.msn.com/abservice/SharingService.asmx",
-                credentials,
-            )
-        }
-    }
-    pub struct Abservice {}
-    impl Abservice {
-        pub fn new_client(credentials: Option<(String, String)>) -> bindings::AbserviceBinding {
-            bindings::AbserviceBinding::new(
-                "https://contacts.msn.com/abservice/abservice.asmx",
-                credentials,
-            )
-        }
-    }
-    pub struct WhatsUpService {}
-    impl WhatsUpService {
-        pub fn new_client(
-            credentials: Option<(String, String)>,
-        ) -> bindings::WhatsUpServiceBinding {
-            bindings::WhatsUpServiceBinding::new(
-                "http://sup.live.com/whatsnew/whatsnewservice.asmx",
-                credentials,
-            )
-        }
-    }
-}
-
-pub mod factories {
+pub mod factory {
     use chrono::{DateTime, Local, NaiveDateTime};
     use lazy_static::lazy_static;
 
     use crate::{generated::msnab_datatypes::types::*, models::uuid::UUID};
-    use crate::generated::msnab_sharingservice::bindings::{AbcontactAddResponseMessageSoapEnvelope, AddMemberResponseMessageSoapEnvelope, DeleteMemberResponseMessageSoapEnvelope, SoapAbcontactAddResponseMessage, SoapAddMemberResponseMessage, SoapDeleteMemberResponseMessage};
+    use crate::generated::msnab_sharingservice::bindings::{AbcontactAddResponseMessageSoapEnvelope, AbcontactDeleteResponseMessageSoapEnvelope, AbcontactUpdateMessageSoapEnvelope, AbcontactUpdateResponseMessageSoapEnvelope, AddMemberResponseMessageSoapEnvelope, DeleteMemberResponseMessageSoapEnvelope, SoapAbcontactAddResponseMessage, SoapAbcontactDeleteResponseMessage, SoapAbcontactUpdateResponseMessage, SoapAddMemberResponseMessage, SoapDeleteMemberResponseMessage};
     use crate::generated::msnab_sharingservice::ports::{AddMemberResponseMessage, DeleteMemberResponseMessage};
-    use crate::generated::msnab_sharingservice::types::{AbcontactAddResponse, AddMemberResponse, DeleteMemberResponse};
+    use crate::generated::msnab_sharingservice::types::{AbcontactAddResponse, AbcontactAddResultType, AbcontactDelete, AbcontactUpdateResponse, AddMemberResponse, DeleteMemberResponse};
 
     use super::{bindings::{AbfindContactsPagedResponseMessageSoapEnvelope, AbgroupAddResponseMessageSoapEnvelope, FindMembershipResponseMessageSoapEnvelope, SoapAbfindContactsPagedResponseMessage, SoapAbgroupAddResponseMessage, SoapFindMembershipResponseMessage, SoapUpdateDynamicItemResponseMessage, UpdateDynamicItemResponseMessageSoapEnvelope}, messages::{AbgroupAddResponseMessage, FindMembershipResponseMessage, ServiceHeaderContainer, UpdateDynamicItemResponseMessage}, ports, types::{Ab, AbfindContactsPagedResultType, AbgroupAddResponse, AbgroupAddResultType, FindMembershipResponse, Groups, MembershipResult}};
 
@@ -4927,8 +3725,6 @@ pub mod factories {
     
             let create_date = String::from("2014-10-31T00:00:00Z");
 
-            
-
             let ab_info_type = AbInfoType{ migrated_to: None, beta_status: None, name: None, owner_puid: 0, owner_cid: uuid.to_decimal_cid(), owner_email:Some(msn_addr.clone()), f_default: true, joined_namespace: false, is_bot: false, is_parent_managed: false, account_tier: None, account_tier_last_changed: String::from("0001-01-01T00:00:00"), profile_version: 0, subscribe_external_partner: false, notify_external_partner: false, address_book_type: String::from("Individual"), messenger_application_service_created: None, is_beta_migrated: None, last_relevance_update: None };
             let ab = Ab{ ab_id: UUID::nil().to_string(), ab_info: ab_info_type, last_change: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), dynamic_item_last_changed: String::from("0001-01-01T00:00:00"), recent_activity_item_last_changed: None, create_date: create_date.clone(), properties_changed: String::new() };
             
@@ -4970,7 +3766,7 @@ pub mod factories {
 
     pub struct AddMemberResponseFactory;
     impl AddMemberResponseFactory {
-        pub fn get_response() -> AddMemberResponseMessageSoapEnvelope {
+        pub fn get_response(cache_key: String) -> AddMemberResponseMessageSoapEnvelope {
             let body_content = AddMemberResponseMessage {
                 add_member_response: AddMemberResponse {}
             };
@@ -4979,17 +3775,18 @@ pub mod factories {
                 body: body_content,
                 fault: None,
             };
-            return AddMemberResponseMessageSoapEnvelope::new(body);
+            return AddMemberResponseMessageSoapEnvelope::new(body, HeaderFactory::get_service_header(cache_key));
         }
     }
 
     pub struct ABContactAddResponseFactory;
 
     impl ABContactAddResponseFactory {
-        pub fn get_response(contact_uuid: &UUID) -> AbcontactAddResponseMessageSoapEnvelope {
+
+        pub fn get_response(contact_uuid: &UUID, cache_key: String) -> AbcontactAddResponseMessageSoapEnvelope {
 
             let body_body_content =  AbcontactAddResponse {
-                ab_contact_add_result: None,
+                ab_contact_add_result: Some(AbcontactAddResultType{ guid: Guid{ body: contact_uuid.to_string() } }),
             };
 
             let body_content = ports::AbcontactAddResponseMessage {
@@ -5001,13 +3798,15 @@ pub mod factories {
                 fault: None,
             };
 
-            return AbcontactAddResponseMessageSoapEnvelope::new(body);
+            return AbcontactAddResponseMessageSoapEnvelope::new(body, HeaderFactory::get_service_header(cache_key));
         }
     }
 
     pub struct DeleteMemberResponseFactory;
     impl DeleteMemberResponseFactory {
-        pub fn get_response() -> DeleteMemberResponseMessageSoapEnvelope {
+        pub fn get_response(cache_key: String) -> DeleteMemberResponseMessageSoapEnvelope {
+
+
             let body_content = DeleteMemberResponseMessage {
                 delete_member_response: DeleteMemberResponse {}
             };
@@ -5016,7 +3815,7 @@ pub mod factories {
                 body: body_content,
                 fault: None,
             };
-            return DeleteMemberResponseMessageSoapEnvelope::new(body);
+            return DeleteMemberResponseMessageSoapEnvelope::new(body, HeaderFactory::get_service_header(cache_key));
         }
     }
 
@@ -5095,28 +3894,41 @@ pub mod factories {
         }
     }
 
+    pub struct ABContactDeleteFactory{}
 
+    impl ABContactDeleteFactory {
 
+        pub fn get_response(cache_key: String) -> AbcontactDeleteResponseMessageSoapEnvelope {
 
+            let body_content = ports::AbcontactDeleteResponseMessage {
+                ab_contact_delete_response: None,
+            };
 
-    #[cfg(test)]
-    mod tests {
-        use yaserde::de::from_str;
-        use yaserde::ser::to_string;
+            let body =  SoapAbcontactDeleteResponseMessage{
+                body: body_content,
+                fault: None,
+            };
 
-        use super::*;
-
-        #[test]
-        fn test_get_empty_find_membership_response() {
-
-            let response = FindMembershipResponseFactory::get_empty_response(UUID::from_string(&String::from("TEST")), String::from("test@matrix.org"), String::from("c4che_key"), true);
-            let serialized = to_string(&response).unwrap();
+            return AbcontactDeleteResponseMessageSoapEnvelope::new(body, HeaderFactory::get_service_header(cache_key));
         }
-
-
     }
 
+    pub struct ABContactUpdateFactory {}
 
+    impl ABContactUpdateFactory {
+        pub fn get_response(cache_key: String) -> AbcontactUpdateResponseMessageSoapEnvelope {
+            let body_content = ports::AbcontactUpdateResponseMessage {
+                ab_contact_update_response: AbcontactUpdateResponse {},
+            };
+
+            let body =  SoapAbcontactUpdateResponseMessage{
+                body: body_content,
+                fault: None,
+            };
+
+            return AbcontactUpdateResponseMessageSoapEnvelope::new(body, HeaderFactory::get_service_header(cache_key));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -5126,8 +3938,17 @@ mod tests {
     use yaserde::ser::to_string;
 
     use crate::{generated::msnab_datatypes::types::{AbInfoType, ArrayOfContactType, ArrayOfServiceType, BaseMember, CircleAttributesType, CircleResultType, ContactType, GroupType, Handle, HandleType, InfoType, Members, Membership, Memberships, MemberState, MemberType, OwnerNamespaceInfoType, OwnerNamespaceType, RoleId, ServiceName, ServiceType}, models::uuid::UUID};
+    use crate::generated::msnab_sharingservice::bindings::{AbcontactAddMessageSoapEnvelope, AbcontactDeleteMessageSoapEnvelope, AbcontactUpdateMessageSoapEnvelope, AddMemberMessageSoapEnvelope};
+    use crate::generated::msnab_sharingservice::factory::{ABContactDeleteFactory, ABContactUpdateFactory, AddMemberResponseFactory, DeleteMemberResponseFactory, FindMembershipResponseFactory};
 
     use super::{bindings::{AbfindContactsPagedMessageSoapEnvelope, AbfindContactsPagedResponseMessageSoapEnvelope, AbgroupAddMessageSoapEnvelope, AbgroupAddResponseMessageSoapEnvelope, FindMembershipMessageSoapEnvelope, FindMembershipResponseMessageSoapEnvelope, SoapAbfindContactsPagedResponseMessage, SoapAbgroupAddResponseMessage, SoapFindMembershipResponseMessage, SoapUpdateDynamicItemResponseMessage, UpdateDynamicItemMessageSoapEnvelope, UpdateDynamicItemResponseMessageSoapEnvelope}, messages::{AbgroupAddResponseMessage, FindMembershipResponseMessage, ServiceHeaderContainer, UpdateDynamicItemResponseMessage}, ports, types::{Ab, AbfindContactsPagedResultType, AbgroupAddResponse, AbgroupAddResultType, FindMembershipResponse, Groups, MembershipResult}};
+
+    #[test]
+    fn test_get_empty_find_membership_response() {
+
+        let response = FindMembershipResponseFactory::get_empty_response(UUID::from_string(&String::from("TEST")), String::from("test@matrix.org"), String::from("c4che_key"), true);
+        let serialized = to_string(&response).unwrap();
+    }
 
     #[test]
     fn test_find_membership() {
@@ -5254,6 +4075,41 @@ mod tests {
     }
 
     #[test]
+    fn test_ab_delete_contacts(){
+        let request = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>Timer</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=0bfusc4t3dT0k3n</TicketToken></ABAuthHeader></soap:Header><soap:Body><ABContactDelete xmlns=\"http://www.msn.com/webservices/AddressBook\"><abId>00000000-0000-0000-0000-000000000000</abId><contacts><Contact><contactId>12E0CAB8-3381-5DDF-ADF9-B55281751A6F</contactId></Contact></contacts></ABContactDelete></soap:Body></soap:Envelope>";
+        let request_deserialized : AbcontactDeleteMessageSoapEnvelope = from_str(request).unwrap();
+
+        assert_eq!(&request_deserialized.header.as_ref().unwrap().ab_auth_header.ticket_token.as_str(), &"t=0bfusc4t3dT0k3n");
+        assert_eq!(&request_deserialized.body.body.ab_contact_delete_request.ab_id.body, &String::from("00000000-0000-0000-0000-000000000000"));
+        assert_eq!(request_deserialized.body.body.ab_contact_delete_request.contacts.as_ref().unwrap().contact.len(), 1usize);
+
+        let request_reserialized = to_string(&request_deserialized).unwrap();
+    }
+
+
+    #[test]
+    fn test_ab_add_contacts(){
+        let request = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>Timer</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=0bfusc4t3dT0k3n</TicketToken></ABAuthHeader></soap:Header><soap:Body><ABContactAdd xmlns=\"http://www.msn.com/webservices/AddressBook\"><abId>00000000-0000-0000-0000-000000000000</abId><contacts><Contact xmlns=\"http://www.msn.com/webservices/AddressBook\"><contactInfo><contactType>LivePending</contactType><passportName>test@shlasouf.local</passportName><isMessengerUser>true</isMessengerUser><MessengerMemberInfo><PendingAnnotations><Annotation><Name>MSN.IM.InviteMessage</Name><Value>HI</Value></Annotation></PendingAnnotations><DisplayName>Aeonshl</DisplayName></MessengerMemberInfo></contactInfo></Contact></contacts><options><EnableAllowListManagement>true</EnableAllowListManagement></options></ABContactAdd></soap:Body></soap:Envelope>";
+        let request_deserialized : AbcontactAddMessageSoapEnvelope = from_str(request).unwrap();
+
+        assert_eq!(&request_deserialized.header.as_ref().unwrap().ab_auth_header.ticket_token.as_str(), &"t=0bfusc4t3dT0k3n");
+        assert_eq!(&request_deserialized.body.body.ab_contact_add_request.ab_id.body, &String::from("00000000-0000-0000-0000-000000000000"));
+        assert_eq!(request_deserialized.body.body.ab_contact_add_request.contacts.as_ref().unwrap().contact.len(), 1usize);
+        assert_eq!(request_deserialized.body.body.ab_contact_add_request.contacts.as_ref().unwrap().contact[0].contact_info.as_ref().unwrap().passport_name.as_ref().unwrap(), &"test@shlasouf.local".to_string());
+
+
+        let request_reserialized = to_string(&request_deserialized).unwrap();
+    }
+
+    #[test]
+    fn test_ab_contact_delete_response() {
+        let response = ABContactDeleteFactory::get_response("cachekey".into());
+
+        let response_serialized = to_string(&response).unwrap();
+        println!("{}", response_serialized);
+    }
+
+    #[test]
     fn test_ab_group_add_response() {
 
         let result = AbgroupAddResultType { guid: String::from("MY_GUID") };
@@ -5275,7 +4131,11 @@ mod tests {
     fn test_update_dynamic_item_request() {
         let request = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>RoamingIdentityChanged</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C9mNfQujUk470Pfz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=0bfusc4t3dT0k3n</TicketToken></ABAuthHeader></soap:Header><soap:Body><UpdateDynamicItem xmlns=\"http://www.msn.com/webservices/AddressBook\"><abId>00000000-0000-0000-0000-000000000000</abId><dynamicItems><DynamicItem xsi:type=\"PassportDynamicItem\"><Type>Passport</Type><PassportName>aeoncl@matrix.org</PassportName><Notifications><NotificationData><StoreService><Info><Handle><Id>0</Id><Type>Profile</Type><ForeignId>MyProfile</ForeignId></Handle><InverseRequired>false</InverseRequired><IsBot>false</IsBot></Info><Changes /><LastChange>0001-01-01T00:00:00</LastChange><Deleted>false</Deleted></StoreService><Status>Exist Access</Status><Gleam>false</Gleam><InstanceId>0</InstanceId></NotificationData></Notifications><Changes>Notifications</Changes></DynamicItem></dynamicItems></UpdateDynamicItem></soap:Body></soap:Envelope>";
 
-        let request_deserialized : UpdateDynamicItemMessageSoapEnvelope = from_str(request).unwrap();
+        let request_deserialized : AbcontactAddMessageSoapEnvelope = from_str(request).unwrap();
+
+
+
+
 
     }
 
@@ -5287,6 +4147,44 @@ mod tests {
         let response_serialized = to_string(&response).unwrap();
 
     }
+
+    #[test]
+    fn add_member_request() {
+        let request = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>Timer</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=tickettoken</TicketToken></ABAuthHeader></soap:Header><soap:Body><AddMember xmlns=\"http://www.msn.com/webservices/AddressBook\"><serviceHandle><Id>0</Id><Type>Messenger</Type><ForeignId></ForeignId></serviceHandle><memberships><Membership><MemberRole>Allow</MemberRole><Members><Member xsi:type=\"PassportMember\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><Type>Passport</Type><State>Accepted</State><PassportName>passport@shlasouf.local</PassportName></Member></Members></Membership></memberships></AddMember></soap:Body></soap:Envelope>";
+        let request_deserialized : AddMemberMessageSoapEnvelope = from_str(request).unwrap();
+    }
+    #[test]
+    fn test_add_member_response() {
+        let response = AddMemberResponseFactory::get_response("cachekey".into());
+
+        let response_serialized = to_string(&response).unwrap();
+        println!("{}", response_serialized);
+    }
+
+    #[test]
+    fn test_delete_member_response() {
+        let response = DeleteMemberResponseFactory::get_response("cachekey".into());
+
+        let response_serialized = to_string(&response).unwrap();
+        println!("{}", response_serialized);
+    }
+
+
+    #[test]
+    fn test_contact_update_request() {
+        let request = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>Timer</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=tickettoken</TicketToken></ABAuthHeader></soap:Header><soap:Body><ABContactUpdate xmlns=\"http://www.msn.com/webservices/AddressBook\"><abId>00000000-0000-0000-0000-000000000000</abId><contacts><Contact xmlns=\"http://www.msn.com/webservices/AddressBook\"><contactId>11D65AFA-21C2-55E0-90D6-5DB43D5FFE6E</contactId><contactInfo><quickName>♏👽Pelopelo👽♏ (IG)</quickName></contactInfo><propertiesChanged>ContactQuickName</propertiesChanged></Contact></contacts></ABContactUpdate></soap:Body></soap:Envelope>";
+        let request_deserialized : AbcontactUpdateMessageSoapEnvelope = from_str(request).unwrap();
+
+    }
+
+    #[test]
+    fn test_contact_update_response() {
+        let response = ABContactUpdateFactory::get_response("cachekey".into());
+
+        let response_serialized = to_string(&response).unwrap();
+        println!("{}", response_serialized);
+    }
+
 
 
 }

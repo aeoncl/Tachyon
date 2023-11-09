@@ -8,10 +8,11 @@ use matrix_sdk::Client;
 use substring::Substring;
 use tokio::sync::broadcast::{self};
 use tokio::sync::{mpsc, oneshot};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{Sender, UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
 
 use crate::{MATRIX_CLIENT_LOCATOR, MSN_CLIENT_LOCATOR, SETTINGS_LOCATOR};
+use crate::generated::msnab_datatypes::types::RoleId;
 use crate::generated::payloads::{PresenceStatus, PrivateEndpointData};
 use crate::matrix::loop_bootstrap::listen;
 use crate::matrix::matrix_client::login;
@@ -28,6 +29,7 @@ use crate::models::p2p::slp_payload_handler::SlpPayloadHandler;
 use crate::models::tachyon_error::{MatrixError, TachyonError};
 use crate::models::tachyon_error::PayloadError::StringPayloadParsingError;
 use crate::models::uuid::UUID;
+use crate::repositories::msn_user_repository::MSNUserRepository;
 use crate::repositories::repository::Repository;
 use crate::utils::identifiers::trim_endpoint_guid;
 use crate::utils::string::decode_url;
@@ -116,16 +118,7 @@ impl NotificationCommandHandler {
                                 },
                                 NotificationEvent::PresenceEvent(content) => {
                                     let user = &content.user;
-                                    let mut msn_obj = String::new();
-                                    if let Some(display_pic) = user.get_display_picture().as_ref() {
-                                        msn_obj = display_pic.to_string();
-                                    }
-                                    let _result = sender.send(format!("NLN {status} 1:{msn_addr} {nickname} {client_capabilities} {msn_obj}\r\n", client_capabilities= &user.get_capabilities() ,msn_addr= &user.get_msn_addr(), status = &user.get_status().to_string(), nickname= &user.get_display_name(), msn_obj = &msn_obj));
-                                    //msn_ns_sender.send(format!("NLN {status} 1:{msn_addr} {nickname} 2788999228:48 {msn_obj}\r\n", msn_addr= &sender_msn_addr, status = presence_status.to_string(), nickname= test3, msn_obj = msn_obj));
-                            
-                                    let ubx_payload = format!("<PSM>{status_msg}</PSM><CurrentMedia></CurrentMedia><EndpointData id=\"{{{machine_guid}}}\"><Capabilities>{client_capabilities}</Capabilities></EndpointData>", status_msg = &user.get_psm(), client_capabilities= &user.get_capabilities(), machine_guid = &user.get_endpoint_guid());
-                                    //let ubx_payload = format!("<PSM>{status_msg}</PSM><CurrentMedia></CurrentMedia>", status_msg = ev.content.status_msg.unwrap_or(String::new()));
-                                    let _result = sender.send(format!("UBX 1:{msn_addr} {ubx_payload_size}\r\n{ubx_payload}", msn_addr = &user.get_msn_addr(), ubx_payload_size= ubx_payload.len(), ubx_payload=ubx_payload));
+                                    NotificationCommandHandler::send_presence_for_user(user, &sender);
                                 },
                                 NotificationEvent::SwitchboardInitEvent(content) => {
                                     let _result = sender.send(format!("RNG {session_id} {sb_ip_addr}:{sb_port} CKI {ticket} {invite_passport} {invite_name} U messenger.msn.com 1\r\n",
@@ -174,6 +167,8 @@ impl NotificationCommandHandler {
 #[async_trait]
 impl CommandHandler for NotificationCommandHandler {
 
+    // FQY 138 53 | <ml><d n="shlasouf.local"><c n="aeontest4"/></d></ml> We received this command after deletion of contact, its not documented anywhere
+    // SDC 17 aeontest4@shlasouf.local 0x0409 MSNMSGR msmsgs X X Aeonshl 4 | HEYY ======== Seems like the command to sednd the invite message by email
     async fn handle_command(&mut self, command: &MSNPCommand) -> Result<String, MSNPServerError> {
         let split = command.split();
         match command.operand.as_str() {
@@ -301,6 +296,34 @@ impl CommandHandler for NotificationCommandHandler {
                 let ad_payload = ADLPayload::from_str(&command.payload).map_err(|e| MSNPServerError::fatal_error_with_trid(tr_id.to_string(), e.into()))?;
                 info!("Add to Contact List received: {:?}", &ad_payload);
                 self.msn_client.as_mut().expect("MSN Client to be in context").add_to_contact_list(&ad_payload);
+                let matrix_client = self.matrix_client.as_ref().expect("Matrix client to be present at this point");
+                if !ad_payload.is_initial() {
+
+                     let user_repo = MSNUserRepository::new(self.matrix_client.as_ref().expect("matrix_client to be here").clone());
+                     let new_contacts = ad_payload.get_contacts_for_role(RoleId::Forward);
+                     'contacts: for partial_contact in new_contacts {
+                    //     let user_id = partial_contact.get_matrix_id();
+                    //
+                    //     for invited_room in matrix_client.invited_rooms() {
+                    //         let is_direct = invited_room.is_direct().await.unwrap_or(false);
+                    //         let direct_targets = invited_room.direct_targets();
+                    //         if is_direct && direct_targets.len() == 1usize && direct_targets.iter().any(|t| t == &user_id) {
+                    //             invited_room.join().await;
+                    //             break 'contacts;
+                    //         }
+                    //
+                    //     }
+                    //
+                    //     if matrix_client.get_dm_room(&user_id).is_none() {
+                    //         matrix_client.create_dm(&user_id).await;
+                    //     }
+
+                        if let Ok(user) = user_repo.get_msnuser_from_userid(&partial_contact.get_matrix_id(), true).await {
+                            NotificationCommandHandler::send_presence_for_user(&user, &self.sender);
+                        }
+                    }
+                }
+
                 return Ok(format!("ADL {tr_id} OK\r\n", tr_id=tr_id));
             },
             "RML" => {
@@ -311,6 +334,14 @@ impl CommandHandler for NotificationCommandHandler {
                 let tr_id = split[1];
                 let ad_payload = ADLPayload::from_str(&command.payload).map_err(|e| MSNPServerError::fatal_error_with_trid(tr_id.to_string(), e.into()))?;
                 self.msn_client.as_mut().expect("MSN Client to be in context").remove_from_contact_list(&ad_payload);
+                let matrix_client = self.matrix_client.as_ref().expect("Matrix Client to be here when RML");
+
+                // for contact in ad_payload.get_contacts_for_role(RoleId::Forward){
+                //     if let Some(room) = matrix_client.get_dm_room(&contact.get_matrix_id()){
+                //         room.leave().await;
+                //     }
+                // }
+
                 return Ok(format!("RML {tr_id} OK\r\n", tr_id=tr_id));
             },
             "UUX" => {
@@ -419,7 +450,10 @@ impl CommandHandler for NotificationCommandHandler {
             },
             "UUN" => {
                 // >>> UUN 14 aeoncl@matrix.org;{0ab73364-6ccf-507b-bb66-a967fe281cd0} 4 14 | goawyplzthxbye
-                // UUN 29 aeontest1@shlasouf.local 7 26 | aeontest2@shlasouf.local 1
+                // UUN 29 aeontest1@shlasouf.local 7 26 | aeontest2@shlasouf.local 1 | closure of conversation
+                // UUN 15 aeontest1@shlasouf.local 6 46 | <State><Service type="ab" reason="1"/></State> ?? What is dis
+                // UUN 24 aeontest1@shlasouf.local 6 85 | <State><Service type="ab" reason="1"/><Service type="membership" reason="1"/></State>
+                // UUN 22 aeontest1@shlasouf.local 5 20 | 31758;127.0.0.1:1864
 
                 // <<< UUN 14 OK
                 let tr_id = split[1];
@@ -534,6 +568,21 @@ impl NotificationCommandHandler {
     //             //TODO handle user credential input. (Maybe via opening a web page in browser or in msn using COM object call)
     //     }
     // }
+
+
+    pub fn send_presence_for_user(user: &MSNUser, sender: &UnboundedSender<String>) {
+        let mut msn_obj = String::new();
+        if let Some(display_pic) = user.get_display_picture().as_ref() {
+            msn_obj = display_pic.to_string();
+        }
+
+        let _result = sender.send(format!("NLN {status} 1:{msn_addr} {nickname} {client_capabilities} {msn_obj}\r\n", client_capabilities= &user.get_capabilities() ,msn_addr= &user.get_msn_addr(), status = &user.get_status().to_string(), nickname= &user.get_display_name(), msn_obj = &msn_obj));
+        //msn_ns_sender.send(format!("NLN {status} 1:{msn_addr} {nickname} 2788999228:48 {msn_obj}\r\n", msn_addr= &sender_msn_addr, status = presence_status.to_string(), nickname= test3, msn_obj = msn_obj));
+
+        let ubx_payload = format!("<PSM>{status_msg}</PSM><CurrentMedia></CurrentMedia><EndpointData id=\"{{{machine_guid}}}\"><Capabilities>{client_capabilities}</Capabilities></EndpointData>", status_msg = &user.get_psm(), client_capabilities= &user.get_capabilities(), machine_guid = &user.get_endpoint_guid());
+        //let ubx_payload = format!("<PSM>{status_msg}</PSM><CurrentMedia></CurrentMedia>", status_msg = ev.content.status_msg.unwrap_or(String::new()));
+        let _result = sender.send(format!("UBX 1:{msn_addr} {ubx_payload_size}\r\n{ubx_payload}", msn_addr = &user.get_msn_addr(), ubx_payload_size= ubx_payload.len(), ubx_payload=ubx_payload));
+    }
 
     fn parse_endpoint_guid(&self, maybe_endpoint_guid: Option<&&str>) -> String{
 

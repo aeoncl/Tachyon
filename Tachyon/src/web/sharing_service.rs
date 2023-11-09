@@ -6,7 +6,10 @@ use log::{info, warn};
 use substring::Substring;
 use yaserde::{de::from_str, ser::to_string};
 
-use crate::{AB_LOCATOR, generated::{msnab_datatypes::types::{BaseMember, RoleId}, msnab_sharingservice::{bindings::{FindMembershipMessageSoapEnvelope, FindMembershipResponseMessageSoapEnvelope}, factories::FindMembershipResponseFactory}}, models::abch::events::AddressBookEvent, MSN_CLIENT_LOCATOR, repositories::repository::Repository, web::{error::WebError, webserver::DEFAULT_CACHE_KEY}};
+use crate::{AB_LOCATOR, generated::{msnab_datatypes::types::{BaseMember, RoleId}, msnab_sharingservice::{bindings::{FindMembershipMessageSoapEnvelope, FindMembershipResponseMessageSoapEnvelope}, factory::FindMembershipResponseFactory}}, models::abch::events::AddressBookEvent, MSN_CLIENT_LOCATOR, repositories::repository::Repository, web::{error::WebError, webserver::DEFAULT_CACHE_KEY}};
+use crate::generated::msnab_sharingservice::bindings::{AddMemberMessageSoapEnvelope, DeleteMemberMessageSoapEnvelope};
+use crate::generated::msnab_sharingservice::factory::{AddMemberResponseFactory, DeleteMemberResponseFactory};
+use crate::web::ab_service::authorize;
 
 #[post("/abservice/SharingService.asmx")]
 pub async fn soap_sharing_service(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
@@ -22,6 +25,12 @@ pub async fn soap_sharing_service(body: web::Bytes, request: HttpRequest) -> Res
                 "http://www.msn.com/webservices/AddressBook/FindMembership" => {
                     return ab_sharing_find_membership(body, request).await;
                 },
+                "http://www.msn.com/webservices/AddressBook/AddMember" => {
+                    return add_member(body, request).await;
+                },
+                "http://www.msn.com/webservices/AddressBook/DeleteMember" => {
+                    return delete_member(body, request).await;
+                },
                 _ => {}
             }
         } else {
@@ -31,6 +40,41 @@ pub async fn soap_sharing_service(body: web::Bytes, request: HttpRequest) -> Res
     return Ok(HttpResponseBuilder::new(StatusCode::NOT_FOUND)
         .append_header(("Content-Type", "application/soap+xml"))
         .finish());
+}
+
+
+async fn add_member(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
+    let body = from_utf8(&body)?;
+    let request = from_str::<AddMemberMessageSoapEnvelope>(body)?;
+    let header = request.header.ok_or(StatusCode::BAD_REQUEST)?;
+
+    let matrix_client = authorize(&header.ab_auth_header)?;
+
+    let cache_key = &header.application_header.cache_key.unwrap_or_default();
+
+
+    let response = AddMemberResponseFactory::get_response(cache_key.to_string());
+    let response_serialized = to_string(&response)?;
+
+    return Ok(HttpResponseBuilder::new(StatusCode::OK)
+        .append_header(("Content-Type", "application/soap+xml"))
+        .body(response_serialized));
+}
+
+async fn delete_member(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
+    let body = from_utf8(&body)?;
+    let request = from_str::<DeleteMemberMessageSoapEnvelope>(body)?;
+    let header = request.header.ok_or(StatusCode::BAD_REQUEST)?;
+
+    let matrix_client = authorize(&header.ab_auth_header)?;
+
+    let cache_key = &header.application_header.cache_key.unwrap_or_default();
+    let response = DeleteMemberResponseFactory::get_response(cache_key.to_string());
+    let response_serialized = to_string(&response)?;
+
+    return Ok(HttpResponseBuilder::new(StatusCode::OK)
+        .append_header(("Content-Type", "application/soap+xml"))
+        .body(response_serialized));
 }
 
 async fn ab_sharing_find_membership(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {

@@ -9,7 +9,7 @@ use matrix_sdk::ruma::events::room::member::{MembershipChange, MembershipState, 
 use matrix_sdk::ruma::{owned_mxc_uri, OwnedMxcUri, OwnedUserId};
 use tokio::sync::broadcast::Sender;
 use crate::generated::msnab_datatypes::types::{ContactTypeEnum, MemberState, RoleId};
-use crate::generated::msnab_sharingservice::factories::{ContactFactory, MemberFactory};
+use crate::generated::msnab_sharingservice::factory::{ContactFactory, MemberFactory};
 use crate::matrix::direct_target_resolver::resolve_direct_target;
 use crate::matrix::loop_bootstrap::DedupGrimoire;
 use crate::models::abch::events::{AddressBookEvent, AddressBookEventFactory};
@@ -75,6 +75,14 @@ pub async fn handle_sync_room_member_event(ev: SyncRoomMemberEvent, room: Room, 
             if notify_ab {
                 ab_sender.send(AddressBookEvent::ExpressionProfileUpdateEvent);
             }
+        } else {
+            //some other persons profile changed, fire presence event
+            if let MembershipChange::ProfileChanged { displayname_change, avatar_url_change } = ev.membership_change() {
+                if let Ok(user) = user_repo.get_msnuser(room.room_id(), &ev.sender, true).await {
+                    msn_client.on_user_presence_changed(user);
+                }
+            }
+
         }
 
         if room.is_direct().await.unwrap_or(false) || ev.content.is_direct.unwrap_or(false) {
@@ -122,54 +130,60 @@ async fn handle_1v1_dm2(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, roo
 
     log::info!("AB DEBUG - State_key: {}, sender: {}, membership: {}", &ev.state_key, &ev.sender, &ev.content.membership);
 
-    match room.state() {
-        RoomState::Joined => {
-            if &ev.state_key == &target {
-                let display_name = ev.content.displayname.as_ref().unwrap_or(&target_msn_addr).to_owned();
-                if ev.content.membership == MembershipState::Invite && &ev.sender == &me {
-                    //I Invited him, Add to allow list, add to contact pending.
-                    log::info!("AB - Send invitation to: {}", &target_msn_addr);
-                    let invited_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::LivePending, false);
-                    let invited_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
-                    ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), invited_contact));
-                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), invited_allow_member, RoleId::Allow));
-                    notify_ab = true;
-                } else if ev.content.membership == MembershipState::Join {
-                    //He accepted my invitation, ADD TO REVERSE LIST, CHANGE CONTACT TO NOT PENDING
-                    log::info!("AB - Invitation Accepted from: {}", &target_msn_addr);
-                    let invited_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::Live, false);
-                    let invited_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, false);
-                    ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), invited_contact));
-                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), invited_reverse_member, RoleId::Reverse));
-                    notify_ab = true;
-                } else if ev.content.membership == MembershipState::Leave || ev.content.membership == MembershipState::Ban {
-                    log::info!("AB - Contact left: {}", &target_msn_addr);
-                    //He left the room, Remove from Reverse List, Set to contact pending
-                    let left_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::LivePending, false);
-                    let left_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, true);
-                    ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), left_contact));
-                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), left_reverse_member, RoleId::Reverse));
-                    notify_ab = true;
-                }
-            } else if &ev.state_key == &me {
-                if &ev.content.membership == &MembershipState::Invite && &ev.sender == &target {
-                    //This is strange, i should get a join membership when i accept an invite, but i get an invite
-                    //I Accepted his invitation, REMOVE FROM PENDING LIST, ADD TO ALLOW LIST, ADD TO CONTACT LIST
-                    log::info!("AB - I Accepted an invite from: {}", &target_msn_addr);
+    if &ev.state_key == &target {
+        let display_name = ev.content.displayname.as_ref().unwrap_or(&target_msn_addr).to_owned();
 
-                    let inviter_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, false);
-                    let inviter_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
-                    let inviter_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true);
-                    ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), inviter_contact));
-                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), inviter_allow_member, RoleId::Allow));
-                    ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), inviter_pending_member, RoleId::Pending));
-                    notify_ab = true;
-                }
+        //other guy
+        match ev.membership_change() {
+            MembershipChange::None => {}
+            MembershipChange::Error => {}
+            MembershipChange::Joined |  MembershipChange::InvitationAccepted => {
+                //He accepted my invitation, ADD TO REVERSE LIST, CHANGE CONTACT TO NOT PENDING
+                log::info!("AB - Invitation Accepted from: {}", &target_msn_addr);
+                let invited_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::Live, false);
+                let invited_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, false);
+                ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), invited_contact));
+                ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), invited_reverse_member, RoleId::Reverse));
+                notify_ab = true;
             }
+            MembershipChange::Left | MembershipChange::Banned | MembershipChange::Kicked | MembershipChange::KickedAndBanned  => {
+                log::info!("AB - Contact left: {}", &target_msn_addr);
+                //He left the room, Remove from Reverse List, Set to contact pending
+                let left_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::LivePending, false);
+                let left_reverse_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, true);
+                ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), left_contact));
+                ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), left_reverse_member, RoleId::Reverse));
+                notify_ab = true;
+            }
+            MembershipChange::Unbanned => {}
+            MembershipChange::Invited => {
+                //I Invited him, Add to allow list, add to contact pending.
+                log::info!("AB - Send invitation to: {}", &target_msn_addr);
+                let invited_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &display_name, ContactTypeEnum::LivePending, false);
+                let invited_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
+                ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), invited_contact));
+                ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), invited_allow_member, RoleId::Allow));
+                notify_ab = true;
+            },
+            MembershipChange::InvitationRejected => {}
+            MembershipChange::InvitationRevoked => {}
+            MembershipChange::Knocked => {}
+            MembershipChange::KnockAccepted => {}
+            MembershipChange::KnockRetracted => {}
+            MembershipChange::KnockDenied => {}
+            MembershipChange::ProfileChanged { .. } => {}
+            MembershipChange::NotImplemented => {}
+            _ => {}
         }
-        RoomState::Left => {
-            if should_i_really_delete_contact(&client, target.clone()).await {
-                log::info!("AB - I Deleted: {}", &target_msn_addr);
+
+    } else if &ev.state_key == &me {
+        //me
+        match ev.membership_change() {
+            MembershipChange::None => {}
+            MembershipChange::Error => {}
+            MembershipChange::Joined => {}
+            MembershipChange::Left => {
+                log::info!("AB - I Left: Delete: {}", &target_msn_addr);
                 //I Left the room, remove member from PENDING_LIST, ALLOW_LIST, REVERSE_LIST. Remove Contact from Contact List
                 let current_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, true);
                 let current_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, true);
@@ -182,10 +196,32 @@ async fn handle_1v1_dm2(ev: &OriginalSyncStateEvent<RoomMemberEventContent>, roo
                 ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), current_pending_member, RoleId::Pending));
                 notify_ab = true;
             }
+            MembershipChange::Banned => {}
+            MembershipChange::Unbanned => {}
+            MembershipChange::Kicked => {}
+            MembershipChange::Invited => {}
+            MembershipChange::KickedAndBanned => {}
+            MembershipChange::InvitationAccepted | MembershipChange::Joined => {
+                log::info!("AB - I Accepted an invite from: {}", &target_msn_addr);
+                let inviter_contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, false);
+                let inviter_allow_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
+                let inviter_pending_member = MemberFactory::get_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, true);
+                ab_sender.send(AddressBookEventFactory::get_contact_event(matrix_token.clone(), inviter_contact));
+                ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), inviter_allow_member, RoleId::Allow));
+                ab_sender.send(AddressBookEventFactory::get_membership_event(matrix_token.clone(), inviter_pending_member, RoleId::Pending));
+                notify_ab = true;
+            }
+            MembershipChange::InvitationRejected => {}
+            MembershipChange::InvitationRevoked => {}
+            MembershipChange::Knocked => {}
+            MembershipChange::KnockAccepted => {}
+            MembershipChange::KnockRetracted => {}
+            MembershipChange::KnockDenied => {}
+            MembershipChange::ProfileChanged { .. } => {}
+            MembershipChange::NotImplemented => {}
+            _ => {}
         }
-        _ => {}
     }
-
     return notify_ab;
 }
 

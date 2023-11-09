@@ -253,10 +253,10 @@ impl From<PresenceState> for PresenceStatus {
                 PresenceStatus::AWY
             },
             PresenceState::Offline => {
-                PresenceStatus::FLN
+                PresenceStatus::default()
             }
             _ => {
-                PresenceStatus::FLN
+                PresenceStatus::default()
             }
         }
     }

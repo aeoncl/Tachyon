@@ -3,8 +3,11 @@ use std::{str::Utf8Error, string::FromUtf8Error};
 use actix_web::{HttpResponse, ResponseError};
 use base64::DecodeError;
 use http::StatusCode;
+use log::error;
 use matrix_sdk::ClientBuildError;
+use matrix_sdk::notification_settings::IsOneToOne::No;
 use url::ParseError;
+use crate::models::tachyon_error::TachyonError;
 
 #[derive(Debug)]
 pub struct WebError {
@@ -18,6 +21,18 @@ impl WebError {
         match &self.message {
             Some(c) => c.clone(),
             None => String::from(""),
+        }
+    }
+}
+
+impl From<TachyonError> for WebError {
+
+    fn from(value: TachyonError) -> Self {
+        //Better this later
+        error!("Tachyon error occured in web server: {}", &value);
+        WebError {
+            message: None,
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }

@@ -140,6 +140,16 @@ impl Display for UUID {
     }
 }
 
+impl PartialEq for UUID {
+    fn eq(&self, other: &Self) -> bool {
+       self.uuid == other.uuid
+    }
+
+    fn ne(&self, other: &Self) -> bool {
+        self.uuid != other.uuid
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

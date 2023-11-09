@@ -108,8 +108,8 @@ fn setup_logs() {
         .target(env_logger::Target::Pipe(target))
        // .target(Target::Stdout)
         .filter(Some("actix_web"), LevelFilter::Info)
-        .filter(Some("wlmatrix_rust") , LevelFilter::Debug)
-        .filter(Some("matrix-sdk"), LevelFilter::Error)
+        .filter(Some("tachyon") , LevelFilter::Debug)
+        .filter(Some("matrix-sdk"), LevelFilter::Info)
         .filter(None, LevelFilter::Warn)
         .init();
 

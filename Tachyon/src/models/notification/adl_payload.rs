@@ -36,8 +36,8 @@ impl ADLDomain {
         return self.contacts.iter().map(|c| c.to_partial_msn_user(&self.domain)).collect();
     }
 
-    pub fn get_contacts_for_role(&self, role: &RoleId) -> Vec<PartialMSNUser> {
-        return self.contacts.iter().filter(|c| c.has_role(role.clone())).map(|c| c.to_partial_msn_user(&self.domain)).collect();
+    pub fn get_contacts_for_role(&self, role: RoleId) -> Vec<PartialMSNUser> {
+       return self.contacts.iter().filter(|c| c.has_role(role.clone())).map(|c| c.to_partial_msn_user(&self.domain)).collect();
     }
 }
 
@@ -56,7 +56,8 @@ pub struct ADLContact {
 
 impl ADLContact {
     pub fn has_role(&self, role: RoleId) -> bool {
-        self.list_type & role as u8 != 0
+        let test = self.list_type & role as u8;
+        test != 0
     }
 
     pub fn get_roles(&self) -> Vec<RoleId> {
@@ -129,11 +130,15 @@ impl ADLPayload {
         return l == 1;
     }
 
+    pub fn get_contacts_for_role(&self, role_id: RoleId) -> Vec<PartialMSNUser> {
+        self.domains.iter().flat_map(|e| e.get_contacts_for_role(role_id.clone())).collect()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
+    use crate::generated::msnab_datatypes::types::RoleId;
 
     use super::ADLPayload;
 
@@ -156,6 +161,21 @@ mod tests {
 
         let second_contact = first_domain.contacts.get(1).unwrap();
         assert_eq!(second_contact.email_part.as_str(), "facebookbot1");
+    }
+
+    #[test]
+    fn test_domain_get_contacts() {
+        let payload = ADLPayload::from_str("<ml><d n=\"shlasouf.local\"><c n=\"facebookbot\" l=\"1\" t=\"1\"/><c n=\"facebookbot1\" l=\"3\" t=\"1\"/></d></ml>").unwrap();
+
+        let first_domain=payload.domains.get(0).unwrap();
+        let contacts_of_domain = first_domain.get_contacts();
+        assert_eq!(contacts_of_domain.len(), 2usize);
+
+        first_domain.get_contacts_for_role(RoleId::Forward);
+
+        let result = payload.get_contacts_for_role(RoleId::Forward);
+        assert_eq!(result.len(), 2usize);
+        let test = 0;
     }
 
     #[test]

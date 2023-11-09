@@ -3,7 +3,7 @@ use matrix_sdk::ruma::events::room::member::{MembershipState, StrippedRoomMember
 use tokio::sync::broadcast::Sender;
 use crate::AB_LOCATOR;
 use crate::generated::msnab_datatypes::types::{ArrayOfAnnotation, MemberState, RoleId};
-use crate::generated::msnab_sharingservice::factories::{AnnotationFactory, MemberFactory};
+use crate::generated::msnab_sharingservice::factory::{AnnotationFactory, MemberFactory};
 use crate::models::abch::events::{AddressBookEvent, AddressBookEventFactory};
 use crate::models::notification::msn_client::MSNClient;
 use crate::repositories::msn_user_repository::MSNUserRepository;

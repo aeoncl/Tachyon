@@ -16,34 +16,7 @@ pub const SOAP_ENCODING: &str = "http://www.w3.org/2003/05/soap-encoding";
             #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 pub struct Header {
 }
-#[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-#[yaserde(
-	rename = "Fault",
-	namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
-	prefix = "soap",
-)]
-pub struct SoapFault {
-	#[yaserde(rename = "faultcode", default)]
-	pub fault_code: Option<String>, 
-	#[yaserde(rename = "faultstring", default)]
-	pub fault_string: Option<String>, 
-}
-impl std::error::Error for SoapFault {}
 
-impl std::fmt::Display for SoapFault {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match (&self.fault_code, &self.fault_string) {
-            (None, None) => Ok(()),
-            (None, Some(fault_string)) => f.write_str(fault_string),
-            (Some(fault_code), None) => f.write_str(fault_code),
-            (Some(fault_code), Some(fault_string)) => {
-                f.write_str(fault_code)?;
-                f.write_str(": ")?;
-                f.write_str(fault_string)
-            }
-        }
-    }
-}
 pub type SoapResponse = Result<(reqwest::StatusCode, String), reqwest::Error>;
 
 pub mod messages {
@@ -585,11 +558,10 @@ pub xsi_type: String,
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 	rename = "Guid", namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
-	prefix = "nsi1",
 	default_namespace="nsi1"
 )]
 pub struct Guid {
-	#[yaserde(text, prefix = "nsi1")]
+	#[yaserde(text, default)]
 	pub body: String, 
 }
 #[derive(Debug, Display, YaSerialize, YaDeserialize, Clone, PartialEq, Eq, Hash)]
@@ -1885,31 +1857,3 @@ pub struct ContactURLType {
 
 
 }
-
-pub mod ports {
-    use async_trait::async_trait;
-    use yaserde::{YaDeserialize, YaSerialize};
-    use yaserde::de::from_str;
-    use yaserde::ser::to_string;
-
-    use super::*;
-}
-
-pub mod bindings {
-    use async_trait::async_trait;
-    use yaserde::{YaDeserialize, YaSerialize};
-    use yaserde::de::from_str;
-    use yaserde::ser::to_string;
-
-    use super::*;
-}
-
-pub mod services {
-    use async_trait::async_trait;
-    use yaserde::{YaDeserialize, YaSerialize};
-    use yaserde::de::from_str;
-    use yaserde::ser::to_string;
-
-    use super::*;
-}
-

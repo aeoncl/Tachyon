@@ -1,5 +1,5 @@
 [package]
-name = "wlmatrix_rust"
+name = "tachyon"
 version = "0.1.0"
 edition = "2021"
 authors = ["aeon <c.lopez.dev@proton.me>"]

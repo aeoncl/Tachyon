@@ -30,7 +30,7 @@ pub async fn convert_siren_to_opus(audio: Vec<u8>) -> Result<Vec<u8>, Conversion
         .arg("-ac")
         .arg("1")
         .arg("-b:a")
-        .arg("10K")
+        .arg("16K")
         .arg("-c:a")
         .arg("libopus")
         .arg("-f")
