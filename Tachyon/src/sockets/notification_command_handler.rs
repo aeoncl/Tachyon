@@ -336,11 +336,11 @@ impl CommandHandler for NotificationCommandHandler {
                 self.msn_client.as_mut().expect("MSN Client to be in context").remove_from_contact_list(&ad_payload);
                 let matrix_client = self.matrix_client.as_ref().expect("Matrix Client to be here when RML");
 
-                // for contact in ad_payload.get_contacts_for_role(RoleId::Forward){
-                //     if let Some(room) = matrix_client.get_dm_room(&contact.get_matrix_id()){
-                //         room.leave().await;
-                //     }
-                // }
+                for contact in ad_payload.get_contacts_for_role(RoleId::Forward){
+                    if let Some(room) = matrix_client.get_dm_room(&contact.get_matrix_id()){
+                        room.leave().await;
+                    }
+                }
 
                 return Ok(format!("RML {tr_id} OK\r\n", tr_id=tr_id));
             },

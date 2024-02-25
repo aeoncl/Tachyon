@@ -26,16 +26,14 @@ pub(crate) async fn handle_sync_room_message_event(ev: SyncRoomMessageEvent, roo
         let debug = room.is_direct();
         let debug_len = joined_members.len();
 
-        //  if room.is_direct() && joined_members.len() > 0 && joined_members.len() <= 2 {
+        if room.is_direct().await.unwrap_or(false) && joined_members.len() <= 2 {
         let me_user_id = client.user_id().unwrap();
-
-        if let Some(target) = direct_target_resolver::resolve_direct_target(&room.direct_targets(), &room, &me_user_id, &client).await {
-
-           let switchboard = msn_client.get_or_init_switchboard( room.room_id().to_string(), MSNUser::from_matrix_id(target.clone()));
-           handle_message(client.clone(), &room.room_id(), &switchboard, &ev).await;
-
+            if let Some(target) = direct_target_resolver::resolve_direct_target(&room.direct_targets(), &room, &me_user_id, &client).await {
+               let switchboard = msn_client.get_or_init_switchboard( room.room_id().to_string(), MSNUser::from_matrix_id(target.clone()));
+               handle_message(client.clone(), &room.room_id(), &switchboard, &ev).await;
+            }
         }
-        // }
+
     }
 }
 

@@ -207,7 +207,7 @@ impl MSNClient {
     }
 
     pub fn get_contact_by_guid(&self, uuid: UUID) -> Option<PartialMSNUser> {
-        let contact = self.inner.contact_list.get(&RoleId::Forward);
+        let contact = self.inner.contact_list.get(&RoleId::Allow);
 
         if let Some(contacts) = contact  {
            return contacts.iter().find(|c| c.get_uuid() == uuid).map(|f| f.to_owned());
@@ -219,7 +219,7 @@ impl MSNClient {
     pub async fn get_contacts(&self, fetch_presence: bool) -> Vec<MSNUser> {
         let repo = MSNUserRepository::new(self.inner.matrix_client.clone());
 
-        let forward_contacts = self.inner.contact_list.get(&RoleId::Forward);
+        let forward_contacts = self.inner.contact_list.get(&RoleId::Allow);
 
         let mut out = Vec::new();
 

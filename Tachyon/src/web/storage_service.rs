@@ -59,6 +59,22 @@ struct Info {
     img_type: String
 }
 
+fn authorize(header: &StorageUserHeader) -> Result<Client, WebError> {
+    let ticket_token = &header.ticket_token;
+
+    let matrix_token = ticket_token
+        .substring(2, ticket_token.len())
+        .to_string();
+
+    let matrix_client =  MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if matrix_token != matrix_client.access_token().ok_or(StatusCode::UNAUTHORIZED)? {
+        return Err(StatusCode::UNAUTHORIZED)?;
+    }
+
+    return Ok(matrix_client);
+}
+
 #[get("/storage/usertile/{mxc}/{img_type}")]
 pub async fn get_profile_pic(path: web::Path<(String, String)>, request: HttpRequest) -> Result<HttpResponse, WebError> {
     let (mxc, img_type) = path.into_inner();
@@ -82,6 +98,8 @@ async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<H
     let header = request.header.ok_or(StatusCode::BAD_REQUEST)?;
     let storage_user_header = header.storage_user_header.ok_or(StatusCode::BAD_REQUEST)?;
 
+    let matrix_client = authorize(&storage_user_header)?;
+
     let ticket_token = storage_user_header.ticket_token;
     let matrix_token = ticket_token.substring(2, ticket_token.len()).to_string();
 
@@ -89,12 +107,7 @@ async fn storage_get_profile(body: web::Bytes, request: HttpRequest) -> Result<H
 
     let me = msn_client.get_user();
 
-    let matrix_client =  MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-    let user_repo = MSNUserRepository::new(matrix_client.clone());
 
-    if matrix_token != matrix_client.access_token().ok_or(StatusCode::UNAUTHORIZED)? {
-        return Err(StatusCode::UNAUTHORIZED)?;
-    }
 
 
     let profile = matrix_client.account().get_profile().await.unwrap();
@@ -124,10 +137,9 @@ async fn storage_update_document(body: web::Bytes, request: HttpRequest) -> Resu
 
     let header = request_deserialized.header.ok_or(StatusCode::BAD_REQUEST)?;
     let storage_user_header = header.storage_user_header.ok_or(StatusCode::BAD_REQUEST)?;
+    let matrix_client = authorize(&storage_user_header)?;
+
     let matrix_token = extract_token_from_request(&storage_user_header);
-
-
-    let matrix_client = MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let document_streams = request_deserialized.body.body.update_document.document.document_streams.document_stream;
 
@@ -169,6 +181,8 @@ async fn delete_relationships(body: web::Bytes, request: HttpRequest) -> Result<
 
     let header = request_deserialized.header.ok_or(StatusCode::BAD_REQUEST)?;
     let storage_user_header = header.storage_user_header.ok_or(StatusCode::BAD_REQUEST)?;
+    let matrix_client = authorize(&storage_user_header)?;
+
     let matrix_token = extract_token_from_request(&storage_user_header);
 
 
@@ -200,12 +214,12 @@ async fn storage_update_profile(body: web::Bytes, request: HttpRequest) -> Resul
     
     let header = body.header.ok_or(StatusCode::BAD_REQUEST)?;
     let storage_user_header = header.storage_user_header.ok_or(StatusCode::BAD_REQUEST)?;
+    let matrix_client = authorize(&storage_user_header)?;
     let matrix_token = extract_token_from_request(&storage_user_header);
 
 
     let profile = body.body.body.update_profile_request.profile.expression_profile;
 
-    let matrix_client = MATRIX_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if let Some(display_name) = profile.display_name {
         matrix_client.account().set_display_name(Some(display_name.as_str())).await?;

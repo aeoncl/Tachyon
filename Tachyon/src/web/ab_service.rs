@@ -5,10 +5,14 @@ use actix_web::{HttpRequest, HttpResponse, HttpResponseBuilder, post, web};
 use http::{header::HeaderName, StatusCode};
 use log::{info, warn};
 use matrix_sdk::{Client, Error, Room, RoomMemberships};
-use matrix_sdk::ruma::events::room::member::MembershipState;
+use matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState;
+use matrix_sdk::ruma::events::room::member::{MembershipState, StrippedRoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
+use matrix_sdk::ruma::events::{AnySyncStateEvent, StateEventType};
+use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::ruma::UserId;
 use substring::Substring;
+use tokio::join;
 use yaserde::{de::from_str, ser::to_string};
 
 use crate::{AB_LOCATOR, generated::{msnab_datatypes::types::{ContactType, ContactTypeEnum}, msnab_sharingservice::{bindings::{AbfindContactsPagedMessageSoapEnvelope, AbfindContactsPagedResponseMessageSoapEnvelope, AbgroupAddMessageSoapEnvelope}, factory::{ABGroupAddResponseFactory, ContactFactory, FindContactsPagedResponseFactory, UpdateDynamicItemResponseFactory}}}, MATRIX_CLIENT_LOCATOR, models::{msn_user::MSNUser, uuid::UUID}, MSN_CLIENT_LOCATOR, repositories::repository::Repository, web::error::WebError};
@@ -18,6 +22,9 @@ use crate::generated::msnab_sharingservice::factory::{ABContactAddResponseFactor
 use crate::generated::msnab_sharingservice::types::AbauthHeader;
 use crate::models::msn_user::PartialMSNUser;
 use crate::generated::msn_ab_faults;
+use crate::matrix::direct_target_resolver::resolve_direct_target;
+use crate::matrix::sync_room_member_event_handler::handle_sync_room_member_event;
+use crate::models::notification::msn_client::MSNClient;
 use crate::repositories::msn_client_locator::MSNClientLocator;
 use super::webserver::DEFAULT_CACHE_KEY;
 
@@ -35,10 +42,10 @@ pub async fn soap_adress_book_service(body: web::Bytes, request: HttpRequest) ->
 
             match soap_action {
                 "http://www.msn.com/webservices/AddressBook/ABFindContactsPaged" => {
-                    return ab_find_contacts_paged(body, request).await;
+                    return ab_find_contacts_paged(body, request, soap_action_owned.clone()).await;
                 },
                 "http://www.msn.com/webservices/AddressBook/ABContactAdd" => {
-                    return ab_contact_add(body, request, soap_action_owned).await;
+                    return ab_contact_add(body, request, soap_action_owned.clone()).await;
                 },
                 "http://www.msn.com/webservices/AddressBook/ABContactDelete" => {
                     return ab_contact_delete(body, request).await;
@@ -109,18 +116,18 @@ async fn ab_contact_delete(body: web::Bytes, request: HttpRequest) -> Result<Htt
         return Err(StatusCode::BAD_REQUEST)?
     }
 
-    if let Some(contact_array) = body.contacts {
-        for contact in contact_array.contact {
-            let contact_id = UUID::parse(contact.contact_id.ok_or(StatusCode::BAD_REQUEST)?.as_str())?;
-            let msn_client = MSN_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-            if let Some(contact) = msn_client.get_contact_by_guid(contact_id) {
-                let contact_mxid = contact.get_matrix_id();
-                if let Some(room) =  matrix_client.get_dm_room(&contact_mxid){
-                    room.leave().await;
-                }
-            }
-        }
-    }
+    // if let Some(contact_array) = body.contacts {
+    //     for contact in contact_array.contact {
+    //         let contact_id = UUID::parse(contact.contact_id.ok_or(StatusCode::BAD_REQUEST)?.as_str())?;
+    //         let msn_client = MSN_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    //         if let Some(contact) = msn_client.get_contact_by_guid(contact_id) {
+    //             let contact_mxid = contact.get_matrix_id();
+    //             if let Some(room) =  matrix_client.get_dm_room(&contact_mxid){
+    //                 room.leave().await;
+    //             }
+    //         }
+    //     }
+    // }
 
     let response = ABContactDeleteFactory::get_response(cache_key.to_string());
 
@@ -210,9 +217,12 @@ async fn ab_contact_add(body: web::Bytes, request: HttpRequest, soap_action: Str
 }
 
 async fn accept_invite_if_pending(invited_rooms: &[Room], target_user_id: &UserId) -> Result<bool, Error> {
+    info!("Accept invite if pending ?: looking for {}", target_user_id);
         for invited_room in invited_rooms {
             let is_direct = invited_room.is_direct().await.unwrap_or(false);
             let direct_targets = invited_room.direct_targets();
+            info!("current_room: ?: {} - is_direct: {}, direct_targets: {:?}", invited_room.room_id(), &is_direct, &direct_targets);
+
             if is_direct && direct_targets.len() == 1usize && direct_targets.iter().any(|t| t == target_user_id) {
                 invited_room.join().await?;
                 return Ok(true);
@@ -232,7 +242,7 @@ fn extract_invite_msg(messenger_member_info: Option<&MessengerMemberInfo>) -> Op
     return None;
 }
 
-async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse, WebError> {
+async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest, soap_action: String) -> Result<HttpResponse, WebError> {
     let body = from_utf8(&body)?;
     let request = from_str::<AbfindContactsPagedMessageSoapEnvelope>(body)?;
     let header = request.header.ok_or(StatusCode::BAD_REQUEST)?;
@@ -242,7 +252,6 @@ async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest) -> Resul
 
     let cache_key = &header.application_header.cache_key.unwrap_or_default();
     let msn_client = MSN_CLIENT_LOCATOR.get().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-    let response : AbfindContactsPagedResponseMessageSoapEnvelope;
 
     let me_mtx_id = msn_client.get_user().get_matrix_id();
 
@@ -259,24 +268,75 @@ async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest) -> Resul
         }
     };
 
+    let response : AbfindContactsPagedResponseMessageSoapEnvelope;
 
-    if header.application_header.partner_scenario.as_str() == "Initial" {
+    if !request.body.body.ab_find_contacts_paged_request.filter_options.deltas_only {
+        //Full contact list required
+        info!("FindContactsPaged:: FullSync asked !");
+        let contacts = get_fullsync_contact_list(&matrix_client).await?;
+        info!("FindContactsPaged:: FullSync result: {:?}", &contacts);
+        response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, contacts, false);
+    } else {
+        //Only deltas
+        if header.application_header.partner_scenario.as_str() == "Initial" {
             //Fetch contacts from the ADL command
             let contacts_as_msn_usr = msn_client.get_contacts(false).await;
             let contact_list = msn_user_to_contact_type(&contacts_as_msn_usr);
             response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, contact_list, false);
-        //    let empty_response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name.clone(), Vec::new());
-         //   response = empty_response;
-    } else {
-        let (contact_list, profile_update) = AB_LOCATOR.get_contacts(&matrix_token).await.unwrap();
-        response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, contact_list, profile_update);
+            //    let empty_response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name.clone(), Vec::new());
+            //   response = empty_response;
+        } else {
+            let (contact_list, profile_update) = AB_LOCATOR.get_contacts(&matrix_token).await.unwrap();
+            response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, contact_list, profile_update);
+        }
     }
+
+
+
 
     let response_serialized = to_string(&response)?;
     info!("find_contacts_paged_response: {}", response_serialized);
        
     return Ok(HttpResponseBuilder::new(StatusCode::OK).append_header(("Content-Type", "application/soap+xml")).body(response_serialized));
 }
+
+async fn get_fullsync_contact_list(matrix_client: &Client) -> Result<Vec<ContactType>, Error> {
+    let mut out = Vec::new();
+
+    let me = matrix_client.user_id().expect("A user to be logged in when fetching fullsync");
+
+    for joined_room in matrix_client.joined_rooms() {
+        if joined_room.is_direct().await? {
+            let direct_target = resolve_direct_target(&joined_room.direct_targets(), &joined_room, me, matrix_client).await;
+            if let Some(direct_target) = direct_target {
+
+                if let Some(member) = joined_room.get_member(&direct_target).await? {
+                    let target_usr = MSNUser::from_matrix_id(direct_target.clone());
+                    let target_uuid = target_usr.get_uuid();
+                    let target_msn_addr = target_usr.get_msn_addr();
+
+                    match member.membership() {
+                        MembershipState::Invite => {
+                            let contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::LivePending, false);
+                            out.push(contact);
+                        }
+                       _ => {
+                           let contact = ContactFactory::get_contact(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, false);
+                           out.push(contact);
+                       }
+                    }
+                }
+            } else {
+                info!("Fullsync Fetch: No direct target found for room: {}", &joined_room.room_id());
+            }
+
+        }
+    }
+
+    return Ok(out);
+}
+
+
 
 fn msn_user_to_contact_type(contacts: &Vec<MSNUser>) -> Vec<ContactType> {
     let mut out = Vec::new();

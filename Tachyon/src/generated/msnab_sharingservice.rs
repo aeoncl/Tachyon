@@ -3671,6 +3671,7 @@ pub mod factory {
     impl MemberFactory {
 
         pub fn get_passport_member(uuid: &UUID, msn_addr: &String, state: MemberState, role_id: RoleId, deleted: bool) -> BaseMember {
+
             let now = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
             let create_date = String::from("2014-10-31T00:00:00Z");
             let no_date = String::from("0001-01-01T00:00:00");
