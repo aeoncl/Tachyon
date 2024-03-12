@@ -6,13 +6,14 @@ use lazy_static::lazy_static;
 use log::info;
 use matrix_sdk::ruma::api::client::error::{ErrorBody, ErrorKind};
 use matrix_sdk::ruma::OwnedUserId;
+use msnp::soap::passport::rst2::request::RST2RequestMessageSoapEnvelope;
+use msnp::soap::passport::rst2::response::factory::RST2ResponseFactory;
+use msnp::soap::traits::xml::TryFromXml;
 use regex::Regex;
 use urlencoding::decode;
 use yaserde::de::from_str;
 use yaserde::ser::to_string;
 
-use crate::generated::ppcrl_webservice::*;
-use crate::generated::ppcrl_webservice::factories::RST2ResponseFactory;
 use crate::matrix::matrix_client::get_matrix_client_builder;
 use crate::models::msn_user::MSNUser;
 use crate::models::owned_user_id_traits::FromMsnAddr;
@@ -46,7 +47,7 @@ pub async fn rst2(body: web::Bytes, request: HttpRequest) -> Result<HttpResponse
     let request_body_str = std::str::from_utf8(&body).unwrap();
     info!("RST2 Request: {}", &request_body_str);
 
-    let request_parsed: RST2RequestMessageSoapEnvelope = from_str(request_body_str).unwrap();
+    let request_parsed = RST2RequestMessageSoapEnvelope::try_from_xml(request_body_str).unwrap();
     let username_token = request_parsed.header.security.username_token.unwrap();
 
     let matrix_id = OwnedUserId::from_msn_addr(&username_token.username);

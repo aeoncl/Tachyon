@@ -10,13 +10,13 @@ tokio = { version = "1.33.0", features = ["full"] }
 regex = "1.10.2"
 lazy_static = "1.4.0"
 substring = "1.4.5"
-yaserde = "0.8.0"
-yaserde_derive = "0.8.0"
+yaserde = "0.10.0"
+yaserde_derive = "0.10.0"
 async-trait = "0.1.74"
 reqwest = { version = "0.11.22", features =["blocking"]}
 log = "0.4.20"
 actix-web = "4.4.0"
-env_logger = "0.10.0"
+env_logger = "0.11.3"
 chashmap = "2.2.2"
 uuid = { version = "1.5.0", features = ["v3", "v4", "v5"] }
 byteorder = "1.5.0"
@@ -52,6 +52,9 @@ log-print-panics = { version = "2.1.3", features = ["with-backtrace"] }
 [dependencies.matrix-sdk]
 path = "lib/matrix-rust-sdk/crates/matrix-sdk"
 features = ["e2e-encryption", "bundled-sqlite", "image-proc"]
+
+[dependencies.msnp]
+path = "lib/msnp"
 
 #[package.metadata.vcpkg]
 #dependencies = ["ffmpeg[ffmpeg]:x64-windows"]

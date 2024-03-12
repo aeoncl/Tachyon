@@ -1,11 +1,11 @@
 use anyhow::anyhow;
 use matrix_sdk::ruma::OwnedUserId;
-use matrix_sdk::ruma::serde::PartialEqAsRefStr;
+use msnp::shared::models::uuid::{Puid, Uuid};
 
 use crate::generated::payloads::PresenceStatus;
 use crate::models::tachyon_error::PayloadError;
 
-use super::{capabilities::{ClientCapabilities, ClientCapabilitiesFactory}, msn_object::MSNObject, owned_user_id_traits::{FromMsnAddr, ToMsnAddr}, uuid::{PUID, UUID}};
+use super::{capabilities::{ClientCapabilities, ClientCapabilitiesFactory}, msn_object::MSNObject, owned_user_id_traits::{FromMsnAddr, ToMsnAddr}};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PartialMSNUser {
@@ -30,12 +30,12 @@ impl PartialMSNUser {
         return PartialMSNUser{msn_addr, matrix_id};
     }
 
-    pub fn get_uuid(&self) -> UUID {
-        return UUID::from_string(&self.matrix_id.to_string());
+    pub fn get_uuid(&self) -> Uuid {
+        return Uuid::from_seed(&self.matrix_id.to_string());
     }
 
-    pub fn get_puid(&self) -> PUID {
-        return self.get_uuid().get_puid();
+    pub fn get_puid(&self) -> Puid {
+        return self.get_uuid().into();
     }
 
     pub fn get_msn_addr(&self) -> String {
@@ -48,14 +48,14 @@ impl PartialMSNUser {
 
 }
 
-impl Into<PUID> for PartialMSNUser {
-    fn into(self) -> PUID {
+impl Into<Puid> for PartialMSNUser {
+    fn into(self) -> Puid {
         return self.get_puid();
     }
 }
 
-impl Into<UUID> for PartialMSNUser {
-    fn into(self) -> UUID {
+impl Into<Uuid> for PartialMSNUser {
+    fn into(self) -> Uuid {
         return self.get_uuid();
     }
 }
@@ -109,7 +109,7 @@ impl MSNUser {
 
     pub fn from_partial_user(partial_user: PartialMSNUser) -> Self {
         let msn_addr = partial_user.get_msn_addr();
-        let endpoint_guid = UUID::from_string(&msn_addr).to_string().to_uppercase();
+        let endpoint_guid = Uuid::from_seed(&msn_addr).to_string().to_uppercase();
         return MSNUser{partial_user, 
             display_name: msn_addr.clone(),
             capabilities: ClientCapabilitiesFactory::get_default_capabilities(), 
@@ -182,11 +182,11 @@ impl MSNUser {
         return self.psm.clone();
     }
 
-    pub fn get_uuid(&self) -> UUID {
+    pub fn get_uuid(&self) -> Uuid {
        return self.partial_user.get_uuid();
     }
 
-    pub fn get_puid(&self) -> PUID {
+    pub fn get_puid(&self) -> Puid {
         return self.partial_user.get_puid();
     }
 

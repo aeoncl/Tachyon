@@ -1,6 +1,5 @@
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
-use log::kv::Source;
 use matrix_sdk::{Client, Room, ruma};
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::event_handler::Ctx;

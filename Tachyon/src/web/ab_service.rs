@@ -199,7 +199,7 @@ async fn ab_contact_add(body: web::Bytes, request: HttpRequest, soap_action: Str
                 if !accept_invite_if_pending(&matrix_client.invited_rooms(), &usr.get_matrix_id()).await? {
                     let dm = matrix_client.create_dm(&usr.get_matrix_id()).await?;
                     if let Some(invite_msg) = extract_invite_msg(contact_info.messenger_member_info.as_ref()) {
-                        dm.send( RoomMessageEventContent::text_plain(invite_msg), None).await?;
+                        dm.send( RoomMessageEventContent::text_plain(invite_msg)).await?;
                     }
                 }
 

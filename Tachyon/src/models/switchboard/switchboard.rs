@@ -86,7 +86,7 @@ impl Switchboard {
         let content = AudioMessageEventContent::new("Voice Message".into(), media_source);
         let event = AnyMessageLikeEventContent::RoomMessage(RoomMessageEventContent::from(MessageType::Audio(content)));
 
-        let send_resp = room.send(event, None).await?;
+        let send_resp = room.send(event).await?;
         self.add_to_events_sent(send_resp.event_id.to_string());
         Ok(send_resp.event_id)
     }
@@ -100,7 +100,7 @@ impl Switchboard {
         match payload.content_type.as_str() {
             "text/plain" => {
                 let content = RoomMessageEventContent::text_plain(smiley_to_emoji(&payload.body));
-                let response = room.send(content, None).await?;
+                let response = room.send(content).await?;
                 self.add_to_events_sent(response.event_id.to_string());
                 Ok(())
             },
