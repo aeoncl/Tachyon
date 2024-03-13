@@ -17,6 +17,9 @@ lazy-static-include = "3.2.1"
 strum = "0.26.2"
 strum_macros = "0.26.2"
 anyhow= "1.0.75"
+log = "0.4.20"
+regex = "1.10.2"
+env_logger = "0.11.3"
 
 [lib]
 name = "msnp"

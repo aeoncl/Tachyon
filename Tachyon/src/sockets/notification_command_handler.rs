@@ -173,7 +173,7 @@ impl CommandHandler for NotificationCommandHandler {
         let split = command.split();
         match command.operand.as_str() {
             "VER" => {
-                // 0  1    2      3     4
+                //   0  1    2      3     4
                 //=>VER 1 MSNP18 MSNP17 CVR0\r\n
                 //<=VER 1 MSNP18\r\n
 
@@ -584,7 +584,7 @@ impl NotificationCommandHandler {
         let _result = sender.send(format!("UBX 1:{msn_addr} {ubx_payload_size}\r\n{ubx_payload}", msn_addr = &user.get_msn_addr(), ubx_payload_size= ubx_payload.len(), ubx_payload=ubx_payload));
     }
 
-    fn parse_endpoint_guid(&self, maybe_endpoint_guid: Option<&&str>) -> String{
+    fn parse_endpoint_guid(&self, maybe_endpoint_guid: Option<&&str>) -> String {
 
         if let Some(mut endpoind_guid) = maybe_endpoint_guid {
             return endpoind_guid.to_string().substring(1, endpoind_guid.len()-1).to_string()

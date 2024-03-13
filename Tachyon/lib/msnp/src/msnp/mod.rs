@@ -4,3 +4,5 @@ pub mod command;
 pub mod ver;
 pub mod msnp_version;
 pub mod error;
+pub mod raw_command_parser;
+pub mod protocol;

@@ -16,5 +16,11 @@ pub enum CommandError {
     TooManyArguments {command: String, expected: u32, received: u32},
 
     #[error("Could not parse argument: {} for command : {}", .argument, .command)]
-    ArgumentParseError{argument: String, command: String, source: anyhow::Error}
+    ArgumentParseError{argument: String, command: String, source: anyhow::Error},
+
+    #[error("Payload command was malformed")]
+    MalformedPayloadCommand {source: anyhow::Error},
+
+    #[error("Command was unsupported: {}", .command)]
+    UnsupportedCommand {command: String}
 }
