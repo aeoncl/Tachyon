@@ -1,4 +1,4 @@
-use super::{error::CommandError, msnp18::{self}};
+use super::{error::CommandError, msnp18, raw_command_parser::RawCommand};
 use std::str::FromStr;
 
 pub fn split_raw_command(command: &str, argument_count: usize) -> Result<Vec<&str>, CommandError> {
@@ -19,4 +19,10 @@ pub fn parse_tr_id(splitted_command: &Vec<&str>,) -> Result<u128, CommandError> 
 
 pub trait MSNPCommand {
     fn get_operand(&self) -> &str;
+}
+
+pub trait ParseRawCommand<T> {
+
+    fn parse_raw_command(command: &RawCommand) -> T;
+
 }

@@ -2,6 +2,7 @@
 pub mod msnp18;
 pub mod command;
 pub mod ver;
+pub mod cvr;
 pub mod msnp_version;
 pub mod error;
 pub mod raw_command_parser;

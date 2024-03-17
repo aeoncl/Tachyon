@@ -2,14 +2,14 @@ use std::{fmt::Display, str::FromStr};
 
 use super::{command::{parse_tr_id, split_raw_command, MSNPCommand}, error::CommandError, msnp_version::MsnpVersion, raw_command_parser::RawCommand};
 
-pub struct VerRequest {
+pub struct VerClient {
     pub tr_id: u128,
     pub first_candidate : MsnpVersion,
     pub second_candidate : MsnpVersion,
     pub cvr: String
 }
 
-impl VerRequest {
+impl VerClient {
 
     pub fn new(tr_id: u128, first_candidate : MsnpVersion, second_candidate : MsnpVersion) -> Self {
         Self {
@@ -20,27 +20,27 @@ impl VerRequest {
         }
     }
 
-    pub fn get_response_for(&self, agreed_version: MsnpVersion) -> VerResponse {
-        VerResponse::new(self.tr_id, agreed_version)
+    pub fn get_response_for(&self, agreed_version: MsnpVersion) -> VerServer {
+        VerServer::new(self.tr_id, agreed_version)
     }
 }
 
-impl MSNPCommand for VerRequest {
+impl MSNPCommand for VerClient {
 
     fn get_operand(&self) -> &str {
         "VER"
     }
 }
 
-impl TryFrom<RawCommand> for VerRequest {
+impl TryFrom<RawCommand> for VerClient {
     type Error = CommandError;
 
     fn try_from(value: RawCommand) -> Result<Self, Self::Error> {
-        VerRequest::from_str(value.command.as_str())
+        VerClient::from_str(value.command.as_str())
     }
 }
 
-impl FromStr for VerRequest {
+impl FromStr for VerClient {
     type Err = CommandError;
 
     fn from_str(command: &str) -> Result<Self, Self::Err> {
@@ -55,23 +55,23 @@ impl FromStr for VerRequest {
         
         let cvr = split.get(4).expect("cvr to be present").to_string();
 
-        Ok(VerRequest {tr_id, first_candidate, second_candidate, cvr})
+        Ok(VerClient {tr_id, first_candidate, second_candidate, cvr})
     }
 }
 
-impl Display for VerRequest {
+impl Display for VerClient {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{operand} {tr_id} {first_candidate} {second_candidate} {cvr}\r\n",operand = self.get_operand(), tr_id = self.tr_id, first_candidate = self.first_candidate, second_candidate = self.second_candidate, cvr = self.cvr)
     }
 }
 
-pub struct VerResponse {
+pub struct VerServer {
     pub tr_id: u128,
     pub agreed_version: MsnpVersion
 }
 
-impl VerResponse {
+impl VerServer {
 
     pub fn new(tr_id: u128, agreed_version: MsnpVersion) -> Self {
         Self {
@@ -81,14 +81,14 @@ impl VerResponse {
     }
 }
 
-impl MSNPCommand for VerResponse {
+impl MSNPCommand for VerServer {
 
     fn get_operand(&self) -> &str {
         "VER"
     }
 }
 
-impl FromStr for VerResponse {
+impl FromStr for VerServer {
     type Err = CommandError;
     
     fn from_str(command: &str) -> Result<Self, Self::Err> {
@@ -104,7 +104,7 @@ impl FromStr for VerResponse {
 
 }
 
-impl Display for VerResponse {
+impl Display for VerServer {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {} {}\r\n", self.get_operand(), self.tr_id, self.agreed_version)
@@ -117,12 +117,12 @@ mod tests {
 
     use crate::msnp::msnp_version::MsnpVersion;
 
-    use super::{VerRequest, VerResponse};
+    use super::{VerClient, VerServer};
 
 
     #[test]
     fn request_deserialization_success() {
-        let request = VerRequest::from_str("VER 1 MSNP18 MSNP17 CVR0").unwrap();
+        let request = VerClient::from_str("VER 1 MSNP18 MSNP17 CVR0").unwrap();
         assert_eq!(request.tr_id, 1);
         assert_eq!(request.first_candidate, MsnpVersion::MSNP18);
         assert_eq!(request.second_candidate, MsnpVersion::MSNP17);
@@ -131,26 +131,26 @@ mod tests {
 
     #[test]
     fn request_deserialization_invalid_params() {
-        let request = VerRequest::from_str("VER 1 AOL18 MSNP17 CVR0");
+        let request = VerClient::from_str("VER 1 AOL18 MSNP17 CVR0");
         assert!(request.is_err());
     }
 
     #[test]
     fn request_serialization() {
-        let request = VerRequest::from_str("VER 1 MSNP17 MSNP17 CVR0").unwrap();
+        let request = VerClient::from_str("VER 1 MSNP17 MSNP17 CVR0").unwrap();
         assert_eq!(request.to_string().as_str(), "VER 1 MSNP17 MSNP17 CVR0\r\n");
     }
 
     #[test]
     fn response_deserialization_success() {
-        let response = VerResponse::from_str("VER 1 MSNP18").unwrap();
+        let response = VerServer::from_str("VER 1 MSNP18").unwrap();
         assert_eq!(response.tr_id, 1);
         assert_eq!(response.agreed_version, MsnpVersion::MSNP18);
     }
 
     #[test]
     fn response_serialization_success() {
-        let response = VerResponse::from_str("VER 1 MSNP18").unwrap();
+        let response = VerServer::from_str("VER 1 MSNP18").unwrap();
         assert_eq!(response.to_string().as_str(), "VER 1 MSNP18\r\n");
     }
 

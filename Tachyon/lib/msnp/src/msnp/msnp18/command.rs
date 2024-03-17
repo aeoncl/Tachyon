@@ -1,10 +1,14 @@
-use crate::msnp::{error::CommandError, raw_command_parser::{self, RawCommand, RawCommandParser}, ver::{self, VerRequest}};
+use std::str::FromStr;
 
+use strum_macros::{Display, EnumString};
+
+use crate::msnp::{cvr::{CvrClient, CvrServer}, error::CommandError, raw_command_parser::{self, RawCommand, RawCommandParser}, ver::{self, VerClient, VerServer}};
 use super::protocol::MSNP18;
 
+#[derive(Display)]
 pub enum NotificationCommand {
-    VER(VerRequest),
-    CVR(),
+    VER(VerClient),
+    CVR(CvrClient),
     USR(),
     PNG(),
     ADL(),
@@ -51,8 +55,11 @@ impl NotificationCommandParser {
     fn parse_raw_command(command: RawCommand) -> Result<NotificationCommand, CommandError> {
         match command.operand.as_str() {
             "VER" => {
-                Ok(NotificationCommand::VER(VerRequest::try_from(command)?))
+                Ok(NotificationCommand::VER(VerClient::try_from(command)?))
             },
+            "CVR" => {
+                Ok(NotificationCommand::CVR(CvrClient::try_from(command)?))
+            }
             _ => {
                 Err(CommandError::UnsupportedCommand { command: format!("{:?}", command) })
             }

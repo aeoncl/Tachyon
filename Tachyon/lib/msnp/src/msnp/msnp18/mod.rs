@@ -1,2 +1,10 @@
 pub mod command;
 pub mod protocol;
+pub mod usr;
+pub mod msg_payload;
+pub mod msg;
+pub mod msn_user;
+pub mod capabilities;
+pub mod endpoint_data;
+pub mod presence_status;
+pub mod msn_object;

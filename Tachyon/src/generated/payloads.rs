@@ -22,7 +22,7 @@ pub struct EndpointData {
 
 }
 
-impl EndpointData{
+impl EndpointData {
     pub fn new(machine_guid: Option<String>, capabilities: ClientCapabilities) -> Self {
         return EndpointData{
             machine_guid,
