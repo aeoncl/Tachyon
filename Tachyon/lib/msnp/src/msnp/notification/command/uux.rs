@@ -1,0 +1,154 @@
+
+use std::{fmt::Display, str::FromStr};
+
+use crate::{msnp::{error::{CommandError, PayloadError}, notification::models::endpoint_data::PrivateEndpointData, raw_command_parser::RawCommand}, shared::{command::command::{get_split_part, parse_tr_id, split_raw_command_no_arg}, payload}};
+
+pub struct Uux {
+    tr_id : u128,
+    payload_size: usize,
+    payload: Option<UuxPayload>
+}
+
+pub type UuxClient = Uux;
+pub type UuxServer = Uux;
+
+impl Display for Uux {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "UUX {tr_id} {payload_size}\r\n", tr_id = self.tr_id, payload_size = self.payload_size)?;
+
+        if let Some(payload) = &self.payload {
+            write!(f, "{}", payload)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl TryFrom<RawCommand> for Uux {
+    type Error = CommandError;
+
+    fn try_from(command: RawCommand) -> Result<Self, Self::Error> {
+
+        let split = split_raw_command_no_arg(&command.command);
+        let tr_id = parse_tr_id(&split)?;
+        let payload_size = command.expected_payload_size;
+        let payload = if payload_size > 0 { Some(UuxPayload::from_str(&command.payload)?) } else { None };
+
+        Ok(Self{
+            tr_id,
+            payload_size,
+            payload,
+        })
+    }
+}
+
+impl Uux {
+    pub fn get_ok_response(&self) -> Uux {
+        Uux {
+            tr_id: self.tr_id,
+            payload_size: 0,
+            payload: None,
+        }
+    }
+}
+
+pub enum UuxPayload {
+    PrivateEndpointData(PrivateEndpointData),
+    Unknown(String)
+}
+
+impl FromStr for UuxPayload {
+    type Err = PayloadError;
+
+    fn from_str(payload: &str) -> Result<Self, Self::Err> {
+        if payload.starts_with("<PrivateEndpointData>") {
+            Ok(Self::PrivateEndpointData(PrivateEndpointData::from_str(payload)?))
+        } else {
+            Ok(Self::Unknown(payload.to_string()))
+        }
+    }
+}
+
+impl Display for UuxPayload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+
+        match self {
+            UuxPayload::PrivateEndpointData(payload) => {
+                write!(f, "{}", payload)
+            },
+            UuxPayload::Unknown(payload) => {
+                write!(f, "{}", payload)
+            }
+            
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+
+    use crate::msnp::{error::{CommandError, PayloadError}, notification::{command::uux::{Uux, UuxPayload}, models::msnp_version::MsnpVersion}, raw_command_parser::RawCommand};
+
+    use super::UuxClient;
+
+
+
+    #[test]
+    fn request_deserialization_unknown_success() {
+        let uux = UuxClient::try_from(RawCommand{ command: "UUX 8 1\r\n".to_string(), operand: "UUX".to_string(), payload: "A".to_string(), expected_payload_size: 1 }).unwrap();
+
+        assert_eq!(8, uux.tr_id);
+        assert_eq!(1, uux.payload_size);
+        assert!(matches!(uux.payload, Some(UuxPayload::Unknown(_))));
+
+    }
+
+    #[test]
+    fn request_deserialization_private_endpoint_data_payload() {
+        let payload = "<PrivateEndpointData><EpName>M1CROW8Vl</EpName><Idle>true</Idle><ClientType>2</ClientType><State>AWY</State></PrivateEndpointData>";
+        let uux = UuxClient::try_from(RawCommand{ command: format!("UUX 8 {}\r\n", payload.len()).to_string(), operand: "UUX".to_string(), payload: payload.to_string(), expected_payload_size: payload.len() }).unwrap();
+
+        assert_eq!(8, uux.tr_id);
+        assert_eq!(payload.len(), uux.payload_size);
+        assert!(matches!(uux.payload, Some(UuxPayload::PrivateEndpointData(_))));
+    }
+
+    #[test]
+    fn request_deserialization_no_payload() {
+        let uux = UuxClient::try_from(RawCommand{ command: "UUX 8 0\r\n".to_string(), operand: "UUX".to_string(), payload: String::new(), expected_payload_size: 0 }).unwrap();
+
+        assert_eq!(8, uux.tr_id);
+        assert_eq!(0, uux.payload_size);
+        assert!(matches!(uux.payload, None));
+    }
+
+    #[test]
+    fn request_deserialization_bad_payload() {
+        let payload = "<PrivateEndpointData><malformed";
+        let uux = UuxClient::try_from(RawCommand{ command: format!("UUX 8 {}\r\n", payload.len()).to_string(), operand: "UUX".to_string(), payload: payload.to_string(), expected_payload_size: payload.len() });
+
+        assert!(matches!(uux, Err(CommandError::PayloadError(PayloadError::StringPayloadParsingError { .. }))));
+    }
+
+    #[test]
+    fn request_serialization_no_payload() {
+        let uux = Uux { tr_id: 1, payload_size: 0, payload: None };
+        let ser = uux.to_string();
+
+        assert_eq!("UUX 1 0\r\n", ser);
+    }
+
+    #[test]
+    fn request_serialization_unknown() {
+        let uux = Uux { tr_id: 1, payload_size: 5, payload: Some(UuxPayload::Unknown("Hello".to_string())) };
+        let ser = uux.to_string();
+
+        assert_eq!("UUX 1 5\r\nHello", ser);
+    }
+
+ 
+
+}

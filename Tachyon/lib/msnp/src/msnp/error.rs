@@ -12,8 +12,11 @@ pub enum CommandError {
     #[error("Invalid Transaction ID: {}", .tr_id)]
     InvalidTrId {tr_id: String, source: ParseIntError},
 
-    #[error("Too many argument for command {}, expected: {} and received {}", .command, .expected, .received)]
-    TooManyArguments {command: String, expected: u32, received: u32},
+    #[error("Wrong argument count for command {}, expected: {} and received {}", .command, .expected, .received)]
+    WrongArgumentCount {command: String, expected: u32, received: u32},
+
+    #[error("Missing argument {} at index {} for commmand {}", .arg_name, .index, .command)]
+    MissingArgument {command: String, arg_name: String, index: usize},
 
     #[error("Could not parse argument: {} for command : {}", .argument, .command)]
     ArgumentParseError{argument: String, command: String, source: anyhow::Error},
@@ -56,6 +59,8 @@ pub enum PayloadError {
     MandatoryPartNotFound{ name: String, payload: String},
     #[error(transparent)]
     ParseIntError(#[from] ParseIntError),
+    #[error("Payload was missing from command {}", .command)]
+    MissingPayload{command: String},
     #[error(transparent)]
     AnyError(#[from] anyhow::Error)
 

@@ -5,5 +5,5 @@ pub trait TryFromXml : Sized {
 }
 
 pub trait ToXml {
-    fn to_xml(self: &Self) -> &str;
+    fn to_xml(&self) -> &str;
 }

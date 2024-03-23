@@ -4,7 +4,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use thiserror::Error;
 
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Puid {
 
     bytes: [u8; 8]
@@ -48,7 +48,7 @@ pub enum Error {
 }
 
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 
 pub struct Uuid {
     uuid : uuid::Uuid

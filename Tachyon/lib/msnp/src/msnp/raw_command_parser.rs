@@ -5,21 +5,20 @@ use lazy_static::lazy_static;
 use log::info;
 use regex::Regex;
 
-use super::{error::CommandError, protocol::ProtocolVersion};
+use super::{error::CommandError};
 
 lazy_static! {
     static ref COMMAND_REGEX: Regex = Regex::new(r"([A-Z]{3}).*[\r\n]").unwrap();
 }
 
-pub struct RawCommandParser<T> {
-    protocol_version: T,
+pub struct RawCommandParser {
     incomplete_command: Vec<RawCommand>
 }
 
-impl<T: ProtocolVersion> RawCommandParser<T> {
+impl RawCommandParser {
 
-    pub fn new(protocol_version: T) -> Self {
-        RawCommandParser { incomplete_command: Vec::new(), protocol_version }
+    pub fn new() -> Self {
+        RawCommandParser { incomplete_command: Vec::new() }
     }
 
     pub fn parse_message(&mut self, message: &str) -> Result<Vec<RawCommand>, CommandError> {
@@ -94,7 +93,7 @@ impl<T: ProtocolVersion> RawCommandParser<T> {
     }
 
     fn extract_expected_payload_size(&self, command: &mut RawCommand) -> Result<usize, CommandError> {
-        if !self.protocol_version.is_payload_command(&command.operand) {
+        if !is_payload_command(&command.operand) {
             return Ok(0);
         }
 
@@ -115,6 +114,10 @@ impl<T: ProtocolVersion> RawCommandParser<T> {
 
     }
 
+}
+
+fn is_payload_command(operand: &str) -> bool {
+    matches!(operand, "ADL" | "RML" | "UUX" | "UUN" | "MSG")
 }
 
 pub struct RawCommand {
@@ -161,13 +164,13 @@ impl Debug for RawCommand {
 
 #[cfg(test)]
 mod tests {
-    use crate::msnp::{raw_command_parser::RawCommandParser, msnp18::protocol::MSNP18};
+    use crate::msnp::{raw_command_parser::RawCommandParser};
 
 
     #[test]
     fn test_one_simple_command_old() {
         //Arrange
-        let mut parser = RawCommandParser::new(MSNP18::new());
+        let mut parser = RawCommandParser::new();
         let command = String::from("TST 1 TST\r\n");
 
         //Act
@@ -181,7 +184,7 @@ mod tests {
     #[test]
     fn test_two_simple_command_old() {
         //Arrange
-        let mut parser = RawCommandParser::new(MSNP18::new());
+        let mut parser = RawCommandParser::new();
         let command = String::from("TST 1 TST\r\nMOV 4 WOOWOO\r\n");
 
         //Act
@@ -198,7 +201,7 @@ mod tests {
     #[test]
     fn test_payload_command_old() {
         //Arrange
-        let mut parser = RawCommandParser::new(MSNP18::new());
+        let mut parser = RawCommandParser::new();
         let command = String::from("ADL 6 15\r\n<ml l=\"1\"></ml>");
 
         //Act
@@ -213,7 +216,7 @@ mod tests {
     #[test]
     fn test_malformed_payload_command() {
         //Arrange
-        let mut parser = RawCommandParser::new(MSNP18::new());
+        let mut parser = RawCommandParser::new();
         let command = String::from("ADL 6 sdfdasdf\r\n<ml l=\"1\"></ml>");
 
         //Act
@@ -225,7 +228,7 @@ mod tests {
     #[test]
     fn test_payload_command2_old() {
         //Arrange
-        let mut parser = RawCommandParser::new(MSNP18::new());
+        let mut parser = RawCommandParser::new();
         let command = String::from("MOV 4 WOOWOO\r\nADL 6 15\r\n<ml l=\"1\"></ml>TST 1 TST\r\n");
 
         //Act
@@ -246,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_payload_contains_psm() {
-        let mut parser = RawCommandParser::new(MSNP18::new());
+        let mut parser = RawCommandParser::new();
         let commands = String::from("BLP 9 AL\r\nUUX 10 224\r\n<Data><PSM>Hi my dude</PSM><CurrentMedia></CurrentMedia><MachineGuid>&#x7B;F52973B6-C926-4BAD-9BA8-7C1E840E4AB0&#x7D;</MachineGuid><DDP></DDP><SignatureSound></SignatureSound><Scene></Scene><ColorScheme></ColorScheme></Data>CHG 11 NLN 2789003324:48 0\r\n");
 
         let parsed = parser.parse_message(commands.as_str()).unwrap();
@@ -267,7 +270,7 @@ mod tests {
     #[test]
     fn test_chunked() {
       //  let command = String::from("MOV 4 WOOWOO\r\nADL 6 15\r\n");
-      let mut parser = RawCommandParser::new(MSNP18::new());
+      let mut parser = RawCommandParser::new();
       let command = String::from("MOV 4 WOOWOO\r\nADL 6 15\r\n");
         let chunked_payload = String::from("<ml l=\"1\"></ml>MOV 5 WEEWOO\r\n");
 
@@ -286,7 +289,7 @@ mod tests {
     fn test_weird_chunk_bug() {
         env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
 
-        let mut parser = RawCommandParser::new(MSNP18::new());
+        let mut parser = RawCommandParser::new();
 
         let command = String::from("ANS 9 aeontest4@shlasouf.local;{F52973B6-C926-4BAD-9BA8-7C1E840E4AB0} IWlIc1N6VHNzZXh6ZWVWV1pjVDpzaGxhc291Zi5sb2NhbDtzeXRfWVdWdmJuUmxjM1EwX09xUklRQktRd0ZFRU1aSE5KY2JiXzBCQjJzcjtAYWVvbnRlc3QzOnNobGFzb3VmLmxvY2Fs 15800445832891040610");
    
@@ -296,7 +299,7 @@ mod tests {
 
     #[test]
     fn test_utf8() {
-        let mut parser = RawCommandParser::new(MSNP18::new());
+        let mut parser = RawCommandParser::new();
 
         let payload = "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nX-MMS-IM-Format: FN=Segoe%20UI; EF=; CO=0; CS=1; PF=0\r\n\r\nö";
         let first_message = format!("MSG 1 U {payload_size}\r\n{payload}", payload_size = payload.len(), payload = payload);
