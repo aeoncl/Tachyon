@@ -93,7 +93,7 @@ impl FromStr for MsgPayload {
                         if name == String::from("Content-Type") {
                             let value_split : Vec<&str> = value.split(";").collect();
                             let mime_type = value_split.get(0)
-                                .ok_or(PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Could not extract content-type from MSG Payload") })?
+                                .ok_or(PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!("Could not extract content-type from MSG Payload") })?
                                 .trim().to_string();
                             
                             out.content_type = mime_type;
@@ -109,7 +109,7 @@ impl FromStr for MsgPayload {
             return Ok(out);
 
         }
-        return Err(PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("MSG Payload did not contain body header separator") });
+        return Err(PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!("MSG Payload did not contain body header separator") });
     }
 }
 
@@ -118,7 +118,7 @@ pub mod factories {
 
 
 
-    use crate::{p2p::v2::p2p_transport_packet::P2PTransportPacket, shared::models::{msn_object::MSNObject, msn_user::MSNUser, uuid::Puid}};
+    use crate::{p2p::v2::p2p_transport_packet::P2PTransportPacket, shared::models::{msn_object::MsnObject, msn_user::MSNUser, uuid::Puid}};
 
     use super::MsgPayload;
 
@@ -201,7 +201,7 @@ pub mod factories {
             return out;
         }
 
-        pub fn get_msnobj_datacast(msn_object: &MSNObject) -> MsgPayload {
+        pub fn get_msnobj_datacast(msn_object: &MsnObject) -> MsgPayload {
             let mut out = MsgPayload::new("text/x-msnmsgr-datacast");
             
             out.body = format!("ID: 3\r\nData: {}\r\n", msn_object.to_string_not_encoded());

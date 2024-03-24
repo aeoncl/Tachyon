@@ -19,12 +19,6 @@ pub fn split_raw_command_no_arg(command: &str) -> Vec<&str> {
      command.trim_end().split_whitespace().collect::<Vec<&str>>()
 }
 
-
-pub fn split_raw_command_no_arg_owned(command: &str) -> Vec<String> {
-    command.trim_end().split_whitespace().map(|s| s.to_string()).collect::<Vec<String>>()
-}
-
-
 pub fn get_split_part<'b, 'a>(index: usize, split: &'a [&str], command: &'a str, arg_name: &'b str) -> Result<&'a str, CommandError> {
     Ok(split
         .get(index)
@@ -44,6 +38,6 @@ pub trait MSNPCommand {
     fn get_operand(&self) -> &str;
 }
 
-pub trait ParseRawCommand<T> {
-    fn parse_raw_command(command: &RawCommand) -> T;
+pub trait SerializeMsnp {
+    fn serialize_msnp(&self) -> Vec<u8>;
 }

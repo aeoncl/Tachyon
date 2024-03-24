@@ -1,6 +1,6 @@
 use std::{fmt::Display, str::FromStr};
 
-use crate::{msnp::{error::CommandError, notification::models::msnp_version::MsnpVersion, raw_command_parser::RawCommand}, shared::command::command::{parse_tr_id, split_raw_command, MSNPCommand}};
+use crate::{msnp::{error::CommandError, notification::models::msnp_version::MsnpVersion, raw_command_parser::RawCommand}, shared::command::command::{parse_tr_id, split_raw_command, MSNPCommand, SerializeMsnp}};
 
 
 pub struct VerClient {
@@ -67,6 +67,13 @@ impl Display for VerClient {
     }
 }
 
+impl SerializeMsnp for VerClient {
+
+    fn serialize_msnp(&self) -> Vec<u8> {
+        self.to_string().as_bytes().to_vec()
+    }
+}
+
 pub struct VerServer {
     pub tr_id: u128,
     pub agreed_version: MsnpVersion
@@ -111,6 +118,14 @@ impl Display for VerServer {
         write!(f, "{} {} {}\r\n", self.get_operand(), self.tr_id, self.agreed_version)
     }
 }
+
+impl SerializeMsnp for VerServer {
+
+    fn serialize_msnp(&self) -> Vec<u8> {
+        self.to_string().as_bytes().to_vec()
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

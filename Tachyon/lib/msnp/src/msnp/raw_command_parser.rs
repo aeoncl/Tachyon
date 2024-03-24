@@ -1,26 +1,20 @@
-use std::{any, fmt::{self, Debug}, ops::Index, str::{from_utf8, FromStr}};
+use std::{fmt::{self, Debug}, str::{from_utf8, FromStr}};
 
 use anyhow::anyhow;
-use lazy_static::lazy_static;
-use log::info;
-use regex::Regex;
+use log::{debug, info};
 
-use crate::shared::command::command::{split_raw_command_no_arg, split_raw_command_no_arg_owned};
+use crate::shared::command::command::split_raw_command_no_arg;
 
-use super::{error::CommandError, notification::command};
-
-lazy_static! {
-    static ref COMMAND_REGEX: Regex = Regex::new(r"([A-Z]{3}).*[\r\n]").unwrap();
-}
+use super::error::{CommandError, PayloadError};
 
 pub struct RawCommandParser {
-    incomplete_command: Vec<RawCommand>
+    incomplete_command: Option<RawCommand>
 } 
 
 impl RawCommandParser {
 
     pub fn new() -> Self {
-        RawCommandParser { incomplete_command: Vec::new() }
+        RawCommandParser { incomplete_command: None }
     }
 
     pub fn parse_message(&mut self, message: &[u8]) -> Result<Vec<RawCommand>, CommandError> {
@@ -30,7 +24,7 @@ impl RawCommandParser {
 
 
         //Handle previous chunks
-        if let Some(mut incomplete) = self.incomplete_command.pop() {
+        if let Some(mut incomplete) = self.incomplete_command.take() {
             let remaining_bytes = incomplete.get_missing_bytes_count();
 
             info!("previous message was chunked!");
@@ -39,15 +33,16 @@ impl RawCommandParser {
                 //incomplete will be complete
                 info!("no longer chunked!");
 
-                incomplete.payload.extend_from_slice(&message[..remaining_bytes]);
+                incomplete.extend_payload_from_slice(&message[..remaining_bytes])?;
                 out.push(incomplete);
+
                 bytes_to_handle = &bytes_to_handle[remaining_bytes..message.len()];
             } else {
                 //still not complete
                 info!("still chunked!");
             
                 incomplete.payload.extend_from_slice(&message[..message.len()]);
-                self.incomplete_command.push(incomplete);
+                self.incomplete_command = Some(incomplete);
                 return Ok(out);
             }
         }
@@ -82,7 +77,7 @@ impl RawCommandParser {
 
                 let command = from_utf8(&bytes_to_handle[0..=terminators_index-2])?;
 
-                let mut raw_command = RawCommand::from_str(&command)?;
+                let mut raw_command = RawCommand::from_str(command)?;
 
                 let payload_size = raw_command.get_expected_payload_size();
 
@@ -96,13 +91,17 @@ impl RawCommandParser {
                     if payload_size > bytes_to_handle.len(){
                         //Chunked
                         let payload = &bytes_to_handle[after_term_index..bytes_to_handle.len()];
-                        raw_command.payload.extend_from_slice(payload);
-                        self.incomplete_command.push(raw_command);
+
+                        if !payload.is_empty() {
+                            raw_command.extend_payload_from_slice(payload)?;
+
+                        }
+                        self.incomplete_command = Some(raw_command);
                         break;
                     } else {
                         //Not chunked
                         let payload = &bytes_to_handle[after_term_index..after_term_index+payload_size];
-                        raw_command.payload.extend_from_slice(payload);
+                        raw_command.extend_payload_from_slice(payload)?;
                         bytes_to_handle=&bytes_to_handle[after_term_index+payload_size..bytes_to_handle.len()];
                         out.push(raw_command);
                     }
@@ -216,12 +215,13 @@ impl FromStr for RawCommand {
 
     fn from_str(command: &str) -> Result<Self, Self::Err> {
         let command_split = split_raw_command_no_arg(command);
-        let payload_size = extract_expected_payload_size(command_split.as_slice())?;
+        let payload_size: usize = extract_expected_payload_size(command_split.as_slice())?;
 
         Ok(RawCommand {
             command: command.to_string(),
             command_split: command_split.iter().map(|e| e.to_string()).collect(),
             payload: Vec::with_capacity(payload_size),
+            expected_payload_size: payload_size,
         })
     }
 }
@@ -229,15 +229,29 @@ impl FromStr for RawCommand {
 pub struct RawCommand {
     pub command: String,
     pub command_split: Vec<String>,
+    pub expected_payload_size: usize,
     pub payload: Vec<u8>
 }
 
 impl RawCommand {
-    pub fn new(command: String, command_split: Vec<String>, payload: Vec<u8>) -> RawCommand {
+    pub fn new(command: String, command_split: Vec<String>, expected_payload_size: usize, payload: Vec<u8>) -> RawCommand {
+        
         RawCommand {
             command,
             command_split,
+            expected_payload_size,
             payload
+        }
+    }
+
+    pub fn with_payload(command: &str, payload: Vec<u8>) -> Result<Self, CommandError> {
+        let mut command = Self::from_str(command)?;
+        
+        if command.expected_payload_size == payload.len() {
+            command.payload = payload;
+            Ok(command)
+        } else {
+            Err(CommandError::PayloadError(PayloadError::PayloadBytesMissing))
         }
     }
 
@@ -254,16 +268,28 @@ impl RawCommand {
     }
 
     pub fn get_expected_payload_size(&self) -> usize {
-        self.payload.capacity()
+        self.expected_payload_size
     }
 
     pub fn is_complete(&self) -> bool {
-        self.payload.capacity() == self.payload.len()
+        self.expected_payload_size == self.payload.len()
     }
 
     pub fn get_missing_bytes_count(&self) -> usize {
-        self.payload.capacity() - self.payload.len()
+        self.expected_payload_size - self.payload.len()
     }
+
+    pub fn extend_payload_from_slice(&mut self, slice: &[u8]) -> Result<(), PayloadError> {
+        debug!("capacity: {} - future size: {}", self.payload.capacity(), self.payload.len() + slice.len());
+        if self.payload.len() + slice.len() > self.payload.capacity() {
+            Err(PayloadError::PayloadSizeExceed { expected_size: self.expected_payload_size, overflowing_size: self.payload.len() + slice.len(), payload: self.payload.clone() })
+        } else {
+            self.payload.extend_from_slice(slice);
+            Ok(())
+        }
+
+    }
+
 }
 
 
@@ -280,7 +306,7 @@ impl Debug for RawCommand {
 
 #[cfg(test)]
 mod tests {
-    use std::{mem, str::from_utf8};
+    use std::{str::from_utf8};
 
     use crate::msnp::{raw_command_parser::RawCommandParser};
 
@@ -399,7 +425,7 @@ mod tests {
         let mut parsed = parser.parse_message(chunked_payload.as_bytes()).unwrap();
 
         let payload_command = parsed.pop().unwrap();
-        assert!(payload_command.is_complete() == true);
+        assert!(payload_command.is_complete());
     }
 
     #[test]
@@ -408,10 +434,14 @@ mod tests {
 
         let mut parser = RawCommandParser::new();
 
-        let command = String::from("ANS 9 aeontest4@shlasouf.local;{F52973B6-C926-4BAD-9BA8-7C1E840E4AB0} IWlIc1N6VHNzZXh6ZWVWV1pjVDpzaGxhc291Zi5sb2NhbDtzeXRfWVdWdmJuUmxjM1EwX09xUklRQktRd0ZFRU1aSE5KY2JiXzBCQjJzcjtAYWVvbnRlc3QzOnNobGFzb3VmLmxvY2Fs 15800445832891040610");
+        let command = String::from("ANS 9 aeontest4@shlasouf.local;{F52973B6-C926-4BAD-9BA8-7C1E840E4AB0} IWlIc1N6VHNzZXh6ZWVWV1pjVDpzaGxhc291Zi5sb2NhbDtzeXRfWVdWdmJuUmxjM1EwX09xUklRQktRd0ZFRU1aSE5KY2JiXzBCQjJzcjtAYWVvbnRlc3QzOnNobGFzb3VmLmxvY2Fs 15800445832891040610\r\n");
    
         let parsed = parser.parse_message(command.as_bytes()).unwrap();
 
+        assert_eq!(1, parsed.len());
+        assert_eq!("ANS", parsed[0].get_operand());
+        assert_eq!(5, parsed[0].get_command_split().len());
+        assert_eq!(0, parsed[0].expected_payload_size);
     }
 
     #[test]
@@ -429,6 +459,5 @@ mod tests {
 
           println!("size in message: {}, size with len(): {}", payload_command.get_expected_payload_size(), payload_command.payload.len());
           assert!(payload_command.is_complete() == true);
-  
     }
 }

@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use crate::msnp::error::PayloadError;
 
 
-/** sauce: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/Client_Capabilities */
+/** source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/Client_Capabilities */
 
 pub enum Capabilities {
 
@@ -190,8 +190,8 @@ impl FromStr for ClientCapabilities {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_string();
         let split: Vec<&str> = s.split(":").collect();
-        let cap : u32 = split.get(0).unwrap_or(&"0").parse().map_err(|e : ParseIntError| PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!(e) } )?;
-        let cap_ext : u32 = split.get(1).unwrap_or(&"0").parse().map_err(|e: ParseIntError| PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!(e) } )?;
+        let cap : u32 = split.get(0).unwrap_or(&"0").parse().map_err(|e : ParseIntError| PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!(e) } )?;
+        let cap_ext : u32 = split.get(1).unwrap_or(&"0").parse().map_err(|e: ParseIntError| PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!(e) } )?;
         return Ok(ClientCapabilities::new(cap, cap_ext));
     }
 }

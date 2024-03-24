@@ -1,7 +1,7 @@
 
 use std::{fmt::Display, str::{from_utf8, FromStr}};
 
-use crate::{msnp::{error::{CommandError, PayloadError}, notification::models::endpoint_data::PrivateEndpointData, raw_command_parser::RawCommand}, shared::{command::command::{get_split_part, parse_tr_id, split_raw_command_no_arg}, payload}};
+use crate::{msnp::{error::{CommandError, PayloadError}, notification::models::endpoint_data::PrivateEndpointData, raw_command_parser::RawCommand}, shared::{command::command::{get_split_part, parse_tr_id, split_raw_command_no_arg, SerializeMsnp}, payload}};
 
 pub struct Uux {
     tr_id : u128,
@@ -33,7 +33,7 @@ impl TryFrom<RawCommand> for Uux {
         let split = split_raw_command_no_arg(&command.command);
         let tr_id = parse_tr_id(&split)?;
         let payload_size = command.get_expected_payload_size();
-        let payload = if payload_size > 0 { Some(UuxPayload::from_str(from_utf8(&command.payload).unwrap())?) } else { None };
+        let payload = if payload_size > 0 { Some(UuxPayload::from_str(from_utf8(&command.payload).map_err(|e| PayloadError::Utf8Error(e))?)?) } else { None };
 
         Ok(Self{
             tr_id,
@@ -52,6 +52,7 @@ impl Uux {
         }
     }
 }
+
 
 pub enum UuxPayload {
     PrivateEndpointData(PrivateEndpointData),
@@ -85,6 +86,15 @@ impl Display for UuxPayload {
     }
 }
 
+impl SerializeMsnp for Uux {
+
+    fn serialize_msnp(&self) -> Vec<u8> {
+        self.to_string().as_bytes().to_vec()
+    }
+    
+}
+
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -112,7 +122,7 @@ mod tests {
 
         
 
-        let uux = UuxClient::try_from(RawCommand::from_str(&format!("UUX 8 {}\r\n{}", payload.len(), payload)).unwrap()).unwrap();
+        let uux = UuxClient::try_from(RawCommand::with_payload(&format!("UUX 8 {}\r\n", payload.len()), payload.as_bytes().to_vec()).unwrap()).unwrap();
 
         assert_eq!(8, uux.tr_id);
         assert_eq!(payload.len(), uux.payload_size);
@@ -133,7 +143,7 @@ mod tests {
     fn request_deserialization_bad_payload() {
         let payload = "<PrivateEndpointData><malformed";
 
-        let uux = UuxClient::try_from(RawCommand::from_str(&format!("UUX 8 {}\r\n{}", payload.len(), payload)).unwrap());
+        let uux = UuxClient::try_from(RawCommand::with_payload(&format!("UUX 8 {}\r\n", payload.len()), payload.as_bytes().to_vec()).unwrap());
 
         assert!(matches!(uux, Err(CommandError::PayloadError(PayloadError::StringPayloadParsingError { .. }))));
     }

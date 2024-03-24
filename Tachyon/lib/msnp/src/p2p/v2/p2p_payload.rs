@@ -44,7 +44,7 @@ impl P2PPayload {
         let header_length = bytes.get(0).unwrap_or(&0).to_owned() as usize;
 
         if header_length < 8 {
-            return Err(PayloadError::BinaryPayloadParsingError { payload: bytes.to_owned(), sauce: anyhow!("P2PPayload must be of size 8 but was {}", &header_length) });
+            return Err(PayloadError::BinaryPayloadParsingError { payload: bytes.to_owned(), source: anyhow!("P2PPayload must be of size 8 but was {}", &header_length) });
         }
 
         let tf_combination = bytes.get(1).unwrap_or(&0).to_owned();
@@ -60,7 +60,7 @@ impl P2PPayload {
 
         let mut payload_length_to_take = payload_length;
         if payload_length > bytes.len() {
-            return Err(PayloadError::BinaryPayloadParsingError {payload: bytes.to_owned(), sauce: anyhow!("P2PPayload was chunked, payload length is supposed to be: {} but packet length was: {}", &payload_length, &bytes.len() )});
+            return Err(PayloadError::BinaryPayloadParsingError {payload: bytes.to_owned(), source: anyhow!("P2PPayload was chunked, payload length is supposed to be: {} but packet length was: {}", &payload_length, &bytes.len() )});
         }
 
         let payload = bytes[8+tlvs_length..payload_length_to_take].to_owned();

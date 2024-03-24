@@ -2,7 +2,7 @@ use anyhow::anyhow;
 
 use crate::{msnp::error::PayloadError, shared::models::uuid::{Puid, Uuid}};
 
-use super::{capabilities::ClientCapabilities, msn_object::MSNObject, presence_status::PresenceStatus};
+use super::{capabilities::ClientCapabilities, msn_object::MsnObject, presence_status::PresenceStatus};
 
 
 #[derive(Clone, Debug)]
@@ -14,7 +14,7 @@ pub struct MSNUser {
     endpoint_guid: String,
     display_name: String,
     psm: String,
-    display_picture: Option<MSNObject>
+    display_picture: Option<MsnObject>
 }
 
 impl MSNUser {
@@ -43,14 +43,14 @@ impl MSNUser {
      * Parses from a msn_addr;{endpoint_guid} string
      */
     pub fn from_mpop_addr_string(mpop_string: String) -> Result<MSNUser, PayloadError> {
-       let (msn_addr, endpoint_guid) = mpop_string.split_once(";").ok_or(PayloadError::StringPayloadParsingError { payload: mpop_string.clone(), sauce: anyhow!("Couldn't split MPOP String on ;") })?;
+       let (msn_addr, endpoint_guid) = mpop_string.split_once(";").ok_or(PayloadError::StringPayloadParsingError { payload: mpop_string.clone(), source: anyhow!("Couldn't split MPOP String on ;") })?;
 
         let  trimmed_msn_addr = msn_addr.trim().to_string();
             let trimmed_endpoint_guid = endpoint_guid.trim()
                 .strip_prefix("{")
-                .ok_or(PayloadError::StringPayloadParsingError { payload: endpoint_guid.to_string(), sauce: anyhow!("Couldn't strip {{ prefix from endpoint_guid") })?
+                .ok_or(PayloadError::StringPayloadParsingError { payload: endpoint_guid.to_string(), source: anyhow!("Couldn't strip {{ prefix from endpoint_guid") })?
                 .strip_suffix("}")
-                .ok_or(PayloadError::StringPayloadParsingError { payload: endpoint_guid.to_string(), sauce: anyhow!("Couldn't strip }} suffix from endpoint_guid") })?;
+                .ok_or(PayloadError::StringPayloadParsingError { payload: endpoint_guid.to_string(), source: anyhow!("Couldn't strip }} suffix from endpoint_guid") })?;
 
             let mut out : MSNUser = MSNUser::new(trimmed_msn_addr);
             out.set_endpoint_guid(trimmed_endpoint_guid.to_string());
@@ -106,11 +106,11 @@ impl MSNUser {
         return self.uuid.get_puid();
     }
 
-    pub fn set_display_picture(&mut self, display_picture: Option<MSNObject>) {
+    pub fn set_display_picture(&mut self, display_picture: Option<MsnObject>) {
         self.display_picture = display_picture;
     }
 
-    pub fn get_display_picture(&self) -> Option<MSNObject> {
+    pub fn get_display_picture(&self) -> Option<MsnObject> {
         return self.display_picture.clone();
     }
 

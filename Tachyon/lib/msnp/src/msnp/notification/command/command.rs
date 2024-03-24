@@ -3,7 +3,7 @@ use strum_macros::Display;
 
 use crate::msnp::{error::CommandError, raw_command_parser::{RawCommand, RawCommandParser}};
 
-use super::{adl::{AdlClient, RmlClient}, cvr::CvrClient, usr::UsrClient, uux::UuxClient, ver::VerClient};
+use super::{adl::{AdlClient, RmlClient}, blp::BlpClient, chg::ChgClient, cvr::CvrClient, prp::PrpClient, usr::UsrClient, uun::UunClient, uux::UuxClient, ver::VerClient};
 
 #[derive(Display)]
 pub enum NotificationCommand {
@@ -14,10 +14,10 @@ pub enum NotificationCommand {
     ADL(AdlClient),
     RML(RmlClient),
     UUX(UuxClient),
-    BLP(),
-    CHG(),
-    PRP(),
-    UUN(),
+    BLP(BlpClient),
+    CHG(ChgClient),
+    PRP(PrpClient),
+    UUN(UunClient),
     XFR()
 }
 

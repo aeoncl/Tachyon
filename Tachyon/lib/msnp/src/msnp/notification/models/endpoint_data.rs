@@ -31,7 +31,7 @@ impl FromStr for EndpointData {
     type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> { 
-        from_str::<EndpointData>(s).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Couldn't parse EndpointData Payload") })
+        from_str::<EndpointData>(s).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!("Couldn't parse EndpointData Payload") })
     }
 }
 
@@ -84,7 +84,7 @@ impl FromStr for PrivateEndpointData {
     type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, PayloadError> {
-       from_str::<PrivateEndpointData>(s).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Couldn't deserialize Private Endpoint Data: error: {}", e) } )
+       from_str::<PrivateEndpointData>(s).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!("Couldn't deserialize Private Endpoint Data: error: {}", e) } )
     }
 }
 

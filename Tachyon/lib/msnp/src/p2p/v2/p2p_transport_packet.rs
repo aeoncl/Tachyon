@@ -255,7 +255,7 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
             let header_length = bytes.get(0).unwrap_or(&0).to_owned() as usize;
 
             if header_length < 8 {
-                return Err(PayloadError::BinaryPayloadParsingError { payload: bytes.to_owned(), sauce: anyhow!("Header of P2PTransport packet must be of size 8, but was: {}", &header_length) });
+                return Err(PayloadError::BinaryPayloadParsingError { payload: bytes.to_owned(), source: anyhow!("Header of P2PTransport packet must be of size 8, but was: {}", &header_length) });
             }
             
             let op_code = bytes.get(1).unwrap_or(&0).to_owned();

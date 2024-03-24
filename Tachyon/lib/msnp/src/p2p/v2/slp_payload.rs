@@ -13,7 +13,7 @@ use num::FromPrimitive;
 
 
 
-use crate::{msnp::error::PayloadError, shared::models::{msn_object::MSNObject, msn_user::MSNUser, uuid::Uuid}};
+use crate::{msnp::error::PayloadError, shared::models::{msn_object::MsnObject, msn_user::MSNUser, uuid::Uuid}};
 
 use super::{app_id::AppID, slp_context::{PreviewData, SlpContext}};
 
@@ -116,12 +116,12 @@ impl SlpPayload {
         return Ok(Some(Uuid::from_str(call_id).unwrap())); //TODO HANDLE ERROR CORRECTLY
     }
 
-    pub fn get_context_as_msnobj(&self) -> Option<Box<MSNObject>> {
+    pub fn get_context_as_msnobj(&self) -> Option<Box<MsnObject>> {
         let context = self.get_body_property(&String::from("Context"));
         if let None = context {
             return None;
         }
-        return MSNObject::from_slp_context(&context.unwrap().as_bytes().to_vec());
+        return MsnObject::from_slp_context(&context.unwrap().as_bytes().to_vec());
     }
 
     pub fn is_invite(&self) -> bool {
@@ -139,14 +139,14 @@ impl FromStr for SlpPayload {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
 
-         let (headers, body) = s.split_once("\r\n\r\n").ok_or(PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("There was no header body boundary in Slp Payload") } )?;
+         let (headers, body) = s.split_once("\r\n\r\n").ok_or(PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!("There was no header body boundary in Slp Payload") } )?;
             let mut out = SlpPayload::new();
             let headers_split: Vec<&str> = headers.split("\r\n").collect();
 
-            out.first_line = headers_split.get(0).ok_or(PayloadError::StringPayloadParsingError{ payload: s.to_string(), sauce: anyhow!("Could not get the first line from Slp Payload: {:?}", &headers_split) })?.to_string();
+            out.first_line = headers_split.get(0).ok_or(PayloadError::StringPayloadParsingError{ payload: s.to_string(), source: anyhow!("Could not get the first line from Slp Payload: {:?}", &headers_split) })?.to_string();
 
             for i in 1..headers_split.len() {
-                let current = headers_split.get(i).ok_or(PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Could not get header at index {} in headers: {:?}", &i, &headers_split) })?.to_string();
+                let current = headers_split.get(i).ok_or(PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!("Could not get header at index {} in headers: {:?}", &i, &headers_split) })?.to_string();
 
                 if let Some((name, value)) =  current.split_once(":"){
                     out.add_header(name.trim().to_string(), value.trim().to_string());
@@ -155,7 +155,7 @@ impl FromStr for SlpPayload {
 
             let body_split: Vec<&str> = body.split("\r\n").collect();
             for i in 0..body_split.len() {
-                let current = body_split.get(i).ok_or(PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Could not get body element at index: {} for body: {:?}", &i, &body_split) })?.to_string();
+                let current = body_split.get(i).ok_or(PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!("Could not get body element at index: {} for body: {:?}", &i, &body_split) })?.to_string();
                 if let Some((name, value)) =  current.split_once(":"){
                     out.add_body_property(name.trim().to_string(), value.trim().to_string());
                 }
@@ -169,7 +169,7 @@ impl TryFrom<&Vec<u8>> for SlpPayload {
     type Error = PayloadError;
 
     fn try_from(value: &Vec<u8>) -> Result<Self, Self::Error> {
-        let str = from_utf8(value).map_err(|e|PayloadError::BinaryPayloadParsingError { payload: value.to_owned(), sauce: anyhow!(e) })?;
+        let str = from_utf8(value).map_err(|e|PayloadError::BinaryPayloadParsingError { payload: value.to_owned(), source: anyhow!(e) })?;
         return SlpPayload::from_str(str);
     }
 }
@@ -264,7 +264,7 @@ impl TryFrom<&str> for EufGUID {
                 return Ok(EufGUID::Activity);
             },
             _=> {
-                return Err(PayloadError::StringPayloadParsingError { payload: value.to_string(), sauce: anyhow!("Unknown EUF-GUID") });
+                return Err(PayloadError::StringPayloadParsingError { payload: value.to_string(), source: anyhow!("Unknown EUF-GUID") });
             }
         }
     }

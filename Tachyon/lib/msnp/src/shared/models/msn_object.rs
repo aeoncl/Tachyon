@@ -12,17 +12,17 @@ use yaserde_derive::{YaDeserialize, YaSerialize};
 use crate::{msnp::error::PayloadError, p2p::v2::slp_context::SlpContext};
 
 
-// Documentation sauce: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/MSN_Object
+// Documentation source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/MSN_Object
 
 
 #[derive(Clone, Debug)]
-pub struct MSNObject {
+pub struct MsnObject {
     //MSN Address of the creator or sender
     pub creator: String,
     //Size in bytes
     pub size: u32,
     //Type
-    pub obj_type: MSNObjectType,
+    pub obj_type: MsnObjectType,
     //The Location field contains the filename under which the file will be, or has been, stored. 0 For in the storage service.
     pub location: String,
     /*This field contains the name of the picture in Unicode (UTF-16 Little Endian) format. 
@@ -33,7 +33,7 @@ pub struct MSNObject {
     pub sha1d: String,
 
     /* The following fields are not included in the sha1c */
-    pub contenttype: Option<MSNObjectContentType>,
+    pub contenttype: Option<MsnObjectContentType>,
 
     // The contentid field contains the identifier of the item which the Content Partner gave it.
     pub contentid: Option<String>,
@@ -63,13 +63,13 @@ pub struct MSNObject {
 
 }
 
-impl SlpContext for MSNObject {
+impl SlpContext for MsnObject {
 
     fn from_slp_context(bytes: &Vec<u8>) -> Option<Box<Self>> { 
         let base64_decoded = general_purpose::STANDARD.decode(bytes);
         if let Ok(base64_decoded) = base64_decoded {
             if let Ok(str) = String::from_utf8(base64_decoded){
-                if let Ok(msn_obj) = MSNObject::from_str(str.as_str()) {
+                if let Ok(msn_obj) = MsnObject::from_str(str.as_str()) {
                     return Some(Box::new(msn_obj));
                 }
             }
@@ -78,15 +78,15 @@ impl SlpContext for MSNObject {
     }
 }
 
-impl FromStr for MSNObject {
+impl FromStr for MsnObject {
     type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        from_str::<MSNObject>(s).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Could not parse string to MSNObject for : {}", e) })
+        from_str::<MsnObject>(s).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!("Could not parse string to MSNObject for : {}", e) })
     }
 }
 
-impl yaserde::YaDeserialize for MSNObject {
+impl yaserde::YaDeserialize for MsnObject {
 
     
     fn deserialize<R: std::io::Read>(reader: &mut de::Deserializer<R>) -> Result<Self, String> {
@@ -122,7 +122,7 @@ impl yaserde::YaDeserialize for MSNObject {
                     },
                     "Type" => {
                         let test = attribute.value.as_str();
-                       obj_type = Some(MSNObjectType::from_str(attribute.value.as_str()).map_err(|e| e.to_string())?);
+                       obj_type = Some(MsnObjectType::from_str(attribute.value.as_str()).map_err(|e| e.to_string())?);
                     },
                     "SHA1D" => {
                        sha1d = Some(attribute.value);
@@ -138,7 +138,7 @@ impl yaserde::YaDeserialize for MSNObject {
                         //Do nothing with this for now
                     },
                     "contenttype" => {
-                        contenttype = Some(MSNObjectContentType::from_str(attribute.value.as_str()).map_err(|e| e.to_string())?);
+                        contenttype = Some(MsnObjectContentType::from_str(attribute.value.as_str()).map_err(|e| e.to_string())?);
                     },
                     "contentid" => {
                         contentid =  map_empty_string_to_option(attribute.value);
@@ -161,7 +161,7 @@ impl yaserde::YaDeserialize for MSNObject {
                 }
             };
 
-            return Ok(MSNObject {
+            return Ok(MsnObject {
                 creator: creator.expect("Creator to be present in a MSNObject"),
                 size,
                 obj_type: obj_type.expect("MSNObj to have a type"),
@@ -184,7 +184,7 @@ impl yaserde::YaDeserialize for MSNObject {
     }
 }
 
-impl yaserde::YaSerialize for &MSNObject {
+impl yaserde::YaSerialize for &MsnObject {
     fn serialize<W: std::io::Write>(&self, writer: &mut yaserde::ser::Serializer<W>) -> Result<(), String> {
         let size = self.size.to_string();
         let obj_type = self.obj_type.to_string();
@@ -201,7 +201,7 @@ impl yaserde::YaSerialize for &MSNObject {
             elem = elem.attr("SHA1C", &sha1c);
         }
 
-        let contentype_serialized = self.contenttype.as_ref().unwrap_or(&MSNObjectContentType::D).to_string();
+        let contentype_serialized = self.contenttype.as_ref().unwrap_or(&MsnObjectContentType::D).to_string();
         if self.contenttype.is_some() {
             elem = elem.attr("contenttype", contentype_serialized.as_str());
         }
@@ -246,8 +246,8 @@ impl yaserde::YaSerialize for &MSNObject {
     }
 }
 
-impl MSNObject {
-    pub fn new(creator: String, obj_type: MSNObjectType, location: String, sha1d: String, size: usize, friendly: Option<String>, contenttype: Option<MSNObjectContentType>, compute_sha1c: bool) -> Self {
+impl MsnObject {
+    pub fn new(creator: String, obj_type: MsnObjectType, location: String, sha1d: String, size: usize, friendly: Option<String>, contenttype: Option<MsnObjectContentType>, compute_sha1c: bool) -> Self {
         return Self{ creator, size: size.try_into().unwrap(), obj_type, location, friendly, sha1d, contenttype, contentid: None, partnerid: None, stamp: None, avatarid: None, avatarcontentid: None, compute_sha1c };
     }
 
@@ -319,7 +319,7 @@ impl MSNObject {
 
 
 
-impl Display for MSNObject {
+impl Display for MsnObject {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         
@@ -335,20 +335,20 @@ impl Display for MSNObject {
 }
 
 #[derive(Clone, Debug, EnumString, PartialEq)]
-pub enum MSNObjectContentType {
+pub enum MsnObjectContentType {
     /* Paid, prevents other users to add it */
     P,
     /* Downloadable, Free */
     D
 }
 
-impl fmt::Display for MSNObjectContentType {
+impl fmt::Display for MsnObjectContentType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
-impl Default for MSNObjectContentType {
+impl Default for MsnObjectContentType {
     fn default() -> Self {
         return Self::D;
     }
@@ -358,7 +358,7 @@ impl Default for MSNObjectContentType {
 
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum MSNObjectType {
+pub enum MsnObjectType {
     //Unknown but present since MSN 6.0
     Avatar = 1,
     CustomEmoticon = 2,
@@ -383,45 +383,45 @@ pub enum MSNObjectType {
 }
 
 
-impl FromStr for MSNObjectType {
+impl FromStr for MsnObjectType {
     type Err = PayloadError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parsed: i32 = s.parse()?;
-        Ok(MSNObjectType::try_from(parsed)?)
+        Ok(MsnObjectType::try_from(parsed)?)
     }
 }
 
 
-impl Display for MSNObjectType {
+impl Display for MsnObjectType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         return write!(f, "{}", self.clone() as i32);   
     }
 }
 
-impl TryFrom<i32> for MSNObjectType {
+impl TryFrom<i32> for MsnObjectType {
     type Error = PayloadError;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         match value {
-            x if x == MSNObjectType::Avatar as i32 => Ok(MSNObjectType::Avatar),
-            x if x == MSNObjectType::CustomEmoticon as i32 => Ok(MSNObjectType::CustomEmoticon),
-            x if x == MSNObjectType::DisplayPicture as i32 => Ok(MSNObjectType::DisplayPicture),
-            x if x == MSNObjectType::SharedFile as i32 => Ok(MSNObjectType::SharedFile),
-            x if x == MSNObjectType::Background as i32 => Ok(MSNObjectType::Background),
-            x if x == MSNObjectType::History as i32 => Ok(MSNObjectType::History),
-            x if x == MSNObjectType::DynamicDisplayPicture as i32 => Ok(MSNObjectType::DynamicDisplayPicture),
-            x if x == MSNObjectType::Wink as i32 => Ok(MSNObjectType::Wink),
-            x if x == MSNObjectType::MapFile as i32 => Ok(MSNObjectType::MapFile),
-            x if x == MSNObjectType::DynamicBackground as i32 => Ok(MSNObjectType::DynamicBackground),
-            x if x == MSNObjectType::VoiceClip as i32 => Ok(MSNObjectType::VoiceClip),
-            x if x == MSNObjectType::PluginState as i32 => Ok(MSNObjectType::PluginState),
-            x if x == MSNObjectType::RoamingObject as i32 => Ok(MSNObjectType::RoamingObject),
-            x if x == MSNObjectType::SignatureSound as i32 => Ok(MSNObjectType::SignatureSound),
-            x if x == MSNObjectType::UnknownYet as i32 => Ok(MSNObjectType::UnknownYet),
-            x if x == MSNObjectType::Scene as i32 => Ok(MSNObjectType::Scene),
-            x if x == MSNObjectType::WebcamDynamicDisplayPicture as i32 => Ok(MSNObjectType::WebcamDynamicDisplayPicture),
+            x if x == MsnObjectType::Avatar as i32 => Ok(MsnObjectType::Avatar),
+            x if x == MsnObjectType::CustomEmoticon as i32 => Ok(MsnObjectType::CustomEmoticon),
+            x if x == MsnObjectType::DisplayPicture as i32 => Ok(MsnObjectType::DisplayPicture),
+            x if x == MsnObjectType::SharedFile as i32 => Ok(MsnObjectType::SharedFile),
+            x if x == MsnObjectType::Background as i32 => Ok(MsnObjectType::Background),
+            x if x == MsnObjectType::History as i32 => Ok(MsnObjectType::History),
+            x if x == MsnObjectType::DynamicDisplayPicture as i32 => Ok(MsnObjectType::DynamicDisplayPicture),
+            x if x == MsnObjectType::Wink as i32 => Ok(MsnObjectType::Wink),
+            x if x == MsnObjectType::MapFile as i32 => Ok(MsnObjectType::MapFile),
+            x if x == MsnObjectType::DynamicBackground as i32 => Ok(MsnObjectType::DynamicBackground),
+            x if x == MsnObjectType::VoiceClip as i32 => Ok(MsnObjectType::VoiceClip),
+            x if x == MsnObjectType::PluginState as i32 => Ok(MsnObjectType::PluginState),
+            x if x == MsnObjectType::RoamingObject as i32 => Ok(MsnObjectType::RoamingObject),
+            x if x == MsnObjectType::SignatureSound as i32 => Ok(MsnObjectType::SignatureSound),
+            x if x == MsnObjectType::UnknownYet as i32 => Ok(MsnObjectType::UnknownYet),
+            x if x == MsnObjectType::Scene as i32 => Ok(MsnObjectType::Scene),
+            x if x == MsnObjectType::WebcamDynamicDisplayPicture as i32 => Ok(MsnObjectType::WebcamDynamicDisplayPicture),
             _ => {
-                Err(PayloadError::EnumParsingError { payload: value.to_string(), sauce: anyhow!("Couldn't parse int to MSNObjectType") })
+                Err(PayloadError::EnumParsingError { payload: value.to_string(), source: anyhow!("Couldn't parse int to MSNObjectType") })
             }
         }
     }
@@ -431,26 +431,26 @@ pub struct MSNObjectFactory;
 
 impl MSNObjectFactory {
 
-    pub fn get_display_picture(image: &[u8], creator_msn_addr: String, location: String, friendly: Option<String>) -> MSNObject {
+    pub fn get_display_picture(image: &[u8], creator_msn_addr: String, location: String, friendly: Option<String>) -> MsnObject {
         let sha1d = compute_sha1(&image);
 
-        return MSNObject::new(creator_msn_addr, MSNObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MSNObjectContentType::D), false);
+        return MsnObject::new(creator_msn_addr, MsnObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MsnObjectContentType::D), false);
     }
 
-    pub fn get_me_display_picture(image: &[u8], creator_msn_addr: String, friendly: Option<String>) -> MSNObject {
+    pub fn get_me_display_picture(image: &[u8], creator_msn_addr: String, friendly: Option<String>) -> MsnObject {
         let sha1d = compute_sha1(&image);
-        return MSNObject::new(creator_msn_addr, MSNObjectType::DisplayPicture, "0".into(), sha1d, image.len(), friendly, None, false);
+        return MsnObject::new(creator_msn_addr, MsnObjectType::DisplayPicture, "0".into(), sha1d, image.len(), friendly, None, false);
     }
 
-    pub fn get_voice_message(data: &[u8], creator_msn_addr: String, friendly: Option<String>) -> MSNObject {
+    pub fn get_voice_message(data: &[u8], creator_msn_addr: String, friendly: Option<String>) -> MsnObject {
         let sha1d = compute_sha1(&data);
-        return MSNObject::new(creator_msn_addr, MSNObjectType::VoiceClip,"0".into(), sha1d, data.len(),  friendly, None, false);
+        return MsnObject::new(creator_msn_addr, MsnObjectType::VoiceClip,"0".into(), sha1d, data.len(),  friendly, None, false);
     }
 
-    pub fn get_contact_display_picture(image: &[u8], creator_msn_addr: String, location: String, friendly: Option<String>) -> MSNObject {
+    pub fn get_contact_display_picture(image: &[u8], creator_msn_addr: String, location: String, friendly: Option<String>) -> MsnObject {
         let sha1d = compute_sha1(&image);
 
-        return MSNObject::new(creator_msn_addr, MSNObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MSNObjectContentType::D), false);
+        return MsnObject::new(creator_msn_addr, MsnObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MsnObjectContentType::D), false);
     }
 }
 
@@ -470,7 +470,7 @@ mod tests {
     use std::str::FromStr;
 
     use lazy_static_include::lazy_static_include_bytes;
-    use crate::{p2p::v2::slp_context::SlpContext, shared::models::msn_object::{compute_sha1, MSNObject, MSNObjectContentType, MSNObjectFactory, MSNObjectType}};
+    use crate::{p2p::v2::slp_context::SlpContext, shared::models::msn_object::{compute_sha1, MsnObject, MsnObjectContentType, MSNObjectFactory, MsnObjectType}};
 
 
     lazy_static_include_bytes! {
@@ -531,7 +531,7 @@ mod tests {
     #[test]
     fn deserialize_test() {
         let base64_context = String::from("PG1zbm9iaiBDcmVhdG9yPSJidWRkeTFAaG90bWFpbC5jb20iIFNpemU9IjI0NTM5IiBUeXBlPSIzIiBMb2NhdGlvbj0iVEZSMkMudG1wIiBGcmllbmRseT0iQUFBPSIgU0hBMUQ9InRyQzhTbEZ4MnNXUXhaTUlCQVdTRW5YYzhvUT0iIFNIQTFDPSJVMzJvNmJvc1p6bHVKcTgyZUF0TXB4NWRJRUk9Ii8+DQoA");
-        let msn_obj = MSNObject::from_slp_context(&base64_context.as_bytes().to_vec()).unwrap();
+        let msn_obj = MsnObject::from_slp_context(&base64_context.as_bytes().to_vec()).unwrap();
         assert_eq!(msn_obj.avatarcontentid, None);
         assert_eq!(msn_obj.avatarid, None);
         assert_eq!(msn_obj.compute_sha1c, false);
@@ -539,7 +539,7 @@ mod tests {
         assert!(msn_obj.contenttype == None);
         assert_eq!(msn_obj.creator.as_str(), "buddy1@hotmail.com");
         assert_eq!(msn_obj.size, 24539);
-        assert!(msn_obj.obj_type == MSNObjectType::DisplayPicture);
+        assert!(msn_obj.obj_type == MsnObjectType::DisplayPicture);
         assert_eq!(msn_obj.location.as_str(), "TFR2C.tmp");
         assert_eq!(msn_obj.sha1d.as_str(), "trC8SlFx2sWQxZMIBAWSEnXc8oQ=");
         println!("{:?}", &msn_obj);
@@ -548,21 +548,21 @@ mod tests {
     #[test]
     fn testttt() {
         let str = "bQBzAG4AbQBzAGcAcgBfADIAMAAyADMAXwAxADEAXwAxAF8AMQAyAF8AMwA4AF8ANAAxAF8ANQA4ADEAXwAyAAAA";
-        let test = MSNObject::decode_friendly(str);
+        let test = MsnObject::decode_friendly(str);
         println!("Friendly: {}", test);
 
     }
     #[test]
     fn serialize_deserialize_test() {
 
-        let msn_obj = MSNObject {
+        let msn_obj = MsnObject {
             creator: "xx-aeon-xx@lukewarmail.com".into(),
             size: 1989,
-            obj_type: MSNObjectType::DynamicDisplayPicture,
+            obj_type: MsnObjectType::DynamicDisplayPicture,
             location: "0".into(),
             friendly: Some("Offspring Skull on fire".into()),
             sha1d: "weUn1teT0Wr1te0urC0d3".into(),
-            contenttype: Some(MSNObjectContentType::D),
+            contenttype: Some(MsnObjectContentType::D),
             contentid: Some("xobubble".into()),
             partnerid: Some("gianthard corporations".into()),
             stamp: Some("stampo".into()),
@@ -572,16 +572,16 @@ mod tests {
         };
 
         let serialized = msn_obj.to_string_not_encoded();
-        let deserialized = MSNObject::from_str(serialized.as_str()).unwrap();
+        let deserialized = MsnObject::from_str(serialized.as_str()).unwrap();
 
         assert_eq!(deserialized.avatarcontentid, Some("fire nation attacks".into()));
         assert_eq!(deserialized.avatarid, Some("aang".into()));
         assert_eq!(deserialized.compute_sha1c, false);
         assert_eq!(deserialized.contentid, Some("xobubble".into()));
-        assert_eq!(deserialized.contenttype, Some(MSNObjectContentType::D));
+        assert_eq!(deserialized.contenttype, Some(MsnObjectContentType::D));
         assert_eq!(deserialized.creator.as_str(), "xx-aeon-xx@lukewarmail.com");
         assert_eq!(deserialized.size, 1989);
-        assert_eq!(deserialized.obj_type, MSNObjectType::DynamicDisplayPicture);
+        assert_eq!(deserialized.obj_type, MsnObjectType::DynamicDisplayPicture);
         assert_eq!(deserialized.location.as_str(), "0");
         assert_eq!(deserialized.sha1d.as_str(), "weUn1teT0Wr1te0urC0d3");
 

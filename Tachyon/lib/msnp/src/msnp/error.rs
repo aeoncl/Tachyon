@@ -42,18 +42,19 @@ pub enum PayloadError {
     #[error("Couldn't parse the payload: {}", .payload)]
     StringPayloadParsingError {
         payload: String,
-        sauce: anyhow::Error
-
+        source: anyhow::Error
     },
     #[error("Couldn't parse the binary payload: {:?}", .payload)]
     BinaryPayloadParsingError {
         payload: Vec<u8>,
-        sauce: anyhow::Error
+        source: anyhow::Error
     },
+    #[error(transparent)]
+    Utf8Error(#[from] Utf8Error),
     #[error("Couldn't parse enum: {:?}", .payload)]
     EnumParsingError {
         payload: String,
-        sauce: anyhow::Error
+        source: anyhow::Error
     },
     #[error("The payload was chunked & not complete")]
     PayloadBytesMissing,
@@ -67,6 +68,10 @@ pub enum PayloadError {
     ParseIntError(#[from] ParseIntError),
     #[error("Payload was missing from command {}", .command)]
     MissingPayload{command: String},
+    #[error("Payload was bigger ({}b) than expected {}: {:?}", .overflowing_size, .expected_size, .payload)]
+    PayloadSizeExceed {
+        expected_size: usize, overflowing_size: usize, payload: Vec<u8>
+    },
     #[error(transparent)]
     AnyError(#[from] anyhow::Error)
 

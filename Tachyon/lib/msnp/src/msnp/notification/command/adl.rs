@@ -3,7 +3,7 @@ use std::{fmt::Display, str::{from_utf8, FromStr}};
 use yaserde::{de::from_str, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
-use crate::{msnp::{error::{CommandError, PayloadError}, raw_command_parser::RawCommand}, shared::{command::{command::{parse_tr_id, split_raw_command_no_arg}, ok::OkCommand}, models::role_id::RoleId}};
+use crate::{msnp::{error::{CommandError, PayloadError}, raw_command_parser::RawCommand}, shared::{command::{command::{parse_tr_id, split_raw_command_no_arg, SerializeMsnp}, ok::OkCommand}, models::role_id::RoleId}};
 use anyhow::anyhow;
 
 pub struct AdlClient {
@@ -34,7 +34,7 @@ impl TryFrom<RawCommand> for AdlClient {
             Err(PayloadError::MissingPayload { command: command.get_command().to_string() })?;
         }
 
-        let payload = ADLPayload::from_str(from_utf8(&command.payload).unwrap())?;
+        let payload = ADLPayload::from_str(from_utf8(&command.payload).map_err(|e| PayloadError::Utf8Error(e))?)?;
 
         Ok(Self{
             tr_id,
@@ -151,7 +151,7 @@ impl FromStr for ADLPayload {
     type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-         from_str::<ADLPayload>(s).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), sauce: anyhow!("Couldn't deserialize ADL Payload: {} - error: {}",s, e) })
+         from_str::<ADLPayload>(s).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!("Couldn't deserialize ADL Payload: {} - error: {}",s, e) })
     }
 }
 

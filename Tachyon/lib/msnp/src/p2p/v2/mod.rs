@@ -18,7 +18,7 @@ pub mod factories {
     use base64::engine::general_purpose;
     use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
-    use crate::{msnp::error::PayloadError, shared::models::{msn_object::MSNObject, msn_user::MSNUser, uuid::Uuid}};
+    use crate::{msnp::error::PayloadError, shared::models::{msn_object::MsnObject, msn_user::MSNUser, uuid::Uuid}};
 
     use super::{p2p_payload::P2PPayload, p2p_transport_packet::P2PTransportPacket, slp_context::PreviewData, slp_payload::{EufGUID, SlpPayload}, tlv::TLV};
 
@@ -204,7 +204,7 @@ SessionID: 2216804035
             return Ok(out);
         }
 
-        pub fn get_msn_object_request(sender: &MSNUser, receiver: &MSNUser, context: &MSNObject, session_id: u32) -> Result<SlpPayload, PayloadError> {
+        pub fn get_msn_object_request(sender: &MSNUser, receiver: &MSNUser, context: &MsnObject, session_id: u32) -> Result<SlpPayload, PayloadError> {
 
 
             let context_b64 = general_purpose::STANDARD.encode(context.to_string_not_encoded());

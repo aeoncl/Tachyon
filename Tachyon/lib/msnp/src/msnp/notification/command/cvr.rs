@@ -1,6 +1,6 @@
 use std::{fmt::Display, str::FromStr};
 
-use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}, shared::command::command::{parse_tr_id, split_raw_command, MSNPCommand}};
+use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}, shared::command::command::{parse_tr_id, split_raw_command, MSNPCommand, SerializeMsnp}};
 
 
 pub struct CvrClient {
@@ -104,6 +104,7 @@ impl Display for CvrClient {
 }
 
 
+
 pub struct CvrServer {
     pub tr_id: u128,
     pub rec_client_ver: String,
@@ -164,5 +165,12 @@ impl Display for CvrServer {
         client_dl_url = self.client_dl_url,
         client_info_url = self.client_info_url
     )
+    }
+}
+
+impl SerializeMsnp for CvrServer {
+
+    fn serialize_msnp(&self) -> Vec<u8> {
+        self.to_string().as_bytes().to_vec()
     }
 }
