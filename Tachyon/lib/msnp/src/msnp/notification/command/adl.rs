@@ -1,4 +1,4 @@
-use std::{fmt::Display, str::FromStr};
+use std::{fmt::Display, str::{from_utf8, FromStr}};
 
 use yaserde::{de::from_str, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
@@ -26,15 +26,15 @@ impl TryFrom<RawCommand> for AdlClient {
 
     fn try_from(command: RawCommand) -> Result<Self, Self::Error> {
 
-        let split = split_raw_command_no_arg(&command.command);
+        let split = command.get_command_split();
         let tr_id = parse_tr_id(&split)?;
-        let payload_size = command.expected_payload_size;
+        let payload_size = command.get_expected_payload_size();
 
         if payload_size == 0 {
-            Err(PayloadError::MissingPayload { command: command.command })?;
+            Err(PayloadError::MissingPayload { command: command.get_command().to_string() })?;
         }
 
-        let payload = ADLPayload::from_str(&command.payload)?;
+        let payload = ADLPayload::from_str(from_utf8(&command.payload).unwrap())?;
 
         Ok(Self{
             tr_id,

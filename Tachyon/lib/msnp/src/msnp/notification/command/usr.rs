@@ -1,9 +1,9 @@
-use std::str::FromStr;
+use std::{process::Command, str::FromStr};
 
 use anyhow::anyhow;
 use strum_macros::{Display, EnumString};
 
-use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}, shared::command::command::{get_split_part, parse_tr_id}};
+use crate::{msnp::{error::CommandError, notification::models::endpoint_guid::EndpointGuid, raw_command_parser::RawCommand}, shared::command::command::{get_split_part, parse_tr_id}};
 
 use super::ver::VerClient;
 
@@ -20,7 +20,7 @@ impl TryFrom<RawCommand> for UsrClient {
     type Error = CommandError;
 
     fn try_from(value: RawCommand) -> Result<Self, Self::Error> {
-        UsrClient::from_str(value.command.as_str())
+        UsrClient::from_str(value.get_command())
     }
 }
 
@@ -64,10 +64,27 @@ pub enum SsoPhaseClient {
         email_addr: String,
     },
     S {
-        ticket_token: String,
+        ticket_token: TicketToken,
         challenge: String,
-        endpoint_guid: String,
+        endpoint_guid: EndpointGuid,
     },
+}
+
+pub struct TicketToken(pub String);
+
+impl std::fmt::Display for TicketToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "t={}", self.0)
+    }
+}
+
+impl FromStr for TicketToken {
+    type Err = CommandError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let no_prefix = s.strip_prefix("t=").ok_or(Self::Err::ArgumentParseError { argument: s.to_string(), command: String::new(), source: anyhow!("Error stripping t= prefix from Ticket Token")})?;
+        Ok(Self(no_prefix.to_string()))
+    }
 }
 
 impl SsoPhaseClient {
@@ -81,11 +98,11 @@ impl SsoPhaseClient {
                 Ok(SsoPhaseClient::I { email_addr })
             },
             "S" => {
-                let ticket_token = get_split_part(4, split, "", "ticket_token")?.to_string();
+                let ticket_token = TicketToken::from_str(get_split_part(4, split, "", "ticket_token")?)?;
                     
                 let challenge = get_split_part(5, split, "", "challenge")?.to_string(); 
                 
-                let endpoint_guid = get_split_part(6, split, "", "endpoint_guid")?.to_string(); 
+                let endpoint_guid = EndpointGuid::from_str(get_split_part(6, split, raw_cmd, "endpoint_guid")?)?; 
 
                 Ok(SsoPhaseClient::S {
                     ticket_token,
@@ -202,6 +219,18 @@ mod tests {
     }
 
     #[test]
+    fn client_sso_i_des_failure_invalid_ticket_token() {
+        let usr1 = UsrClient::from_str("USR 4 SSO S ssotoken ???charabia {55192CF5-588E-4ABE-9CDF-395B616ED85B}");
+        assert!(matches!(&usr1, Err(CommandError::ArgumentParseError { .. })));
+    }
+
+    #[test]
+    fn client_sso_i_des_failure_invalid_endpoint() {
+        let usr1 = UsrClient::from_str("USR 4 SSO S t=ssotoken ???charabia 55192CF5-588E-4ABE-9CDF-395B616ED85B");
+        assert!(matches!(&usr1, Err(CommandError::ArgumentParseError { .. })));
+    }
+
+    #[test]
     fn client_sso_s_des_success() {
         let usr1 = UsrClient::from_str("USR 4 SSO S t=ssotoken ???charabia {55192CF5-588E-4ABE-9CDF-395B616ED85B}").unwrap();
         assert_eq!(4, usr1.tr_id);
@@ -213,15 +242,17 @@ mod tests {
             assert!(matches!(content, SsoPhaseClient::S { .. }));
 
             if let SsoPhaseClient::S { ticket_token, challenge, endpoint_guid } = content {
-                assert_eq!("t=ssotoken", ticket_token);
+                assert_eq!("t=ssotoken", ticket_token.to_string());
                 assert_eq!("???charabia", challenge);
-                assert_eq!("{55192CF5-588E-4ABE-9CDF-395B616ED85B}", endpoint_guid);
+                assert_eq!("{55192CF5-588E-4ABE-9CDF-395B616ED85B}", endpoint_guid.to_string());
 
             }
 
         } 
 
     }
+
+    
 
     #[test]
     fn client_sha_des_success() {

@@ -42,7 +42,7 @@ impl TCPServer for NotificationServer {
 
                 let (read, mut write) = socket.split();
                 let mut reader = BufReader::new(read);
-                let mut buffer = [0u8; 2048];
+                let mut buffer = Vec::with_capacity(2048);
                 loop {
                     tokio::select! {
                         bytes_read = reader.read(&mut buffer) => {
@@ -56,6 +56,9 @@ impl TCPServer for NotificationServer {
 
                         //  I'm forced to use the unchecked variant of the from_utf8 function because of P2P packets.
                         //  They contain a binary header which is not UTF8
+
+                       
+
                         let line = unsafe {from_utf8_unchecked(&buffer[..bytes_read])};
 
                             let commands : Vec<MSNPCommand> = parser.parse_message(line);

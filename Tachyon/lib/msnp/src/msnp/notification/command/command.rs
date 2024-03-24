@@ -33,7 +33,7 @@ impl NotificationCommandParser {
         }
     }
 
-    pub fn parse_message(&mut self, message: &str) -> Result<Vec<Result<NotificationCommand, CommandError>>, CommandError> {
+    pub fn parse_message(&mut self, message: &[u8]) -> Result<Vec<Result<NotificationCommand, CommandError>>, CommandError> {
         let raw_commands = self.raw_parser.parse_message(message)?;
         let mut out = Vec::with_capacity(raw_commands.len());
 
@@ -46,7 +46,7 @@ impl NotificationCommandParser {
     }
 
     fn parse_raw_command(command: RawCommand) -> Result<NotificationCommand, CommandError> {
-        match command.operand.as_str() {
+        match command.get_operand() {
             "VER" => {
                 Ok(NotificationCommand::VER(VerClient::try_from(command)?))
             },

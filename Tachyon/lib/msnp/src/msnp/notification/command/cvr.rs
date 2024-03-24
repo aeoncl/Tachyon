@@ -52,7 +52,7 @@ impl TryFrom<RawCommand> for CvrClient {
     type Error = CommandError;
 
     fn try_from(value: RawCommand) -> Result<Self, Self::Error> {
-        CvrClient::from_str(value.command.as_str())
+        CvrClient::from_str(value.get_command())
     }
 }
 

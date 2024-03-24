@@ -1,5 +1,5 @@
 
-use std::num::ParseIntError;
+use std::{num::ParseIntError, str::Utf8Error};
 
 use thiserror::Error;
 
@@ -26,6 +26,12 @@ pub enum CommandError {
 
     #[error("Command was unsupported: {}", .command)]
     UnsupportedCommand { command: String },
+
+    #[error("No command to extract in buffer: {:?}", .buffer)]
+    NoCommandToExtract { buffer: Vec<u8>},
+
+    #[error(transparent)]
+    UTF8Error(#[from] Utf8Error),
 
     #[error(transparent)]
     PayloadError(#[from] PayloadError)

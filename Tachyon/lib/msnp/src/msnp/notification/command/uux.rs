@@ -1,5 +1,5 @@
 
-use std::{fmt::Display, str::FromStr};
+use std::{fmt::Display, str::{from_utf8, FromStr}};
 
 use crate::{msnp::{error::{CommandError, PayloadError}, notification::models::endpoint_data::PrivateEndpointData, raw_command_parser::RawCommand}, shared::{command::command::{get_split_part, parse_tr_id, split_raw_command_no_arg}, payload}};
 
@@ -32,8 +32,8 @@ impl TryFrom<RawCommand> for Uux {
 
         let split = split_raw_command_no_arg(&command.command);
         let tr_id = parse_tr_id(&split)?;
-        let payload_size = command.expected_payload_size;
-        let payload = if payload_size > 0 { Some(UuxPayload::from_str(&command.payload)?) } else { None };
+        let payload_size = command.get_expected_payload_size();
+        let payload = if payload_size > 0 { Some(UuxPayload::from_str(from_utf8(&command.payload).unwrap())?) } else { None };
 
         Ok(Self{
             tr_id,
@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn request_deserialization_unknown_success() {
-        let uux = UuxClient::try_from(RawCommand{ command: "UUX 8 1\r\n".to_string(), operand: "UUX".to_string(), payload: "A".to_string(), expected_payload_size: 1 }).unwrap();
+        let uux = UuxClient::try_from(RawCommand::from_str("UUX 8 1\r\n").unwrap()).unwrap();
 
         assert_eq!(8, uux.tr_id);
         assert_eq!(1, uux.payload_size);
@@ -109,7 +109,10 @@ mod tests {
     #[test]
     fn request_deserialization_private_endpoint_data_payload() {
         let payload = "<PrivateEndpointData><EpName>M1CROW8Vl</EpName><Idle>true</Idle><ClientType>2</ClientType><State>AWY</State></PrivateEndpointData>";
-        let uux = UuxClient::try_from(RawCommand{ command: format!("UUX 8 {}\r\n", payload.len()).to_string(), operand: "UUX".to_string(), payload: payload.to_string(), expected_payload_size: payload.len() }).unwrap();
+
+        
+
+        let uux = UuxClient::try_from(RawCommand::from_str(&format!("UUX 8 {}\r\n{}", payload.len(), payload)).unwrap()).unwrap();
 
         assert_eq!(8, uux.tr_id);
         assert_eq!(payload.len(), uux.payload_size);
@@ -118,7 +121,8 @@ mod tests {
 
     #[test]
     fn request_deserialization_no_payload() {
-        let uux = UuxClient::try_from(RawCommand{ command: "UUX 8 0\r\n".to_string(), operand: "UUX".to_string(), payload: String::new(), expected_payload_size: 0 }).unwrap();
+
+        let uux = UuxClient::try_from(RawCommand::from_str("UUX 8 0\r\n").unwrap()).unwrap();
 
         assert_eq!(8, uux.tr_id);
         assert_eq!(0, uux.payload_size);
@@ -128,7 +132,8 @@ mod tests {
     #[test]
     fn request_deserialization_bad_payload() {
         let payload = "<PrivateEndpointData><malformed";
-        let uux = UuxClient::try_from(RawCommand{ command: format!("UUX 8 {}\r\n", payload.len()).to_string(), operand: "UUX".to_string(), payload: payload.to_string(), expected_payload_size: payload.len() });
+
+        let uux = UuxClient::try_from(RawCommand::from_str(&format!("UUX 8 {}\r\n{}", payload.len(), payload)).unwrap());
 
         assert!(matches!(uux, Err(CommandError::PayloadError(PayloadError::StringPayloadParsingError { .. }))));
     }
