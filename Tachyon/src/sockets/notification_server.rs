@@ -89,7 +89,7 @@ impl TCPServer for NotificationServer {
                                         }
                                     }
                             }
-                            buffer = [0u8; 2048];
+                            buffer.clear();
                         },
                         command_to_send = rx.recv() => {
                             let msg = command_to_send.unwrap();

@@ -239,7 +239,10 @@ impl CommandHandler for NotificationCommandHandler {
 
                         let matrix_client = login(msn_user.get_matrix_id(), self.matrix_token.clone(), &Path::new(format!("C:\\temp\\{}", &self.msn_addr).as_str()), SETTINGS_LOCATOR.homeserver_url.clone(), true).await.map_err(|e| MSNPServerError::from_source_with_trid(tr_id.to_string(), e))?;
 
-
+                        let room_id = OwnedRoomId::from_str("fdasfas");
+                        let room = matrix_client.get_room(&room_id).unwrap();
+                        room.timeline();
+                        
                         let (notification_event_sender, mut notification_event_receiver) = mpsc::unbounded_channel::<NotificationEvent>();
                         let mut msn_client = MSNClient::new(matrix_client.clone(), msn_user.clone(), self.msnp_version,  notification_event_sender.clone());
 
@@ -429,7 +432,7 @@ impl CommandHandler for NotificationCommandHandler {
                 }
 
                 // >>> CHG 11 NLN 2789003324:48 0
-                // >>> CHG 11 NLN 2789003324:48  %3Cmsnobj%20Creator%3D%22aeontest1%40shlasouf.local%22%20Type%3D%223%22%20SHA1D%3D%22Cqe%2FwD9gdClugwA%2BMGKwVgVD7BI%3D%22%20Size%3D%2227100%22%20Location%3D%220%22%20Friendly%3D%22QQBlAG8AbgBUAGUAcwB0ADEAAAA%3D%22%2F%3E
+                // >>> CHG 11 NLN 2789003324:48 %3Cmsnobj%20Creator%3D%22aeontest1%40shlasouf.local%22%20Type%3D%223%22%20SHA1D%3D%22Cqe%2FwD9gdClugwA%2BMGKwVgVD7BI%3D%22%20Size%3D%2227100%22%20Location%3D%220%22%20Friendly%3D%22QQBlAG8AbgBUAGUAcwB0ADEAAAA%3D%22%2F%3E
                 // <<< CHG 11 NLN 2789003324:48 0
                 return Ok(format!("{}\r\n", command.command));
             },

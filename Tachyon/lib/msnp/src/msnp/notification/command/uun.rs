@@ -3,7 +3,7 @@ use std::{fmt::Display, str::{from_utf8, FromStr}};
 use yaserde::{de::from_str, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 use anyhow::anyhow;
-use crate::{msnp::{error::{CommandError, PayloadError}, notification::models::endpoint_guid::EndpointGuid, raw_command_parser::RawCommand}, shared::{command::{command::{get_split_part, parse_tr_id}, ok::OkCommand}, payload}};
+use crate::{msnp::{error::{CommandError, PayloadError}, notification::models::endpoint_guid::EndpointGuid, raw_command_parser::RawCommand}, shared::{command::{command::{get_split_part, parse_tr_id, SerializeMsnp}, ok::OkCommand}, payload}};
 
 pub struct UunClient {
     tr_id: u128,
@@ -43,6 +43,19 @@ pub struct Endpoint {
     endpoint_guid: Option<EndpointGuid>
 }
 
+impl Display for Endpoint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.email_addr)?;
+
+        if let Some(endpoint_guid) = self.endpoint_guid.as_ref() {
+            write!(f, ";{}", endpoint_guid)?;
+        }
+
+        Ok(())
+
+    }
+}
+
 impl FromStr for Endpoint {
     type Err = CommandError;
 
@@ -65,9 +78,23 @@ pub enum UunPayload {
     DisconnectClient,
     DisconnectAllClients,
     ConversationWindowClosed { email_addr: String },
-    DismissUserInvite{msn_addr: String, unknown: u32},
+    DismissUserInvite{email_addr: String, unknown: u32},
     Resynchronize(UunSoapStatePayload),
     Unknown(Vec<u8>)
+}
+
+impl SerializeMsnp for UunPayload{
+
+    fn serialize_msnp(&self) -> Vec<u8> {
+        match self {
+            UunPayload::DisconnectClient => "goawyplzthxbye".as_bytes().to_vec(),
+            UunPayload::DisconnectAllClients => "gtfo".as_bytes().to_vec(),
+            UunPayload::ConversationWindowClosed { email_addr } => todo!(),
+            UunPayload::DismissUserInvite { email_addr, unknown } => format!("{} {}", email_addr, unknown).as_bytes().to_vec(),
+            UunPayload::Resynchronize(payload) => payload.to_string().as_bytes().to_vec(),
+            UunPayload::Unknown(payload) => payload.to_owned(),
+        }
+    }
 }
 
 impl UunPayload {
@@ -90,6 +117,7 @@ impl UunPayload {
         })
     }
 }
+
 
 #[derive(Default, YaSerialize, YaDeserialize)]
 #[yaserde(rename = "State")]
@@ -123,6 +151,19 @@ pub enum UserNotificationType {
     TunneledSip = 12
 }
 
+impl From<&UunPayload> for UserNotificationType {
+    fn from(value: &UunPayload) -> Self {
+        match value {
+            UunPayload::DisconnectClient => UserNotificationType::DisconnectClient,
+            UunPayload::DisconnectAllClients => UserNotificationType::DisconnectAllClients,
+            UunPayload::ConversationWindowClosed { email_addr } => UserNotificationType::ClosedConversation,
+            UunPayload::DismissUserInvite { email_addr, unknown } => UserNotificationType::DismissUserInvite,
+            UunPayload::Resynchronize(_) => UserNotificationType::Resynchronize,
+            UunPayload::Unknown(_) => todo!(),
+        }
+    }
+}
+
 //TODO
 pub enum UunServiceType {
     AdressBook,
@@ -147,5 +188,27 @@ impl Display for UunSoapStatePayload {
             Err(std::fmt::Error)
         }
      
+    }
+}
+
+
+pub type UbnPayload = UunPayload;
+pub struct UbnServer {
+    destination: Endpoint,
+    payload: UbnPayload
+}
+
+impl SerializeMsnp for UbnServer {
+    fn serialize_msnp(&self) -> Vec<u8> {
+        let payload = self.payload.serialize_msnp();
+        let payload_type  = UserNotificationType::from(&self.payload);
+        let command = format!("UBN {dest} {payload_type} {payload_size}\r\n", dest = self.destination, payload_type = payload_type as u32, payload_size = payload.len());
+
+        let mut out = Vec::with_capacity(command.len() + payload.len());
+
+        out.extend_from_slice(command.as_bytes());
+        out.extend_from_slice(&payload);
+
+        out
     }
 }

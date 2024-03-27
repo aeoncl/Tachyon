@@ -1,7 +1,7 @@
 
 use strum_macros::Display;
 
-use crate::msnp::{error::CommandError, raw_command_parser::{RawCommand, RawCommandParser}};
+use crate::{msnp::{error::CommandError, raw_command_parser::{RawCommand, RawCommandParser}}, shared::command::command::SerializeMsnp};
 
 use super::{adl::{AdlClient, RmlClient}, blp::BlpClient, chg::ChgClient, cvr::CvrClient, prp::PrpClient, usr::UsrClient, uun::UunClient, uux::UuxClient, ver::VerClient};
 
@@ -18,8 +18,23 @@ pub enum NotificationCommand {
     CHG(ChgClient),
     PRP(PrpClient),
     UUN(UunClient),
-    XFR()
+    XFR(),
+    RAW(Vec<u8>)
 }
+
+impl NotificationCommand {
+    
+    fn serialize_msnp(self) -> Vec<u8> {
+
+        if let NotificationCommand::RAW(data) = self {
+            return data;
+        }
+
+        todo!()
+    }
+}
+
+
 
 pub struct NotificationCommandParser {
     raw_parser : RawCommandParser
