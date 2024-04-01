@@ -3,7 +3,7 @@ use std::{fmt::{self, Debug}, str::{from_utf8, FromStr}};
 use anyhow::anyhow;
 use log::{debug, info};
 
-use crate::shared::command::command::split_raw_command_no_arg;
+use crate::shared::command::command::{SerializeMsnp, split_raw_command_no_arg};
 
 use super::error::{CommandError, PayloadError};
 
@@ -227,21 +227,15 @@ impl FromStr for RawCommand {
 }
 
 pub struct RawCommand {
-    pub command: String,
-    pub command_split: Vec<String>,
-    pub expected_payload_size: usize,
+    command: String,
+    command_split: Vec<String>,
+    expected_payload_size: usize,
     pub payload: Vec<u8>
 }
 
 impl RawCommand {
-    pub fn new(command: String, command_split: Vec<String>, expected_payload_size: usize, payload: Vec<u8>) -> RawCommand {
-        
-        RawCommand {
-            command,
-            command_split,
-            expected_payload_size,
-            payload
-        }
+    pub fn without_payload(command: &str) -> Result<Self, CommandError> {
+        Self::from_str(command)
     }
 
     pub fn with_payload(command: &str, payload: Vec<u8>) -> Result<Self, CommandError> {
@@ -265,6 +259,10 @@ impl RawCommand {
 
     pub fn get_command_split(&self) -> Vec<&str> {
         self.command_split.iter().map(|e| e.as_str()).collect()
+    }
+
+    pub fn get_payload(&self) -> &[u8] {
+        self.payload.as_slice()
     }
 
     pub fn get_expected_payload_size(&self) -> usize {
@@ -300,6 +298,22 @@ impl Debug for RawCommand {
         } else {
             write!(f, "{:?} | {:?}", self.command, self.payload)
         }
+    }
+}
+
+impl SerializeMsnp for RawCommand {
+    fn serialize_msnp(&self) -> Vec<u8> {
+        let cmd = if self.expected_payload_size > 0 {
+            format!("{} {}\r\n", &self.command, self.expected_payload_size)
+        } else {
+            format!("{}\r\n", &self.command)
+        };
+        let mut out = Vec::with_capacity(cmd.len() + self.payload.len());
+
+        out.extend_from_slice(cmd.as_bytes());
+        out.extend_from_slice(self.payload.as_slice());
+
+        return out;
     }
 }
 

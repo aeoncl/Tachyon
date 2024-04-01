@@ -11,8 +11,8 @@ static OPERAND: &str = "USR";
 
 
 pub struct UsrClient {
-    tr_id: u128,
-    auth_type: OperationTypeClient,
+    pub tr_id: u128,
+    pub auth_type: OperationTypeClient,
 }
 
 
@@ -161,9 +161,18 @@ pub enum AuthPolicy {
     MbiKeyOld,
 }
 
-struct UsrServer {
+pub struct UsrServer {
     tr_id: u128,
     auth_type: OperationTypeServer,
+}
+
+impl UsrServer {
+    pub fn new(tr_id: u128, auth_type: OperationTypeServer) -> Self{
+        Self {
+            tr_id,
+            auth_type
+        }
+    }
 }
 
 impl core::fmt::Display for UsrServer {

@@ -34,7 +34,7 @@ impl TryFrom<RawCommand> for AdlClient {
             Err(PayloadError::MissingPayload { command: command.get_command().to_string() })?;
         }
 
-        let payload = ADLPayload::from_str(from_utf8(&command.payload).map_err(|e| PayloadError::Utf8Error(e))?)?;
+        let payload = ADLPayload::from_str(from_utf8(command.get_payload()).map_err(|e| PayloadError::Utf8Error(e))?)?;
 
         Ok(Self{
             tr_id,

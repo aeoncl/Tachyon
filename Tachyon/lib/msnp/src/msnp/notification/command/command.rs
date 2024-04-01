@@ -2,11 +2,14 @@
 use strum_macros::Display;
 
 use crate::{msnp::{error::CommandError, raw_command_parser::{RawCommand, RawCommandParser}}, shared::command::command::SerializeMsnp};
+use crate::msnp::notification::command::cvr::CvrServer;
+use crate::msnp::notification::command::usr::UsrServer;
+use crate::msnp::notification::command::ver::VerServer;
 
 use super::{adl::{AdlClient, RmlClient}, blp::BlpClient, chg::ChgClient, cvr::CvrClient, prp::PrpClient, usr::UsrClient, uun::UunClient, uux::UuxClient, ver::VerClient};
 
 #[derive(Display)]
-pub enum NotificationCommand {
+pub enum NotificationClientCommand {
     VER(VerClient),
     CVR(CvrClient),
     USR(UsrClient),
@@ -19,59 +22,61 @@ pub enum NotificationCommand {
     PRP(PrpClient),
     UUN(UunClient),
     XFR(),
-    RAW(Vec<u8>)
+    RAW(RawCommand)
 }
 
-impl NotificationCommand {
-    
-    fn serialize_msnp(self) -> Vec<u8> {
+impl TryFrom<RawCommand> for NotificationClientCommand {
+    type Error = CommandError;
 
-        if let NotificationCommand::RAW(data) = self {
-            return data;
-        }
-
-        todo!()
-    }
-}
-
-
-
-pub struct NotificationCommandParser {
-    raw_parser : RawCommandParser
-}
-
-impl NotificationCommandParser {
-
-    pub fn new() -> Self {
-        Self {
-            raw_parser: RawCommandParser::new()
-        }
-    }
-
-    pub fn parse_message(&mut self, message: &[u8]) -> Result<Vec<Result<NotificationCommand, CommandError>>, CommandError> {
-        let raw_commands = self.raw_parser.parse_message(message)?;
-        let mut out = Vec::with_capacity(raw_commands.len());
-
-        for raw_command in raw_commands {
-            out.push(Self::parse_raw_command(raw_command));
-        }
-
-        Ok(out)
-
-    }
-
-    fn parse_raw_command(command: RawCommand) -> Result<NotificationCommand, CommandError> {
+    fn try_from(command: RawCommand) -> Result<Self, Self::Error> {
         match command.get_operand() {
             "VER" => {
-                Ok(NotificationCommand::VER(VerClient::try_from(command)?))
+                Ok(NotificationClientCommand::VER(VerClient::try_from(command)?))
             },
             "CVR" => {
-                Ok(NotificationCommand::CVR(CvrClient::try_from(command)?))
+                Ok(NotificationClientCommand::CVR(CvrClient::try_from(command)?))
             }
             _ => {
-                Err(CommandError::UnsupportedCommand { command: format!("{:?}", command) })
+                Ok(NotificationClientCommand::RAW(command))
+                //Err(CommandError::UnsupportedCommand { command: format!("{:?}", command) })
             }
-        } 
+        }
     }
+}
 
+#[derive(Display)]
+pub enum NotificationServerCommand {
+    VER(VerServer),
+    CVR(CvrServer),
+    //Timeout before the next PNG command from client
+    QNG(u32),
+    USR(UsrServer),
+    OUT,
+    RAW(RawCommand)
+}
+
+impl NotificationServerCommand {
+
+    pub fn serialize_msnp(self) -> Vec<u8> {
+        match self {
+            NotificationServerCommand::OUT => {
+                "OUT\r\n".as_bytes().to_vec()
+            }
+            NotificationServerCommand::RAW(content) => {
+                content.serialize_msnp()
+            }
+            NotificationServerCommand::VER(command) => {
+                command.serialize_msnp()
+            }
+            NotificationServerCommand::CVR(command) => {
+                command.serialize_msnp()
+            }
+            NotificationServerCommand::QNG(timeout) => {
+                format!("QNG {}\r\n", timeout).as_bytes().to_vec()
+            }
+            NotificationServerCommand::USR(command) => {
+                command.serialize_msnp()
+            }
+        }
+    }
 }

@@ -30,7 +30,7 @@ impl TryFrom<RawCommand> for UunClient {
         let raw_notification_type = get_split_part(3, &split, command.get_command(), "payload_type")?;
         let notification_type: UserNotificationType = num::FromPrimitive::from_u32(u32::from_str(raw_notification_type).map_err(|e| CommandError::ArgumentParseError { argument: raw_notification_type.to_string(), command: command.get_command().to_string(), source: e.into() })?).ok_or(CommandError::ArgumentParseError { argument: raw_notification_type.to_string(), command: command.get_command().to_string(), source: anyhow!("Couldn't parse int to UserNotificationType") })?;
         
-        let payload_size = command.expected_payload_size;
+        let payload_size = command.get_expected_payload_size();
 
         let payload = UunPayload::parse_uun_payload(notification_type, command.payload)?;
 

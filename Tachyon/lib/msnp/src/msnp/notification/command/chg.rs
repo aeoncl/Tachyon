@@ -30,7 +30,7 @@ impl TryFrom<RawCommand> for Chg {
 
         let raw_avatar_msn_obj = get_split_part(4, &split, command.get_command(), "avatar_msn_obj")?;
 
-        let avatar = if raw_avatar_msn_obj != "0" { Some(MsnObject::from_str(from_utf8(&command.payload).map_err(PayloadError::Utf8Error)?)?) } else { None };
+        let avatar = if raw_avatar_msn_obj != "0" { Some(MsnObject::from_str(from_utf8(command.get_payload()).map_err(PayloadError::Utf8Error)?)?) } else { None };
         
         Ok(Chg { tr_id, presence_status, client_capabilities , avatar })
     }

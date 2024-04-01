@@ -1,6 +1,6 @@
 use std::{fmt::Display, str::FromStr};
 
-use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}, shared::command::command::{parse_tr_id, split_raw_command, MSNPCommand, SerializeMsnp}};
+use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}, shared::command::command::{parse_tr_id, split_raw_command, SerializeMsnp}};
 
 
 pub struct CvrClient {
@@ -41,12 +41,6 @@ impl CvrClient {
     }
 }
 
-impl MSNPCommand for CvrClient {
-
-    fn get_operand(&self) -> &str {
-        "CVR"
-    }
-}
 
 impl TryFrom<RawCommand> for CvrClient {
     type Error = CommandError;
@@ -136,14 +130,6 @@ impl CvrServer {
     }
 }
 
-impl MSNPCommand for CvrServer {
-
-    fn get_operand(&self) -> &str {
-        "CVR"
-    }
-}
-
-
 impl FromStr for CvrServer {
     type Err = CommandError;
     
@@ -157,7 +143,7 @@ impl Display for CvrServer {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{operand} {tr_id} {rec_client_ver} {rec_client_ver2} {min_client_ver} {client_dl_url} {client_info_url}\r\n", 
-        operand =  self.get_operand(), 
+        operand =  "CVR",
         tr_id = self.tr_id, 
         rec_client_ver = self.rec_client_ver,
         rec_client_ver2 = self.rec_client_ver2,

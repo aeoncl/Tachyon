@@ -30,10 +30,10 @@ impl TryFrom<RawCommand> for Uux {
 
     fn try_from(command: RawCommand) -> Result<Self, Self::Error> {
 
-        let split = split_raw_command_no_arg(&command.command);
+        let split = split_raw_command_no_arg(command.get_command());
         let tr_id = parse_tr_id(&split)?;
         let payload_size = command.get_expected_payload_size();
-        let payload = if payload_size > 0 { Some(UuxPayload::from_str(from_utf8(&command.payload).map_err(|e| PayloadError::Utf8Error(e))?)?) } else { None };
+        let payload = if payload_size > 0 { Some(UuxPayload::from_str(from_utf8(command.get_payload()).map_err(|e| PayloadError::Utf8Error(e))?)?) } else { None };
 
         Ok(Self{
             tr_id,

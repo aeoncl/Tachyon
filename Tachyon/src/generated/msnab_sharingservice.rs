@@ -450,7 +450,7 @@ pub mod types {
     use super::*;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(
+    #[yaserde(GetBatchRecentActivityResponseMessageSoapEnvelope
         rename = "ABApplicationHeader",
         namespace = "soap: http://www.msn.com/webservices/AddressBook",
         prefix = "soap"
@@ -1173,16 +1173,7 @@ pub mod types {
         #[yaserde(rename = "RecentActivityTemplateContainer", default)]
         pub recent_activity_template_container: Vec<RecentActivityTemplateContainerType>,
     }
-    #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "GetBatchRecentActivityResultType")]
-    pub struct GetBatchRecentActivityResultType {
-        #[yaserde(rename = "Activities", default)]
-        pub activities: Activities,
-        #[yaserde(rename = "Templates", default)]
-        pub templates: Templates,
-        #[yaserde(rename = "FeedUrl", default)]
-        pub feed_url: Option<String>,
-    }
+
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(rename = "GetContactsRecentActivityResultType")]
     pub struct GetContactsRecentActivityResultType {

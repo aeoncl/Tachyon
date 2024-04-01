@@ -37,7 +37,7 @@ impl TryFrom<RawCommand> for VerClient {
     type Error = CommandError;
 
     fn try_from(value: RawCommand) -> Result<Self, Self::Error> {
-        VerClient::from_str(value.command.as_str())
+        VerClient::from_str(value.get_command())
     }
 }
 
