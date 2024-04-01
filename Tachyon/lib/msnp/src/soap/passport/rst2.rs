@@ -10,8 +10,8 @@ pub mod request {
         fn test_rst2_request() {
     
             let request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" xmlns:saml=\"urn:oasis:names:tc:SAML:1.0:assertion\" xmlns:wsp=\"http://schemas.xmlsoap.org/ws/2004/09/policy\" xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\" xmlns:wsa=\"http://www.w3.org/2005/08/addressing\" xmlns:wssc=\"http://schemas.xmlsoap.org/ws/2005/02/sc\" xmlns:wst=\"http://schemas.xmlsoap.org/ws/2005/02/trust\"><s:Header><wsa:Action s:mustUnderstand=\"1\">http://schemas.xmlsoap.org/ws/2005/02/trust/RST/Issue</wsa:Action><wsa:To s:mustUnderstand=\"1\">HTTPS://127.0.0.1:80//RST2.srf</wsa:To><wsa:MessageID>1650180844</wsa:MessageID><ps:AuthInfo xmlns:ps=\"http://schemas.microsoft.com/Passport/SoapServices/PPCRL\" Id=\"PPAuthInfo\"><ps:HostingApp>{7108E71A-9926-4FCB-BCC9-9A9D3F32E423}</ps:HostingApp><ps:BinaryVersion>5</ps:BinaryVersion><ps:UIVersion>1</ps:UIVersion><ps:Cookies></ps:Cookies><ps:RequestParams>AQAAAAIAAABsYwQAAAAyMDYw</ps:RequestParams></ps:AuthInfo><wsse:Security><wsse:UsernameToken wsu:Id=\"user\"><wsse:Username>test@homeserver.org</wsse:Username><wsse:Password>passwd</wsse:Password></wsse:UsernameToken><wsu:Timestamp Id=\"Timestamp\"><wsu:Created>2022-04-17T09:34:04Z</wsu:Created><wsu:Expires>2022-04-17T09:39:04Z</wsu:Expires></wsu:Timestamp></wsse:Security></s:Header><s:Body><ps:RequestMultipleSecurityTokens xmlns:ps=\"http://schemas.microsoft.com/Passport/SoapServices/PPCRL\" Id=\"RSTS\"><wst:RequestSecurityToken Id=\"RST0\"><wst:RequestType>http://schemas.xmlsoap.org/ws/2005/02/trust/Issue</wst:RequestType><wsp:AppliesTo><wsa:EndpointReference><wsa:Address>http://Passport.NET/tb</wsa:Address></wsa:EndpointReference></wsp:AppliesTo></wst:RequestSecurityToken><wst:RequestSecurityToken Id=\"RST1\"><wst:RequestType>http://schemas.xmlsoap.org/ws/2005/02/trust/Issue</wst:RequestType><wsp:AppliesTo><wsa:EndpointReference><wsa:Address>messengerclear.live.com</wsa:Address></wsa:EndpointReference></wsp:AppliesTo><wsp:PolicyReference URI=\"MBI_KEY_OLD\"></wsp:PolicyReference></wst:RequestSecurityToken><wst:RequestSecurityToken Id=\"RST2\"><wst:RequestType>http://schemas.xmlsoap.org/ws/2005/02/trust/Issue</wst:RequestType><wsp:AppliesTo><wsa:EndpointReference><wsa:Address>messenger.msn.com</wsa:Address></wsa:EndpointReference></wsp:AppliesTo><wsp:PolicyReference URI=\"?id=507\"></wsp:PolicyReference></wst:RequestSecurityToken><wst:RequestSecurityToken Id=\"RST3\"><wst:RequestType>http://schemas.xmlsoap.org/ws/2005/02/trust/Issue</wst:RequestType><wsp:AppliesTo><wsa:EndpointReference><wsa:Address>messengersecure.live.com</wsa:Address></wsa:EndpointReference></wsp:AppliesTo><wsp:PolicyReference URI=\"MBI_SSL\"></wsp:PolicyReference></wst:RequestSecurityToken><wst:RequestSecurityToken Id=\"RST4\"><wst:RequestType>http://schemas.xmlsoap.org/ws/2005/02/trust/Issue</wst:RequestType><wsp:AppliesTo><wsa:EndpointReference><wsa:Address>contacts.msn.com</wsa:Address></wsa:EndpointReference></wsp:AppliesTo><wsp:PolicyReference URI=\"MBI\"></wsp:PolicyReference></wst:RequestSecurityToken><wst:RequestSecurityToken Id=\"RST5\"><wst:RequestType>http://schemas.xmlsoap.org/ws/2005/02/trust/Issue</wst:RequestType><wsp:AppliesTo><wsa:EndpointReference><wsa:Address>storage.msn.com</wsa:Address></wsa:EndpointReference></wsp:AppliesTo><wsp:PolicyReference URI=\"MBI\"></wsp:PolicyReference></wst:RequestSecurityToken><wst:RequestSecurityToken Id=\"RST6\"><wst:RequestType>http://schemas.xmlsoap.org/ws/2005/02/trust/Issue</wst:RequestType><wsp:AppliesTo><wsa:EndpointReference><wsa:Address>sup.live.com</wsa:Address></wsa:EndpointReference></wsp:AppliesTo><wsp:PolicyReference URI=\"MBI\"></wsp:PolicyReference></wst:RequestSecurityToken></ps:RequestMultipleSecurityTokens></s:Body></s:Envelope>";
-    
-            let test : RST2RequestMessageSoapEnvelope = from_str(&request).unwrap();
+
+            let test : RST2RequestMessageSoapEnvelope = from_str::<RST2RequestMessageSoapEnvelope>(&request).unwrap();
     
             let test2 = test.header.security.username_token;
             
@@ -23,7 +23,7 @@ pub mod request {
 
     use yaserde_derive::{YaDeserialize, YaSerialize};
 
-    use crate::soap::{error::SoapError, traits::xml::TryFromXml};
+    use crate::soap::{error::SoapMarshallError, traits::xml::TryFromXml};
 
     use super::shared::{AppliesTo, SecurityHeader};
 
@@ -50,7 +50,7 @@ pub mod request {
 
     impl TryFromXml for RST2RequestMessageSoapEnvelope {
 
-        type Error = SoapError;
+        type Error = SoapMarshallError;
         
         fn try_from_xml(xml_str: &str) -> Result<Self, Self::Error> {
             yaserde::de::from_str::<Self>(&xml_str).map_err(|e| Self::Error::DeserializationError { message: e})
@@ -120,6 +120,7 @@ pub mod response {
                 AppliesTo, EndpointReference, Reference, SecurityHeader, Timestamp,
             },
         };
+        use crate::shared::models::ticket_token::TicketToken;
 
         use super::{
             ActionHeader, BinarySecurityToken, CipherData, EncryptedData, EncryptionMethod,
@@ -135,7 +136,7 @@ pub mod response {
         impl RST2ResponseFactory {
 
             pub fn get_rst2_success_response(
-                matrix_token: String,
+                ticket_token: TicketToken,
                 msn_addr: String,
                 uuid: Uuid,
             ) -> RST2ResponseMessageSoapEnvelope {
@@ -188,17 +189,17 @@ pub mod response {
 
                 let body = RST2ResponseMessageBody {
                     request_security_token_response_collection: RST2ResponseFactory::get_tokens(
-                        matrix_token,
+                        ticket_token
                     ),
                 };
                 RST2ResponseMessageSoapEnvelope { header, body }
             }
 
-            fn get_tokens(matrix_token: String) -> RequestSecurityTokenResponseCollection {
+            fn get_tokens(ticket_token: TicketToken) -> RequestSecurityTokenResponseCollection {
                 let mut request_security_token_response = Vec::new();
                 request_security_token_response.push(RST2ResponseFactory::get_legacy_token());
 
-                let mut tokens = RST2ResponseFactory::get_relevant_tokens(matrix_token);
+                let mut tokens = RST2ResponseFactory::get_relevant_tokens(ticket_token);
                 request_security_token_response.append(&mut tokens);
 
                 RequestSecurityTokenResponseCollection {
@@ -250,7 +251,7 @@ pub mod response {
                 }
             }
 
-            fn get_relevant_tokens(matrix_token: String) -> Vec<RequestSecurityTokenResponse> {
+            fn get_relevant_tokens(ticket_token: TicketToken) -> Vec<RequestSecurityTokenResponse> {
                 let mut out: Vec<RequestSecurityTokenResponse> = Vec::new();
                 let addresses = [
                     "messengerclear.live.com",
@@ -265,7 +266,7 @@ pub mod response {
 
                 for i in 0..6 {
                     out.push(RST2ResponseFactory::get_relevant_token(
-                        matrix_token.clone(),
+                        ticket_token.clone(),
                         addresses[i].to_string(),
                         i.try_into().unwrap(),
                         &now,
@@ -277,7 +278,7 @@ pub mod response {
             }
 
             fn get_relevant_token(
-                matrix_token: String,
+                ticket_token: TicketToken,
                 address: String,
                 count: i32,
                 created: &DateTime<Local>,
@@ -293,7 +294,7 @@ pub mod response {
 
                 let token_id = format!("Compact{}", count + 1);
                 let token_uri = format!("#{}", token_id);
-                let token = format!("t={}", matrix_token);
+                let token = ticket_token.to_string();
 
                 let binary_security_token = BinarySecurityToken {
                     id: token_id.clone(),
@@ -346,8 +347,14 @@ pub mod response {
                 let now = Local::now();
                 let server_time = now.format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
-                let out = "<?xml version=\"1.0\" encoding=\"utf-8\" ?><S:Envelope xmlns:S=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\" xmlns:wst=\"http://schemas.xmlsoap.org/ws/2005/02/trust\" xmlns:psf=\"http://schemas.microsoft.com/Passport/SoapServices/SOAPFault\"><S:Header><psf:pp xmlns:psf=\"http://schemas.microsoft.com/Passport/SoapServices/SOAPFault\"><psf:serverVersion>1</psf:serverVersion><psf:authstate>0x80048800</psf:authstate><psf:reqstatus>0x80048821</psf:reqstatus><psf:serverInfo Path=\"Live1\" RollingUpgradeState=\"ExclusiveNew\" LocVersion=\"0\" ServerTime=\"{{server_time}}\" BuildVersion=\"16.0.28426.6\">XYZPPLOGN1A23 2017.09.28.12.44.07</psf:serverInfo><psf:cookies/><psf:response/></psf:pp></S:Header><S:Body><S:Fault><S:Code><S:Value>S:Sender</S:Value><S:Subcode><S:Value>wst:FailedAuthentication</S:Value></S:Subcode></S:Code><S:Reason><S:Text xml:lang=\"en-US\">Authentication Failure</S:Text></S:Reason><S:Detail><psf:error><psf:value>0x80048821</psf:value><psf:internalerror><psf:code>0x80041012</psf:code><psf:text>The entered and stored passwords do not match.&#x000D;&#x000A;</psf:text></psf:internalerror></psf:error></S:Detail></S:Fault></S:Body></S:Envelope>";
+                const out: &str = "<?xml version=\"1.0\" encoding=\"utf-8\" ?><S:Envelope xmlns:S=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\" xmlns:wst=\"http://schemas.xmlsoap.org/ws/2005/02/trust\" xmlns:psf=\"http://schemas.microsoft.com/Passport/SoapServices/SOAPFault\"><S:Header><psf:pp xmlns:psf=\"http://schemas.microsoft.com/Passport/SoapServices/SOAPFault\"><psf:serverVersion>1</psf:serverVersion><psf:authstate>0x80048800</psf:authstate><psf:reqstatus>0x80048821</psf:reqstatus><psf:serverInfo Path=\"Live1\" RollingUpgradeState=\"ExclusiveNew\" LocVersion=\"0\" ServerTime=\"{{server_time}}\" BuildVersion=\"16.0.28426.6\">XYZPPLOGN1A23 2017.09.28.12.44.07</psf:serverInfo><psf:cookies/><psf:response/></psf:pp></S:Header><S:Body><S:Fault><S:Code><S:Value>S:Sender</S:Value><S:Subcode><S:Value>wst:FailedAuthentication</S:Value></S:Subcode></S:Code><S:Reason><S:Text xml:lang=\"en-US\">Authentication Failure</S:Text></S:Reason><S:Detail><psf:error><psf:value>0x80048821</psf:value><psf:internalerror><psf:code>0x80041012</psf:code><psf:text>The entered and stored passwords do not match.&#x000D;&#x000A;</psf:text></psf:internalerror></psf:error></S:Detail></S:Fault></S:Body></S:Envelope>";
                 out.replace("{{server_time}}", &server_time)
+            }
+
+            pub fn get_bad_request() -> String {
+                //TODO Use the ps-fault xsd
+                const out: &str = "<?xml version=\"1.0\" encoding=\"utf-8\" ?><S:Envelope xmlns:S=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\" xmlns:wst=\"http://schemas.xmlsoap.org/ws/2005/02/trust\" xmlns:psf=\"http://schemas.microsoft.com/Passport/SoapServices/SOAPFault\"><S:Body><S:Fault><S:Code><S:Value>S:Sender</S:Value><S:Subcode><S:Value>wst:InvalidRequest</S:Value></S:Subcode></S:Code><S:Reason><S:Text xml:lang=\"en-US\">Invalid Request</S:Text></S:Reason><S:Detail><psf:error><psf:value>0x80048820</psf:value><psf:internalerror><psf:code>0x80045c01</psf:code><psf:text>Invalid STS request.&#x000D;&#x000A;</psf:text></psf:internalerror></psf:error></S:Detail></S:Fault></S:Body></S:Envelope>";
+                out.to_string()
             }
         }
     }
@@ -355,6 +362,7 @@ pub mod response {
     mod tests {
         use tests::factory::RST2ResponseFactory;
         use yaserde::ser::to_string;
+        use crate::shared::models::ticket_token::TicketToken;
 
         use crate::shared::models::uuid::Uuid;
         use crate::soap::passport::rst2::response::*;
@@ -362,7 +370,7 @@ pub mod response {
 
         #[test]
         fn test_factory() {
-          let test =  RST2ResponseFactory::get_rst2_success_response("t0k3n".to_string(),"aeon@test.com".to_string(), Uuid::new());
+          let test =  RST2ResponseFactory::get_rst2_success_response(TicketToken("t0k3n".to_string()),"aeon@test.com".to_string(), Uuid::new());
             //TODO add assertions
             println!("{}", to_string(&test).unwrap());
         }
@@ -404,8 +412,11 @@ pub mod response {
         }
 
     }
-    
+
+    use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::ToXml;
 
     use super::shared::{AppliesTo, Reference, SecurityHeader};
 
@@ -426,6 +437,15 @@ pub mod response {
         #[yaserde(rename = "Body", prefix = "S")]
         body: RST2ResponseMessageBody,
     }
+
+    impl ToXml for RST2ResponseMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+
+        fn to_xml(&self) -> Result<String, Self::Error>  {
+            to_string(self).map_err(|e| SoapMarshallError::SerializationError { message: e})
+        }
+    }
+
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct RST2ResponseMessageHeader {
@@ -947,9 +967,6 @@ pub mod shared {
         prefix = "wsu"
     )]
     pub struct Timestamp {
-        #[yaserde(rename = "wsu", prefix = "xmlns", attribute)]
-        pub wsu_ns: String,
-
         #[yaserde(rename = "Id", prefix = "wsu", attribute)]
         pub id: String,
 
@@ -962,7 +979,7 @@ pub mod shared {
 
     impl Timestamp {
         pub fn new(id: String, created: String, expires: String) -> Self {
-            Self { wsu_ns: String::from("http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"), id, created, expires }
+            Self {id, created, expires }
         }
     }
 

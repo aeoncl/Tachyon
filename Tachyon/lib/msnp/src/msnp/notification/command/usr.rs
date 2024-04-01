@@ -4,6 +4,8 @@ use anyhow::anyhow;
 use strum_macros::{Display, EnumString};
 
 use crate::{msnp::{error::CommandError, notification::models::endpoint_guid::EndpointGuid, raw_command_parser::RawCommand}, shared::command::command::{get_split_part, parse_tr_id, SerializeMsnp}};
+use crate::shared::models::ticket_token::TicketToken;
+use crate::shared::traits::ParseStr;
 
 use super::ver::VerClient;
 
@@ -70,22 +72,7 @@ pub enum SsoPhaseClient {
     },
 }
 
-pub struct TicketToken(pub String);
 
-impl std::fmt::Display for TicketToken {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "t={}", self.0)
-    }
-}
-
-impl FromStr for TicketToken {
-    type Err = CommandError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let no_prefix = s.strip_prefix("t=").ok_or(Self::Err::ArgumentParseError { argument: s.to_string(), command: String::new(), source: anyhow!("Error stripping t= prefix from Ticket Token")})?;
-        Ok(Self(no_prefix.to_string()))
-    }
-}
 
 impl SsoPhaseClient {
 
@@ -98,11 +85,11 @@ impl SsoPhaseClient {
                 Ok(SsoPhaseClient::I { email_addr })
             },
             "S" => {
-                let ticket_token = TicketToken::from_str(get_split_part(4, split, "", "ticket_token")?)?;
+                let ticket_token = TicketToken::try_parse_str(get_split_part(4, split, "", "ticket_token")?)?;
                     
                 let challenge = get_split_part(5, split, "", "challenge")?.to_string(); 
                 
-                let endpoint_guid = EndpointGuid::from_str(get_split_part(6, split, raw_cmd, "endpoint_guid")?)?; 
+                let endpoint_guid = EndpointGuid::try_parse_str(get_split_part(6, split, raw_cmd, "endpoint_guid")?)?;
 
                 Ok(SsoPhaseClient::S {
                     ticket_token,

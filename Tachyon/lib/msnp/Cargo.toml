@@ -11,7 +11,7 @@ yaserde_derive = {version = "0.10.0" }
 uuid = { version = "1.5.0", features = ["v3", "v4", "v5"] }
 chrono = "0.4.31"
 byteorder = "1.5.0"
-thiserror = "1.0.50"
+thiserror = "1.0.58"
 lazy_static = "1.4.0"
 lazy-static-include = "3.2.1"
 strum = "0.26.2"

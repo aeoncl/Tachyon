@@ -1,2 +1,2 @@
 pub mod notification_server;
-mod client_store;
+pub mod client_store;

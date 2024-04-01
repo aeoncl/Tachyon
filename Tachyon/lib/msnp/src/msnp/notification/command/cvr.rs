@@ -57,7 +57,7 @@ impl FromStr for CvrClient {
         let split = split_raw_command(command, 10)?;
         let tr_id = parse_tr_id(&split)?;
         
-        let region_code_as_str = split.get(2).expect("region code to be present");
+        let region_code_as_str = split.get(2).expect("region code to be present").trim_start_matches("0x");
         let region_code = u32::from_str_radix(region_code_as_str, 16).map_err(|e| Self::Err::ArgumentParseError {argument: region_code_as_str.to_string() , command: command.to_string(), source: e.into()})?;
 
         let os_type = split.get(3).expect("os type to be present").to_string();
@@ -159,4 +159,17 @@ impl SerializeMsnp for CvrServer {
     fn serialize_msnp(&self) -> Vec<u8> {
         self.to_string().as_bytes().to_vec()
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+    use crate::msnp::notification::command::cvr::CvrClient;
+
+
+    #[test]
+    fn deser_test() {
+       let cvr =  CvrClient::from_str("CVR 2 0x0409 winnt 6.2.0 i386 MSNMSGR 14.0.8117.0416 msmsgs aeontest3@shlasouf.local").unwrap();
+    }
+
 }

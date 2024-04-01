@@ -2,13 +2,15 @@ use std::{fmt::Display, str::FromStr};
 
 use crate::{msnp::error::{CommandError}, shared::models::uuid::Uuid};
 use anyhow::anyhow;
+use crate::shared::traits::ParseStr;
 
+#[derive(Debug, Clone)]
 pub struct EndpointGuid(Uuid);
 
-impl FromStr for EndpointGuid {
-    type Err = CommandError;
+impl ParseStr for EndpointGuid {
+    type Error = CommandError;
 
-    fn from_str(endpoint_guid: &str) -> Result<Self, Self::Err> {
+    fn try_parse_str(endpoint_guid: &str) -> Result<Self, Self::Error> {
         let trimmed = endpoint_guid.trim().strip_prefix('{')
         .ok_or(CommandError::ArgumentParseError { argument: endpoint_guid.to_string(), command: String::new(), source: anyhow!("Error stripping {{ prefix from GUID: {}", &endpoint_guid)})?
         .strip_suffix('}')

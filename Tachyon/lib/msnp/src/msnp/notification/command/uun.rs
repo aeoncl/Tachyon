@@ -64,7 +64,7 @@ impl FromStr for Endpoint {
         let email_addr = split[0].to_string();
 
         let endpoint_guid = if split.len() >= 2 {
-            Some(EndpointGuid::from_str(split[1])?)
+            Some(EndpointGuid::try_parse_str(split[1])?)
         } else {
             None
         };
@@ -136,6 +136,7 @@ pub struct UunService {
 }
 
 use num_derive::FromPrimitive;
+use crate::shared::traits::ParseStr;
 
 #[derive(Clone, Debug, FromPrimitive)]
 pub enum UserNotificationType {
