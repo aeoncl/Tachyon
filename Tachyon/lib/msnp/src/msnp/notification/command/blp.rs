@@ -1,9 +1,10 @@
 
 use std::str::FromStr;
 
-use strum_macros::{Display,EnumString};
+use strum_macros::{Display, EnumString};
 use std::fmt::Display;
-use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}, shared::command::command::{get_split_part, parse_tr_id, SerializeMsnp}};
+use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}, shared::command::command::{get_split_part, parse_tr_id}};
+use crate::shared::traits::SerializeMsnp;
 
 pub struct Blp{
     tr_id: u128,
@@ -45,7 +46,7 @@ impl Display for Blp {
 impl SerializeMsnp for Blp {
 
     fn serialize_msnp(&self) -> Vec<u8> {
-        self.to_string().as_bytes().to_vec()
+        self.to_string().into_bytes()
     }
 }
 

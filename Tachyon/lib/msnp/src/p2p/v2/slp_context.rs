@@ -4,7 +4,7 @@ use byteorder::{ByteOrder, LittleEndian};
 
 
 pub trait SlpContext {
-    fn from_slp_context(bytes: &Vec<u8>) -> Option<Box<Self>>;
+    fn from_slp_context(bytes: &[u8]) -> Option<Self> where Self: Sized;
 }
 
 #[derive(Debug)]
@@ -77,7 +77,7 @@ where
 
 impl SlpContext for PreviewData {
 
-    fn from_slp_context(bytes: &Vec<u8>) -> Option<Box<Self>> { 
+    fn from_slp_context(bytes: &[u8]) -> Option<Self> {
 
         if bytes.len() >= 4 {
             let context_size = LittleEndian::read_u32(&bytes[0..4]) as usize;
@@ -97,7 +97,7 @@ impl SlpContext for PreviewData {
                     .collect();
 
                     let filename = decode_utf16(filename_chunks.into_iter()).map(|r| r.unwrap_or('�')).collect::<String>().trim_end_matches('\0').to_string();
-                    return Some(Box::new(PreviewData {size: file_size, filename}));
+                    return Some(PreviewData {size: file_size, filename});
                 }
             }
         }

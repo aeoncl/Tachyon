@@ -1,13 +1,11 @@
-use std::{process::Command, str::FromStr};
+use std::str::FromStr;
 
 use anyhow::anyhow;
 use strum_macros::{Display, EnumString};
 
-use crate::{msnp::{error::CommandError, notification::models::endpoint_guid::EndpointGuid, raw_command_parser::RawCommand}, shared::command::command::{get_split_part, parse_tr_id, SerializeMsnp}};
+use crate::{msnp::{error::CommandError, notification::models::endpoint_guid::EndpointGuid, raw_command_parser::RawCommand}, shared::command::command::{get_split_part, parse_tr_id}};
 use crate::shared::models::ticket_token::TicketToken;
-use crate::shared::traits::ParseStr;
-
-use super::ver::VerClient;
+use crate::shared::traits::{ParseStr, SerializeMsnp};
 
 static OPERAND: &str = "USR";
 
@@ -173,7 +171,7 @@ impl core::fmt::Display for UsrServer {
 impl SerializeMsnp for UsrServer {
 
     fn serialize_msnp(&self) -> Vec<u8> {
-        self.to_string().as_bytes().to_vec()
+        self.to_string().into_bytes()
     }
 }
 

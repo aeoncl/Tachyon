@@ -3,8 +3,9 @@ use std::{fmt::Display, str::{from_utf8, FromStr}};
 use yaserde::{de::from_str, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
-use crate::{msnp::{error::{CommandError, PayloadError}, raw_command_parser::RawCommand}, shared::{command::{command::{parse_tr_id, split_raw_command_no_arg, SerializeMsnp}, ok::OkCommand}, models::role_id::RoleId}};
+use crate::{msnp::{error::{CommandError, PayloadError}, raw_command_parser::RawCommand}, shared::{command::{command::{parse_tr_id, split_raw_command_no_arg}, ok::OkCommand}, models::role_id::RoleId}};
 use anyhow::anyhow;
+use crate::shared::traits::SerializeMsnp;
 
 pub struct AdlClient {
     tr_id: u128,
@@ -15,8 +16,8 @@ pub struct AdlClient {
 pub type RmlClient = AdlClient;
 
 impl AdlClient {
-    pub fn get_ok_response(&self, operand: String) -> OkCommand {
-        OkCommand { tr_id: self.tr_id, operand }
+    pub fn get_ok_response(&self, operand: &str) -> OkCommand {
+        OkCommand { tr_id: self.tr_id, operand: operand.to_string() }
     }
 }
 

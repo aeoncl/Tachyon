@@ -65,12 +65,12 @@ pub struct MsnObject {
 
 impl SlpContext for MsnObject {
 
-    fn from_slp_context(bytes: &Vec<u8>) -> Option<Box<Self>> { 
+    fn from_slp_context(bytes: &[u8]) -> Option<Self> {
         let base64_decoded = general_purpose::STANDARD.decode(bytes);
         if let Ok(base64_decoded) = base64_decoded {
             if let Ok(str) = String::from_utf8(base64_decoded){
                 if let Ok(msn_obj) = MsnObject::from_str(str.as_str()) {
-                    return Some(Box::new(msn_obj));
+                    return Some(msn_obj);
                 }
             }
         }
@@ -531,7 +531,7 @@ mod tests {
     #[test]
     fn deserialize_test() {
         let base64_context = String::from("PG1zbm9iaiBDcmVhdG9yPSJidWRkeTFAaG90bWFpbC5jb20iIFNpemU9IjI0NTM5IiBUeXBlPSIzIiBMb2NhdGlvbj0iVEZSMkMudG1wIiBGcmllbmRseT0iQUFBPSIgU0hBMUQ9InRyQzhTbEZ4MnNXUXhaTUlCQVdTRW5YYzhvUT0iIFNIQTFDPSJVMzJvNmJvc1p6bHVKcTgyZUF0TXB4NWRJRUk9Ii8+DQoA");
-        let msn_obj = MsnObject::from_slp_context(&base64_context.as_bytes().to_vec()).unwrap();
+        let msn_obj = MsnObject::from_slp_context(&base64_context.into_bytes()).unwrap();
         assert_eq!(msn_obj.avatarcontentid, None);
         assert_eq!(msn_obj.avatarid, None);
         assert_eq!(msn_obj.compute_sha1c, false);

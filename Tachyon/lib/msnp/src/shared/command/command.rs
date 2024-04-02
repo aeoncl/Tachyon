@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::msnp::{error::CommandError, raw_command_parser::RawCommand};
+use crate::msnp::error::CommandError;
 
 pub fn split_raw_command(command: &str, argument_count: usize) -> Result<Vec<&str>, CommandError> {
     let split = split_raw_command_no_arg(command);
@@ -32,12 +32,4 @@ pub fn parse_tr_id(splitted_command: &Vec<&str>) -> Result<u128, CommandError> {
         tr_id: tr_id_as_str.to_string(),
         source: e,
     })
-}
-
-pub trait MSNPCommand {
-    fn get_operand(&self) -> &str;
-}
-
-pub trait SerializeMsnp {
-    fn serialize_msnp(&self) -> Vec<u8>;
 }

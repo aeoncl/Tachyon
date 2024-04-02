@@ -1,7 +1,8 @@
 
 use std::{fmt::Display, str::{from_utf8, FromStr}};
 
-use crate::{msnp::{error::{CommandError, PayloadError}, notification::models::endpoint_data::PrivateEndpointData, raw_command_parser::RawCommand}, shared::{command::command::{get_split_part, parse_tr_id, split_raw_command_no_arg, SerializeMsnp}, payload}};
+use crate::{msnp::{error::{CommandError, PayloadError}, notification::models::endpoint_data::PrivateEndpointData, raw_command_parser::RawCommand}, shared::command::command::{parse_tr_id, split_raw_command_no_arg}};
+use crate::shared::traits::SerializeMsnp;
 
 pub struct Uux {
     tr_id : u128,
@@ -100,7 +101,7 @@ mod tests {
     use std::str::FromStr;
 
 
-    use crate::msnp::{error::{CommandError, PayloadError}, notification::{command::uux::{Uux, UuxPayload}, models::msnp_version::MsnpVersion}, raw_command_parser::RawCommand};
+    use crate::msnp::{error::{CommandError, PayloadError}, notification::command::uux::{Uux, UuxPayload}, raw_command_parser::RawCommand};
 
     use super::UuxClient;
 

@@ -1,6 +1,7 @@
 use std::{fmt::Display, str::FromStr};
 
-use crate::{msnp::{error::CommandError, notification::models::msnp_version::MsnpVersion, raw_command_parser::RawCommand}, shared::command::command::{parse_tr_id, split_raw_command, MSNPCommand, SerializeMsnp}};
+use crate::{msnp::{error::CommandError, notification::models::msnp_version::MsnpVersion, raw_command_parser::RawCommand}, shared::command::command::{parse_tr_id, split_raw_command}};
+use crate::shared::traits::SerializeMsnp;
 
 
 pub struct VerClient {
@@ -23,13 +24,6 @@ impl VerClient {
 
     pub fn get_response_for(&self, agreed_version: MsnpVersion) -> VerServer {
         VerServer::new(self.tr_id, agreed_version)
-    }
-}
-
-impl MSNPCommand for VerClient {
-
-    fn get_operand(&self) -> &str {
-        "VER"
     }
 }
 
@@ -63,14 +57,14 @@ impl FromStr for VerClient {
 impl Display for VerClient {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{operand} {tr_id} {first_candidate} {second_candidate} {cvr}\r\n",operand = self.get_operand(), tr_id = self.tr_id, first_candidate = self.first_candidate, second_candidate = self.second_candidate, cvr = self.cvr)
+        write!(f, "{operand} {tr_id} {first_candidate} {second_candidate} {cvr}\r\n",operand = "VER", tr_id = self.tr_id, first_candidate = self.first_candidate, second_candidate = self.second_candidate, cvr = self.cvr)
     }
 }
 
 impl SerializeMsnp for VerClient {
 
     fn serialize_msnp(&self) -> Vec<u8> {
-        self.to_string().as_bytes().to_vec()
+        self.to_string().into_bytes()
     }
 }
 
@@ -86,13 +80,6 @@ impl VerServer {
             tr_id,
             agreed_version
         }
-    }
-}
-
-impl MSNPCommand for VerServer {
-
-    fn get_operand(&self) -> &str {
-        "VER"
     }
 }
 
@@ -115,14 +102,14 @@ impl FromStr for VerServer {
 impl Display for VerServer {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {} {}\r\n", self.get_operand(), self.tr_id, self.agreed_version)
+        write!(f, "{} {} {}\r\n", "VER", self.tr_id, self.agreed_version)
     }
 }
 
 impl SerializeMsnp for VerServer {
 
     fn serialize_msnp(&self) -> Vec<u8> {
-        self.to_string().as_bytes().to_vec()
+        self.to_string().into_bytes()
     }
 }
 

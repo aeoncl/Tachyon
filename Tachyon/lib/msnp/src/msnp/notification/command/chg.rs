@@ -1,6 +1,6 @@
 use std:: str::{from_utf8, FromStr};
 use std::fmt::Display;
-use crate::shared::command::command::SerializeMsnp;
+use crate::shared::traits::SerializeMsnp;
 use crate::{msnp::{error::{CommandError, PayloadError}, raw_command_parser::{self, RawCommand}}, shared::{command::command::{get_split_part, parse_tr_id}, models::{capabilities::ClientCapabilities, msn_object::MsnObject, presence_status::PresenceStatus}}};
 
 
@@ -57,6 +57,6 @@ impl Display for Chg {
 impl SerializeMsnp for Chg {
 
     fn serialize_msnp(&self) -> Vec<u8> {
-        self.to_string().as_bytes().to_vec()
+        self.to_string().into_bytes()
     }
 }

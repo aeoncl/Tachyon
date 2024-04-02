@@ -1,10 +1,12 @@
 
 use strum_macros::Display;
 
-use crate::{msnp::{error::CommandError, raw_command_parser::{RawCommand, RawCommandParser}}, shared::command::command::SerializeMsnp};
+use crate::msnp::{error::CommandError, raw_command_parser::RawCommand};
 use crate::msnp::notification::command::cvr::CvrServer;
+use crate::msnp::notification::command::msg::MsgServer;
 use crate::msnp::notification::command::usr::UsrServer;
 use crate::msnp::notification::command::ver::VerServer;
+use crate::shared::traits::SerializeMsnp;
 
 use super::{adl::{AdlClient, RmlClient}, blp::BlpClient, chg::ChgClient, cvr::CvrClient, prp::PrpClient, usr::UsrClient, uun::UunClient, uux::UuxClient, ver::VerClient};
 
@@ -48,6 +50,7 @@ impl TryFrom<RawCommand> for NotificationClientCommand {
 pub enum NotificationServerCommand {
     VER(VerServer),
     CVR(CvrServer),
+    MSG(MsgServer),
     //Timeout before the next PNG command from client
     QNG(u32),
     USR(UsrServer),
@@ -60,7 +63,7 @@ impl NotificationServerCommand {
     pub fn serialize_msnp(self) -> Vec<u8> {
         match self {
             NotificationServerCommand::OUT => {
-                "OUT\r\n".as_bytes().to_vec()
+                b"OUT\r\n".to_vec()
             }
             NotificationServerCommand::RAW(content) => {
                 content.serialize_msnp()
@@ -72,7 +75,10 @@ impl NotificationServerCommand {
                 command.serialize_msnp()
             }
             NotificationServerCommand::QNG(timeout) => {
-                format!("QNG {}\r\n", timeout).as_bytes().to_vec()
+                format!("QNG {}\r\n", timeout).into_bytes()
+            },
+            NotificationServerCommand::MSG(command) => {
+                command.serialize_msnp()
             }
             NotificationServerCommand::USR(command) => {
                 command.serialize_msnp()

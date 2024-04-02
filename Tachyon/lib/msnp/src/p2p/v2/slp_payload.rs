@@ -42,8 +42,8 @@ impl SlpPayload {
         self.body.insert(name, value);
     }
 
-    pub fn get_body_property(&self, name: &String) -> Option<&String> {
-        return self.body.get(name);
+    pub fn get_body_property(&self, name: &str) -> Option<&str> {
+        return self.body.get(name).map(|s| s.as_str());
     }
 
     pub fn get_content_type(&self) -> Option<&String> {
@@ -66,7 +66,7 @@ impl SlpPayload {
         return None;
     }
 
-    pub fn get_context_as_preview_data(&self) -> Option<Box<PreviewData>> {
+    pub fn get_context_as_preview_data(&self) -> Option<PreviewData> {
         if let Some(context) = self.get_body_property(&String::from("Context")) {
             if let Ok(decoded) = general_purpose::STANDARD.decode(context) {
                 return PreviewData::from_slp_context(&decoded);
@@ -86,7 +86,7 @@ impl SlpPayload {
         }
 
         let euf_guid = euf_guid.unwrap();
-        let euf_guid = EufGUID::try_from(euf_guid.as_str())?;
+        let euf_guid = EufGUID::try_from(euf_guid)?;
         return Ok(Some(euf_guid));
     }
 
@@ -97,7 +97,7 @@ impl SlpPayload {
         }
 
         let app_id = app_id.unwrap();
-        let app_id = u32::from_str(app_id.as_str())?;
+        let app_id = u32::from_str(app_id)?;
         let app_id: Option<AppID> = FromPrimitive::from_u32(app_id);
         return Ok(app_id);
     }
@@ -116,12 +116,14 @@ impl SlpPayload {
         return Ok(Some(Uuid::from_str(call_id).unwrap())); //TODO HANDLE ERROR CORRECTLY
     }
 
-    pub fn get_context_as_msnobj(&self) -> Option<Box<MsnObject>> {
-        let context = self.get_body_property(&String::from("Context"));
-        if let None = context {
-            return None;
+    pub fn get_context_as_msnobj(&self) -> Option<MsnObject> {
+        let context = self.get_body_property("Context");
+        match context {
+            None => None,
+            Some(context) => {
+                MsnObject::from_slp_context(&context.as_bytes())
+            }
         }
-        return MsnObject::from_slp_context(&context.unwrap().as_bytes().to_vec());
     }
 
     pub fn is_invite(&self) -> bool {

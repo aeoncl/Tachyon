@@ -3,7 +3,8 @@ use std::{fmt::{self, Debug}, str::{from_utf8, FromStr}};
 use anyhow::anyhow;
 use log::{debug, info};
 
-use crate::shared::command::command::{SerializeMsnp, split_raw_command_no_arg};
+use crate::shared::command::command::split_raw_command_no_arg;
+use crate::shared::traits::SerializeMsnp;
 
 use super::error::{CommandError, PayloadError};
 
@@ -320,9 +321,9 @@ impl SerializeMsnp for RawCommand {
 
 #[cfg(test)]
 mod tests {
-    use std::{str::from_utf8};
+    use std::str::from_utf8;
 
-    use crate::msnp::{raw_command_parser::RawCommandParser};
+    use crate::msnp::raw_command_parser::RawCommandParser;
 
     #[test]
     fn test_one_simple_command_old() {

@@ -1,7 +1,8 @@
 use std::future::Future;
 use std::str::from_utf8_unchecked;
 
-use msnp::{msnp::{notification::command::command::NotificationServerCommand, raw_command_parser::{RawCommand, RawCommandParser}}, shared::command::command::SerializeMsnp};
+use msnp::{msnp::{notification::command::command::NotificationServerCommand, raw_command_parser::{RawCommand, RawCommandParser}}};
+use msnp::shared::traits::SerializeMsnp;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::{OwnedWriteHalf}, TcpListener, TcpStream}, sync::{broadcast::{self, Receiver}, mpsc::{self, Sender}}};
 use anyhow::anyhow;
 use log::{debug, error, info};
@@ -185,6 +186,8 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
                             });
 
                             notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
+                            notif_sender.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null").expect("SBS to be valid"))).await?;
+
                         }
 
                     }

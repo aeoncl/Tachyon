@@ -1,6 +1,7 @@
 use std::{fmt::Display, str::FromStr};
 
-use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}, shared::command::command::{parse_tr_id, split_raw_command, SerializeMsnp}};
+use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}, shared::command::command::{parse_tr_id, split_raw_command}};
+use crate::shared::traits::SerializeMsnp;
 
 
 pub struct CvrClient {
@@ -143,21 +144,21 @@ impl Display for CvrServer {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{operand} {tr_id} {rec_client_ver} {rec_client_ver2} {min_client_ver} {client_dl_url} {client_info_url}\r\n", 
-        operand =  "CVR",
-        tr_id = self.tr_id, 
-        rec_client_ver = self.rec_client_ver,
-        rec_client_ver2 = self.rec_client_ver2,
-        min_client_ver = self.min_client_ver,
-        client_dl_url = self.client_dl_url,
-        client_info_url = self.client_info_url
-    )
+            operand =  "CVR",
+            tr_id = self.tr_id,
+            rec_client_ver = self.rec_client_ver,
+            rec_client_ver2 = self.rec_client_ver2,
+            min_client_ver = self.min_client_ver,
+            client_dl_url = self.client_dl_url,
+            client_info_url = self.client_info_url
+        )
     }
 }
 
 impl SerializeMsnp for CvrServer {
 
     fn serialize_msnp(&self) -> Vec<u8> {
-        self.to_string().as_bytes().to_vec()
+        self.to_string().into_bytes()
     }
 }
 

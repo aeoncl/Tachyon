@@ -3,7 +3,7 @@ use std::{fmt::Display, str::{from_utf8, FromStr}};
 use yaserde::{de::from_str, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 use anyhow::anyhow;
-use crate::{msnp::{error::{CommandError, PayloadError}, notification::models::endpoint_guid::EndpointGuid, raw_command_parser::RawCommand}, shared::{command::{command::{get_split_part, parse_tr_id, SerializeMsnp}, ok::OkCommand}, payload}};
+use crate::{msnp::{error::{CommandError, PayloadError}, notification::models::endpoint_guid::EndpointGuid, raw_command_parser::RawCommand}, shared::{command::{command::{get_split_part, parse_tr_id}, ok::OkCommand}, payload}};
 
 pub struct UunClient {
     tr_id: u128,
@@ -87,8 +87,8 @@ impl SerializeMsnp for UunPayload{
 
     fn serialize_msnp(&self) -> Vec<u8> {
         match self {
-            UunPayload::DisconnectClient => "goawyplzthxbye".as_bytes().to_vec(),
-            UunPayload::DisconnectAllClients => "gtfo".as_bytes().to_vec(),
+            UunPayload::DisconnectClient => b"goawyplzthxbye".to_vec(),
+            UunPayload::DisconnectAllClients => b"gtfo".to_vec(),
             UunPayload::ConversationWindowClosed { email_addr } => todo!(),
             UunPayload::DismissUserInvite { email_addr, unknown } => format!("{} {}", email_addr, unknown).as_bytes().to_vec(),
             UunPayload::Resynchronize(payload) => payload.to_string().as_bytes().to_vec(),
@@ -136,7 +136,7 @@ pub struct UunService {
 }
 
 use num_derive::FromPrimitive;
-use crate::shared::traits::ParseStr;
+use crate::shared::traits::{ParseStr, SerializeMsnp};
 
 #[derive(Clone, Debug, FromPrimitive)]
 pub enum UserNotificationType {

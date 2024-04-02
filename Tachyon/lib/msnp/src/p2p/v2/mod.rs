@@ -525,7 +525,7 @@ mod tests {
     use byteorder::{BigEndian, ByteOrder};
     use log::info;
 
-    use crate::{msnp::raw_command_parser::RawCommandParser, p2p::v2::{p2p_payload::P2PPayload, p2p_transport_packet::P2PTransportPacket, tlv::ValueType}, shared::payload::msg_payload::MsgPayload};
+    use crate::{msnp::raw_command_parser::RawCommandParser, p2p::v2::{p2p_payload::P2PPayload, p2p_transport_packet::P2PTransportPacket, tlv::ValueType}, shared::payload::raw_msg_payload::RawMsgPayload};
 
     use super::factories::{P2PTransportPacketFactory, TLVFactory};
 

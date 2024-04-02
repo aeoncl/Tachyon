@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use super::command::SerializeMsnp;
+use crate::shared::traits::SerializeMsnp;
 
 pub struct OkCommand {
     pub operand: String,
@@ -16,6 +16,6 @@ impl Display for OkCommand {
 impl SerializeMsnp for OkCommand {
 
     fn serialize_msnp(&self) -> Vec<u8> {
-        self.to_string().as_bytes().to_vec()
+        self.to_string().into_bytes()
     }
 }

@@ -1,6 +1,8 @@
 use std::fmt::Display;
-use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}, shared::command::command::{get_split_part, parse_tr_id, SerializeMsnp}};
+use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}, shared::command::command::{get_split_part, parse_tr_id}};
 use anyhow::anyhow;
+use crate::shared::traits::SerializeMsnp;
+
 pub struct Prp{
     tr_id: u128,
     operation: PrpOperation
@@ -68,6 +70,6 @@ impl Display for Prp {
 
 impl SerializeMsnp for Prp {
     fn serialize_msnp(&self) -> Vec<u8> {
-        self.to_string().as_bytes().to_vec()
+        self.to_string().into_bytes()
     }
 }

@@ -1,1 +1,1 @@
-pub mod msg_payload;
+pub mod raw_msg_payload;
