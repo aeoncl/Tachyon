@@ -32,12 +32,20 @@ impl RawMsgPayload {
         self.headers.insert(name.to_string(), value.to_string());
     }
 
+    pub fn add_header_owned(&mut self, name: String, value: String) {
+        self.headers.insert(name, value);
+    }
+
     pub fn get_header(&self, name: &str) -> Option<&str> {
         return self.headers.get(name).map(|e| e.as_str());
     }
 
     pub fn set_body(&mut self, body: &str) {
         self.body = body.to_string();
+    }
+
+    pub fn set_body_owned(&mut self, body: String) {
+        self.body = body;
     }
 
     pub fn disable_charset(&mut self) {
@@ -171,71 +179,71 @@ pub mod factories {
 
             return out;
         }
-        //
-        // pub fn get_initial_mail_data_notification() -> MsgPayload {
-        //     let mut out = MsgPayload::new("text/x-msmsgsinitialmdatanotification");
-        //     out.set_body(String::from("Mail-Data: <MD><E><I>0</I><IU>0</IU><O>0</O><OU>0</OU></E><Q><QTM>409600</QTM><QNM>204800</QNM></Q></MD>\r\nInbox-Unread: 1\r\nFolders-Unread: 0\r\nInbox-URL: /cgi-bin/HoTMaiL\r\nFolders-URL: /cgi-bin/folders\r\nPost-URL: http://127.0.0.1:8080/email\r\n"));
-        //     out.disable_trailing_terminators();
-        //     return out;
-        // }
-        //
-        // pub fn get_system_msg(msg_type: String, arg1: String, arg2: String) -> MsgPayload {
-        //     let mut out = MsgPayload::new("application/x-msmsgssystemmessage");
-        //     out.set_body(format!("Type: {msg_type}\r\nArg1: {arg1}\r\nArg2: {arg2}", msg_type = msg_type, arg1 = arg1, arg2 = arg2));
-        //     out.disable_trailing_terminators();
-        //     return out;
-        // }
-        //
-        // pub fn get_message(text: String) -> MsgPayload {
-        //     let mut out = MsgPayload::new("text/plain");
-        //     out.add_header(String::from("X-MMS-IM-Format"), String::from("FN=MS%20Sans%20Serif; EF=; CO=0; PF=0; RL=0"));
-        //     out.set_body(text);
-        //     out.disable_trailing_terminators();
-        //     return out;
-        // }
-        //
-        // pub fn get_typing_user(typing_user_msn_addr: String) -> MsgPayload {
-        //     let mut out = MsgPayload::new("text/x-msmsgscontrol");
-        //     out.add_header(String::from("TypingUser"), typing_user_msn_addr);
-        //     out.disable_charset();
-        //     return out;
-        // }
-        //
-        // pub fn get_action_msg(text: String, plugin_context: bool) -> MsgPayload {
-        //     let mut out = MsgPayload::new("text/x-msnmsgr-datacast");
-        //     if plugin_context {
-        //         out.add_header(String::from("PlugIn-Context"), String::from("1"));
-        //     }
-        //     out.body = format!("ID: 4\r\nData: {}\r\n", text);
-        //     out.disable_charset();
-        //     return out;
-        // }
-        //
-        // pub fn get_nudge() -> MsgPayload {
-        //     let mut out = MsgPayload::new("text/x-msnmsgr-datacast");
-        //     out.body = String::from("ID: 1");
-        //     out.disable_charset();
-        //     return out;
-        // }
-        //
-        // pub fn get_msnobj_datacast(msn_object: &MsnObject) -> MsgPayload {
-        //     let mut out = MsgPayload::new("text/x-msnmsgr-datacast");
-        //
-        //     out.body = format!("ID: 3\r\nData: {}\r\n", msn_object.to_string_not_encoded());
-        //     out.disable_charset();
-        //     out
-        // }
-        //
-        // pub fn get_p2p(source: &MSNUser, destination: &MSNUser, payload: &P2PTransportPacket) -> MsgPayload {
-        //     let mut out = MsgPayload::new("application/x-msnmsgrp2p");
-        //     out.add_header(String::from("P2P-Dest"), format!("{msn_addr};{{{endpoint_guid}}}", msn_addr = &destination.get_email_addr(), endpoint_guid = &destination.get_endpoint_guid()));
-        //     out.add_header(String::from("P2P-Src"), format!("{msn_addr};{{{endpoint_guid}}}", msn_addr = &source.get_email_addr(), endpoint_guid = &source.get_endpoint_guid()));
-        //
-        //     out.body = payload.to_string();
-        //     out.disable_charset();
-        //     out.disable_trailing_terminators();
-        //     return out;
-        // }
+
+        pub fn get_initial_mail_data_notification() -> RawMsgPayload {
+            let mut out = RawMsgPayload::new("text/x-msmsgsinitialmdatanotification");
+            out.set_body("Mail-Data: <MD><E><I>0</I><IU>0</IU><O>0</O><OU>0</OU></E><Q><QTM>409600</QTM><QNM>204800</QNM></Q></MD>\r\nInbox-Unread: 1\r\nFolders-Unread: 0\r\nInbox-URL: /cgi-bin/HoTMaiL\r\nFolders-URL: /cgi-bin/folders\r\nPost-URL: http://127.0.0.1:8080/email\r\n");
+            out.disable_trailing_terminators();
+            return out;
+        }
+
+        pub fn get_system_msg(msg_type: String, arg1: String, arg2: String) -> RawMsgPayload {
+            let mut out = RawMsgPayload::new("application/x-msmsgssystemmessage");
+            out.set_body(format!("Type: {msg_type}\r\nArg1: {arg1}\r\nArg2: {arg2}", msg_type = msg_type, arg1 = arg1, arg2 = arg2).as_str());
+            out.disable_trailing_terminators();
+            return out;
+        }
+
+        pub fn get_message(text: &str) -> RawMsgPayload {
+            let mut out = RawMsgPayload::new("text/plain");
+            out.add_header("X-MMS-IM-Format","FN=MS%20Sans%20Serif; EF=; CO=0; PF=0; RL=0");
+            out.set_body(text);
+            out.disable_trailing_terminators();
+            return out;
+        }
+
+        pub fn get_typing_user(typing_user_msn_addr: &str) -> RawMsgPayload {
+            let mut out = RawMsgPayload::new("text/x-msmsgscontrol");
+            out.add_header("TypingUser", typing_user_msn_addr);
+            out.disable_charset();
+            return out;
+        }
+
+        pub fn get_action_msg(text: String, plugin_context: bool) -> RawMsgPayload {
+            let mut out = RawMsgPayload::new("text/x-msnmsgr-datacast");
+            if plugin_context {
+                out.add_header("PlugIn-Context", "1");
+            }
+            out.body = format!("ID: 4\r\nData: {}\r\n", text);
+            out.disable_charset();
+            return out;
+        }
+
+        pub fn get_nudge() -> RawMsgPayload {
+            let mut out = RawMsgPayload::new("text/x-msnmsgr-datacast");
+            out.body = String::from("ID: 1");
+            out.disable_charset();
+            return out;
+        }
+
+        pub fn get_msnobj_datacast(msn_object: &MsnObject) -> RawMsgPayload {
+            let mut out = RawMsgPayload::new("text/x-msnmsgr-datacast");
+
+            out.body = format!("ID: 3\r\nData: {}\r\n", msn_object.to_string_not_encoded());
+            out.disable_charset();
+            out
+        }
+
+        pub fn get_p2p(source: &MSNUser, destination: &MSNUser, payload: &P2PTransportPacket) -> RawMsgPayload {
+            let mut out = RawMsgPayload::new("application/x-msnmsgrp2p");
+            out.add_header("P2P-Dest", format!("{msn_addr};{{{endpoint_guid}}}", msn_addr = &destination.get_email_addr(), endpoint_guid = &destination.get_endpoint_guid()).as_str());
+            out.add_header("P2P-Src", format!("{msn_addr};{{{endpoint_guid}}}", msn_addr = &source.get_email_addr(), endpoint_guid = &source.get_endpoint_guid()).as_str());
+
+            out.body = payload.to_string();
+            out.disable_charset();
+            out.disable_trailing_terminators();
+            return out;
+        }
 
     }
 

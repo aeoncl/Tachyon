@@ -1,5 +1,6 @@
 pub mod request {
 
+    #[cfg(test)]
     mod tests {
         use yaserde::de::from_str;
         use yaserde::ser::to_string;

@@ -10,3 +10,7 @@ pub mod create_circle;
 pub mod delete_contact;
 pub mod find_friends_in_common;
 pub mod manage_wl_connection;
+pub mod create_contact;
+pub mod update_dynamic_item;
+pub mod break_connection;
+pub mod add_dynamic_item;

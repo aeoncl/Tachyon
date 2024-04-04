@@ -4,7 +4,6 @@ use crate::shared::payload::raw_msg_payload::RawMsgPayload;
 use crate::shared::traits::SerializeMsnp;
 
 pub struct MsgServer {
-
     pub sender: String,
     pub display_name: String,
     pub payload: MsgPayload
@@ -12,18 +11,26 @@ pub struct MsgServer {
 
 impl SerializeMsnp for MsgServer {
     fn serialize_msnp(&self) -> Vec<u8> {
-        todo!()
+        let mut payload = self.payload.serialize_msnp();
+        let cmd = format!("MSG {} {} {}\r\n", self.sender, self.display_name, payload.len());
+
+        let mut out = Vec::with_capacity(cmd.len()+payload.len());
+        out.extend_from_slice(cmd.as_bytes());
+        out.append(&mut payload);
+
+        out
     }
 }
 
 pub enum MsgPayload {
-    InitialProfile(InitialProfilePayload),
-    InitialMailData
+    Raw(RawMsgPayload),
 }
 
 impl SerializeMsnp for MsgPayload {
     fn serialize_msnp(&self) -> Vec<u8> {
-        todo!()
+        match self {
+            MsgPayload::Raw(payload) => { payload.serialize_msnp() }
+        }
     }
 }
 
