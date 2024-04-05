@@ -1,5 +1,4 @@
 use yaserde_derive::{YaDeserialize, YaSerialize};
-use crate::soap::rsi::rsi::types;
 
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(

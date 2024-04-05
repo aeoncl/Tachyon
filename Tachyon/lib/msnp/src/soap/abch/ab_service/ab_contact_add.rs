@@ -8,16 +8,60 @@ pub mod request {
 
         #[test]
         fn test_ab_add_contacts(){
-            let request = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>Timer</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=0bfusc4t3dT0k3n</TicketToken></ABAuthHeader></soap:Header><soap:Body><ABContactAdd xmlns=\"http://www.msn.com/webservices/AddressBook\"><abId>00000000-0000-0000-0000-000000000000</abId><contacts><Contact xmlns=\"http://www.msn.com/webservices/AddressBook\"><contactInfo><contactType>LivePending</contactType><passportName>test@shlasouf.local</passportName><isMessengerUser>true</isMessengerUser><MessengerMemberInfo><PendingAnnotations><Annotation><Name>MSN.IM.InviteMessage</Name><Value>HI</Value></Annotation></PendingAnnotations><DisplayName>Aeonshl</DisplayName></MessengerMemberInfo></contactInfo></Contact></contacts><options><EnableAllowListManagement>true</EnableAllowListManagement></options></ABContactAdd></soap:Body></soap:Envelope>";
-            let request_deserialized : AbcontactAddMessageSoapEnvelope = from_str(request).unwrap();
+            let request = r#"<?xml version="1.0" encoding="utf-8"?>
+                                <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+                                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                                    xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                                    <soap:Header>
+                                        <ABApplicationHeader xmlns="http://www.msn.com/webservices/AddressBook">
+                                            <ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId>
+                                            <IsMigration>false</IsMigration>
+                                            <PartnerScenario>Timer</PartnerScenario>
+                                            <CacheKey>cachekey</CacheKey>
+                                        </ABApplicationHeader>
+                                        <ABAuthHeader xmlns="http://www.msn.com/webservices/AddressBook">
+                                            <ManagedGroupRequest>false</ManagedGroupRequest>
+                                            <TicketToken>t=0bfusc4t3dT0k3n</TicketToken>
+                                        </ABAuthHeader>
+                                    </soap:Header>
+                                    <soap:Body>
+                                        <ABContactAdd xmlns="http://www.msn.com/webservices/AddressBook">
+                                            <abId>00000000-0000-0000-0000-000000000000</abId>
+                                            <contacts>
+                                                <Contact xmlns="http://www.msn.com/webservices/AddressBook">
+                                                    <contactInfo>
+                                                        <contactType>LivePending</contactType>
+                                                        <passportName>test@shlasouf.local</passportName>
+                                                        <isMessengerUser>true</isMessengerUser>
+                                                        <MessengerMemberInfo>
+                                                            <PendingAnnotations>
+                                                                <Annotation>
+                                                                    <Name>MSN.IM.InviteMessage</Name>
+                                                                    <Value>HI</Value>
+                                                                </Annotation>
+                                                            </PendingAnnotations>
+                                                            <DisplayName>Aeonshl</DisplayName>
+                                                        </MessengerMemberInfo>
+                                                    </contactInfo>
+                                                </Contact>
+                                            </contacts>
+                                            <options>
+                                                <EnableAllowListManagement>true</EnableAllowListManagement>
+                                            </options>
+                                        </ABContactAdd>
+                                    </soap:Body>
+                                </soap:Envelope>"#;
 
-            assert_eq!(&request_deserialized.header.as_ref().unwrap().ab_auth_header.ticket_token.as_str(), &"t=0bfusc4t3dT0k3n");
-            assert_eq!(&request_deserialized.body.body.ab_id.body, &String::from("00000000-0000-0000-0000-000000000000"));
-            assert_eq!(request_deserialized.body.body.contacts.as_ref().unwrap().contact.len(), 1usize);
-            assert_eq!(request_deserialized.body.body.contacts.as_ref().unwrap().contact[0].contact_info.as_ref().unwrap().passport_name.as_ref().unwrap(), &"test@shlasouf.local".to_string());
+            let request_deserialized : AbcontactAddMessageSoapEnvelope = from_str(request).expect("to work");
+
+            assert_eq!(&request_deserialized.header.as_ref().expect("to be here").ab_auth_header.ticket_token.as_str(), &"t=0bfusc4t3dT0k3n");
+            assert_eq!(&request_deserialized.body.ab_contact_add.ab_id.body, &String::from("00000000-0000-0000-0000-000000000000"));
+            assert_eq!(request_deserialized.body.ab_contact_add.contacts.as_ref().expect("to be here").contact.len(), 1usize);
+            assert_eq!(request_deserialized.body.ab_contact_add.contacts.as_ref().expect("to be here").contact[0].contact_info.as_ref().expect("to be here").passport_name.as_ref().expect("to be here"), &"test@shlasouf.local".to_string());
 
 
-            let request_reserialized = to_string(&request_deserialized).unwrap();
+            let request_reserialized = to_string(&request_deserialized).expect("to work");
         }
 
     }
@@ -36,13 +80,11 @@ pub mod request {
     )]
     pub struct SoapAbcontactAddMessage {
         #[yaserde(rename = "ABContactAdd", prefix="nsi1")]
-        pub body: AbcontactAddRequestType,
-        #[yaserde(attribute)]
-        pub xmlns: Option<String>,
+        pub ab_contact_add: AbcontactAddRequestType
     }
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "ABContactAddRequestType"
+    #[yaserde(rename = "ABContactAdd"
     namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
     prefix = "nsi1",
     default_namespace="nsi1"
@@ -66,14 +108,6 @@ pub mod request {
     prefix = "soap"
     )]
     pub struct AbcontactAddMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
         pub header: Option<RequestHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
@@ -83,11 +117,7 @@ pub mod request {
     impl AbcontactAddMessageSoapEnvelope {
         pub fn new(body: SoapAbcontactAddMessage) -> Self {
             AbcontactAddMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
                 header: None,
             }
         }

@@ -7,7 +7,40 @@ pub mod request {
 
         #[test]
         fn test_find_contacts_paged_request() {
-            let request_body = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>Initial</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=0bfus4t3d_t0k3n</TicketToken></ABAuthHeader></soap:Header><soap:Body><ABFindContactsPaged xmlns=\"http://www.msn.com/webservices/AddressBook\"><filterOptions><DeltasOnly>true</DeltasOnly><LastChanged>2022-04-21T19:49:28Z</LastChanged><ContactFilter><IncludeHiddenContacts>true</IncludeHiddenContacts></ContactFilter></filterOptions><abView>MessengerClient8</abView><extendedContent>AB AllGroups CircleResult</extendedContent></ABFindContactsPaged></soap:Body></soap:Envelope>";
+            let request_body = r#"
+                                    <?xml version="1.0" encoding="utf-8"?>
+                                    <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+                                    	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                    	xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                                    	xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                                    	<soap:Header>
+                                    		<ABApplicationHeader xmlns="http://www.msn.com/webservices/AddressBook">
+                                    			<ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId>
+                                    			<IsMigration>false</IsMigration>
+                                    			<PartnerScenario>Initial</PartnerScenario>
+                                    			<CacheKey>cachekey</CacheKey>
+                                    		</ABApplicationHeader>
+                                    		<ABAuthHeader xmlns="http://www.msn.com/webservices/AddressBook">
+                                    			<ManagedGroupRequest>false</ManagedGroupRequest>
+                                    			<TicketToken>t=0bfus4t3d_t0k3n</TicketToken>
+                                    		</ABAuthHeader>
+                                    	</soap:Header>
+                                    	<soap:Body>
+                                    		<ABFindContactsPaged xmlns="http://www.msn.com/webservices/AddressBook">
+                                    			<filterOptions>
+                                    				<DeltasOnly>true</DeltasOnly>
+                                    				<LastChanged>2023-05-21T19:49:28Z</LastChanged>
+                                    				<ContactFilter>
+                                    					<IncludeHiddenContacts>true</IncludeHiddenContacts>
+                                    				</ContactFilter>
+                                    			</filterOptions>
+                                    			<abView>MessengerClient8</abView>
+                                    			<extendedContent>AB AllGroups CircleResult</extendedContent>
+                                    		</ABFindContactsPaged>
+                                    	</soap:Body>
+                                    </soap:Envelope>
+                                    "#;
+
             let r : AbfindContactsPagedMessageSoapEnvelope = from_str(&request_body).unwrap();
 
             let header = &r.header.unwrap();
@@ -24,7 +57,7 @@ pub mod request {
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     #[yaserde(
-    rename = "Envelope",
+    rename = "Body",
     namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
     prefix = "soap",
     default_namespace="soap"
@@ -57,17 +90,11 @@ pub mod request {
     #[yaserde(
     rename = "Envelope",
     namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+    namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+    namespace = "xsd: http://www.w3.org/2001/XMLSchema",
     prefix = "soap"
     )]
     pub struct AbfindContactsPagedMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
         pub header: Option<RequestHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
@@ -77,11 +104,7 @@ pub mod request {
     impl AbfindContactsPagedMessageSoapEnvelope {
         pub fn new(body: SoapAbfindContactsPagedMessage) -> Self {
             AbfindContactsPagedMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
                 header: None,
             }
         }

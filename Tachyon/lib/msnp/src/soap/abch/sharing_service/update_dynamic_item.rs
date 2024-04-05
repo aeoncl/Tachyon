@@ -82,7 +82,7 @@ pub mod response {
 
     mod tests {
         use yaserde::ser::to_string;
-        use crate::soap::abch::ab_service::update_dynamic_item::response::{SoapUpdateDynamicItemResponseMessage, UpdateDynamicItemResponseMessage, UpdateDynamicItemResponseMessageSoapEnvelope};
+        use crate::soap::abch::sharing_service::update_dynamic_item::response::{SoapUpdateDynamicItemResponseMessage, UpdateDynamicItemResponseMessage, UpdateDynamicItemResponseMessageSoapEnvelope};
 
         #[test]
         fn test_update_dynamic_item_response() {

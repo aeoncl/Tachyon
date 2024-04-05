@@ -3,6 +3,29 @@ pub mod request {
     use crate::soap::abch::msnab_datatypes::ArrayOfGuid;
     use crate::soap::abch::msnab_sharingservice::{SOAP_ENCODING};
     use crate::soap::abch::request_header::RequestHeaderContainer;
+    use crate::soap::abch::service_header::ServiceHeaderContainer;
+
+
+    #[cfg(test)]
+    mod tests {
+        use yaserde::de::from_str;
+        use crate::soap::abch::ab_service::ab_find_by_contact::request::AbfindByContactsMessageSoapEnvelope;
+
+        #[test]
+        fn deser_test() {
+
+            //TODO Endpoint seems to be not used by clients.
+
+            //let raw = r#""#;
+
+           // let deser = from_str::<AbfindByContactsMessageSoapEnvelope>(raw).expect("things to work");
+
+
+
+        }
+
+
+    }
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAbfindByContactsMessage {
@@ -13,7 +36,7 @@ pub mod request {
     }
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
-    #[yaserde(rename = "ABFindByContactsRequestType")]
+    #[yaserde(rename = "ABFindByContacts")]
     pub struct AbfindByContactsRequestType {
         #[yaserde(rename = "abId", default)]
         pub ab_id: String,
@@ -28,19 +51,13 @@ pub mod request {
     #[yaserde(
     rename = "Envelope",
     namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+    namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+    namespace = "xsd: http://www.w3.org/2001/XMLSchema",
     prefix = "soap"
     )]
     pub struct AbfindByContactsMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<RequestHeaderContainer>,
+        pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapAbfindByContactsMessage,
     }
@@ -48,11 +65,7 @@ pub mod request {
     impl AbfindByContactsMessageSoapEnvelope {
         pub fn new(body: SoapAbfindByContactsMessage) -> Self {
             AbfindByContactsMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
                 header: None,
             }
         }
@@ -65,10 +78,11 @@ pub mod response {
     use crate::soap::abch::msnab_faults::SoapFault;
     use crate::soap::abch::msnab_sharingservice::{SOAP_ENCODING};
     use crate::soap::abch::request_header::RequestHeaderContainer;
+    use crate::soap::abch::service_header::ServiceHeaderContainer;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAbfindByContactsResponseMessage {
-        #[yaserde(rename = "AbfindByContactsResponseMessage", default)]
+        #[yaserde(rename = "ABFindByContactsResponse", default)]
         pub body: AbfindByContactsResponse,
         #[yaserde(rename = "Fault", default)]
         pub fault: Option<SoapFault>,
@@ -99,19 +113,13 @@ pub mod response {
     #[yaserde(
     rename = "Envelope",
     namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+    namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+    namespace = "xsd: http://www.w3.org/2001/XMLSchema",
     prefix = "soap"
     )]
     pub struct AbfindByContactsResponseMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<RequestHeaderContainer>,
+        pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapAbfindByContactsResponseMessage,
     }
@@ -119,12 +127,8 @@ pub mod response {
     impl AbfindByContactsResponseMessageSoapEnvelope {
         pub fn new(body: SoapAbfindByContactsResponseMessage) -> Self {
             AbfindByContactsResponseMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
-                header: None,
+                header: None
             }
         }
     }

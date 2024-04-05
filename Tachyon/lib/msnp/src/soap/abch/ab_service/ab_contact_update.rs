@@ -9,11 +9,45 @@ pub mod request {
 
         #[test]
         fn test_contact_update_request() {
-            let request = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>Timer</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=tickettoken</TicketToken></ABAuthHeader></soap:Header><soap:Body><ABContactUpdate xmlns=\"http://www.msn.com/webservices/AddressBook\"><abId>00000000-0000-0000-0000-000000000000</abId><contacts><Contact xmlns=\"http://www.msn.com/webservices/AddressBook\"><contactId>11D65AFA-21C2-55E0-90D6-5DB43D5FFE6E</contactId><contactInfo><quickName>♏👽Pelopelo👽♏ (IG)</quickName></contactInfo><propertiesChanged>ContactQuickName</propertiesChanged></Contact></contacts></ABContactUpdate></soap:Body></soap:Envelope>";
-            let request_deserialized : AbcontactUpdateMessageSoapEnvelope = from_str(request).unwrap();
+            let request = r#"<?xml version="1.0" encoding="utf-8"?>
+                                    <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+                                        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                        xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                                        xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                                        <soap:Header>
+                                            <ABApplicationHeader xmlns="http://www.msn.com/webservices/AddressBook">
+                                                <ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId>
+                                                <IsMigration>false</IsMigration>
+                                                <PartnerScenario>Timer</PartnerScenario>
+                                                <CacheKey>cachekey</CacheKey>
+                                            </ABApplicationHeader>
+                                            <ABAuthHeader xmlns="http://www.msn.com/webservices/AddressBook">
+                                                <ManagedGroupRequest>false</ManagedGroupRequest>
+                                                <TicketToken>t=tickettoken</TicketToken>
+                                            </ABAuthHeader>
+                                        </soap:Header>
+                                        <soap:Body>
+                                            <ABContactUpdate xmlns="http://www.msn.com/webservices/AddressBook">
+                                                <abId>00000000-0000-0000-0000-000000000000</abId>
+                                                <contacts>
+                                                    <Contact xmlns="http://www.msn.com/webservices/AddressBook">
+                                                        <contactId>11D65AFA-21C2-55E0-90D6-5DB43D5FFE6E</contactId>
+                                                        <contactInfo>
+                                                            <quickName>♏👽Pelopelo👽♏ (IG)</quickName>
+                                                        </contactInfo>
+                                                        <propertiesChanged>ContactQuickName</propertiesChanged>
+                                                    </Contact>
+                                                </contacts>
+                                            </ABContactUpdate>
+                                        </soap:Body>
+                                    </soap:Envelope>"#;
 
-            //TODO assertions
+            let request_deserialized : AbcontactUpdateMessageSoapEnvelope = from_str(request).expect("to be here");
 
+            let contact = request_deserialized.body.body.contacts.expect("contact to be here").contact.remove(0);
+
+            assert_eq!("♏👽Pelopelo👽♏ (IG)", &contact.contact_info.expect("contact info to be here").quick_name.expect("quickname to be here"));
+            assert_eq!("t=tickettoken", &request_deserialized.header.expect("headers to be here").ab_auth_header.ticket_token)
         }
 
     }
@@ -25,9 +59,7 @@ pub mod request {
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAbcontactUpdateMessage {
         #[yaserde(rename = "ABContactUpdate", default)]
-        pub body: AbcontactUpdateRequestType,
-        #[yaserde(attribute)]
-        pub xmlns: Option<String>,
+        pub body: AbcontactUpdateRequestType
     }
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
