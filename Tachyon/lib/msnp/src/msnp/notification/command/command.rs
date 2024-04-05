@@ -24,6 +24,7 @@ pub enum NotificationClientCommand {
     PRP(PrpClient),
     UUN(UunClient),
     XFR(),
+    OUT,
     RAW(RawCommand)
 }
 

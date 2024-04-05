@@ -7,7 +7,7 @@ use crate::{msnp::{error::{CommandError, PayloadError}, notification::models::en
 
 pub struct UunClient {
     tr_id: u128,
-    destination: Endpoint,
+    destination: EndpointId,
     payload_size: usize,
     payload: UunPayload
 
@@ -26,7 +26,7 @@ impl TryFrom<RawCommand> for UunClient {
         let split = command.get_command_split();
         let tr_id: u128 = parse_tr_id(&split)?;
         let raw_destination = get_split_part(2, &split, command.get_command(), "destination")?;
-        let destination = Endpoint::from_str(raw_destination)?;
+        let destination = EndpointId::from_str(raw_destination)?;
         let raw_notification_type = get_split_part(3, &split, command.get_command(), "payload_type")?;
         let notification_type: UserNotificationType = num::FromPrimitive::from_u32(u32::from_str(raw_notification_type).map_err(|e| CommandError::ArgumentParseError { argument: raw_notification_type.to_string(), command: command.get_command().to_string(), source: e.into() })?).ok_or(CommandError::ArgumentParseError { argument: raw_notification_type.to_string(), command: command.get_command().to_string(), source: anyhow!("Couldn't parse int to UserNotificationType") })?;
         
@@ -35,41 +35,6 @@ impl TryFrom<RawCommand> for UunClient {
         let payload = UunPayload::parse_uun_payload(notification_type, command.payload)?;
 
         Ok(Self { tr_id, destination, payload_size, payload })
-    }
-}
-
-pub struct Endpoint {
-    email_addr: String,
-    endpoint_guid: Option<EndpointGuid>
-}
-
-impl Display for Endpoint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.email_addr)?;
-
-        if let Some(endpoint_guid) = self.endpoint_guid.as_ref() {
-            write!(f, ";{}", endpoint_guid)?;
-        }
-
-        Ok(())
-
-    }
-}
-
-impl FromStr for Endpoint {
-    type Err = CommandError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let split: Vec<&str> = s.split(';').collect();
-        let email_addr = split[0].to_string();
-
-        let endpoint_guid = if split.len() >= 2 {
-            Some(EndpointGuid::try_parse_str(split[1])?)
-        } else {
-            None
-        };
-
-        Ok(Endpoint{email_addr, endpoint_guid})
     }
 }
 
@@ -136,6 +101,7 @@ pub struct UunService {
 }
 
 use num_derive::FromPrimitive;
+use crate::shared::models::endpoint_id::EndpointId;
 use crate::shared::traits::{ParseStr, SerializeMsnp};
 
 #[derive(Clone, Debug, FromPrimitive)]
@@ -195,7 +161,7 @@ impl Display for UunSoapStatePayload {
 
 pub type UbnPayload = UunPayload;
 pub struct UbnServer {
-    destination: Endpoint,
+    destination: EndpointId,
     payload: UbnPayload
 }
 
