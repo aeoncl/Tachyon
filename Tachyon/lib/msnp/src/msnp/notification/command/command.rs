@@ -32,18 +32,25 @@ impl TryFrom<RawCommand> for NotificationClientCommand {
     type Error = CommandError;
 
     fn try_from(command: RawCommand) -> Result<Self, Self::Error> {
-        match command.get_operand() {
-            "VER" => {
-                Ok(NotificationClientCommand::VER(VerClient::try_from(command)?))
-            },
-            "CVR" => {
-                Ok(NotificationClientCommand::CVR(CvrClient::try_from(command)?))
-            }
-            _ => {
-                Ok(NotificationClientCommand::RAW(command))
+        let out = match command.get_operand() {
+            "VER" => NotificationClientCommand::VER(VerClient::try_from(command)?),
+            "CVR" => NotificationClientCommand::CVR(CvrClient::try_from(command)?),
+            "USR" => NotificationClientCommand::USR(UsrClient::try_from(command)?),
+            "PNG" => NotificationClientCommand::PNG,
+            "ADL" => NotificationClientCommand::ADL(AdlClient::try_from(command)?),
+            "RML" => NotificationClientCommand::RML(RmlClient::try_from(command)?),
+            "UUX" => NotificationClientCommand::UUX(UuxClient::try_from(command)?),
+            "BLP" => NotificationClientCommand::BLP(BlpClient::try_from(command)?),
+            "CHG" => NotificationClientCommand::CHG(ChgClient::try_from(command)?),
+            "PRP" => NotificationClientCommand::PRP(PrpClient::try_from(command)?),
+            "UUN" => NotificationClientCommand::UUN(UunClient::try_from(command)?),
+            "XFR" => NotificationClientCommand::XFR(),
+            "OUT" => NotificationClientCommand::OUT,
+            _ => NotificationClientCommand::RAW(command)
                 //Err(CommandError::UnsupportedCommand { command: format!("{:?}", command) })
-            }
-        }
+        };
+
+        Ok(out)
     }
 }
 
@@ -63,27 +70,13 @@ impl NotificationServerCommand {
 
     pub fn serialize_msnp(self) -> Vec<u8> {
         match self {
-            NotificationServerCommand::OUT => {
-                b"OUT\r\n".to_vec()
-            }
-            NotificationServerCommand::RAW(content) => {
-                content.serialize_msnp()
-            }
-            NotificationServerCommand::VER(command) => {
-                command.serialize_msnp()
-            }
-            NotificationServerCommand::CVR(command) => {
-                command.serialize_msnp()
-            }
-            NotificationServerCommand::QNG(timeout) => {
-                format!("QNG {}\r\n", timeout).into_bytes()
-            },
-            NotificationServerCommand::MSG(command) => {
-                command.serialize_msnp()
-            }
-            NotificationServerCommand::USR(command) => {
-                command.serialize_msnp()
-            }
+            NotificationServerCommand::VER(command) => command.serialize_msnp(),
+            NotificationServerCommand::CVR(command) => command.serialize_msnp(),
+            NotificationServerCommand::MSG(command) => command.serialize_msnp(),
+            NotificationServerCommand::QNG(timeout) => format!("QNG {}\r\n", timeout).into_bytes(),
+            NotificationServerCommand::USR(command) => command.serialize_msnp(),
+            NotificationServerCommand::OUT => b"OUT\r\n".to_vec(),
+            NotificationServerCommand::RAW(content) => content.serialize_msnp()
         }
     }
 }

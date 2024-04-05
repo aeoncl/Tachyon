@@ -7,7 +7,12 @@
 // A + D: always send an ack
 // U: never ack
 
-use strum_macros::Display;
+use std::str::FromStr;
+use strum_macros::{Display, EnumString};
+use crate::msnp::error::CommandError;
+use crate::msnp::error::CommandError::ArgumentParseError;
+use crate::msnp::raw_command_parser::RawCommand;
+use crate::shared::command::command::{get_split_part, parse_tr_id};
 use crate::shared::payload::raw_msg_payload::RawMsgPayload;
 use crate::shared::traits::SerializeMsnp;
 
@@ -18,7 +23,30 @@ pub struct MsgClient {
     payload: RawMsgPayload
 }
 
-#[derive(Display)]
+impl TryFrom<RawCommand> for MsgClient {
+    type Error = CommandError;
+
+    fn try_from(command: RawCommand) -> Result<Self, Self::Error> {
+        let split = command.get_command_split();
+        let tr_id = parse_tr_id(&split)?;
+        let ack_type = MsgAcknowledgment::from_str(get_split_part(2, &split, command.get_command(), "ack_type")?).map_err(|e| ArgumentParseError {
+            argument: "ack_type".to_string(),
+            command: command.get_command().to_string(),
+            source: e.into(),
+        })?;
+
+        //TODO RawMsgPayload from bytes
+        Ok(MsgClient{
+            tr_id,
+            ack_type,
+            payload: Default::default(),
+        })
+    }
+}
+
+
+
+#[derive(Display, EnumString)]
 pub enum MsgAcknowledgment {
     #[strum(serialize = "U")]
     NoAck,

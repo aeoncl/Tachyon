@@ -15,7 +15,12 @@ impl FromStr for Base64String {
             command: String::new(),
             source: e.into(),
         })?;
-        Ok(Base64String(String::from_utf8(raw_decoded)?))
+
+        Ok(Base64String(String::from_utf8(raw_decoded).map_err(|e| Self::Err::ArgumentParseError {
+            argument: "base64String".to_string(),
+            command: "".to_string(),
+            source: e.into(),
+        })?))
     }
 }
 
