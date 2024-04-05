@@ -45,17 +45,11 @@ pub mod request {
     #[yaserde(
     rename = "Envelope",
     namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+    namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+    namespace = "xsd: http://www.w3.org/2001/XMLSchema",
     prefix = "soap"
     )]
     pub struct UpdateDynamicItemMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
         pub header: Option<RequestHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
@@ -65,11 +59,7 @@ pub mod request {
     impl UpdateDynamicItemMessageSoapEnvelope {
         pub fn new(body: SoapUpdateDynamicItemMessage) -> Self {
             UpdateDynamicItemMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
                 header: None,
             }
         }

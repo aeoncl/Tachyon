@@ -7,7 +7,47 @@ pub mod request {
 
         #[test]
         fn add_member_request() {
-            let request = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>Timer</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=tickettoken</TicketToken></ABAuthHeader></soap:Header><soap:Body><AddMember xmlns=\"http://www.msn.com/webservices/AddressBook\"><serviceHandle><Id>0</Id><Type>Messenger</Type><ForeignId></ForeignId></serviceHandle><memberships><Membership><MemberRole>Allow</MemberRole><Members><Member xsi:type=\"PassportMember\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><Type>Passport</Type><State>Accepted</State><PassportName>passport@shlasouf.local</PassportName></Member></Members></Membership></memberships></AddMember></soap:Body></soap:Envelope>";
+            let request = r#"<?xml version="1.0" encoding="utf-8"?>
+                                <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+                                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                                    xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                                    <soap:Header>
+                                        <ABApplicationHeader xmlns="http://www.msn.com/webservices/AddressBook">
+                                            <ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId>
+                                            <IsMigration>false</IsMigration>
+                                            <PartnerScenario>Timer</PartnerScenario>
+                                            <CacheKey>cachekey</CacheKey>
+                                        </ABApplicationHeader>
+                                        <ABAuthHeader xmlns="http://www.msn.com/webservices/AddressBook">
+                                            <ManagedGroupRequest>false</ManagedGroupRequest>
+                                            <TicketToken>t=tickettoken</TicketToken>
+                                        </ABAuthHeader>
+                                    </soap:Header>
+                                    <soap:Body>
+                                        <AddMember xmlns="http://www.msn.com/webservices/AddressBook">
+                                            <serviceHandle>
+                                                <Id>0</Id>
+                                                <Type>Messenger</Type>
+                                                <ForeignId></ForeignId>
+                                            </serviceHandle>
+                                            <memberships>
+                                                <Membership>
+                                                    <MemberRole>Allow</MemberRole>
+                                                    <Members>
+                                                        <Member xsi:type="PassportMember"
+                                                            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+                                                            <Type>Passport</Type>
+                                                            <State>Accepted</State>
+                                                            <PassportName>passport@shlasouf.local</PassportName>
+                                                        </Member>
+                                                    </Members>
+                                                </Membership>
+                                            </memberships>
+                                        </AddMember>
+                                    </soap:Body>
+                                </soap:Envelope>"#;
+
             let request_deserialized : AddMemberMessageSoapEnvelope = from_str(request).unwrap();
 
             //TODO assertions
@@ -46,7 +86,6 @@ pub mod request {
     namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
     namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
     namespace = "xsd: http://www.w3.org/2001/XMLSchema",
-    namespace = "soapenc: http://schemas.xmlsoap.org/soap/encoding/"
     prefix = "soap"
     )]
     pub struct AddMemberMessageSoapEnvelope {
@@ -113,7 +152,6 @@ pub mod response {
     namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
     namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
     namespace = "xsd: http://www.w3.org/2001/XMLSchema",
-    namespace = "soapenc: http://schemas.xmlsoap.org/soap/encoding/",
     prefix = "soap"
     )]
     pub struct AddMemberResponseMessageSoapEnvelope {

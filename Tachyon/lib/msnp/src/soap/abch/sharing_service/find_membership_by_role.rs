@@ -33,17 +33,11 @@ pub mod request {
     #[yaserde(
     rename = "Envelope",
     namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+    namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+    namespace = "xsd: http://www.w3.org/2001/XMLSchema",
     prefix = "soap"
     )]
     pub struct FindMembershipByRoleMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
         pub header: Option<RequestHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
@@ -53,11 +47,7 @@ pub mod request {
     impl FindMembershipByRoleMessageSoapEnvelope {
         pub fn new(body: SoapFindMembershipByRoleMessage) -> Self {
             FindMembershipByRoleMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
                 header: None,
             }
         }
@@ -72,6 +62,7 @@ pub mod response {
     use crate::soap::abch::msnab_faults::SoapFault;
     use crate::soap::abch::msnab_sharingservice::{SOAP_ENCODING};
     use crate::soap::abch::request_header::RequestHeaderContainer;
+    use crate::soap::abch::service_header::ServiceHeaderContainer;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapFindMembershipByRoleResponseMessage {
@@ -97,19 +88,13 @@ pub mod response {
     #[yaserde(
     rename = "Envelope",
     namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+    namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+    namespace = "xsd: http://www.w3.org/2001/XMLSchema",
     prefix = "soap"
     )]
     pub struct FindMembershipByRoleResponseMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<RequestHeaderContainer>,
+        pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapFindMembershipByRoleResponseMessage,
     }
@@ -117,11 +102,7 @@ pub mod response {
     impl FindMembershipByRoleResponseMessageSoapEnvelope {
         pub fn new(body: SoapFindMembershipByRoleResponseMessage) -> Self {
             FindMembershipByRoleResponseMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
                 header: None,
             }
         }

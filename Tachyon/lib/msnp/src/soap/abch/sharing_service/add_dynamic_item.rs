@@ -4,6 +4,23 @@ pub mod request {
     use crate::soap::abch::request_header::RequestHeaderContainer;
     use crate::soap::abch::msnab_datatypes::DynamicItems;
 
+    #[cfg(test)]
+    mod tests {
+        use yaserde::de::from_str;
+        use crate::soap::abch::ab_service::ab_find_by_contact::request::AbfindByContactsMessageSoapEnvelope;
+
+        #[test]
+        fn deser_test() {
+                //TODO
+            let raw = r#""#;
+
+            // let deser = from_str::<AbfindByContactsMessageSoapEnvelope>(raw).expect("things to work");
+
+        }
+
+
+    }
+
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAddDynamicItemMessage {
         #[yaserde(rename = "AddDynamicItem", default)]
@@ -25,17 +42,11 @@ pub mod request {
     #[yaserde(
     rename = "Envelope",
     namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+    namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+    namespace = "xsd: http://www.w3.org/2001/XMLSchema",
     prefix = "soap"
     )]
     pub struct AddDynamicItemMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
         pub header: Option<RequestHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
@@ -45,11 +56,7 @@ pub mod request {
     impl AddDynamicItemMessageSoapEnvelope {
         pub fn new(body: SoapAddDynamicItemMessage) -> Self {
             AddDynamicItemMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
                 header: None,
             }
         }
@@ -63,6 +70,7 @@ pub mod response {
     use crate::soap::abch::msnab_faults::SoapFault;
     use crate::soap::abch::msnab_sharingservice::{SOAP_ENCODING};
     use crate::soap::abch::request_header::RequestHeaderContainer;
+    use crate::soap::abch::service_header::ServiceHeaderContainer;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAddDynamicItemResponseMessage {
@@ -80,19 +88,13 @@ pub mod response {
     #[yaserde(
     rename = "Envelope",
     namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
+    namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
+    namespace = "xsd: http://www.w3.org/2001/XMLSchema",
     prefix = "soap"
     )]
     pub struct AddDynamicItemResponseMessageSoapEnvelope {
-        #[yaserde(rename = "encodingStyle", prefix = "soap", attribute)]
-        pub encoding_style: String,
-        #[yaserde(rename = "tns", prefix = "xmlns", attribute)]
-        pub tnsattr: Option<String>,
-        #[yaserde(rename = "urn", prefix = "xmlns", attribute)]
-        pub urnattr: Option<String>,
-        #[yaserde(rename = "xsi", prefix = "xmlns", attribute)]
-        pub xsiattr: Option<String>,
         #[yaserde(rename = "Header", prefix = "soap")]
-        pub header: Option<RequestHeaderContainer>,
+        pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapAddDynamicItemResponseMessage,
     }
@@ -100,11 +102,7 @@ pub mod response {
     impl AddDynamicItemResponseMessageSoapEnvelope {
         pub fn new(body: SoapAddDynamicItemResponseMessage) -> Self {
             AddDynamicItemResponseMessageSoapEnvelope {
-                encoding_style: SOAP_ENCODING.to_string(),
-                tnsattr: Option::Some("http://www.msn.com/webservices/AddressBook".to_string()),
                 body,
-                urnattr: None,
-                xsiattr: None,
                 header: None,
             }
         }

@@ -32,7 +32,6 @@ pub mod request {
     namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
     namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
     namespace = "xsd: http://www.w3.org/2001/XMLSchema",
-    namespace = "soapenc: http://schemas.xmlsoap.org/soap/encoding/"
     prefix = "soap"
     )]
     pub struct DeleteMemberMessageSoapEnvelope {
@@ -93,7 +92,6 @@ pub mod response {
     namespace = "soap: http://schemas.xmlsoap.org/soap/envelope/",
     namespace = "xsi: http://www.w3.org/2001/XMLSchema-instance",
     namespace = "xsd: http://www.w3.org/2001/XMLSchema",
-    namespace = "soapenc: http://schemas.xmlsoap.org/soap/encoding/",
     prefix = "soap"
     )]
     pub struct DeleteMemberResponseMessageSoapEnvelope {
