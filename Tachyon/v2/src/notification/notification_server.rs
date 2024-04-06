@@ -8,8 +8,11 @@ use anyhow::anyhow;
 use log::{debug, error, info};
 use msnp::msnp::notification::command::command::NotificationClientCommand;
 use msnp::msnp::notification::command::cvr::CvrServer;
+use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::notification::command::usr::{AuthPolicy, OperationTypeClient, OperationTypeServer, SsoPhaseClient, SsoPhaseServer, UsrServer};
 use msnp::msnp::notification::models::msnp_version::MsnpVersion::MSNP18;
+use msnp::shared::models::uuid::Uuid;
+use msnp::shared::payload::raw_msg_payload::factories::MsgPayloadFactory;
 use tokio::sync::oneshot;
 use crate::notification::client_store::{ClientData, ClientDataOperation, ClientDataGetter, ClientDataSetter, ClientStoreFacade};
 
@@ -108,9 +111,19 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
 
                                     let notification_command = NotificationClientCommand::try_from(command);
                                     match notification_command {
-                                        Err(e) => error!("MSNP|NOT: Unable to parse command: {}", e),
+                                        Err(e) => {
+                                            error!("MSNP|NOT: Unable to parse command: {}", e);
+                                            debug!("{:?}", e);
+                                        },
                                         Ok(notification_command) => {
-                                            handle_command(notification_command, command_sender.clone(), &client_store_facade, &mut local_store).await;
+                                            let command_result = handle_command(notification_command, command_sender.clone(), &client_store_facade, &mut local_store).await;
+                                            if let Err(error) = command_result {
+                                                error!("MSNP|NS: An error has occured handling a notification command: {}", &error);
+                                                debug!("MSNP|NS: {:?}", &error);
+                                                //TODO SEND ERROR BACK TO Client
+                                            }
+
+
                                         }
                                     }
                                 }
@@ -195,7 +208,7 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
                         SsoPhaseClient::I { email_addr } => {
                             local_store.email_addr = email_addr;
                             let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Sso(SsoPhaseServer::S { policy: AuthPolicy::MbiKeyOld, nonce: "LAhAAUzdC+JvuB33nooLSa6Oh0oDFCbKrN57EVTY0Dmca8Reb3C1S1czlP12N8VU".to_string() }));
-                            let gcf_response = RawCommand::with_payload("GCF 0", SHIELDS_PAYLOAD.as_bytes().to_vec())?;
+                            let gcf_response = RawCommand::with_payload("GCF 0", SHIELDS_PAYLOAD.as_bytes().to_vec());
 
                             notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
                             notif_sender.send(NotificationServerCommand::RAW(gcf_response)).await?;
@@ -205,7 +218,7 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
 
                             //TODO AUTH USER with Matrix Client
                             client_store.set_client_email(&local_store.email_addr, local_store.email_addr.clone()).await?;
-                            client_store.set_ticket_token_and_endpoint_guid(&local_store.email_addr, ticket_token, endpoint_guid).await?;
+                            client_store.set_ticket_token_and_endpoint_guid(&local_store.email_addr, ticket_token.clone(), endpoint_guid).await?;
 
                             let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
                                 email_addr: local_store.email_addr.clone(),
@@ -214,7 +227,29 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
                             });
 
                             notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
-                            notif_sender.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null").expect("SBS to be valid"))).await?;
+                            notif_sender.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await?;
+
+                            let uuid = Uuid::from_seed(&local_store.email_addr);
+
+                            let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
+                                sender: "Hotmail".to_string(),
+                                display_name: "Hotmail".to_string(),
+                                payload: MsgPayload::Raw(MsgPayloadFactory::get_msmsgs_profile(&uuid.get_puid(), &local_store.email_addr, &ticket_token))
+                            });
+
+                            notif_sender.send(initial_profile_msg).await?;
+
+                            notif_sender.send(NotificationServerCommand::MSG(MsgServer {
+                                sender: "Hotmail".to_string(),
+                                display_name: "Hotmail".to_string(),
+                                payload: MsgPayload::Raw(MsgPayloadFactory::get_initial_mail_data_notification())
+                            })).await?;
+
+                            //Todo fetch endpoint data
+                            let endpoint_data = b"<Data></Data>";
+
+                            notif_sender.send(NotificationServerCommand::RAW(RawCommand::with_payload(&format!("UBX 1:{}", &local_store.email_addr), endpoint_data.to_vec()))).await?;
+
 
                         }
 
@@ -226,17 +261,31 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
 
             }
             Ok(())
-
         },
         NotificationClientCommand::PNG => {
             notif_sender.send(NotificationServerCommand::QNG(60)).await?;
             Ok(())
         }
-        NotificationClientCommand::ADL(command) => {Ok(())}
+        //Seems to wait indefinitely for ADL Response
+        NotificationClientCommand::ADL(command) => {
+
+            notif_sender.send(NotificationServerCommand::Ok(command.get_ok_response("ADL"))).await?;
+
+            Ok(())
+        }
         NotificationClientCommand::RML(command) => {Ok(())}
-        NotificationClientCommand::UUX(command) => {Ok(())}
-        NotificationClientCommand::BLP(command) => {Ok(())}
-        NotificationClientCommand::CHG(command) => {Ok(())}
+        NotificationClientCommand::UUX(command) => {
+            notif_sender.send(NotificationServerCommand::Uux(command.get_ok_response())).await?;
+            Ok(())
+        }
+        NotificationClientCommand::BLP(command) => {
+            notif_sender.send(NotificationServerCommand::BLP(command)).await?;
+            Ok(())
+        }
+        NotificationClientCommand::CHG(command) => {
+            notif_sender.send(NotificationServerCommand::CHG(command)).await?;
+            Ok(())
+        }
         NotificationClientCommand::PRP(command) => {Ok(())}
         NotificationClientCommand::UUN(command) => {Ok(())}
         NotificationClientCommand::XFR() => {Ok(())}

@@ -1,5 +1,6 @@
 
 use std::{num::ParseIntError, str::Utf8Error};
+use std::string::FromUtf8Error;
 
 use thiserror::Error;
 
@@ -51,6 +52,8 @@ pub enum PayloadError {
     },
     #[error(transparent)]
     Utf8Error(#[from] Utf8Error),
+    #[error(transparent)]
+    FromUtf8Error(#[from] FromUtf8Error),
     #[error("Couldn't parse enum: {:?}", .payload)]
     EnumParsingError {
         payload: String,

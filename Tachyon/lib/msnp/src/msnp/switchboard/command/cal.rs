@@ -1,11 +1,11 @@
-// Invite someone to join the SB
-// >>> CAL 58 aeontest@shl.local
-// <<< CAL 58 RINGING 4324234
-
 use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::command::command::{get_split_part, parse_tr_id};
 use crate::shared::traits::SerializeMsnp;
+
+// Invite someone to join the SB
+// >>> CAL 58 aeontest@shl.local
+// <<< CAL 58 RINGING 4324234
 
 pub struct CalClient {
     tr_id: u128,

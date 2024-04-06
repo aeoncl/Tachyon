@@ -1,9 +1,11 @@
 use anyhow::anyhow;
 use axum::extract::{FromRequest, Request};
 use axum::http::{StatusCode, Uri};
-use axum::Router;
+use axum::middleware::Next;
+use axum::response::Response;
+use axum::{middleware, Router};
 use axum::routing::{post, get};
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use tokio::net::TcpListener;
 use tokio::sync::broadcast::Receiver;
 use crate::notification::client_store::ClientStoreFacade;
@@ -16,8 +18,6 @@ impl WebServer {
     pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, client_store_facade: ClientStoreFacade) -> Result<(), anyhow::Error> {
         info!("Web Server started...");
 
-
-
         let app = Router::new()
             .route("/", post(firewall_test))
             .route("/Config/MsgrConfig.asmx", get(get_msgr_config))
@@ -29,6 +29,7 @@ impl WebServer {
             .route("/PPCRLconfig.srf", get(wlidsvcconfig))
             .route("/ppcrlcheck.srf", get(ppcrlcheck))
             .route("/RST2.srf", post(rst2_handler))
+            .layer(middleware::from_fn(my_middleware))
             .fallback(fallback);
 
         let listener = TcpListener::bind(format!("{}:{}", ip_addr, port))
@@ -38,11 +39,23 @@ impl WebServer {
     }
 }
 
+
+async fn my_middleware(
+    request: Request,
+    next: Next,
+) -> Response {
+    info!("WEB << {}", request.uri());
+    let response = next.run(request).await;
+
+    info!("WEB >> {}", &response.status());
+
+    response
+}
+
 async fn fallback(request: Request) -> (StatusCode, String) {
 
     let uri = request.uri().to_string();
-    warn!("WEB - Unknown url called: {} {}", request.method(), &uri);
-    
+    warn!("WEB << Unknown url called: {} {}", request.method(), &uri);
     debug!("Body: {}", String::from_request(request, &()).await.unwrap());
     (StatusCode::NOT_FOUND, format!("No route for {}", &uri))
 }

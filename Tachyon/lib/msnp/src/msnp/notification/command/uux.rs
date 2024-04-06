@@ -123,7 +123,7 @@ mod tests {
 
         
 
-        let uux = UuxClient::try_from(RawCommand::with_payload(&format!("UUX 8 {}\r\n", payload.len()), payload.as_bytes().to_vec()).unwrap()).unwrap();
+        let uux = UuxClient::try_from(RawCommand::with_payload(&format!("UUX 8 {}\r\n", payload.len()), payload.as_bytes().to_vec())).unwrap();
 
         assert_eq!(8, uux.tr_id);
         assert_eq!(payload.len(), uux.payload_size);

@@ -4,7 +4,7 @@ use std::fmt::Formatter;
 use anyhow::anyhow;
 use base64::{Engine, engine::general_purpose, write};
 use byteorder::ByteOrder;
-use log::warn;
+use log::{debug, warn};
 use sha1::{Digest, Sha1};
 use strum_macros::EnumString;
 use yaserde::{de::{self, from_str}, ser::to_string_with_config};
@@ -88,7 +88,10 @@ impl FromStr for MsnObject {
     type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        from_str::<MsnObject>(s).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!("Could not parse string to MSNObject for : {}", e) })
+
+        let decoded = urlencoding::decode(s)?;
+        debug!("DECODED: {}", &decoded);
+        from_str::<MsnObject>(&decoded).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!("Could not parse string to MSNObject for : {}", e) })
     }
 }
 

@@ -235,18 +235,25 @@ pub struct RawCommand {
 }
 
 impl RawCommand {
-    pub fn without_payload(command: &str) -> Result<Self, CommandError> {
-        Self::from_str(command)
+    pub fn without_payload(command: &str) -> Self {
+        let command_split =  split_raw_command_no_arg(command).iter().map(|e| e.to_string()).collect();
+        Self {
+            command: command.to_string(),
+            command_split,
+            expected_payload_size: 0,
+            payload: Vec::with_capacity(0),
+        }
+
     }
 
-    pub fn with_payload(command: &str, payload: Vec<u8>) -> Result<Self, CommandError> {
-        let mut command = Self::from_str(command)?;
-        
-        if command.expected_payload_size == payload.len() {
-            command.payload = payload;
-            Ok(command)
-        } else {
-            Err(CommandError::PayloadError(PayloadError::PayloadBytesMissing))
+    pub fn with_payload(command: &str, payload: Vec<u8>) -> Self {
+        let command_split =  split_raw_command_no_arg(command).iter().map(|e| e.to_string()).collect();
+
+        Self {
+            command: command.to_string(),
+            command_split,
+            expected_payload_size: payload.len(),
+            payload,
         }
     }
 
@@ -304,7 +311,7 @@ impl Debug for RawCommand {
 
 impl SerializeMsnp for RawCommand {
     fn serialize_msnp(&self) -> Vec<u8> {
-        let cmd = if self.expected_payload_size > 0 {
+        let cmd = if self.payload.len() > 0 {
             format!("{} {}\r\n", &self.command, self.expected_payload_size)
         } else {
             format!("{}\r\n", &self.command)

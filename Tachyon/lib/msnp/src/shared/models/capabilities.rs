@@ -126,7 +126,7 @@ pub struct ClientCapabilities {
 
 impl Default for ClientCapabilities {
     fn default() -> Self {
-      let standard_cap = Capabilities::RendersGifs as u32
+      const STANDARD_CAP: u32 = Capabilities::RendersGifs as u32
       + Capabilities::RendersIsf as u32
       + Capabilities::WebcamDetected as u32
       + Capabilities::SupportsTunneledSip as u32
@@ -140,7 +140,7 @@ impl Default for ClientCapabilities {
       + Capabilities::SupportsP2PTurn as u32
       + Capabilities::SupportsP2PBootstrapViaUUN as u32;
 
-  let extended_cap = ExtendedCapabilities::RTCVideoEnabled as u32
+  const EXTENDED_CAP: u32 = ExtendedCapabilities::RTCVideoEnabled as u32
       + ExtendedCapabilities::SupportsP2PV2 as u32
       + ExtendedCapabilities::Supports1On1ViaGroup  as u32
       + ExtendedCapabilities::SupportsOfflineIM as u32
@@ -160,7 +160,7 @@ impl Default for ClientCapabilities {
       + ExtendedCapabilities::SupportsP4Activity as u32
       + ExtendedCapabilities::SupportsMultipartyConversations as u32;
 
-  ClientCapabilities::new(standard_cap, extended_cap)
+  ClientCapabilities::new(STANDARD_CAP, EXTENDED_CAP)
   }
 }
 

@@ -63,7 +63,7 @@ impl SwitchboardServerCommand {
             SwitchboardServerCommand::MSG(command) => command.serialize_msnp(),
             SwitchboardServerCommand::IRO(command) => command.serialize_msnp(),
             SwitchboardServerCommand::JOI(command) => command.serialize_msnp(),
-            SwitchboardServerCommand::OUT => format!("OUT\r\n").into_bytes(),
+            SwitchboardServerCommand::OUT => b"OUT\r\n".to_vec(),
             SwitchboardServerCommand::RAW(command) => command.serialize_msnp(),
         }
 

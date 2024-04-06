@@ -50,7 +50,8 @@ fn setup_logs() {
         .target(Target::Stdout)
         .filter(Some("v2") , LevelFilter::Debug)
         .filter(Some("matrix-sdk"), LevelFilter::Trace)
-        .filter(None, LevelFilter::Info)
+        .filter(Some("yaserde"), LevelFilter::Warn)
+        .filter(None, LevelFilter::Debug)
         .init();
 
     //Some("wlmatrix_rust")
