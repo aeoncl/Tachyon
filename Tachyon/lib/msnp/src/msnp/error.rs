@@ -64,6 +64,8 @@ pub enum PayloadError {
     PayloadNotHandled {payload: String},
     #[error("The payload did not contain a mandatory part {} - payload: {:?}", .name, .payload)]
     MandatoryPartNotFound{ name: String, payload: String},
+    #[error("The property {} of payload_type: {} could not be parsed: raw_value: {}", .property_name, .payload_type, .raw_value)]
+    PayloadPropertyParseError { property_name: String, raw_value: String, payload_type: String, source: anyhow::Error},
     #[error(transparent)]
     ParseIntError(#[from] ParseIntError),
     #[error("Payload was missing from command {}", .command)]

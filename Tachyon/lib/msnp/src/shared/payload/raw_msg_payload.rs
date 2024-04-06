@@ -236,8 +236,8 @@ pub mod factories {
 
         pub fn get_p2p(source: &MSNUser, destination: &MSNUser, payload: &P2PTransportPacket) -> RawMsgPayload {
             let mut out = RawMsgPayload::new("application/x-msnmsgrp2p");
-            out.add_header("P2P-Dest", format!("{msn_addr};{{{endpoint_guid}}}", msn_addr = &destination.get_email_addr(), endpoint_guid = &destination.get_endpoint_guid()).as_str());
-            out.add_header("P2P-Src", format!("{msn_addr};{{{endpoint_guid}}}", msn_addr = &source.get_email_addr(), endpoint_guid = &source.get_endpoint_guid()).as_str());
+            out.add_header("P2P-Dest", &destination.endpoint_id.to_string());
+            out.add_header("P2P-Src",  &source.endpoint_id.to_string());
 
             out.body = payload.to_string();
             out.disable_charset();

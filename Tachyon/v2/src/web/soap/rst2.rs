@@ -27,6 +27,7 @@ pub async fn rst2_handler(body: String) -> Result<Response, RST2Error> {
 
     let matrix_id = OwnedUserId::try_from_msn_addr(&creds.username)?;
 
+    //TODO remove this hardcoded url
     let client = get_matrix_client_builder(matrix_id.server_name(), Some("http://shlasouf.local:8008".to_string()), true).build().await.map_err(|e| RST2Error::InternalServerError {source: e.into()})?;
 
     let device_id = MatrixDeviceId::from_hostname()?.to_string();

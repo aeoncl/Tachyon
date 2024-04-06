@@ -1,7 +1,8 @@
 use std::{fmt::{self, Display}, str::FromStr};
+use std::fmt::Formatter;
 
 use anyhow::anyhow;
-use base64::{Engine, engine::general_purpose};
+use base64::{Engine, engine::general_purpose, write};
 use byteorder::ByteOrder;
 use log::warn;
 use sha1::{Digest, Sha1};
@@ -10,6 +11,7 @@ use yaserde::{de::{self, from_str}, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
 use crate::{msnp::error::PayloadError, p2p::v2::slp_context::SlpContext};
+use crate::msnp::error::CommandError;
 
 
 // Documentation source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/MSN_Object
@@ -20,7 +22,7 @@ pub struct MsnObject {
     //MSN Address of the creator or sender
     pub creator: String,
     //Size in bytes
-    pub size: u32,
+    pub size: usize,
     //Type
     pub obj_type: MsnObjectType,
     //The Location field contains the filename under which the file will be, or has been, stored. 0 For in the storage service.
@@ -28,7 +30,7 @@ pub struct MsnObject {
     /*This field contains the name of the picture in Unicode (UTF-16 Little Endian) format. 
     The string is then encoded with Base64. For most types of descriptors this field is a null character, 
     or AAA= when encoded.*/
-    pub friendly: Option<String>,
+    pub friendly: FriendlyName,
     //The SHA1D field contains a SHA1 hash of the images data encoded in Base64. It is also known as the Data Hash or the SHA1 Data Field.
     pub sha1d: String,
 
@@ -57,6 +59,10 @@ pub struct MsnObject {
 
     /* The avatarcontentid field contains the SHA-1 hash of the cabinet file which contains the content and is later encoded with Base64 as well. */
     pub avatarcontentid: Option<String>,
+
+    //The SHA1C field contains a SHA1 hash of all the properties of the MSMObject, to check integrity.
+    //This field is deserialized but computed at serialization.
+    pub sha1c: String,
 
     /* Not serialized  */
     pub compute_sha1c: bool,
@@ -104,13 +110,15 @@ impl yaserde::YaDeserialize for MsnObject {
             let mut obj_type = Option::None;
             let mut sha1d = Option::None;
             let mut location = Option::None;
-            let mut friendly = Option::None;
+            let mut friendly = FriendlyName::default();
             let mut contenttype = Option::None;
             let mut contentid = Option::None;
             let mut partnerid = Option::None;
             let mut stamp = Option::None;
             let mut avatarid = Option::None;
             let mut avatarcontentid = Option::None;
+            let mut sha1c = Option::None;
+
 
             for attribute in attributes {
                 match attribute.name.local_name.as_str() {
@@ -118,10 +126,9 @@ impl yaserde::YaDeserialize for MsnObject {
                         creator = Some(attribute.value);
                     },
                     "Size" => {
-                        size = attribute.value.parse::<u32>().expect("Size to be an unsigned number");
+                        size = attribute.value.parse::<usize>().map_err(|e| format!("Error while parsing Size attribute: {}", e.to_string()))?
                     },
                     "Type" => {
-                        let test = attribute.value.as_str();
                        obj_type = Some(MsnObjectType::from_str(attribute.value.as_str()).map_err(|e| e.to_string())?);
                     },
                     "SHA1D" => {
@@ -131,11 +138,10 @@ impl yaserde::YaDeserialize for MsnObject {
                         location = Some(attribute.value);
                     },
                     "Friendly" => {
-                        let decoded = Self::decode_friendly(&attribute.value);
-                        friendly = map_empty_string_to_option(decoded);
+                        friendly = FriendlyName::from_str(&attribute.value).map_err(|e| format!("Error while parsing Friendly: {}", e.to_string()))?;
                     },
                     "SHA1C" => {
-                        //Do nothing with this for now
+                        sha1c = Some(attribute.value)
                     },
                     "contenttype" => {
                         contenttype = Some(MsnObjectContentType::from_str(attribute.value.as_str()).map_err(|e| e.to_string())?);
@@ -156,31 +162,31 @@ impl yaserde::YaDeserialize for MsnObject {
                         avatarcontentid = map_empty_string_to_option(attribute.value);
                     }
                     _=> {
-                        warn!("Unsupported MSNObj field for deserialization: {:?}", &attribute);
+                        warn!("MSNP|MSNObject Unsupported field for deserialization: {:?}", &attribute);
                     }
                 }
             };
 
-            return Ok(MsnObject {
-                creator: creator.expect("Creator to be present in a MSNObject"),
+            Ok(MsnObject {
+                creator: creator.ok_or("Missing mandatory field: Creator")?,
                 size,
-                obj_type: obj_type.expect("MSNObj to have a type"),
-                location: location.expect("MSNObj to have a location"),
+                obj_type: obj_type.ok_or("Missing mandatory field: ObjType")?,
+                location: location.ok_or("Missing mandatory field: Location")?,
                 friendly,
-                sha1d: sha1d.expect("MSNObject to have SHA1D"),
+                sha1d: sha1d.ok_or("Missing mandatory field: SHA1D")?,
                 contenttype,
                 contentid,
                 partnerid,
                 stamp,
                 avatarid,
                 avatarcontentid,
+                sha1c: sha1c.unwrap_or_default(),
                 compute_sha1c: false
-            });
+            })
         
-        };
-
-        return Err("No start element?? Is this even XML ?? ARE YOU EVEN TRYING ???".into());
-
+        } else {
+            Err("Missing MSNObj XML Start element".into())
+        }
     }
 }
 
@@ -188,7 +194,7 @@ impl yaserde::YaSerialize for &MsnObject {
     fn serialize<W: std::io::Write>(&self, writer: &mut yaserde::ser::Serializer<W>) -> Result<(), String> {
         let size = self.size.to_string();
         let obj_type = self.obj_type.to_string();
-        let friendly = self.get_friendly_base64_or_default();
+        let friendly = self.friendly.to_string();
         let mut elem = xml::writer::XmlEvent::start_element("msnobj")
             .attr("Creator", &self.creator).attr("Type", &obj_type)
             .attr("SHA1D", &self.sha1d).attr("Size", &size)
@@ -196,7 +202,6 @@ impl yaserde::YaSerialize for &MsnObject {
             .attr("Friendly", &friendly);
 
         let sha1c = self.get_sha1c();
-
         if self.compute_sha1c {
             elem = elem.attr("SHA1C", &sha1c);
         }
@@ -247,20 +252,51 @@ impl yaserde::YaSerialize for &MsnObject {
 }
 
 impl MsnObject {
-    pub fn new(creator: String, obj_type: MsnObjectType, location: String, sha1d: String, size: usize, friendly: Option<String>, contenttype: Option<MsnObjectContentType>, compute_sha1c: bool) -> Self {
-        return Self{ creator, size: size.try_into().unwrap(), obj_type, location, friendly, sha1d, contenttype, contentid: None, partnerid: None, stamp: None, avatarid: None, avatarcontentid: None, compute_sha1c };
+    pub fn new(creator: String, obj_type: MsnObjectType, location: String, sha1d: String, size: usize, friendly: FriendlyName, contenttype: Option<MsnObjectContentType>, compute_sha1c: bool) -> Self {
+        return Self{ creator, size, obj_type, location, friendly, sha1d, contenttype, contentid: None, partnerid: None, stamp: None, avatarid: None, avatarcontentid: None, sha1c: String::default(), compute_sha1c };
     }
 
-    fn get_friendly_base64_or_default(&self) -> String {
-        if self.friendly.is_none() {
-            return String::from("AAA=");
+    fn get_sha1c(&self) -> String {
+        if !self.sha1c.is_empty() {
+            return self.sha1c.clone();
         }
 
-        let utf8_friendly = self.friendly.as_ref().unwrap();
-        
-        if utf8_friendly.is_empty() {
-            return String::from("AAA=");
+        let sha1_input = format!("Creator{creator}Type{obj_type}SHA1D{sha1d}Size{size}Location{location}Friendly{friendly}", creator = &self.creator, size = &self.size, obj_type = self.obj_type.clone() as i32, location = &self.location, friendly = self.friendly, sha1d = &self.sha1d);
+        return compute_sha1(sha1_input.as_bytes());
+    }
+
+    pub fn to_string_not_encoded(&self) -> String {
+        let yaserde_cfg = yaserde::ser::Config{
+            perform_indent: false,
+            write_document_declaration: false,
+            indent_string: None
+        };
+
+        to_string_with_config(&self, &yaserde_cfg).unwrap()
+    }
+}
+
+
+
+#[derive(Clone, Debug)]
+struct FriendlyName(String);
+
+impl FriendlyName {
+
+    pub fn new(name: &str) -> Self{
+        FriendlyName(name.to_string())
+    }
+
+}
+
+impl Display for FriendlyName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+
+        if self.0.is_empty() {
+           return write!(f, "{}", "AAA=");
         }
+
+        let utf8_friendly = &self.0;
 
         let utf16 : Vec<u16> = utf8_friendly.encode_utf16().collect();
 
@@ -275,40 +311,66 @@ impl MsnObject {
         //Padding
         out.push(0);
         out.push(0);
-        return general_purpose::STANDARD.encode(&out);
-    }
 
-    fn decode_friendly(friendly: &str) -> String {
-        if friendly == "AAA="{
-            return String::default();
+        write!(f, "{}", general_purpose::STANDARD.encode(&out))
+    }
+}
+
+impl FromStr for FriendlyName {
+    type Err = CommandError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+
+        if s.is_empty() || s == "AAA="{
+            return Ok(FriendlyName(String::default()));
         }
 
-       let mut decoded = general_purpose::STANDARD.decode(friendly).unwrap(); //TODO HANDLE ERRORS OH MY GOD WHY ARE YOU ALWAYS GIVING FUTURE YOU SO MUCH WORK
-       let padding1 = decoded.pop().expect("Padding 1 to be present");
-       let padding2 = decoded.pop().expect("Padding 2 to be present");
+        let mut decoded = general_purpose::STANDARD.decode(s).map_err(|e| PayloadError::PayloadPropertyParseError {
+            property_name: "Friendly".to_string(),
+            raw_value: s.to_string(),
+            payload_type: "MSNObject".to_string(),
+            source: e.into(),
+        })?;
 
-       if padding1 != 0 || padding2 != 0 {
-         panic!("WHERE IS MY PADDING GODDAMMIT");
-       };
+        let padding1 = decoded.pop().ok_or(PayloadError::PayloadPropertyParseError {
+            property_name: "Friendly".to_string(),
+            raw_value: s.to_string(),
+            payload_type: "MSNObject".to_string(),
+            source: anyhow!("Missing first byte of padding"),
+        })?;
 
-        let utf16: Vec<u16> = decoded.chunks_exact(2).map(|s| u16::from_le_bytes(s.try_into().expect("Exact chunk size to be exact"))).collect();
-        return String::from_utf16(&utf16).unwrap();
-    }
+        let padding2 = decoded.pop().ok_or(PayloadError::PayloadPropertyParseError {
+            property_name: "Friendly".to_string(),
+            raw_value: s.to_string(),
+            payload_type: "MSNObject".to_string(),
+            source: anyhow!("Missing second byte of padding"),
+        })?;
 
-
-    fn get_sha1c(&self) -> String {
-        let sha1_input = format!("Creator{creator}Type{obj_type}SHA1D{sha1d}Size{size}Location{location}Friendly{friendly}", creator = &self.creator, size = &self.size, obj_type = self.obj_type.clone() as i32, location = &self.location, friendly = self.get_friendly_base64_or_default(), sha1d = &self.sha1d);
-        return compute_sha1(sha1_input.as_bytes());
-    }
-
-    pub fn to_string_not_encoded(&self) -> String {
-        let yaserde_cfg = yaserde::ser::Config{
-            perform_indent: false,
-            write_document_declaration: false,
-            indent_string: None
+        if padding1 != 0 || padding2 != 0 {
+            Err(PayloadError::PayloadPropertyParseError {
+                property_name: "Friendly".to_string(),
+                raw_value: s.to_string(),
+                payload_type: "MSNObject".to_string(),
+                source: anyhow!("Padding is supposed to be 0s"),
+            })?;
         };
 
-        to_string_with_config(&self, &yaserde_cfg).unwrap()
+        let utf16: Vec<u16> = decoded.chunks_exact(2).map(|s| u16::from_le_bytes(s.try_into().expect("Chunk to be of correct size"))).collect();
+
+        let parsed = String::from_utf16(&utf16).map_err(|e| PayloadError::PayloadPropertyParseError {
+            property_name: "Friendly".to_string(),
+            raw_value: s.to_string(),
+            payload_type: "MSNObject".to_string(),
+            source: e.into(),
+        })?;
+
+        Ok(FriendlyName(parsed))
+    }
+}
+
+impl Default for FriendlyName {
+    fn default() -> Self {
+        FriendlyName(String::default())
     }
 }
 
@@ -431,23 +493,23 @@ pub struct MSNObjectFactory;
 
 impl MSNObjectFactory {
 
-    pub fn get_display_picture(image: &[u8], creator_msn_addr: String, location: String, friendly: Option<String>) -> MsnObject {
+    pub fn get_display_picture(image: &[u8], creator_msn_addr: String, location: String, friendly: FriendlyName) -> MsnObject {
         let sha1d = compute_sha1(&image);
 
         return MsnObject::new(creator_msn_addr, MsnObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MsnObjectContentType::D), false);
     }
 
-    pub fn get_me_display_picture(image: &[u8], creator_msn_addr: String, friendly: Option<String>) -> MsnObject {
+    pub fn get_me_display_picture(image: &[u8], creator_msn_addr: String, friendly: FriendlyName) -> MsnObject {
         let sha1d = compute_sha1(&image);
         return MsnObject::new(creator_msn_addr, MsnObjectType::DisplayPicture, "0".into(), sha1d, image.len(), friendly, None, false);
     }
 
-    pub fn get_voice_message(data: &[u8], creator_msn_addr: String, friendly: Option<String>) -> MsnObject {
+    pub fn get_voice_message(data: &[u8], creator_msn_addr: String, friendly: FriendlyName) -> MsnObject {
         let sha1d = compute_sha1(&data);
         return MsnObject::new(creator_msn_addr, MsnObjectType::VoiceClip,"0".into(), sha1d, data.len(),  friendly, None, false);
     }
 
-    pub fn get_contact_display_picture(image: &[u8], creator_msn_addr: String, location: String, friendly: Option<String>) -> MsnObject {
+    pub fn get_contact_display_picture(image: &[u8], creator_msn_addr: String, location: String, friendly: FriendlyName) -> MsnObject {
         let sha1d = compute_sha1(&image);
 
         return MsnObject::new(creator_msn_addr, MsnObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MsnObjectContentType::D), false);
@@ -466,11 +528,13 @@ fn map_empty_string_to_option(value: String) -> Option<String> {
     if !value.is_empty() {Some(value)} else {None}
 }
 
+#[cfg(test)]
 mod tests {
     use std::str::FromStr;
 
     use lazy_static_include::lazy_static_include_bytes;
     use crate::{p2p::v2::slp_context::SlpContext, shared::models::msn_object::{compute_sha1, MsnObject, MsnObjectContentType, MSNObjectFactory, MsnObjectType}};
+    use crate::shared::models::msn_object::FriendlyName;
 
 
     lazy_static_include_bytes! {
@@ -491,8 +555,8 @@ mod tests {
     #[test]
     fn get_display_picture() {
 
-        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), Some(String::from("Flare")));
-        let friendly_b64 = obj.get_friendly_base64_or_default();
+        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), FriendlyName::new("Flare"));
+        let friendly_b64 = obj.friendly.to_string();
         
         let obj_serialized = obj.to_string();
 
@@ -503,8 +567,8 @@ mod tests {
     #[test]
     fn friendly_not_empty() {
 
-        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), Some(String::from("Flare")));
-        let friendly_b64 = obj.get_friendly_base64_or_default();
+        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), FriendlyName::new("Flare"));
+        let friendly_b64 = obj.friendly.to_string();
         
         assert_eq!(&friendly_b64, "RgBsAGEAcgBlAAAA");
 
@@ -513,8 +577,8 @@ mod tests {
 
     #[test]
     fn friendly_empty() {
-        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), Some(String::new()));
-        let friendly_b64 = obj.get_friendly_base64_or_default();
+        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), FriendlyName::default());
+        let friendly_b64 = obj.friendly.to_string();
         
         assert_eq!(&friendly_b64, "AAA=");
     }
@@ -522,8 +586,8 @@ mod tests {
     #[test]
     fn friendly_none() {
 
-        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), None);
-        let friendly_b64 = obj.get_friendly_base64_or_default();
+        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), FriendlyName::default());
+        let friendly_b64 = obj.friendly.to_string();
         
         assert_eq!(&friendly_b64, "AAA=");
     }
@@ -548,7 +612,7 @@ mod tests {
     #[test]
     fn testttt() {
         let str = "bQBzAG4AbQBzAGcAcgBfADIAMAAyADMAXwAxADEAXwAxAF8AMQAyAF8AMwA4AF8ANAAxAF8ANQA4ADEAXwAyAAAA";
-        let test = MsnObject::decode_friendly(str);
+        let test = FriendlyName::from_str(str).expect("To have worked");
         println!("Friendly: {}", test);
 
     }
@@ -560,7 +624,7 @@ mod tests {
             size: 1989,
             obj_type: MsnObjectType::DynamicDisplayPicture,
             location: "0".into(),
-            friendly: Some("Offspring Skull on fire".into()),
+            friendly: FriendlyName::new("Offspring Skull on fire"),
             sha1d: "weUn1teT0Wr1te0urC0d3".into(),
             contenttype: Some(MsnObjectContentType::D),
             contentid: Some("xobubble".into()),
@@ -568,6 +632,7 @@ mod tests {
             stamp: Some("stampo".into()),
             avatarid: Some("aang".into()),
             avatarcontentid: Some("fire nation attacks".into()),
+            sha1c: String::default(),
             compute_sha1c: true,
         };
 

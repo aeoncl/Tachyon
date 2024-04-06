@@ -14,6 +14,7 @@ use num::FromPrimitive;
 
 
 use crate::{msnp::error::PayloadError, shared::models::{msn_object::MsnObject, msn_user::MSNUser, uuid::Uuid}};
+use crate::shared::models::endpoint_id::EndpointId;
 
 use super::{app_id::AppID, slp_context::{PreviewData, SlpContext}};
 
@@ -50,10 +51,13 @@ impl SlpPayload {
         return self.get_header(&String::from("Content-Type"));
     }
 
+    //TODO Error handling here
     pub fn get_sender(&self) -> Option<MSNUser> {
         if let Some(from) = self.get_header(&String::from("From")) {
             let from_trimmed = from.to_owned()[9..from.len()-1].to_string();
-            return Some(MSNUser::from_mpop_addr_string(from_trimmed).unwrap_or(MSNUser::default()));
+
+            let sender = MSNUser::new(EndpointId::from_str(&from_trimmed).unwrap());
+            return Some(sender);
         }
         return None;
     }
@@ -61,7 +65,9 @@ impl SlpPayload {
     pub fn get_receiver(&self) -> Option<MSNUser> {
         if let Some(to) = self.get_header(&String::from("To")) {
             let to_trimmed = to.to_owned()[9..to.len()-1].to_string();
-            return Some(MSNUser::from_mpop_addr_string(to_trimmed).unwrap_or(MSNUser::default()));
+            let receiver = MSNUser::new(EndpointId::from_str(&to_trimmed).unwrap());
+            return Some(receiver);
+
         }
         return None;
     }

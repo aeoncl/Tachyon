@@ -4,9 +4,19 @@ use crate::msnp::error::CommandError;
 use crate::msnp::notification::models::endpoint_guid::EndpointGuid;
 use crate::shared::traits::ParseStr;
 
+#[derive(Clone, Debug)]
 pub struct EndpointId {
-    email_addr: String,
-    endpoint_guid: Option<EndpointGuid>
+    pub email_addr: String,
+    pub endpoint_guid: Option<EndpointGuid>
+}
+
+impl EndpointId {
+    pub fn new(email_addr: &str, endpoint_guid: Option<EndpointGuid>) -> Self {
+        Self{
+            email_addr: email_addr.to_string(),
+            endpoint_guid,
+        }
+    }
 }
 
 impl Display for EndpointId {

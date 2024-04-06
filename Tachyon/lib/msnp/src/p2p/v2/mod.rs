@@ -135,9 +135,9 @@ SessionID: 2216804035
 
         pub fn get_session_bye(sender: &MSNUser, receiver: &MSNUser, call_id: Uuid, session_id: String) -> Result<SlpPayload, PayloadError> {
             let mut out = SlpPayload::new();
-            out.first_line = format!("BYE MSNMSGR:{mpop_id} MSNSLP/1.0", mpop_id = receiver.get_mpop_identifier());
-            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.get_mpop_identifier()));
-            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = sender.get_mpop_identifier()));
+            out.first_line = format!("BYE MSNMSGR:{mpop_id} MSNSLP/1.0", mpop_id = receiver.endpoint_id);
+            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.endpoint_id));
+            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = sender.endpoint_id));
             out.add_header(String::from("Via"), format!("MSNSLP/1.0/TLP ;branch={{{branch_uuid}}}", branch_uuid = Uuid::new().to_string()));
             out.add_header(String::from("CSeq"), String::from("0"));
             out.add_header(String::from("Call-ID"), format!("{{{call_id}}}", call_id = call_id.to_string()));
@@ -184,9 +184,9 @@ SessionID: 2216804035
 
         pub fn get_file_transfer_request(sender: &MSNUser, receiver: &MSNUser, context: &PreviewData, session_id: u32) -> Result<SlpPayload, PayloadError> {
             let mut out = SlpPayload::new();
-            out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver.get_mpop_identifier());
-            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.get_mpop_identifier()));
-            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = sender.get_mpop_identifier()));
+            out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver.endpoint_id);
+            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.endpoint_id));
+            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = sender.endpoint_id));
             out.add_header(String::from("Via"), format!("MSNSLP/1.0/TLP ;branch={{{branch_uuid}}}", branch_uuid = Uuid::new().to_string()));
 
             out.add_header(String::from("CSeq"), String::from("0"));
@@ -210,9 +210,9 @@ SessionID: 2216804035
             let context_b64 = general_purpose::STANDARD.encode(context.to_string_not_encoded());
 
             let mut out = SlpPayload::new();
-            out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver.get_mpop_identifier());
-            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.get_mpop_identifier()));
-            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = sender.get_mpop_identifier()));
+            out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver.endpoint_id);
+            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.endpoint_id));
+            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = sender.endpoint_id));
             out.add_header(String::from("Via"), format!("MSNSLP/1.0/TLP ;branch={{{branch_uuid}}}", branch_uuid = Uuid::new().to_string()));
 
             out.add_header(String::from("CSeq"), String::from("0"));
@@ -372,13 +372,11 @@ SessionID: 2216804035
 
         pub fn get_transport_request(sender: &MSNUser, receiver: &MSNUser) -> SlpPayload {
             let mut out = SlpPayload::new();
-            let sender_endpoint_id = sender.get_mpop_identifier();
-            let receiver_endpoint_id = receiver.get_mpop_identifier();
 
-            out.first_line = format!("INVITE MSNMSGR:{mpop_id} MSNSLP/1.0", mpop_id = &receiver_endpoint_id);
+            out.first_line = format!("INVITE MSNMSGR:{mpop_id} MSNSLP/1.0", mpop_id = &receiver.endpoint_id);
 
-            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = &receiver_endpoint_id));
-            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = &sender_endpoint_id));
+            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = &receiver.endpoint_id));
+            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = &sender.endpoint_id));
             out.add_header(String::from("Via"), format!("MSNSLP/1.0/TLP ;branch={{{branch_uuid}}}", branch_uuid = Uuid::new().to_string()));
 
             out.add_header(String::from("CSeq"), String::from("0"));

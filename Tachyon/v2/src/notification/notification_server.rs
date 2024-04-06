@@ -137,6 +137,34 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
 
 }
 
+fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> Sender<NotificationServerCommand> {
+    println!("Socket write task started...");
+    let (sender, mut receiver) = mpsc::channel::<NotificationServerCommand>(300);
+
+    let _result = tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                command = receiver.recv() => {
+                    if let Some(command) = command {
+
+                        let bytes = command.serialize_msnp();
+
+                        unsafe {
+                            debug!("NS >> | {}", from_utf8_unchecked(&bytes));
+                        }
+
+                        let result = write.write_all(&bytes).await;
+                    }
+                },
+                _kill_signal = kill_recv.recv() => {
+                    break;
+                }
+            }
+        }
+        println!("Socket write task gracefully shutdown...");
+    } );
+    sender
+}
 
 const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"9999\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"200\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
 
@@ -213,34 +241,8 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
         NotificationClientCommand::UUN(command) => {Ok(())}
         NotificationClientCommand::XFR() => {Ok(())}
         NotificationClientCommand::RAW(command) => {Ok(())}
+        NotificationClientCommand::OUT => {Ok(())}
     }
 }
 
-fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> Sender<NotificationServerCommand> {
-    println!("Socket write task started...");
-    let (sender, mut receiver) = mpsc::channel::<NotificationServerCommand>(300);
-
-    let _result = tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                command = receiver.recv() => {
-                    if let Some(command) = command {
-
-                        let bytes = command.serialize_msnp();
-                        unsafe {
-                            debug!("NS >> | {}", from_utf8_unchecked(&bytes));
-                        }
-
-                        let result = write.write_all(&bytes).await;
-                    }
-                },
-                _kill_signal = kill_recv.recv() => {
-                    break;
-                }
-            }
-        }
-        println!("Socket write task gracefully shutdown...");
-    } );
-    sender
-}
 

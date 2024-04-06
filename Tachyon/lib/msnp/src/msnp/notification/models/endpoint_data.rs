@@ -270,10 +270,10 @@ mod tests {
 
     #[test]
     fn ab_notification_test() {
-        let msn_user = MSNUser::new("aeon.shl@shl.local".to_string());
-        let notif = NotificationFactory::get_abch_updated(&msn_user.get_uuid(), msn_user.get_email_addr());
+        let msn_user = MSNUser::with_email_addr("aeon.shl@shl.local");
+        let notif = NotificationFactory::get_abch_updated(&msn_user.uuid, &msn_user.endpoint_id.email_addr);
 
-        let notif_legacy = NotificationFactory::test(&msn_user.get_uuid(), msn_user.get_email_addr());
+        let notif_legacy = NotificationFactory::test(&msn_user.uuid, &msn_user.endpoint_id.email_addr);
         assert_eq!(notif.to_string(), notif_legacy);
     }
 }
