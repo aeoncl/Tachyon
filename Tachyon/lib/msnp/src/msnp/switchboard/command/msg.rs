@@ -8,13 +8,13 @@
 // U: never ack
 
 use std::str::FromStr;
+
 use strum_macros::{Display, EnumString};
-use crate::msnp::error::CommandError;
-use crate::msnp::error::CommandError::ArgumentParseError;
+
+use crate::msnp::error::{CommandError, PayloadError};
 use crate::msnp::raw_command_parser::RawCommand;
-use crate::shared::command::command::{get_split_part, parse_tr_id};
 use crate::shared::payload::raw_msg_payload::RawMsgPayload;
-use crate::shared::traits::SerializeMsnp;
+use crate::shared::traits::{MSNPCommand, MSNPPayload};
 
 pub struct MsgClient {
 
@@ -23,17 +23,18 @@ pub struct MsgClient {
     payload: RawMsgPayload
 }
 
-impl TryFrom<RawCommand> for MsgClient {
-    type Error = CommandError;
+impl MSNPCommand for MsgClient {
+    type Err = CommandError;
 
-    fn try_from(command: RawCommand) -> Result<Self, Self::Error> {
-        let split = command.get_command_split();
-        let tr_id = parse_tr_id(&split)?;
-        let ack_type = MsgAcknowledgment::from_str(get_split_part(2, &split, command.get_command(), "ack_type")?).map_err(|e| ArgumentParseError {
-            argument: "ack_type".to_string(),
-            command: command.get_command().to_string(),
-            source: e.into(),
-        })?;
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        let mut split = raw.command_split;
+        let _operand = split.pop_front();
+
+        let raw_tr_id = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "tr_id".into(), 1))?;
+        let tr_id = u128::from_str(&raw_tr_id)?;
+
+        let raw_ack_type = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "ack_type".into(), 1))?;
+        let ack_type = MsgAcknowledgment::from_str(&raw_ack_type)?;
 
         //TODO RawMsgPayload from bytes
         Ok(MsgClient{
@@ -42,8 +43,11 @@ impl TryFrom<RawCommand> for MsgClient {
             payload: Default::default(),
         })
     }
-}
 
+    fn to_bytes(self) -> Vec<u8> {
+        todo!()
+    }
+}
 
 
 #[derive(Display, EnumString)]
@@ -64,16 +68,19 @@ pub struct MsgServer {
     pub payload: MsgPayload
 }
 
-impl SerializeMsnp for MsgServer {
-    fn serialize_msnp(&self) -> Vec<u8> {
-        let mut payload = self.payload.serialize_msnp();
-        let cmd = format!("MSG {} {} {}\r\n", self.sender, self.display_name, payload.len());
+impl MSNPCommand for MsgServer {
+    type Err = ();
 
-        let mut out = Vec::with_capacity(cmd.len()+payload.len());
-        out.extend_from_slice(cmd.as_bytes());
-        out.append(&mut payload);
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        todo!()
+    }
 
-        out
+    fn to_bytes(self) -> Vec<u8> {
+        let mut payload = self.payload.to_bytes();
+        let mut cmd = format!("MSG {} {} {}\r\n", self.sender, self.display_name, payload.len()).into_bytes();
+        cmd.append(&mut payload);
+
+        cmd
     }
 }
 
@@ -81,10 +88,16 @@ pub enum MsgPayload {
     Raw(RawMsgPayload),
 }
 
-impl SerializeMsnp for MsgPayload {
-    fn serialize_msnp(&self) -> Vec<u8> {
+impl MSNPPayload for MsgPayload {
+    type Err = PayloadError;
+
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> {
+        todo!()
+    }
+
+    fn to_bytes(self) -> Vec<u8> {
         match self {
-            MsgPayload::Raw(payload) => { payload.serialize_msnp() }
+            MsgPayload::Raw(payload) => { payload.to_bytes() }
         }
     }
 }

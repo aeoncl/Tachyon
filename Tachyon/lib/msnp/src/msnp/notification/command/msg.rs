@@ -1,7 +1,11 @@
 use std::str::FromStr;
-use crate::msnp::error::PayloadError;
+use chrono::{DateTime, Local};
+use crate::msnp::error::{CommandError, PayloadError};
+use crate::msnp::raw_command_parser::RawCommand;
+use crate::shared::models::ticket_token::TicketToken;
+use crate::shared::models::uuid::Puid;
 use crate::shared::payload::raw_msg_payload::RawMsgPayload;
-use crate::shared::traits::SerializeMsnp;
+use crate::shared::traits::{MSNPCommand, MSNPPayload};
 
 pub struct MsgServer {
     pub sender: String,
@@ -9,42 +13,36 @@ pub struct MsgServer {
     pub payload: MsgPayload
 }
 
-impl SerializeMsnp for MsgServer {
-    fn serialize_msnp(&self) -> Vec<u8> {
-        let mut payload = self.payload.serialize_msnp();
-        let cmd = format!("MSG {} {} {}\r\n", self.sender, self.display_name, payload.len());
 
-        let mut out = Vec::with_capacity(cmd.len()+payload.len());
-        out.extend_from_slice(cmd.as_bytes());
-        out.append(&mut payload);
+impl MSNPCommand for MsgServer {
+    type Err = CommandError;
 
-        out
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        todo!()
+    }
+
+    fn to_bytes(self) -> Vec<u8> {
+        let mut payload = self.payload.to_bytes();
+        let mut cmd = format!("MSG {} {} {}\r\n", self.sender, self.display_name, payload.len()).into_bytes();
+        cmd.append(&mut payload);
+        cmd
     }
 }
+
 
 pub enum MsgPayload {
     Raw(RawMsgPayload),
 }
 
-impl SerializeMsnp for MsgPayload {
-    fn serialize_msnp(&self) -> Vec<u8> {
+impl MSNPPayload for MsgPayload {
+    type Err = PayloadError;
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> {
+        todo!()
+    }
+    fn to_bytes(self) -> Vec<u8> {
         match self {
-            MsgPayload::Raw(payload) => { payload.serialize_msnp() }
+            MsgPayload::Raw(payload) => { payload.to_bytes() }
         }
     }
 }
 
-pub struct InitialProfilePayload {
-    raw: RawMsgPayload
-}
-
-impl FromStr for InitialProfilePayload {
-    type Err = PayloadError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let raw = RawMsgPayload::from_str(s)?;
-        Ok(Self {
-            raw
-        })
-    }
-}

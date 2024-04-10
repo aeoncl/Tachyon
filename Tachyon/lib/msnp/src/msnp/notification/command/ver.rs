@@ -1,8 +1,7 @@
 use std::{fmt::Display, str::FromStr};
 
-use crate::{msnp::{error::CommandError, notification::models::msnp_version::MsnpVersion, raw_command_parser::RawCommand}, shared::command::command::{parse_tr_id, split_raw_command}};
-use crate::shared::traits::SerializeMsnp;
-
+use crate::msnp::{error::CommandError, notification::models::msnp_version::MsnpVersion, raw_command_parser::RawCommand};
+use crate::shared::traits::MSNPCommand;
 
 pub struct VerClient {
     pub tr_id: u128,
@@ -27,30 +26,30 @@ impl VerClient {
     }
 }
 
-impl TryFrom<RawCommand> for VerClient {
-    type Error = CommandError;
-
-    fn try_from(value: RawCommand) -> Result<Self, Self::Error> {
-        VerClient::from_str(value.get_command())
-    }
-}
-
-impl FromStr for VerClient {
+impl MSNPCommand for VerClient {
     type Err = CommandError;
 
-    fn from_str(command: &str) -> Result<Self, Self::Err> {
-        let split = split_raw_command(command, 5)?;
-        let tr_id = parse_tr_id(&split)?;
-        
-        let first_candidate_as_str = split.get(2).expect("first version candidate to be present");
-        let first_candidate = MsnpVersion::from_str(first_candidate_as_str).map_err(|e| Self::Err::ArgumentParseError { argument: first_candidate_as_str.to_string(), command: command.to_string(), source: e.into() })?;
-    
-        let second_candidate_as_str = split.get(3).expect("second version candidate to be present");
-        let second_candidate = MsnpVersion::from_str(second_candidate_as_str).map_err(|e| Self::Err::ArgumentParseError { argument: first_candidate_as_str.to_string(), command: command.to_string(), source: e.into() })?;
-        
-        let cvr = split.get(4).expect("cvr to be present").to_string();
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        let mut split = raw.command_split;
+        let _operand = split.pop_front();
+
+        let raw_tr_id = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "tr_id".into(), 1))?;
+        let tr_id = u128::from_str(&raw_tr_id)?;
+
+        let raw_first_candidate = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "first_candidate".into(), 2))?;
+        let first_candidate = MsnpVersion::from_str(&raw_first_candidate)?;
+
+        let raw_second_candidate = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "second_candidate".into(), 3))?;
+        let second_candidate = MsnpVersion::from_str(&raw_second_candidate)?;
+
+        let cvr = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "cvr".into(), 4))?;
 
         Ok(VerClient {tr_id, first_candidate, second_candidate, cvr})
+
+    }
+
+    fn to_bytes(self) -> Vec<u8> {
+        self.to_string().into_bytes()
     }
 }
 
@@ -58,13 +57,6 @@ impl Display for VerClient {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{operand} {tr_id} {first_candidate} {second_candidate} {cvr}\r\n",operand = "VER", tr_id = self.tr_id, first_candidate = self.first_candidate, second_candidate = self.second_candidate, cvr = self.cvr)
-    }
-}
-
-impl SerializeMsnp for VerClient {
-
-    fn serialize_msnp(&self) -> Vec<u8> {
-        self.to_string().into_bytes()
     }
 }
 
@@ -83,50 +75,47 @@ impl VerServer {
     }
 }
 
-impl FromStr for VerServer {
+impl MSNPCommand for VerServer {
     type Err = CommandError;
-    
-    fn from_str(command: &str) -> Result<Self, Self::Err> {
-        let split = split_raw_command(command, 3)?;
-        let tr_id = parse_tr_id(&split)?;
 
-        let agreed_version_as_str = split.get(2).expect("agreed_version to be present");
-        let agreed_version = MsnpVersion::from_str(agreed_version_as_str).map_err(|e| Self::Err::ArgumentParseError { argument: agreed_version_as_str.to_string(), command: command.to_string(), source: e.into() })?;
-        
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        let mut split = raw.command_split;
+        let _operand = split.pop_front();
+
+        let raw_tr_id = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "tr_id".into(), 1))?;
+        let tr_id = u128::from_str(&raw_tr_id)?;
+
+        let raw_agreed_version = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "agreed_version".into(), 2))?;
+        let agreed_version = MsnpVersion::from_str(&raw_agreed_version)?;
+
         Ok(Self { tr_id, agreed_version })
+
     }
 
-
+    fn to_bytes(self) -> Vec<u8> {
+        self.to_string().into_bytes()
+    }
 }
 
 impl Display for VerServer {
-
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {} {}\r\n", "VER", self.tr_id, self.agreed_version)
     }
 }
 
-impl SerializeMsnp for VerServer {
-
-    fn serialize_msnp(&self) -> Vec<u8> {
-        self.to_string().into_bytes()
-    }
-}
-
-
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
 
-
     use crate::msnp::notification::models::msnp_version::MsnpVersion;
+    use crate::msnp::raw_command_parser::RawCommand;
+    use crate::shared::traits::MSNPCommand;
 
     use super::{VerClient, VerServer};
 
-
     #[test]
     fn request_deserialization_success() {
-        let request = VerClient::from_str("VER 1 MSNP18 MSNP17 CVR0").unwrap();
+        let request = VerClient::try_from_raw(RawCommand::from_str("VER 1 MSNP18 MSNP17 CVR0").unwrap()).unwrap();
         assert_eq!(request.tr_id, 1);
         assert_eq!(request.first_candidate, MsnpVersion::MSNP18);
         assert_eq!(request.second_candidate, MsnpVersion::MSNP17);
@@ -135,26 +124,26 @@ mod tests {
 
     #[test]
     fn request_deserialization_invalid_params() {
-        let request = VerClient::from_str("VER 1 AOL18 MSNP17 CVR0");
+        let request = VerClient::try_from_raw(RawCommand::from_str("VER 1 AOL18 MSNP17 CVR0").unwrap());
         assert!(request.is_err());
     }
 
     #[test]
     fn request_serialization() {
-        let request = VerClient::from_str("VER 1 MSNP17 MSNP17 CVR0").unwrap();
+        let request = VerClient::try_from_raw(RawCommand::from_str("VER 1 MSNP17 MSNP17 CVR0").unwrap()).unwrap();
         assert_eq!(request.to_string().as_str(), "VER 1 MSNP17 MSNP17 CVR0\r\n");
     }
 
     #[test]
     fn response_deserialization_success() {
-        let response = VerServer::from_str("VER 1 MSNP18").unwrap();
+        let response = VerServer::try_from_raw(RawCommand::from_str("VER 1 MSNP18").unwrap()).unwrap();
         assert_eq!(response.tr_id, 1);
         assert_eq!(response.agreed_version, MsnpVersion::MSNP18);
     }
 
     #[test]
     fn response_serialization_success() {
-        let response = VerServer::from_str("VER 1 MSNP18").unwrap();
+        let response = VerServer::try_from_raw(RawCommand::from_str("VER 1 MSNP18").unwrap()).unwrap();
         assert_eq!(response.to_string().as_str(), "VER 1 MSNP18\r\n");
     }
 

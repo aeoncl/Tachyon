@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-use crate::shared::traits::SerializeMsnp;
+use crate::msnp::error::CommandError;
+use crate::msnp::raw_command_parser::RawCommand;
+use crate::shared::traits::MSNPCommand;
 
 pub struct OkCommand {
     pub operand: String,
@@ -13,9 +15,13 @@ impl Display for OkCommand {
     }
 }
 
-impl SerializeMsnp for OkCommand {
+impl MSNPCommand for OkCommand {
+    type Err = CommandError;
 
-    fn serialize_msnp(&self) -> Vec<u8> {
-        self.to_string().into_bytes()
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        todo!()
     }
+
+    fn to_bytes(self) -> Vec<u8> {
+        self.to_string().into_bytes()    }
 }

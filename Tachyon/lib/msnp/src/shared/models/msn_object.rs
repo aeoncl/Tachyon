@@ -88,10 +88,7 @@ impl FromStr for MsnObject {
     type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-
-        let decoded = urlencoding::decode(s)?;
-        debug!("DECODED: {}", &decoded);
-        from_str::<MsnObject>(&decoded).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!("Could not parse string to MSNObject for : {}", e) })
+        from_str::<MsnObject>(&s).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!("Could not parse string to MSNObject for : {}", e) })
     }
 }
 
@@ -395,7 +392,7 @@ impl Display for MsnObject {
         };
 
         let serialized = to_string_with_config(&self, &yaserde_cfg).unwrap();
-        return write!(f, "{}", urlencoding::encode(serialized.as_str()));
+        return write!(f, "{}", serialized.as_str());
     }
 }
 

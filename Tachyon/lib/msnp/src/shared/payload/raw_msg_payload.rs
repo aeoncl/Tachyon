@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use lazy_static_include::syn::Lit::Str;
 
 use crate::msnp::error::PayloadError;
-use crate::shared::traits::SerializeMsnp;
+use crate::shared::traits::MSNPPayload;
 
 const TEMPLATE: &str = "MIME-Version: 1.0\r\nContent-Type: ";
 const CHARSET: &str = "; charset=UTF-8";
@@ -60,8 +60,14 @@ impl RawMsgPayload {
 
 }
 
-impl SerializeMsnp for RawMsgPayload {
-    fn serialize_msnp(&self) -> Vec<u8> {
+impl MSNPPayload for RawMsgPayload {
+    type Err = PayloadError;
+
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> {
+        todo!()
+    }
+
+    fn to_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
 }
@@ -254,7 +260,7 @@ mod tests {
     use std::str::FromStr;
 
     use crate::shared::payload::raw_msg_payload::RawMsgPayload;
-    use crate::shared::traits::SerializeMsnp;
+    use crate::shared::traits::MSNPPayload;
 
 
     #[test]
@@ -262,7 +268,7 @@ mod tests {
         let mut payload = RawMsgPayload::new("content-type");
         payload.add_header("headerName","headerValue");
         payload.disable_trailing_terminators();
-        let serialized = payload.serialize_msnp();
+        let serialized = payload.to_bytes();
         assert_eq!(b"MIME-Version: 1.0\r\nContent-Type: content-type; charset=UTF-8\r\nheaderName: headerValue\r\n\r\n", serialized.as_slice());
     }
 
@@ -275,7 +281,7 @@ mod tests {
         assert_eq!(result.content_type, "text/plain");
         assert_eq!(Some("FN=Segoe%20UI; EF=; CO=0; CS=1; PF=0"), result.get_header("X-MMS-IM-Format"));
 
-        let serialized = result.serialize_msnp();
+        let serialized = result.to_bytes();
         assert_eq!(b"MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nX-MMS-IM-Format: FN=Segoe%20UI; EF=; CO=0; CS=1; PF=0\r\n\r\nfaefeafa", serialized.as_slice());
     }
 }

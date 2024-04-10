@@ -13,6 +13,7 @@ use msnp::soap::traits::xml::{ToXml, TryFromXml};
 use log::{debug, error, info};
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::passport::rst2::response::factory::RST2ResponseFactory;
+use crate::matrix::login::get_matrix_client_builder;
 use crate::shared::error::MatrixConversionError;
 use crate::shared::identifiers::MatrixDeviceId;
 use crate::shared::traits::{ToUuid, TryFromMsnAddr};
@@ -28,7 +29,6 @@ pub async fn rst2_handler(body: String) -> Result<Response, RST2Error> {
 
     let matrix_id = OwnedUserId::try_from_msn_addr(&creds.username)?;
 
-    //TODO remove this hardcoded url
     let client = get_matrix_client_builder(matrix_id.server_name(), None, true).build().await.map_err(|e| RST2Error::InternalServerError {source: e.into()})?;
 
     let device_id = MatrixDeviceId::from_hostname()?.to_string();
@@ -69,23 +69,4 @@ impl IntoResponse for RST2Error {
             }
         }
     }
-}
-
-pub fn get_matrix_client_builder(server_name: &ServerName, homeserver_url: Option<String>, disable_ssl: bool) -> ClientBuilder {
-    let mut client_builder = Client::builder();
-
-    if disable_ssl {
-        client_builder = client_builder.disable_ssl_verification();
-    }
-
-    match homeserver_url {
-        None => {
-            client_builder = client_builder.server_name(server_name)
-        }
-        Some(homeserver_url) => {
-            client_builder = client_builder.homeserver_url(&homeserver_url)
-        }
-    }
-
-    return client_builder;
 }

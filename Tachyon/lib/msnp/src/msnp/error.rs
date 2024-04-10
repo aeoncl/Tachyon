@@ -1,6 +1,7 @@
 
 use std::{num::ParseIntError, str::Utf8Error};
 use std::string::FromUtf8Error;
+use strum::ParseError;
 
 use thiserror::Error;
 
@@ -10,14 +11,11 @@ pub enum CommandError {
     #[error("Unsupported protocol version: {}", .version)]
     UnsupportedProtocolVersion {version: String},
 
-    #[error("Invalid Transaction ID: {}", .tr_id)]
-    InvalidTrId {tr_id: String, source: ParseIntError},
-
     #[error("Wrong argument count for command {}, expected: {} and received {}", .command, .expected, .received)]
     WrongArgumentCount {command: String, expected: u32, received: u32},
 
-    #[error("Missing argument {} at index {} for commmand {}", .arg_name, .index, .command)]
-    MissingArgument {command: String, arg_name: String, index: usize},
+    #[error("Missing argument {} at index {} for commmand {}", .1, .2, .0)]
+    MissingArgument (String, String, usize),
 
     #[error("Could not parse argument: {} for command : {}", .argument, .command)]
     ArgumentParseError{argument: String, command: String, source: anyhow::Error},
@@ -31,8 +29,17 @@ pub enum CommandError {
     #[error("No command to extract in buffer: {:?}", .buffer)]
     NoCommandToExtract { buffer: Vec<u8>},
 
+
     #[error(transparent)]
     UTF8Error(#[from] Utf8Error),
+    #[error(transparent)]
+    FromUTF8Error(#[from] FromUtf8Error),
+
+    #[error(transparent)]
+    ParseIntError(#[from] ParseIntError),
+
+    #[error(transparent)]
+    ParseError(#[from] ParseError),
 
     #[error(transparent)]
     PayloadError(#[from] PayloadError)

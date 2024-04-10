@@ -1,11 +1,12 @@
 use std::future::Future;
+use std::path::Path;
 use std::str::from_utf8_unchecked;
 
-use msnp::{msnp::{notification::command::command::NotificationServerCommand, raw_command_parser::{RawCommand, RawCommandParser}}};
-use msnp::shared::traits::SerializeMsnp;
-use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::{OwnedWriteHalf}, TcpListener, TcpStream}, sync::{broadcast::{self, Receiver}, mpsc::{self, Sender}}};
 use anyhow::anyhow;
 use log::{debug, error, info};
+use matrix_sdk::Client;
+use matrix_sdk::ruma::OwnedUserId;
+use msnp::msnp::{notification::command::command::NotificationServerCommand, raw_command_parser::{RawCommand, RawCommandParser}};
 use msnp::msnp::notification::command::command::NotificationClientCommand;
 use msnp::msnp::notification::command::cvr::CvrServer;
 use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
@@ -13,8 +14,14 @@ use msnp::msnp::notification::command::usr::{AuthPolicy, OperationTypeClient, Op
 use msnp::msnp::notification::models::msnp_version::MsnpVersion::MSNP18;
 use msnp::shared::models::uuid::Uuid;
 use msnp::shared::payload::raw_msg_payload::factories::MsgPayloadFactory;
+use msnp::shared::traits::MSNPCommand;
+use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::OwnedWriteHalf, TcpListener, TcpStream}, sync::{broadcast::{self, Receiver}, mpsc::{self, Sender}}};
 use tokio::sync::oneshot;
-use crate::notification::client_store::{ClientData, ClientDataOperation, ClientDataGetter, ClientDataSetter, ClientStoreFacade};
+use crate::matrix;
+
+use crate::notification::client_store::{ClientData, ClientDataGetter, ClientDataOperation, ClientDataSetter, ClientStoreFacade};
+use crate::shared::identifiers::MatrixDeviceId;
+use crate::shared::traits::TryFromMsnAddr;
 
 pub struct NotificationServer;
 
@@ -109,14 +116,14 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
                                     debug!("NS << | {}", command.get_command());
 
 
-                                    let notification_command = NotificationClientCommand::try_from(command);
+                                    let notification_command = NotificationClientCommand::try_from_raw(command);
                                     match notification_command {
                                         Err(e) => {
                                             error!("MSNP|NOT: Unable to parse command: {}", e);
                                             debug!("{:?}", e);
                                         },
                                         Ok(notification_command) => {
-                                            let command_result = handle_command(notification_command, command_sender.clone(), &client_store_facade, &mut local_store).await;
+                                            let command_result = handle_command(notification_command, command_sender.clone(), &client_store_facade, &mut local_store, &client_kill_recv).await;
                                             if let Err(error) = command_result {
                                                 error!("MSNP|NS: An error has occured handling a notification command: {}", &error);
                                                 debug!("MSNP|NS: {:?}", &error);
@@ -160,7 +167,7 @@ fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> S
                 command = receiver.recv() => {
                     if let Some(command) = command {
 
-                        let bytes = command.serialize_msnp();
+                        let bytes = command.to_bytes();
 
                         unsafe {
                             debug!("NS >> | {}", from_utf8_unchecked(&bytes));
@@ -181,7 +188,7 @@ fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> S
 
 const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"9999\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"200\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
 
-async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, client_store: &ClientStoreFacade, mut local_store: &mut LocalStore) -> Result<(), anyhow::Error> {
+async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, client_store: &ClientStoreFacade, mut local_store: &mut LocalStore, kill_signal: &broadcast::Receiver<()>) -> Result<(), anyhow::Error> {
     match raw_command {
         NotificationClientCommand::VER(command) => {
             if command.first_candidate != MSNP18 && command.second_candidate != MSNP18 {
@@ -216,9 +223,11 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
 
                         SsoPhaseClient::S { ticket_token, challenge, endpoint_guid } => {
 
-                            //TODO AUTH USER with Matrix Client
+                            let matrix_client = matrix::login::login(OwnedUserId::try_from_msn_addr(&local_store.email_addr)?, MatrixDeviceId::from_hostname()?, ticket_token.clone(), &Path::new(format!("C:\\temp\\{}", &local_store.email_addr).as_str()), None, false).await?;
+
                             client_store.set_client_email(&local_store.email_addr, local_store.email_addr.clone()).await?;
                             client_store.set_ticket_token_and_endpoint_guid(&local_store.email_addr, ticket_token.clone(), endpoint_guid).await?;
+                            client_store.set_matrix_client(&local_store.email_addr, matrix_client.clone()).await?;
 
                             let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
                                 email_addr: local_store.email_addr.clone(),
@@ -228,6 +237,9 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
 
                             notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
                             notif_sender.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await?;
+
+                            matrix::sync::start_sync_task(matrix_client, notif_sender.clone(), client_store.clone(), kill_signal.resubscribe()).await;
+
 
                             let uuid = Uuid::from_seed(&local_store.email_addr);
 

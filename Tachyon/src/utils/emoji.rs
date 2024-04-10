@@ -195,6 +195,7 @@ pub fn emoji_to_smiley(msg: &String) -> String {
     return msg;
 }
 
+
 #[cfg(test)]
 mod tests {
     use crate::utils::emoji::{emoji_to_smiley, smiley_to_emoji};

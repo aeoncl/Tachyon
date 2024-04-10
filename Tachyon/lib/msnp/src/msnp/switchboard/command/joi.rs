@@ -1,6 +1,8 @@
+use crate::msnp::error::CommandError;
+use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::models::capabilities::{Capabilities, ClientCapabilities};
 use crate::shared::models::endpoint_id::EndpointId;
-use crate::shared::traits::SerializeMsnp;
+use crate::shared::traits::{MSNPCommand};
 
 //Notifies a client that someone has joined the SB
 //SB >> JOI aeon@lukewarmail.com Aeon 2789003324:48
@@ -15,8 +17,14 @@ pub struct JoiServer {
 
 }
 
-impl SerializeMsnp for JoiServer {
-    fn serialize_msnp(&self) -> Vec<u8> {
+impl MSNPCommand for JoiServer {
+    type Err = CommandError;
+
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        todo!()
+    }
+
+    fn to_bytes(self) -> Vec<u8> {
         format!("JOI {endpoint_id} {display_name} {capabilities}\r\n",endpoint_id =  self.endpoint_id, display_name = self.display_name, capabilities = self.capabilities).into_bytes()
     }
 }

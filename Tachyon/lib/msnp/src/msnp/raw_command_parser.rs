@@ -1,10 +1,11 @@
 use std::{fmt::{self, Debug}, str::{from_utf8, FromStr}};
+use std::collections::VecDeque;
 
 use anyhow::anyhow;
 use log::{debug, info};
 
 use crate::shared::command::command::split_raw_command_no_arg;
-use crate::shared::traits::SerializeMsnp;
+use crate::shared::traits::MSNPCommand;
 
 use super::error::{CommandError, PayloadError};
 
@@ -228,15 +229,15 @@ impl FromStr for RawCommand {
 }
 
 pub struct RawCommand {
-    command: String,
-    command_split: Vec<String>,
-    expected_payload_size: usize,
-    pub payload: Vec<u8>
+    pub(crate) command: String,
+    pub(crate) command_split: VecDeque<String>,
+    pub(crate) expected_payload_size: usize,
+    pub(crate) payload: Vec<u8>
 }
 
 impl RawCommand {
     pub fn without_payload(command: &str) -> Self {
-        let command_split =  split_raw_command_no_arg(command).iter().map(|e| e.to_string()).collect();
+        let command_split: VecDeque<String> =  split_raw_command_no_arg(command).iter().map(|e| e.to_string()).collect();
         Self {
             command: command.to_string(),
             command_split,
@@ -263,10 +264,6 @@ impl RawCommand {
 
     pub fn get_command(&self) -> &str {
         &self.command
-    }
-
-    pub fn get_command_split(&self) -> Vec<&str> {
-        self.command_split.iter().map(|e| e.as_str()).collect()
     }
 
     pub fn get_payload(&self) -> &[u8] {
@@ -309,21 +306,25 @@ impl Debug for RawCommand {
     }
 }
 
-impl SerializeMsnp for RawCommand {
-    fn serialize_msnp(&self) -> Vec<u8> {
-        let cmd = if self.payload.len() > 0 {
-            format!("{} {}\r\n", &self.command, self.expected_payload_size)
+impl MSNPCommand for RawCommand {
+    type Err = CommandError;
+
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        Ok(raw)
+    }
+
+    fn to_bytes(mut self) -> Vec<u8> {
+        let mut cmd = if !self.payload.is_empty() {
+            format!("{} {}\r\n", &self.command, self.payload.len())
         } else {
             format!("{}\r\n", &self.command)
-        };
-        let mut out = Vec::with_capacity(cmd.len() + self.payload.len());
+        }.into_bytes();
 
-        out.extend_from_slice(cmd.as_bytes());
-        out.extend_from_slice(self.payload.as_slice());
-
-        return out;
+        cmd.append(&mut self.payload);
+        cmd
     }
 }
+
 
 
 #[cfg(test)]
@@ -462,7 +463,7 @@ mod tests {
 
         assert_eq!(1, parsed.len());
         assert_eq!("ANS", parsed[0].get_operand());
-        assert_eq!(5, parsed[0].get_command_split().len());
+        assert_eq!(5, parsed[0].command_split.len());
         assert_eq!(0, parsed[0].expected_payload_size);
     }
 

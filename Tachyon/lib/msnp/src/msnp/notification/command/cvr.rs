@@ -1,7 +1,7 @@
 use std::{fmt::Display, str::FromStr};
 
-use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}, shared::command::command::{parse_tr_id, split_raw_command}};
-use crate::shared::traits::SerializeMsnp;
+use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}};
+use crate::shared::traits::MSNPCommand;
 
 
 pub struct CvrClient {
@@ -43,37 +43,33 @@ impl CvrClient {
 }
 
 
-impl TryFrom<RawCommand> for CvrClient {
-    type Error = CommandError;
-
-    fn try_from(value: RawCommand) -> Result<Self, Self::Error> {
-        CvrClient::from_str(value.get_command())
-    }
-}
-
-impl FromStr for CvrClient {
+impl MSNPCommand for CvrClient {
     type Err = CommandError;
 
-    fn from_str(command: &str) -> Result<Self, Self::Err> {
-        let split = split_raw_command(command, 10)?;
-        let tr_id = parse_tr_id(&split)?;
-        
-        let region_code_as_str = split.get(2).expect("region code to be present").trim_start_matches("0x");
-        let region_code = u32::from_str_radix(region_code_as_str, 16).map_err(|e| Self::Err::ArgumentParseError {argument: region_code_as_str.to_string() , command: command.to_string(), source: e.into()})?;
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
 
-        let os_type = split.get(3).expect("os type to be present").to_string();
+        let mut split = raw.command_split;
+        let _operand = split.pop_front();
 
-        let os_version = split.get(4).expect("os version to be present").to_string();
+        let raw_tr_id = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "tr_id".into(), 1))?;
+        let tr_id = u128::from_str(&raw_tr_id)?;
 
-        let cpu_arch: String = split.get(5).expect("cpu arch to be present").to_string();
+        let raw_region_code = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "region_code".into(), 2))?;
+        let region_code = u32::from_str_radix(raw_region_code.trim_start_matches("0x"), 16)?;
 
-        let msnp_lib_name: String = split.get(6).expect("msnp_lib_name to be present").to_string();
+        let os_type = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "os_type".into(), 3))?;
 
-        let client_ver: String = split.get(7).expect("client_ver to be present").to_string();
+        let os_version = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "os_version".into(), 4))?;
 
-        let client_name: String = split.get(8).expect("client_name to be present").to_string();
+        let cpu_arch = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "cpu_arch".into(), 5))?;
 
-        let email_addr: String = split.get(9).expect("email_address to be present").to_string();
+        let msnp_lib_name = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "msnp_lib_name".into(), 6))?;
+
+        let client_ver = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "client_ver".into(), 7))?;
+
+        let client_name = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "client_name".into(), 8))?;
+
+        let email_addr = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "email_addr".into(), 9))?;
 
         Ok(CvrClient {
             tr_id,
@@ -86,19 +82,12 @@ impl FromStr for CvrClient {
             client_name,
             email_addr,
         })
-
     }
-}
 
-impl Display for CvrClient {
-
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn to_bytes(self) -> Vec<u8> {
         todo!()
     }
-
 }
-
-
 
 pub struct CvrServer {
     pub tr_id: u128,
@@ -131,15 +120,6 @@ impl CvrServer {
     }
 }
 
-impl FromStr for CvrServer {
-    type Err = CommandError;
-    
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        todo!()
-    }
-
-}
-
 impl Display for CvrServer {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -155,9 +135,14 @@ impl Display for CvrServer {
     }
 }
 
-impl SerializeMsnp for CvrServer {
+impl MSNPCommand for CvrServer {
+    type Err = CommandError;
 
-    fn serialize_msnp(&self) -> Vec<u8> {
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        todo!()
+    }
+
+    fn to_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
 }
@@ -166,11 +151,13 @@ impl SerializeMsnp for CvrServer {
 mod tests {
     use std::str::FromStr;
     use crate::msnp::notification::command::cvr::CvrClient;
+    use crate::msnp::raw_command_parser::RawCommand;
+    use crate::shared::traits::MSNPCommand;
 
 
     #[test]
     fn deser_test() {
-       let cvr =  CvrClient::from_str("CVR 2 0x0409 winnt 6.2.0 i386 MSNMSGR 14.0.8117.0416 msmsgs aeontest3@shlasouf.local").unwrap();
+       let cvr =  CvrClient::try_from_raw(RawCommand::from_str("CVR 2 0x0409 winnt 6.2.0 i386 MSNMSGR 14.0.8117.0416 msmsgs aeontest3@shlasouf.local").unwrap()).unwrap();
     }
 
 }

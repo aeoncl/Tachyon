@@ -188,7 +188,6 @@ impl FromStr for ClientCapabilities {
     type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s.to_string();
         let split: Vec<&str> = s.split(":").collect();
         let cap : u32 = split.get(0).unwrap_or(&"0").parse().map_err(|e : ParseIntError| PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!(e) } )?;
         let cap_ext : u32 = split.get(1).unwrap_or(&"0").parse().map_err(|e: ParseIntError| PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!(e) } )?;

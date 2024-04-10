@@ -9,7 +9,7 @@ use crate::msnp::switchboard::command::joi::JoiServer;
 use crate::msnp::switchboard::command::msg::{MsgClient, MsgServer};
 use crate::msnp::switchboard::command::usr::{UsrClient, UsrServerOk};
 use crate::shared::command::ok::OkCommand;
-use crate::shared::traits::SerializeMsnp;
+use crate::shared::traits::{MSNPCommand};
 
 #[derive(Display)]
 pub enum SwitchboardClientCommand {
@@ -21,24 +21,24 @@ pub enum SwitchboardClientCommand {
     RAW(RawCommand)
 }
 
-impl TryFrom<RawCommand> for SwitchboardClientCommand {
-    type Error = CommandError;
+impl MSNPCommand for SwitchboardClientCommand {
+    type Err = CommandError;
 
-    fn try_from(value: RawCommand) -> Result<Self, Self::Error> {
-
-        let out = match value.get_operand() {
-            "ANS" => SwitchboardClientCommand::ANS(AnsClient::try_from(value)?),
-            "USR" => SwitchboardClientCommand::USR(UsrClient::try_from(value)?),
-            "CAL" => SwitchboardClientCommand::CAL(CalClient::try_from(value)?),
-            "MSG" => SwitchboardClientCommand::MSG(MsgClient::try_from(value)?),
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        let out = match raw.get_operand() {
+            "ANS" => SwitchboardClientCommand::ANS(AnsClient::try_from_raw(raw)?),
+            "USR" => SwitchboardClientCommand::USR(UsrClient::try_from_raw(raw)?),
+            "CAL" => SwitchboardClientCommand::CAL(CalClient::try_from_raw(raw)?),
+            "MSG" => SwitchboardClientCommand::MSG(MsgClient::try_from_raw(raw)?),
             "OUT" => SwitchboardClientCommand::OUT,
-            _ => SwitchboardClientCommand::RAW(value),
+            _ => SwitchboardClientCommand::RAW(raw),
         };
+        Ok(out)    }
 
-        Ok(out)
+    fn to_bytes(self) -> Vec<u8> {
+        todo!()
     }
 }
-
 
 #[derive(Display)]
 pub enum SwitchboardServerCommand {
@@ -53,20 +53,23 @@ pub enum SwitchboardServerCommand {
     RAW(RawCommand)
 }
 
-impl SwitchboardServerCommand {
-    pub fn serialize_msnp(self) -> Vec<u8> {
-        match self {
-            SwitchboardServerCommand::OK(command) => command.serialize_msnp(),
-            SwitchboardServerCommand::USR(command) => command.serialize_msnp(),
-            SwitchboardServerCommand::CAL(command) => command.serialize_msnp(),
-            SwitchboardServerCommand::ACK(command) => command.serialize_msnp(),
-            SwitchboardServerCommand::MSG(command) => command.serialize_msnp(),
-            SwitchboardServerCommand::IRO(command) => command.serialize_msnp(),
-            SwitchboardServerCommand::JOI(command) => command.serialize_msnp(),
-            SwitchboardServerCommand::OUT => b"OUT\r\n".to_vec(),
-            SwitchboardServerCommand::RAW(command) => command.serialize_msnp(),
-        }
+impl MSNPCommand for SwitchboardServerCommand {
+    type Err = CommandError;
 
-
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        todo!()
     }
+
+    fn to_bytes(self) -> Vec<u8> {
+        match self {
+            SwitchboardServerCommand::OK(command) => command.to_bytes(),
+            SwitchboardServerCommand::USR(command) => command.to_bytes(),
+            SwitchboardServerCommand::CAL(command) => command.to_bytes(),
+            SwitchboardServerCommand::ACK(command) => command.to_bytes(),
+            SwitchboardServerCommand::MSG(command) => command.to_bytes(),
+            SwitchboardServerCommand::IRO(command) => command.to_bytes(),
+            SwitchboardServerCommand::JOI(command) => command.to_bytes(),
+            SwitchboardServerCommand::OUT => b"OUT\r\n".to_vec(),
+            SwitchboardServerCommand::RAW(command) => command.to_bytes(),
+        }    }
 }

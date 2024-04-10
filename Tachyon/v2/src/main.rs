@@ -14,6 +14,7 @@ mod notification;
 mod web;
 mod switchboard;
 mod shared;
+mod matrix;
 
 #[tokio::main]
 async fn main() {

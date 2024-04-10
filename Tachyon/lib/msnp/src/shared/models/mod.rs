@@ -7,3 +7,4 @@ pub mod role_id;
 pub mod ticket_token;
 pub mod oim;
 pub mod endpoint_id;
+pub mod email_address;

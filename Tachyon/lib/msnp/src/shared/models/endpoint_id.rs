@@ -2,18 +2,18 @@ use std::fmt::Display;
 use std::str::FromStr;
 use crate::msnp::error::CommandError;
 use crate::msnp::notification::models::endpoint_guid::EndpointGuid;
-use crate::shared::traits::ParseStr;
+use crate::shared::models::email_address::EmailAddress;
 
 #[derive(Clone, Debug)]
 pub struct EndpointId {
-    pub email_addr: String,
+    pub email_addr: EmailAddress,
     pub endpoint_guid: Option<EndpointGuid>
 }
 
 impl EndpointId {
-    pub fn new(email_addr: &str, endpoint_guid: Option<EndpointGuid>) -> Self {
+    pub fn new(email_addr: EmailAddress, endpoint_guid: Option<EndpointGuid>) -> Self {
         Self{
-            email_addr: email_addr.to_string(),
+            email_addr,
             endpoint_guid,
         }
     }
@@ -37,10 +37,10 @@ impl FromStr for EndpointId {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let split: Vec<&str> = s.split(';').collect();
-        let email_addr = split[0].to_string();
+        let email_addr = EmailAddress::from_str(split[0])?;
 
         let endpoint_guid = if split.len() >= 2 {
-            Some(EndpointGuid::try_parse_str(split[1])?)
+            Some(EndpointGuid::from_str(split[1])?)
         } else {
             None
         };

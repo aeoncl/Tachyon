@@ -1,11 +1,12 @@
+use std::collections::VecDeque;
 use std::str::FromStr;
 
 use anyhow::anyhow;
 use strum_macros::{Display, EnumString};
 
-use crate::{msnp::{error::CommandError, notification::models::endpoint_guid::EndpointGuid, raw_command_parser::RawCommand}, shared::command::command::{get_split_part, parse_tr_id}};
+use crate::msnp::{error::CommandError, notification::models::endpoint_guid::EndpointGuid, raw_command_parser::RawCommand};
 use crate::shared::models::ticket_token::TicketToken;
-use crate::shared::traits::{ParseStr, SerializeMsnp};
+use crate::shared::traits::{MSNPCommand, MSNPCommandPart};
 
 static OPERAND: &str = "USR";
 
@@ -16,26 +17,27 @@ pub struct UsrClient {
 }
 
 
-impl TryFrom<RawCommand> for UsrClient {
-    type Error = CommandError;
-
-    fn try_from(value: RawCommand) -> Result<Self, Self::Error> {
-        UsrClient::from_str(value.get_command())
-    }
-}
-
-impl FromStr for UsrClient {
+impl MSNPCommand for UsrClient {
     type Err = CommandError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let split = s.split_whitespace().collect::<Vec<&str>>();
-        let tr_id = parse_tr_id(&split)?;
-        let auth_type = OperationTypeClient::from_command_slice(&split, s)?;
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        let mut split = raw.command_split;
+        let _operand = split.pop_front();
+
+        let raw_tr_id = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "tr_id".into(), 1))?;
+        let tr_id = u128::from_str(&raw_tr_id)?;
+
+        let auth_type = OperationTypeClient::try_from_split(split, &raw.command)?;
 
         Ok(Self {
             tr_id,
             auth_type,
         })
+
+    }
+
+    fn to_bytes(self) -> Vec<u8> {
+        todo!()
     }
 }
 
@@ -46,14 +48,17 @@ pub enum OperationTypeClient {
     Sha(),
 }
 
-impl OperationTypeClient {
-    fn from_command_slice(command: &[&str], raw_cmd: &str) -> Result<Self, CommandError> {
-    let raw_op_type= get_split_part(2, command, "", "sso_phase")?;
-        match raw_op_type {
-            "SSO" => Ok(OperationTypeClient::Sso(SsoPhaseClient::from_command_slice(command, raw_cmd)?)),
+impl MSNPCommandPart for OperationTypeClient {
+    type Err = CommandError;
+
+    fn try_from_split(mut split: VecDeque<String>, command: &str) -> Result<Self, Self::Err> {
+        let raw_op_type = split.pop_front().ok_or(CommandError::MissingArgument(command.to_string(), "operation_type".into(), 2))?;
+
+        match raw_op_type.as_str() {
+            "SSO" => Ok(OperationTypeClient::Sso(SsoPhaseClient::try_from_split(split, command)?)),
             "SHA" => Ok(OperationTypeClient::Sha()),
             _ => {
-                Err(CommandError::ArgumentParseError { argument: raw_op_type.to_string(), command: raw_cmd.to_string(), source: anyhow!("Unknown operation type") })
+                Err(CommandError::ArgumentParseError { argument: raw_op_type.to_string(), command: command.to_string(), source: anyhow!("Unknown operation type") })
             }
         }
     }
@@ -71,23 +76,25 @@ pub enum SsoPhaseClient {
 }
 
 
+impl MSNPCommandPart for SsoPhaseClient {
+    type Err = CommandError;
 
-impl SsoPhaseClient {
+    fn try_from_split(mut split: VecDeque<String>, command: &str) -> Result<Self, Self::Err> {
+        let raw_sso_phase = split.pop_front().ok_or(CommandError::MissingArgument(command.to_string(), "sso_phase".into(), 3))?;
 
-    fn from_command_slice(split: &[&str], raw_cmd: &str) -> Result<Self, CommandError> {
-        let raw_sso_phase = get_split_part(3, split, "", "sso_phase")?;
-
-         match raw_sso_phase {
+        match raw_sso_phase.as_str() {
             "I" => {
-                let email_addr = get_split_part(4, split, "", "email_addr")?.to_string();
+                let email_addr = split.pop_front().ok_or(CommandError::MissingArgument(command.to_string(), "email_addr".into(), 4))?;
                 Ok(SsoPhaseClient::I { email_addr })
             },
             "S" => {
-                let ticket_token = TicketToken::try_parse_str(get_split_part(4, split, "", "ticket_token")?)?;
-                    
-                let challenge = get_split_part(5, split, "", "challenge")?.to_string(); 
-                
-                let endpoint_guid = EndpointGuid::try_parse_str(get_split_part(6, split, raw_cmd, "endpoint_guid")?)?;
+                let raw_token = split.pop_front().ok_or(CommandError::MissingArgument(command.to_string(), "ticket_token".into(), 5))?;
+                let ticket_token = TicketToken::from_str(&raw_token)?;
+
+                let challenge = split.pop_front().ok_or(CommandError::MissingArgument(command.to_string(), "challenge".into(), 6))?;
+
+                let raw_endpoint_guid = split.pop_front().ok_or(CommandError::MissingArgument(command.to_string(), "endpoint_guid".into(), 7))?;
+                let endpoint_guid = EndpointGuid::from_str(&raw_endpoint_guid)?;
 
                 Ok(SsoPhaseClient::S {
                     ticket_token,
@@ -96,9 +103,10 @@ impl SsoPhaseClient {
                 })
             },
             _ => {
-                Err(CommandError::ArgumentParseError { argument: raw_sso_phase.to_string(), command: raw_cmd.to_string(), source: anyhow!("Unknown sso phase") })
+                Err(CommandError::ArgumentParseError { argument: raw_sso_phase.to_string(), command: command.to_string(), source: anyhow!("Unknown sso phase") })
             }
         }
+
     }
 }
 
@@ -168,25 +176,31 @@ impl core::fmt::Display for UsrServer {
     }
 }
 
-impl SerializeMsnp for UsrServer {
+impl MSNPCommand for UsrServer {
+    type Err = CommandError;
 
-    fn serialize_msnp(&self) -> Vec<u8> {
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        todo!()
+    }
+
+    fn to_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::msnp::{error::CommandError, notification::command::usr::{OperationTypeClient, SsoPhaseClient}};
-
-    use super::{AuthPolicy, OperationTypeServer, SsoPhaseServer, UsrClient, UsrServer};
     use std::str::FromStr;
 
+    use crate::msnp::{error::CommandError, notification::command::usr::{OperationTypeClient, SsoPhaseClient}};
+    use crate::msnp::raw_command_parser::RawCommand;
+    use crate::shared::traits::MSNPCommand;
+
+    use super::{AuthPolicy, OperationTypeServer, SsoPhaseServer, UsrClient, UsrServer};
 
     #[test]
     fn client_sso_i_des_success() {
-        let usr1 = UsrClient::from_str("USR 3 SSO I login@test.com").unwrap();
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 3 SSO I login@test.com").unwrap()).unwrap();
         assert_eq!(3, usr1.tr_id);
         
         assert!(matches!(&usr1.auth_type, OperationTypeClient::Sso(_)));
@@ -204,37 +218,37 @@ mod tests {
 
     #[test]
     fn client_sso_i_des_failure() {
-        let usr1 = UsrClient::from_str("USR 3 SSA I login@test.com");
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 3 SSA I login@test.com").unwrap());
         assert!(matches!(&usr1, Err(CommandError::ArgumentParseError { .. })));
     }
 
     #[test]
     fn client_sso_i_des_failure_2() {
-        let usr1 = UsrClient::from_str("USR 3 SSO XY login@test.com");
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 3 SSO XY login@test.com").unwrap());
         assert!(matches!(&usr1, Err(CommandError::ArgumentParseError { .. })));
     }
 
     #[test]
     fn client_sso_i_des_failure_3() {
-        let usr1 = UsrClient::from_str("USR 4 SSO S t=ssotoken ???charabia");
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SSO S t=ssotoken ???charabia").unwrap());
         assert!(matches!(&usr1, Err(CommandError::MissingArgument { .. })));
     }
 
     #[test]
     fn client_sso_i_des_failure_invalid_ticket_token() {
-        let usr1 = UsrClient::from_str("USR 4 SSO S ssotoken ???charabia {55192CF5-588E-4ABE-9CDF-395B616ED85B}");
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SSO S ssotoken ???charabia {55192CF5-588E-4ABE-9CDF-395B616ED85B}").unwrap());
         assert!(matches!(&usr1, Err(CommandError::ArgumentParseError { .. })));
     }
 
     #[test]
     fn client_sso_i_des_failure_invalid_endpoint() {
-        let usr1 = UsrClient::from_str("USR 4 SSO S t=ssotoken ???charabia 55192CF5-588E-4ABE-9CDF-395B616ED85B");
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SSO S t=ssotoken ???charabia 55192CF5-588E-4ABE-9CDF-395B616ED85B").unwrap());
         assert!(matches!(&usr1, Err(CommandError::ArgumentParseError { .. })));
     }
 
     #[test]
     fn client_sso_s_des_success() {
-        let usr1 = UsrClient::from_str("USR 4 SSO S t=ssotoken ???charabia {55192CF5-588E-4ABE-9CDF-395B616ED85B}").unwrap();
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SSO S t=ssotoken ???charabia {55192CF5-588E-4ABE-9CDF-395B616ED85B}").unwrap()).unwrap();
         assert_eq!(4, usr1.tr_id);
         
 
@@ -258,7 +272,7 @@ mod tests {
 
     #[test]
     fn client_sha_des_success() {
-        let usr1 = UsrClient::from_str("USR 4 SHA").unwrap();
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SHA").unwrap()).unwrap();
         assert_eq!(4, usr1.tr_id);
         assert!(matches!(&usr1.auth_type, OperationTypeClient::Sha()));
     }

@@ -1,14 +1,18 @@
 use std::{fmt::Display, str::{from_utf8, FromStr}};
+use std::process::Command;
 
+use anyhow::anyhow;
+use num_derive::FromPrimitive;
 use yaserde::{de::from_str, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
-use anyhow::anyhow;
-use crate::{msnp::{error::{CommandError, PayloadError}, notification::models::endpoint_guid::EndpointGuid, raw_command_parser::RawCommand}, shared::{command::{command::{get_split_part, parse_tr_id}, ok::OkCommand}, payload}};
+
+use crate::{msnp::{error::{CommandError, PayloadError}, notification::models::endpoint_guid::EndpointGuid, raw_command_parser::RawCommand}, shared::{command::ok::OkCommand, payload}};
+use crate::shared::models::endpoint_id::EndpointId;
+use crate::shared::traits::{MSNPCommand, MSNPCommandPart, MSNPPayload};
 
 pub struct UunClient {
     tr_id: u128,
     destination: EndpointId,
-    payload_size: usize,
     payload: UunPayload
 
 }
@@ -19,25 +23,33 @@ impl UunClient {
     }
 }
 
-impl TryFrom<RawCommand> for UunClient {
-    type Error = CommandError;
+impl MSNPCommand for UunClient {
+    type Err = CommandError;
 
-    fn try_from(command: RawCommand) -> Result<Self, Self::Error> {
-        let split = command.get_command_split();
-        let tr_id: u128 = parse_tr_id(&split)?;
-        let raw_destination = get_split_part(2, &split, command.get_command(), "destination")?;
-        let destination = EndpointId::from_str(raw_destination)?;
-        let raw_notification_type = get_split_part(3, &split, command.get_command(), "payload_type")?;
-        let notification_type: UserNotificationType = num::FromPrimitive::from_u32(u32::from_str(raw_notification_type).map_err(|e| CommandError::ArgumentParseError { argument: raw_notification_type.to_string(), command: command.get_command().to_string(), source: e.into() })?).ok_or(CommandError::ArgumentParseError { argument: raw_notification_type.to_string(), command: command.get_command().to_string(), source: anyhow!("Couldn't parse int to UserNotificationType") })?;
-        
-        let payload_size = command.get_expected_payload_size();
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        let mut split = raw.command_split;
+        let _operand = split.pop_front();
 
-        let payload = UunPayload::parse_uun_payload(notification_type, command.payload)?;
+        let raw_tr_id = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "tr_id".into(), 1))?;
+        let tr_id = u128::from_str(&raw_tr_id)?;
 
-        Ok(Self { tr_id, destination, payload_size, payload })
+        let raw_destination = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "destination".into(), 2))?;
+        let destination = EndpointId::from_str(&raw_destination)?;
+
+        let raw_notification_type = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "notification_type".into(), 3))?;
+        let notification_type: UserNotificationType = num::FromPrimitive::from_u32(u32::from_str(&raw_notification_type)?)
+                                                        .ok_or(CommandError::ArgumentParseError { argument: raw_notification_type.to_string(), command: raw.command, source: anyhow!("Couldn't parse int to UserNotificationType") })?;
+
+        let payload = UunPayload::parse_uun_payload(notification_type, raw.payload)?;
+
+        Ok(Self { tr_id, destination, payload })
+
+    }
+
+    fn to_bytes(self) -> Vec<u8> {
+        todo!()
     }
 }
-
 
 pub enum UunPayload {
     DisconnectClient,
@@ -48,9 +60,14 @@ pub enum UunPayload {
     Unknown(Vec<u8>)
 }
 
-impl SerializeMsnp for UunPayload{
+impl MSNPPayload for UunPayload {
+    type Err = PayloadError;
 
-    fn serialize_msnp(&self) -> Vec<u8> {
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> {
+        todo!()
+    }
+
+    fn to_bytes(self) -> Vec<u8> {
         match self {
             UunPayload::DisconnectClient => b"goawyplzthxbye".to_vec(),
             UunPayload::DisconnectAllClients => b"gtfo".to_vec(),
@@ -99,10 +116,6 @@ pub struct UunService {
     #[yaserde(rename = "reason", attribute)]
     reason: u32
 }
-
-use num_derive::FromPrimitive;
-use crate::shared::models::endpoint_id::EndpointId;
-use crate::shared::traits::{ParseStr, SerializeMsnp};
 
 #[derive(Clone, Debug, FromPrimitive)]
 pub enum UserNotificationType {
@@ -165,17 +178,20 @@ pub struct UbnServer {
     payload: UbnPayload
 }
 
-impl SerializeMsnp for UbnServer {
-    fn serialize_msnp(&self) -> Vec<u8> {
-        let payload = self.payload.serialize_msnp();
+impl MSNPCommand for UbnServer {
+    type Err = CommandError;
+
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        todo!()
+    }
+
+    fn to_bytes(self) -> Vec<u8> {
         let payload_type  = UserNotificationType::from(&self.payload);
-        let command = format!("UBN {dest} {payload_type} {payload_size}\r\n", dest = self.destination, payload_type = payload_type as u32, payload_size = payload.len());
 
-        let mut out = Vec::with_capacity(command.len() + payload.len());
+        let mut payload = self.payload.to_bytes();
+        let mut command = format!("UBN {dest} {payload_type} {payload_size}\r\n", dest = self.destination, payload_type = payload_type as u32, payload_size = payload.len()).into_bytes();
 
-        out.extend_from_slice(command.as_bytes());
-        out.extend_from_slice(&payload);
-
-        out
+        command.append(&mut payload);
+        command
     }
 }

@@ -1,7 +1,7 @@
-use strum_macros::Display;
+use strum_macros::{Display, EnumIter};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
-#[derive(Debug, Display, YaSerialize, YaDeserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Display, YaSerialize, YaDeserialize, Clone, PartialEq, Eq, Hash, EnumIter)]
 #[yaserde(
 	rename = "RoleId",namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
 	prefix = "nsi1",

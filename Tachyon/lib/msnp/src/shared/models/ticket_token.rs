@@ -1,8 +1,7 @@
 use std::str::FromStr;
+
 use anyhow::anyhow;
 use crate::msnp::error::CommandError;
-use crate::shared::traits::ParseStr;
-
 
 #[derive(Debug, Clone)]
 pub struct TicketToken(pub String);
@@ -13,10 +12,12 @@ impl std::fmt::Display for TicketToken {
     }
 }
 
-impl ParseStr for TicketToken {
-    type Error = CommandError;
+impl FromStr  for TicketToken {
+    type Err = CommandError;
 
-    fn try_parse_str(s: &str) -> Result<Self, Self::Error> {
-        let no_prefix = s.strip_prefix("t=").ok_or(Self::Error::ArgumentParseError { argument: s.to_string(), command: String::new(), source: anyhow!("Error stripping t= prefix from Ticket Token")})?;
-        Ok(Self(no_prefix.to_string()))}
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let no_prefix = s.strip_prefix("t=").ok_or(Self::Err::ArgumentParseError { argument: s.to_string(), command: String::new(), source: anyhow!("Error stripping t= prefix from Ticket Token")})?;
+        Ok(Self(no_prefix.to_string()))
+    }
 }
+

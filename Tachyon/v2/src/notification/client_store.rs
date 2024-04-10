@@ -1,7 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use log::info;
 use matrix_sdk::Client;
+use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId};
+use msnp::msnp::models::contact_list::ContactList;
 use msnp::msnp::notification::models::endpoint_guid::EndpointGuid;
+use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::error::SoapMarshallError;
 use thiserror::Error;
@@ -15,7 +18,10 @@ pub struct ClientData {
     pub email_addr: Option<String>,
     pub ticket_token: Option<TicketToken>,
     pub endpoint_guid: Option<EndpointGuid>,
-    pub matrix_client: Option<Client>
+    pub matrix_client: Option<Client>,
+    pub contact_list: ContactList,
+    pub switchboards: HashMap<OwnedRoomId, SwitchboardHandle>,
+    pub soap_holder: SoapHolder
 }
 
 impl Default for ClientData {
@@ -25,6 +31,9 @@ impl Default for ClientData {
             ticket_token: None,
             endpoint_guid: None,
             matrix_client: None,
+            contact_list: Default::default(),
+            switchboards: Default::default(),
+            soap_holder: Default::default(),
         }
     }
 }
@@ -66,14 +75,16 @@ pub enum ClientDataOperation {
 pub enum ClientDataSetter {
     SetClientEmail(String),
     SetTicketTokenAndEndpoint(TicketToken, EndpointGuid),
-    SetMatrixClient(Client)
+    SetMatrixClient(Client),
+    SetSwitchboard(OwnedRoomId, Option<SwitchboardHandle>)
 }
 
 pub enum ClientDataGetter {
     GetClientEmail(oneshot::Sender<Option<String>>),
     GetClientTicketToken(oneshot::Sender<Option<TicketToken>>),
     GetClientEndpointGuid(oneshot::Sender<Option<EndpointGuid>>),
-    GetMatrixClient(oneshot::Sender<Option<Client>>)
+    GetMatrixClient(oneshot::Sender<Option<Client>>),
+    GetSwitchboard(OwnedRoomId, oneshot::Sender<Option<SwitchboardHandle>>)
 }
 
 #[derive(Clone)]
@@ -133,11 +144,45 @@ impl ClientStoreFacade {
         Ok(recv.await?)
     }
 
+    pub async fn set_switchboard(&self, client_key: &str, id: OwnedRoomId, switchboard: Option<SwitchboardHandle>) -> Result<(), ClientStoreError> {
+        self.sender.send(ClientStoreOperation::setter(client_key.to_string(), ClientDataSetter::SetSwitchboard(id, switchboard))).await?;
+        Ok(())
+    }
+
+    pub async fn get_switchboard(&self, client_key: &str, id: OwnedRoomId ) -> Result<Option<SwitchboardHandle>, ClientStoreError> {
+        let (send, recv) = oneshot::channel::<Option<SwitchboardHandle>>();
+        self.sender.send(ClientStoreOperation::getter(client_key.to_string(), ClientDataGetter::GetSwitchboard(id, send))).await?;
+        Ok(recv.await?)
+    }
+
     pub async fn drop_client(&self, client_key: &str) -> Result<(), ClientStoreError>{
         self.sender.send(ClientStoreOperation::drop(client_key.to_string())).await?;
         Ok(())
     }
 
+}
+
+#[derive(Clone)]
+pub struct SwitchboardHandle {
+    room_id: String,
+    msnp_sender: mpsc::Sender<SwitchboardServerCommand>,
+    p2p_sender: mpsc::Sender<String>
+}
+
+pub struct SoapHolder {
+    oims: VecDeque<String>,
+    contacts: VecDeque<String>,
+    memberships: VecDeque<String>
+}
+
+impl Default for SoapHolder {
+    fn default() -> Self {
+        Self{
+            oims: Default::default(),
+            contacts: Default::default(),
+            memberships: Default::default(),
+        }
+    }
 }
 
 
@@ -174,7 +219,17 @@ pub fn start_client_store_task(mut kill_recv: Receiver<()>) -> Sender<ClientStor
                                     ClientDataSetter::SetMatrixClient(client) => {
                                         client_data.matrix_client = Some(client);
                                     }
-                                }
+                                ClientDataSetter::SetSwitchboard(id,switchboard) => {
+                                    match switchboard {
+                                        None => {
+                                                let _removed = client_data.switchboards.remove(&id);
+                                            },
+                                        Some(switchboard) => {
+                                                let _previous = client_data.switchboards.insert(id, switchboard);
+                                            }
+                                        }
+
+                                }}
                             },
                             ClientDataOperation::Getter(getter) => {
                                 match getter {
@@ -190,7 +245,11 @@ pub fn start_client_store_task(mut kill_recv: Receiver<()>) -> Sender<ClientStor
                                     }
                                     ClientDataGetter::GetMatrixClient(channel) => {
                                        let _result = channel.send(client_data.matrix_client.clone());
-                                    }}
+                                    }
+                                    ClientDataGetter::GetSwitchboard(id,channel) => {
+                                        let _result = channel.send(client_data.switchboards.get(&id).cloned());
+                                    }
+                                }
 
                             }
                             ClientDataOperation::Drop() => {}
@@ -206,5 +265,6 @@ pub fn start_client_store_task(mut kill_recv: Receiver<()>) -> Sender<ClientStor
     } );
     sender
 }
+
 
 

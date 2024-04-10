@@ -1,11 +1,10 @@
 use std::str::FromStr;
 use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
-use crate::msnp::switchboard::command::cal::CalClient;
 use crate::msnp::switchboard::models::b64_string::Base64String;
-use crate::shared::command::command::{get_split_part, parse_tr_id};
 use crate::shared::command::ok::OkCommand;
 use crate::shared::models::endpoint_id::EndpointId;
+use crate::shared::traits::MSNPCommand;
 
 // Answers an XFR command from the Notification Sever, joining a Switchboard
 // >>> ANS 3 aeontest@shl.local;{F52973B6-C926-4BAD-9BA8-7C1E840E4AB0} base64token 4060759068338340280
@@ -17,32 +16,37 @@ pub struct AnsClient {
     session_id: u64
 }
 
-impl TryFrom<RawCommand> for AnsClient {
-    type Error = CommandError;
+impl MSNPCommand for AnsClient {
+    type Err = CommandError;
 
-    fn try_from(command: RawCommand) -> Result<Self, Self::Error> {
-        let split = command.get_command_split();
-        let tr_id = parse_tr_id(&split)?;
-        let raw_endpoint_id = get_split_part(2, &split, command.get_command(), "endpoint_id")?;
-        let endpoint_id = EndpointId::from_str(raw_endpoint_id)?;
-        let token = Base64String::from_str(get_split_part(3, &split, command.get_command(), "token")?)?;
-        let raw_session_id = get_split_part(4, &split, command.get_command(), "endpoint_id")?;
-        let session_id =  u64::from_str(raw_session_id).map_err(|e| CommandError::ArgumentParseError {
-            argument: "session_id".to_string(),
-            command: command.get_command().to_string(),
-            source: e.into(),
-        })?;
-        
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        let mut split = raw.command_split;
+        let _operand = split.pop_front();
+
+        let raw_tr_id = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "tr_id".into(), 1))?;
+        let tr_id = u128::from_str(&raw_tr_id)?;
+
+        let raw_endpoint_id = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "endpoint_id".into(), 1))?;
+        let endpoint_id = EndpointId::from_str(&raw_endpoint_id)?;
+
+        let raw_token = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "token".into(), 1))?;
+        let token = Base64String::from_str(&raw_token)?;
+
+        let raw_session_id = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "session_id".into(), 1))?;
+        let session_id = u64::from_str(&raw_session_id)?;
+
         Ok(AnsClient{
             tr_id,
             endpoint_id,
             token,
             session_id
         })
+    }
 
+    fn to_bytes(self) -> Vec<u8> {
+        todo!()
     }
 }
-
 
 impl AnsClient {
 
