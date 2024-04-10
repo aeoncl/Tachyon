@@ -21,3 +21,25 @@ impl FromStr  for TicketToken {
     }
 }
 
+
+
+impl PartialEq<str> for TicketToken {
+    fn eq(&self, other: &str) -> bool {
+        &self.0 == other
+    }
+
+    fn ne(&self, other: &str) -> bool {
+        &self.0 != other
+    }
+}
+
+impl PartialEq<String> for TicketToken {
+    fn eq(&self, other: &String) -> bool {
+        &self.0 == other
+    }
+
+    fn ne(&self, other: &String) -> bool {
+        &self.0 != other
+    }
+}
+

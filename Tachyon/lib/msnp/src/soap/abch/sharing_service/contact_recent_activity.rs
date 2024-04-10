@@ -1,6 +1,5 @@
 pub mod request {
     use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::abch::msnab_sharingservice::{SOAP_ENCODING};
     use crate::soap::abch::request_header::RequestHeaderContainer;
     use crate::soap::abch::msnab_datatypes::{EntityHandle, Locale};
 
@@ -55,7 +54,6 @@ pub mod response {
     use yaserde_derive::{YaDeserialize, YaSerialize};
     use crate::soap::abch::msnab_datatypes::{CollapseConditionType, RecentActivityTemplateType, Activities};
     use crate::soap::abch::msnab_faults::SoapFault;
-    use crate::soap::abch::msnab_sharingservice::{SOAP_ENCODING};
     use crate::soap::abch::request_header::RequestHeaderContainer;
     use crate::soap::abch::service_header::ServiceHeaderContainer;
 

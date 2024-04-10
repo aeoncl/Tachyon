@@ -12,6 +12,7 @@ use msnp::msnp::notification::command::cvr::CvrServer;
 use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::notification::command::usr::{AuthPolicy, OperationTypeClient, OperationTypeServer, SsoPhaseClient, SsoPhaseServer, UsrServer};
 use msnp::msnp::notification::models::msnp_version::MsnpVersion::MSNP18;
+use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
 use msnp::shared::payload::raw_msg_payload::factories::MsgPayloadFactory;
 use msnp::shared::traits::MSNPCommand;
@@ -61,12 +62,14 @@ impl NotificationServer {
 
 struct LocalStore {
     email_addr: String,
+    token: TicketToken
 }
 
 impl Default for LocalStore {
     fn default() -> Self {
         Self {
-            email_addr: String::new()
+            email_addr: String::new(),
+            token: TicketToken(String::new()),
         }
     }
 }
@@ -225,9 +228,10 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
 
                             let matrix_client = matrix::login::login(OwnedUserId::try_from_msn_addr(&local_store.email_addr)?, MatrixDeviceId::from_hostname()?, ticket_token.clone(), &Path::new(format!("C:\\temp\\{}", &local_store.email_addr).as_str()), None, false).await?;
 
-                            client_store.set_client_email(&local_store.email_addr, local_store.email_addr.clone()).await?;
-                            client_store.set_ticket_token_and_endpoint_guid(&local_store.email_addr, ticket_token.clone(), endpoint_guid).await?;
-                            client_store.set_matrix_client(&local_store.email_addr, matrix_client.clone()).await?;
+                            local_store.token = ticket_token.clone();
+                            client_store.set_client_email(&ticket_token.0, local_store.email_addr.clone()).await?;
+                            client_store.set_ticket_token_and_endpoint_guid(&ticket_token.0, ticket_token.clone(), endpoint_guid).await?;
+                            client_store.set_matrix_client(&ticket_token.0, matrix_client.clone()).await?;
 
                             let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
                                 email_addr: local_store.email_addr.clone(),

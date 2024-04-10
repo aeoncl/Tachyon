@@ -1,7 +1,6 @@
 pub mod request {
     use yaserde_derive::{YaDeserialize, YaSerialize};
     use crate::soap::abch::msnab_datatypes::Guid;
-    use crate::soap::abch::msnab_sharingservice::{SOAP_ENCODING};
     use crate::soap::abch::request_header::RequestHeaderContainer;
 
 
@@ -102,7 +101,6 @@ pub mod response {
     use crate::soap::abch::ab_service::ab_find_contacts_paged::response::{Ab, Groups};
     use crate::soap::abch::msnab_datatypes::{ArrayOfContactType, DynamicItems} ;
     use crate::soap::abch::msnab_faults::SoapFault;
-    use crate::soap::abch::msnab_sharingservice::{SOAP_ENCODING};
     use crate::soap::abch::request_header::RequestHeaderContainer;
     use crate::soap::abch::service_header::ServiceHeaderContainer;
 

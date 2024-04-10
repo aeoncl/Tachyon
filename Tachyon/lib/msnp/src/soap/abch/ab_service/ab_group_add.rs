@@ -65,8 +65,11 @@ pub mod request {
     }
 
     use yaserde_derive::{YaDeserialize, YaSerialize};
+    use crate::soap::abch::ab_service::ab_contact_update::request::AbcontactUpdateMessageSoapEnvelope;
     use crate::soap::abch::msnab_datatypes::GroupInfoType;
     use crate::soap::abch::request_header::RequestHeaderContainer;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::TryFromXml;
 
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
@@ -139,6 +142,14 @@ pub mod request {
                 body,
                 header: None,
             }
+        }
+    }
+
+    impl TryFromXml for AbgroupAddMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+
+        fn try_from_xml(xml_str: &str) -> Result<Self, Self::Error> {
+            yaserde::de::from_str::<Self>(&xml_str).map_err(|e| Self::Error::DeserializationError { message: e})
         }
     }
 

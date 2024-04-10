@@ -2,7 +2,7 @@
 use std::{num::ParseIntError, str::Utf8Error};
 use std::string::FromUtf8Error;
 use strum::ParseError;
-
+use crate::shared::errors::IdentifierError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -40,6 +40,9 @@ pub enum CommandError {
 
     #[error(transparent)]
     ParseError(#[from] ParseError),
+
+    #[error(transparent)]
+    IdentifierError(#[from] IdentifierError),
 
     #[error(transparent)]
     PayloadError(#[from] PayloadError)

@@ -1,17 +1,19 @@
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
+use std::sync::Arc;
+use crate::shared::errors::IdentifierError;
 
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct EmailAddress(pub(crate) String);
 
 impl FromStr for EmailAddress {
-    type Err = ();
+    type Err = IdentifierError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let indices: Vec<_> = s.match_indices("@").collect();
         if indices.len() == 1 {
-            Ok(EmailAddress(s.to_string()))
+            Ok(EmailAddress(s.into()))
         } else {
-            //FU
-            todo!()
+            Err(IdentifierError::InvalidEmailAddress(s.to_string()))
         }
 
     }

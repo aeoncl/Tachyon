@@ -1,9 +1,17 @@
 pub mod request {
+    use yaserde_derive::{YaDeserialize, YaSerialize};
+
+    use crate::soap::abch::ab_service::ab_contact_add::request::AbcontactAddMessageSoapEnvelope;
+    use crate::soap::abch::msnab_datatypes::{ArrayOfContactType, Guid};
+    use crate::soap::abch::request_header::RequestHeaderContainer;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::TryFromXml;
 
     #[cfg(test)]
     mod tests {
         use yaserde::de::from_str;
         use yaserde::ser::to_string;
+
         use crate::soap::abch::ab_service::ab_contact_delete::request::AbcontactDeleteMessageSoapEnvelope;
 
         #[test]
@@ -47,10 +55,6 @@ pub mod request {
         }
 
     }
-
-    use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::abch::msnab_datatypes::{ArrayOfContactType, Guid};
-    use crate::soap::abch::request_header::RequestHeaderContainer;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     #[yaserde(
@@ -102,14 +106,27 @@ pub mod request {
         }
     }
 
+    impl TryFromXml for AbcontactDeleteMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+
+        fn try_from_xml(xml_str: &str) -> Result<Self, Self::Error> {
+            yaserde::de::from_str::<Self>(&xml_str).map_err(|e| Self::Error::DeserializationError { message: e})
+        }
+    }
+
 
 }
 
 pub mod response {
+    use yaserde_derive::{YaDeserialize, YaSerialize};
+
+    use crate::soap::abch::msnab_faults::SoapFault;
+    use crate::soap::abch::service_header::ServiceHeaderContainer;
 
     #[cfg(test)]
     mod tests {
         use yaserde::ser::to_string;
+
         use crate::soap::abch::ab_service::ab_contact_delete::response::AbcontactDeleteResponseMessageSoapEnvelope;
 
         #[test]
@@ -121,10 +138,6 @@ pub mod response {
 
 
     }
-
-    use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::abch::msnab_faults::SoapFault;
-    use crate::soap::abch::service_header::ServiceHeaderContainer;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAbcontactDeleteResponseMessage {

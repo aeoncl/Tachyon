@@ -4,7 +4,7 @@ use crate::{msnp::error::{CommandError}, shared::models::uuid::Uuid};
 use anyhow::anyhow;
 
 #[derive(Debug, Clone)]
-pub struct EndpointGuid(Uuid);
+pub struct EndpointGuid(pub Uuid);
 
 impl FromStr for EndpointGuid {
     type Err = CommandError;

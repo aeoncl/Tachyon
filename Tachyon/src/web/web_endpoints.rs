@@ -14,12 +14,12 @@ lazy_static! {
 }
 
 lazy_static_include_bytes! {
-    MSGR_CONFIG_XML => "../assets/web/MsgrConfig.xml",
-    BANNER => "../assets/web/banner.html",
-    TEXT_AD => "../assets/web/ads/textad.xml",
-    PPCRLCONFIG => "../assets/web/ppcrlconfig.bin",
-    WLIDSVCCONFIG => "../assets/web/wlidsvcconfig.xml",
-    PPCRLCHECK => "../assets/web/ppcrlcheck.srf.html"
+    MSGR_CONFIG_XML => "./assets/web/MsgrConfig.xml",
+    BANNER => "./assets/web/banner.html",
+    TEXT_AD => "./assets/web/ads/textad.xml",
+    PPCRLCONFIG => "./assets/web/ppcrlconfig.bin",
+    WLIDSVCCONFIG => "./assets/web/wlidsvcconfig.xml",
+    PPCRLCHECK => "./assets/web/ppcrlcheck.srf.html"
 }
 
 

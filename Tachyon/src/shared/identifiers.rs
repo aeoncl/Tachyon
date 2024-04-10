@@ -30,7 +30,7 @@ impl Display for MatrixDeviceId {
 }
 
 
-trait MatrixIdCompatible {
+pub trait MatrixIdCompatible {
     fn from_owned(value: OwnedUserId) -> Self;
 
     fn from(value: &UserId) -> Self;
@@ -40,20 +40,22 @@ trait MatrixIdCompatible {
 
 
 impl MatrixIdCompatible for EmailAddress {
-    fn from_owned(value: OwnedUserId) -> Self {
-        let user_id = value.to_string();
-        let (name, domain) = user_id.strip_prefix("@")
-            .expect("OwnedUserId to start with @").split_once(":")
-            .expect("OwnedUserId to contain :");
+     fn from_owned(value: OwnedUserId) -> Self {
+        let name = value.localpart();
+        let domain = value.server_name().as_str();
 
-        EmailAddress(format!("{}@{}", name, domain))    }
+        EmailAddress::from_str(&format!("{}@{}", name, domain)).expect("OwnedUserId to be valid")
+    }
 
     fn from(value: &UserId) -> Self {
-        value.to_owned().into()
+        let name = value.localpart();
+        let domain = value.server_name().as_str();
+        EmailAddress::from_str(&format!("{}@{}", name, domain)).expect("UserId to be valid")
     }
 
     fn into_owned(self) -> OwnedUserId {
-        let (name, domain) = self.into().split_once("@").expect("Email to contain @");
-        OwnedUserId::from_str(format!("@{}:{}", name, domain))
+        let as_str : String = self.into();
+        let (name, domain) = as_str.split_once("@").expect("Email to contain @");
+        OwnedUserId::from_str(&format!("@{}:{}", name, domain)).expect("OwnedUserId to be valid")
     }
 }

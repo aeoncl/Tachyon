@@ -4,7 +4,7 @@ use crate::msnp::raw_command_parser::RawCommand;
 use crate::msnp::switchboard::command::ack::AckServer;
 use crate::msnp::switchboard::command::ans::AnsClient;
 use crate::msnp::switchboard::command::cal::{CalClient, CalServer};
-use crate::msnp::switchboard::command::Iro::IroServer;
+use crate::msnp::switchboard::command::iro::IroServer;
 use crate::msnp::switchboard::command::joi::JoiServer;
 use crate::msnp::switchboard::command::msg::{MsgClient, MsgServer};
 use crate::msnp::switchboard::command::usr::{UsrClient, UsrServerOk};

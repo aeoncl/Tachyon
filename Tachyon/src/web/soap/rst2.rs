@@ -1,4 +1,5 @@
 use std::str::FromStr;
+
 use anyhow::anyhow;
 use axum::body::Body;
 use axum::extract::Request;
@@ -6,19 +7,19 @@ use axum::handler::Handler;
 use axum::http::header::CONTENT_TYPE;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use matrix_sdk::ruma::OwnedUserId;
-use matrix_sdk::{Client, ClientBuilder, ServerName};
-use msnp::soap::passport::rst2::request::RST2RequestMessageSoapEnvelope;
-use msnp::soap::traits::xml::{ToXml, TryFromXml};
 use log::{debug, error, info};
+use matrix_sdk::{Client, ClientBuilder, ServerName};
+use matrix_sdk::ruma::OwnedUserId;
 use msnp::shared::models::ticket_token::TicketToken;
+use msnp::soap::passport::rst2::request::RST2RequestMessageSoapEnvelope;
 use msnp::soap::passport::rst2::response::factory::RST2ResponseFactory;
+use msnp::soap::traits::xml::{ToXml, TryFromXml};
+
 use crate::matrix::login::get_matrix_client_builder;
 use crate::shared::error::MatrixConversionError;
 use crate::shared::identifiers::MatrixDeviceId;
 use crate::shared::traits::{ToUuid, TryFromMsnAddr};
-use crate::web::soap::error::{RST2Error, SoapError};
-use crate::web::soap::error::SoapError::AuthenticationFailed;
+use crate::web::soap::error::RST2Error;
 use crate::web::soap::shared;
 
 pub async fn rst2_handler(body: String) -> Result<Response, RST2Error> {

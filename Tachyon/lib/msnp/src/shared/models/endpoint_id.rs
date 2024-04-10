@@ -3,6 +3,7 @@ use std::str::FromStr;
 use crate::msnp::error::CommandError;
 use crate::msnp::notification::models::endpoint_guid::EndpointGuid;
 use crate::shared::models::email_address::EmailAddress;
+use crate::shared::models::uuid::Uuid;
 
 #[derive(Clone, Debug)]
 pub struct EndpointId {
@@ -17,6 +18,12 @@ impl EndpointId {
             endpoint_guid,
         }
     }
+
+    pub fn from_email_addr(email_addr: EmailAddress) -> Self {
+        let endpoint_guid = EndpointGuid(Uuid::from_seed(&email_addr.0));
+        Self::new(email_addr, Some(endpoint_guid))
+    }
+
 }
 
 impl Display for EndpointId {

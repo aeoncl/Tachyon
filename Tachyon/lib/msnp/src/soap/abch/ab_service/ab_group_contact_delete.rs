@@ -1,7 +1,6 @@
 pub mod requets {
     use yaserde_derive::{YaDeserialize, YaSerialize};
     use crate::soap::abch::msnab_datatypes::{ArrayOfContactType, GroupFilterType, Guid};
-    use crate::soap::abch::msnab_sharingservice::{SOAP_ENCODING};
     use crate::soap::abch::request_header::RequestHeaderContainer;
 
     #[cfg(test)]
@@ -104,7 +103,6 @@ pub mod requets {
 pub mod response {
     use yaserde_derive::{YaDeserialize, YaSerialize};
     use crate::soap::abch::msnab_faults::SoapFault;
-    use crate::soap::abch::msnab_sharingservice::{SOAP_ENCODING};
     use crate::soap::abch::request_header::RequestHeaderContainer;
     use crate::soap::abch::service_header::ServiceHeaderContainer;
 

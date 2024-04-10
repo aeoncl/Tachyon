@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
 use crate::msnp::notification::command::adl::ADLPayload;
+use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::msn_user::MSNUser;
 use crate::shared::models::role_id::RoleId;
 
 pub struct ContactList {
-    pub contact_list: HashMap<String, Contact>,
+    pub contact_list: HashMap<EmailAddress, Contact>,
 }
 
 impl Default for ContactList {
@@ -29,15 +30,14 @@ impl Contact {
 
 impl ContactList {
 
-    pub fn process_adl(&mut self, adl_payload: &ADLPayload) {
-        let mut contacts = adl_payload.get_contacts();
+    pub fn add_contacts(&mut self, mut contacts: HashMap<EmailAddress, u8>, is_initial: bool) {
         for (msn_addr, memberships ) in contacts.drain() {
             match self.contact_list.get_mut(&msn_addr) {
                 None => {
-                    self.contact_list.insert(msn_addr.clone(), Contact{ user: MSNUser::with_email_addr(&msn_addr), memberships });
+                    self.contact_list.insert(msn_addr.clone(), Contact{ user: MSNUser::with_email_addr(msn_addr), memberships });
                 },
                 Some(contact) => {
-                    if adl_payload.is_initial() {
+                    if is_initial {
                         contact.memberships = memberships;
                     } else {
                         contact.memberships += memberships;
@@ -47,12 +47,11 @@ impl ContactList {
         }
     }
 
-    pub fn process_rml(&mut self, adl_payload: &ADLPayload) {
-        let mut contacts = adl_payload.get_contacts();
+    pub fn remove_contacts(&mut self, mut contacts: HashMap<EmailAddress, u8>) {
         for (msn_addr, memberships ) in contacts.drain() {
             match self.contact_list.get_mut(&msn_addr) {
                 None => {
-                    self.contact_list.insert(msn_addr.clone(), Contact{ user: MSNUser::with_email_addr(&msn_addr), memberships });
+                    self.contact_list.insert(msn_addr.clone(), Contact{ user: MSNUser::with_email_addr(msn_addr), memberships });
                 },
                 Some(contact) => {
                         contact.memberships -= memberships;

@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use anyhow::anyhow;
 use axum::extract::{FromRequest, Request};
 use axum::http::{StatusCode, Uri};
@@ -9,6 +10,7 @@ use log::{debug, error, info, warn};
 use tokio::net::TcpListener;
 use tokio::sync::broadcast::Receiver;
 use crate::notification::client_store::ClientStoreFacade;
+use crate::web::soap::ab_service::address_book_service;
 use crate::web::soap::rst2::{rst2_handler};
 use crate::web::web_endpoints::{firewall_test, get_banner_ads, get_msgr_config, get_text_ad, ppcrlcheck, ppcrlconfigsrf, sha1auth, wlidsvcconfig};
 pub struct WebServer;
@@ -17,6 +19,9 @@ pub struct WebServer;
 impl WebServer {
     pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, client_store_facade: ClientStoreFacade) -> Result<(), anyhow::Error> {
         info!("Web Server started...");
+
+
+        let state = client_store_facade;
 
         let app = Router::new()
             .route("/", post(firewall_test))
@@ -29,6 +34,9 @@ impl WebServer {
             .route("/PPCRLconfig.srf", get(wlidsvcconfig))
             .route("/ppcrlcheck.srf", get(ppcrlcheck))
             .route("/RST2.srf", post(rst2_handler))
+            //SOAP
+            .route("/abservice/abservice.asmx", post(address_book_service))
+            .with_state(state)
             .layer(middleware::from_fn(my_middleware))
             .fallback(fallback);
 
@@ -44,10 +52,13 @@ async fn my_middleware(
     request: Request,
     next: Next,
 ) -> Response {
-    info!("WEB << {}", request.uri());
+    info!("WEB << {} - SOAPAction: {:?}", request.uri(), request.headers().get("SOAPAction"));
+    debug!("{:?}", request.body());
+    
     let response = next.run(request).await;
 
     info!("WEB >> {}", &response.status());
+    debug!("{:?}", response.body());
 
     response
 }

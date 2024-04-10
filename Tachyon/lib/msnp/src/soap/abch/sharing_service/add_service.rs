@@ -1,7 +1,6 @@
 pub mod request {
     use yaserde_derive::{YaDeserialize, YaSerialize};
     use crate::soap::abch::sharing_service::find_membership::response::InfoType;
-    use crate::soap::abch::msnab_sharingservice::{SOAP_ENCODING};
     use crate::soap::abch::request_header::RequestHeaderContainer;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
@@ -50,7 +49,6 @@ pub mod request {
 pub mod response {
     use yaserde_derive::{YaDeserialize, YaSerialize};
     use crate::soap::abch::msnab_faults::SoapFault;
-    use crate::soap::abch::msnab_sharingservice::{SOAP_ENCODING};
     use crate::soap::abch::request_header::RequestHeaderContainer;
     use crate::soap::abch::service_header::ServiceHeaderContainer;
 
