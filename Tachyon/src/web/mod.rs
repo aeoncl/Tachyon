@@ -1,5 +1,3 @@
-pub mod webserver;
-pub mod ab_service;
-pub mod sharing_service;
-pub mod storage_service;
-pub mod error;
+pub mod web_server;
+pub mod web_endpoints;
+pub mod soap;
