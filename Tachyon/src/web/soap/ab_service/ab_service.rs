@@ -25,6 +25,7 @@ use msnp::soap::traits::xml::{ToXml, TryFromXml};
 use crate::matrix::direct_target_resolver::resolve_direct_target;
 use crate::notification::client_store::ClientStoreFacade;
 use crate::shared::identifiers::MatrixIdCompatible;
+use crate::web::soap::ab_service::ab_find_contacts_paged::ab_find_contacts_paged;
 use crate::web::soap::error::ABError;
 use crate::web::soap::error::ABError::InternalServerError;
 use crate::web::soap::shared;
@@ -76,62 +77,6 @@ pub async fn address_book_service(headers: HeaderMap, State(state): State<Client
     }
 }
 
-async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, token: TicketToken, client: Client) -> Result<Response, ABError> {
-    let body = request.body.body;
-    let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or_default();
-    let user_id = client.user_id().ok_or(InternalServerError { source: anyhow!("Matrix client has no user ID.") })?;
-    let msn_addr = <EmailAddress as MatrixIdCompatible>::from(user_id).to_string();
-
-    if body.filter_options.deltas_only {
-        // Only incremental changes
-        let contacts = get_fullsync_contact_list(&client).await?;
-
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new(Uuid::from_seed(&user_id.to_string()), &cache_key, &msn_addr, &msn_addr, contacts, false);
-
-        Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
-
-
-    } else {
-        // Full contact list demanded.
-        todo!()
-    }
-}
-
-async fn get_fullsync_contact_list(matrix_client: &Client) -> Result<Vec<ContactType>, matrix_sdk::Error> {
-    let mut out = Vec::new();
-
-    let me = matrix_client.user_id().expect("A user to be logged in when fetching fullsync");
-
-    for joined_room in matrix_client.joined_rooms() {
-        if joined_room.is_direct().await? {
-            let direct_target = resolve_direct_target(&joined_room.direct_targets(), &joined_room, me, matrix_client).await;
-            if let Some(direct_target) = direct_target {
-
-                if let Some(member) = joined_room.get_member(&direct_target).await? {
-                    let target_usr = MSNUser::with_email_addr(EmailAddress::from_owned(direct_target));
-                    let target_uuid = target_usr.uuid;
-                    let target_msn_addr = target_usr.endpoint_id.email_addr.to_string();
-
-                    match member.membership() {
-                        MembershipState::Invite => {
-                            let contact = ContactType::new(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::LivePending, false);
-                            out.push(contact);
-                        }
-                        _ => {
-                            let contact = ContactType::new(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, false);
-                            out.push(contact);
-                        }
-                    }
-                }
-            } else {
-                info!("Fullsync Fetch: No direct target found for room: {}", &joined_room.room_id());
-            }
-
-        }
-    }
-
-    return Ok(out);
-}
 
 
 async fn ab_contact_add(request : AbcontactAddMessageSoapEnvelope, token: TicketToken) -> Result<Response, ABError> {

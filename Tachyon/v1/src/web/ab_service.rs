@@ -280,7 +280,7 @@ async fn ab_find_contacts_paged(body: web::Bytes, request: HttpRequest, soap_act
         //Only deltas
         if header.application_header.partner_scenario.as_str() == "Initial" {
             //Fetch contacts from the ADL command
-            let contacts_as_msn_usr = msn_client.get_c  ontacts(false).await;
+            let contacts_as_msn_usr = msn_client.get_contacts(false).await;
             let contact_list = msn_user_to_contact_type(&contacts_as_msn_usr);
             response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name, contact_list, false);
             //    let empty_response = FindContactsPagedResponseFactory::get_response(UUID::from_string(&me_mtx_id.to_string()),cache_key.clone(), msn_client.get_user_msn_addr(), me_display_name.clone(), Vec::new());

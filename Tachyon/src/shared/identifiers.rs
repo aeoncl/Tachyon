@@ -31,29 +31,29 @@ impl Display for MatrixDeviceId {
 
 
 pub trait MatrixIdCompatible {
-    fn from_owned(value: OwnedUserId) -> Self;
+    fn from_owned_user_id(value: OwnedUserId) -> Self;
 
-    fn from(value: &UserId) -> Self;
+    fn from_user_id(value: &UserId) -> Self;
 
-    fn into_owned(self) -> OwnedUserId;
+    fn into_owned_user_id(self) -> OwnedUserId;
 }
 
 
 impl MatrixIdCompatible for EmailAddress {
-     fn from_owned(value: OwnedUserId) -> Self {
+     fn from_owned_user_id(value: OwnedUserId) -> Self {
         let name = value.localpart();
         let domain = value.server_name().as_str();
 
         EmailAddress::from_str(&format!("{}@{}", name, domain)).expect("OwnedUserId to be valid")
     }
 
-    fn from(value: &UserId) -> Self {
+    fn from_user_id(value: &UserId) -> Self {
         let name = value.localpart();
         let domain = value.server_name().as_str();
         EmailAddress::from_str(&format!("{}@{}", name, domain)).expect("UserId to be valid")
     }
 
-    fn into_owned(self) -> OwnedUserId {
+    fn into_owned_user_id(self) -> OwnedUserId {
         let as_str : String = self.into();
         let (name, domain) = as_str.split_once("@").expect("Email to contain @");
         OwnedUserId::from_str(&format!("@{}:{}", name, domain)).expect("OwnedUserId to be valid")

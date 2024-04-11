@@ -35,6 +35,8 @@ pub enum ABError {
     InternalServerError{source: anyhow::Error},
     #[error(transparent)]
     MatrixError(#[from] matrix_sdk::Error),
+    #[error(transparent)]
+    MatrixStoreError(#[from] matrix_sdk::StoreError),
     #[error("Unsupported Soap Action: {}", .0)]
     UnsupportedSoapAction(String)
 }
