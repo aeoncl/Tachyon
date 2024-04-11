@@ -1,7 +1,7 @@
 [submodule "Tachyon/lib/libsiren"]
-	path = Tachyon/lib/libsiren
+	path = lib/libsiren
 	url = https://github.com/aeoncl/libsiren
 [submodule "Tachyon/lib/matrix-rust-sdk"]
-	path = Tachyon/lib/matrix-rust-sdk
+	path = lib/matrix-rust-sdk
 	url = https://github.com/aeoncl/matrix-rust-sdk
 	branch = upstream-main

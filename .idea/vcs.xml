@@ -2,7 +2,7 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/Tachyon/lib/libsiren" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/Tachyon/lib/matrix-rust-sdk" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/lib/libsiren" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/lib/matrix-rust-sdk" vcs="Git" />
   </component>
 </project>
