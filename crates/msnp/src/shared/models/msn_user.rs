@@ -38,6 +38,10 @@ impl MSNUser {
         Self::new(EndpointId::from_email_addr(email_addr))
     }
 
+    pub fn without_endpoint_guid(email_addr: EmailAddress) -> Self {
+        Self::new(EndpointId::new(email_addr, None))
+    }
+
     pub fn compute_display_name(&self) -> &str {
         if !self.display_name.is_empty() {
             &self.display_name

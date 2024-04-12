@@ -45,7 +45,8 @@ impl MSNPCommand for UsrClient {
 pub enum OperationTypeClient {
     #[strum(serialize = "SSO")]
     Sso(SsoPhaseClient),
-    Sha(),
+    #[strum(serialize = "SHA")]
+    Sha(ShaPhaseClient),
 }
 
 impl MSNPCommandPart for OperationTypeClient {
@@ -56,11 +57,37 @@ impl MSNPCommandPart for OperationTypeClient {
 
         match raw_op_type.as_str() {
             "SSO" => Ok(OperationTypeClient::Sso(SsoPhaseClient::try_from_split(split, command)?)),
-            "SHA" => Ok(OperationTypeClient::Sha()),
+            "SHA" => Ok(OperationTypeClient::Sha(ShaPhaseClient::try_from_split(split, command)?)),
             _ => {
                 Err(CommandError::ArgumentParseError { argument: raw_op_type.to_string(), command: command.to_string(), source: anyhow!("Unknown operation type") })
             }
         }
+    }
+}
+
+pub enum ShaPhaseClient {
+    A {
+      circle_ticket: String
+    }
+}
+
+impl MSNPCommandPart for ShaPhaseClient{
+    type Err = CommandError;
+
+    fn try_from_split(mut split: VecDeque<String>, command: &str) -> Result<Self, Self::Err> where Self: Sized {
+        let raw_sha_phase = split.pop_front().ok_or(CommandError::MissingArgument(command.to_string(), "sha_phase".into(), 3))?;
+        match raw_sha_phase.as_str() {
+            "A" => {
+                let circle_ticket = split.pop_front().ok_or(CommandError::MissingArgument(command.to_string(), "sha_phase".into(), 4))?;
+                Ok(ShaPhaseClient::A {
+                    circle_ticket
+                })
+            },
+            _ => {
+                Err(CommandError::ArgumentParseError { argument: raw_sha_phase.to_string(), command: command.to_string(), source: anyhow!("Unknown sha phase") })
+            }
+        }
+
     }
 }
 
@@ -274,7 +301,7 @@ mod tests {
     fn client_sha_des_success() {
         let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SHA").unwrap()).unwrap();
         assert_eq!(4, usr1.tr_id);
-        assert!(matches!(&usr1.auth_type, OperationTypeClient::Sha()));
+        assert!(matches!(&usr1.auth_type, OperationTypeClient::Sha(_)));
     }
 
     #[test]

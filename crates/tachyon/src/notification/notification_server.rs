@@ -271,7 +271,7 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
 
                     }
                 },
-                OperationTypeClient::Sha() => {
+                OperationTypeClient::Sha(phase) => {
 
                 }
 

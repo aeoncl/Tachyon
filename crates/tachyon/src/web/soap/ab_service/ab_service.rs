@@ -20,6 +20,7 @@ use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContac
 use msnp::soap::abch::ab_service::ab_group_add::request::AbgroupAddMessageSoapEnvelope;
 use msnp::soap::abch::ab_service::ab_group_contact_add::request::AbgroupContactAddMessageSoapEnvelope;
 use msnp::soap::abch::msnab_datatypes::{ContactType, ContactTypeEnum};
+use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::abch::request_header::AuthHeaderSoapEnvelope;
 use msnp::soap::traits::xml::{ToXml, TryFromXml};
 use crate::matrix::direct_target_resolver::resolve_direct_target;
@@ -33,7 +34,43 @@ use crate::web::soap::shared::build_soap_response;
 
 impl IntoResponse for ABError {
     fn into_response(self) -> Response {
-        build_soap_response("".into(), StatusCode::INTERNAL_SERVER_ERROR)
+        error!("SOAP|ABCH: {:?}", &self);
+
+        let body = match self {
+            ABError::AuthenticationFailed { .. } => {
+                SoapFaultResponseEnvelope::new_generic("Authentication failed".into())
+            }
+            ABError::ClientStoreError(_) => {
+                SoapFaultResponseEnvelope::new_generic("Error with the client store".into())
+            }
+            ABError::MissingHeader(header) => {
+                SoapFaultResponseEnvelope::new_generic(format!("Missing header in request: {}", header))
+            }
+            ABError::HeaderParseError(_) => {
+                SoapFaultResponseEnvelope::new_generic("Could not parse header".into())
+
+            }
+            ABError::SoapMarshallError(_) => {
+                SoapFaultResponseEnvelope::new_generic("Bad request".into())
+            }
+            ABError::MatrixConversionError(_) => {
+                SoapFaultResponseEnvelope::new_generic("Could not convert to a matrix identifier".into())
+            }
+            InternalServerError { .. } => {
+                SoapFaultResponseEnvelope::new_generic("General Error".into())
+            }
+            ABError::MatrixError(_) => {
+                SoapFaultResponseEnvelope::new_generic("Fatal Matrix Error".into())
+            }
+            ABError::MatrixStoreError(_) => {
+                SoapFaultResponseEnvelope::new_generic("Matrix Store Error".into())
+            }
+            ABError::UnsupportedSoapAction(soap_action) => {
+                SoapFaultResponseEnvelope::new_unknown_soap_action(soap_action)
+            }
+        };
+
+        build_soap_response(body.to_xml().expect("fault response to be well formed"), StatusCode::OK)
     }
 }
 
