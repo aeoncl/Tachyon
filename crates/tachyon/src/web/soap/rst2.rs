@@ -52,22 +52,4 @@ pub async fn rst2_handler(body: String) -> Result<Response, RST2Error> {
 }
 
 
-impl IntoResponse for RST2Error {
-    fn into_response(self) -> Response {
-        error!("SOAP|RST2: {:?}", &self);
-        match self {
-            RST2Error::AuthenticationFailed { .. } => {
-                shared::build_soap_response(RST2ResponseFactory::get_auth_error_response(), StatusCode::OK)
-            },
-            RST2Error::SoapMarshallError(_) => {
-                shared::build_soap_response(RST2ResponseFactory::get_bad_request(), StatusCode::OK)
-            }
-            RST2Error::MatrixConversionError(_) => {
-                shared::build_soap_response(RST2ResponseFactory::get_bad_request(), StatusCode::OK)
-            }
-            RST2Error::InternalServerError { .. } => {
-                shared::build_soap_response(RST2ResponseFactory::get_bad_request(), StatusCode::INTERNAL_SERVER_ERROR)
-            }
-        }
-    }
-}
+

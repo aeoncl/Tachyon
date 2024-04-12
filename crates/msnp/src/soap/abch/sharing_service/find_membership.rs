@@ -4,22 +4,24 @@ pub mod request {
 
     use crate::soap::abch::msnab_datatypes::ServiceFilter;
     use crate::soap::abch::request_header::RequestHeaderContainer;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::TryFromXml;
 
     #[cfg(test)]
 
     mod tests {
         use yaserde::de::from_str;
 
-        use crate::soap::abch::sharing_service::find_membership::request::FindMembershipMessageSoapEnvelope;
+        use crate::soap::abch::sharing_service::find_membership::request::FindMembershipRequestSoapEnvelope;
 
         #[test]
         fn test_find_membership_request() {
 
             let request_body = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\"><soap:Header><ABApplicationHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId><IsMigration>false</IsMigration><PartnerScenario>Initial</PartnerScenario><CacheKey>12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA</CacheKey></ABApplicationHeader><ABAuthHeader xmlns=\"http://www.msn.com/webservices/AddressBook\"><ManagedGroupRequest>false</ManagedGroupRequest><TicketToken>t=0bfus4t3d_t0k3n</TicketToken></ABAuthHeader></soap:Header><soap:Body><FindMembership xmlns=\"http://www.msn.com/webservices/AddressBook\"><serviceFilter><Types><ServiceType>Messenger</ServiceType><ServiceType>SocialNetwork</ServiceType><ServiceType>Space</ServiceType><ServiceType>Profile</ServiceType></Types></serviceFilter><View>Full</View><deltasOnly>true</deltasOnly><lastChange>2022-04-20T13:03:28Z</lastChange></FindMembership></soap:Body></soap:Envelope>";
-            let r: FindMembershipMessageSoapEnvelope = from_str(&request_body).unwrap();
+            let r: FindMembershipRequestSoapEnvelope = from_str(&request_body).unwrap();
 
             let header = &r.header.unwrap();
-            assert_eq!(r.body.body.deltas_only, true);
+            assert_eq!(r.body.request.deltas_only, true);
             assert_eq!(header.ab_auth_header.ticket_token, String::from("t=0bfus4t3d_t0k3n"));
             assert_eq!(header.application_header.partner_scenario, String::from("Initial"));
 
@@ -30,9 +32,7 @@ pub mod request {
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapFindMembershipMessage {
         #[yaserde(rename = "FindMembership", prefix="soap")]
-        pub body: FindMembershipRequestType,
-        #[yaserde(attribute)]
-        pub xmlns: Option<String>,
+        pub request: FindMembershipRequestType
     }
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
@@ -62,19 +62,27 @@ pub mod request {
     namespace = "xsd: http://www.w3.org/2001/XMLSchema",
     prefix = "soap"
     )]
-    pub struct FindMembershipMessageSoapEnvelope {
+    pub struct FindMembershipRequestSoapEnvelope {
         #[yaserde(rename = "Header", prefix = "soap")]
         pub header: Option<RequestHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapFindMembershipMessage,
     }
 
-    impl FindMembershipMessageSoapEnvelope {
+    impl FindMembershipRequestSoapEnvelope {
         pub fn new(body: SoapFindMembershipMessage) -> Self {
-            FindMembershipMessageSoapEnvelope {
+            FindMembershipRequestSoapEnvelope {
                 body,
                 header: None,
             }
+        }
+    }
+
+    impl TryFromXml for FindMembershipRequestSoapEnvelope {
+        type Error = SoapMarshallError;
+
+        fn try_from_xml(xml_str: &str) -> Result<Self, Self::Error> {
+            yaserde::de::from_str::<Self>(&xml_str).map_err(|e| Self::Error::DeserializationError { message: e})
         }
     }
 
@@ -82,17 +90,19 @@ pub mod request {
 
 pub mod response {
     use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType, RoleId};
+    use crate::shared::models::role_id::RoleId;
+    use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType};
 
     use crate::soap::abch::msnab_faults::SoapFault;
     use crate::soap::abch::service_header::ServiceHeaderContainer;
 
     pub mod factory {
         use chrono::Local;
+        use crate::shared::models::role_id::RoleId;
 
         use crate::shared::models::uuid::Uuid;
         use crate::soap::abch::sharing_service::find_membership::response::{ArrayOfServiceType, CircleAttributesType, FindMembershipResponse, FindMembershipResponseMessage, FindMembershipResponseMessageSoapEnvelope, Handle, InfoType, Members, Membership, MembershipResult, Memberships, OwnerNamespaceInfoType, OwnerNamespaceType, ServiceType, SoapFindMembershipResponseMessage};
-        use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType, RoleId, ServiceName};
+        use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType, ServiceName};
         use crate::soap::abch::service_header::ServiceHeaderContainer;
 
         pub struct FindMembershipResponseFactory;

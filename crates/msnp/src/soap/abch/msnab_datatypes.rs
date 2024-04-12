@@ -19,7 +19,8 @@ use yaserde_derive::{YaDeserialize, YaSerialize};
     use yaserde::{YaDeserialize, YaSerialize};
     use yaserde::de::from_str;
     use yaserde::ser::to_string;
-	use crate::shared::models::uuid::Uuid;
+use crate::shared::models::role_id::RoleId;
+use crate::shared::models::uuid::Uuid;
 use crate::soap::abch::sharing_service::find_membership::response::ServiceType;
 
 use super::*;
@@ -1470,34 +1471,6 @@ pub struct ContactURLType {
 	#[yaserde(rename = "Changes", prefix = "nsi1")]
 	pub changes: Option<String>, 
 }
-
-
-	#[derive(Debug, Display, YaSerialize, YaDeserialize, Clone, PartialEq, Eq, Hash)]
-	#[yaserde(
-	rename = "RoleId",namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
-	prefix = "nsi1",
-	default_namespace="nsi1"
-	)]
-	pub enum RoleId {
-		//Contact doesn't belong to the contact list, but belongs to the address book
-		None = 0x00,
-		//Contact belongs to our contact list
-		Forward = 0x01,
-		//Contact is always explicitely allowed to see our presence
-		Allow = 0x02,
-		// Contact is always explicitely forbidden from seeing our presence
-		Block = 0x04,
-		// We belong to the FORWARD list of the contact
-		Reverse = 0x08,
-		// Contact pending
-		Pending = 0x10
-	}
-
-	impl Default for RoleId {
-		fn default() -> Self {
-			RoleId::Allow
-		}
-	}
 
 	#[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 	#[yaserde(
