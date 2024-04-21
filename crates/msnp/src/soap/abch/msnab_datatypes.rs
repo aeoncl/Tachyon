@@ -188,7 +188,7 @@ pub struct ServiceFilter {
 	#[yaserde(rename = "Handles", prefix = "nsi1")]
 	pub handles: Option<ArrayOfHandleType>, 
 	#[yaserde(rename = "LastChange", prefix = "nsi1")]
-	pub last_change: String, 
+	pub last_change: Option<String>,
 }
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(

@@ -1622,47 +1622,7 @@ pub mod factories {
 
     impl GetProfileResponseFactory {
 
-        pub fn get_response(uuid: UUID, cache_key: String, matrix_token: String, display_name: String, psm: String, image_mxid: Option<String>) -> GetProfileResponseMessageSoapEnvelope {
-
-
-            let now = Local::now();
-
-            let affinity_cache_header = AffinityCacheHeader{ cache_key: Some(cache_key)};
-            let storage_user_header = StorageUserHeader{ puid: 0, cid: Some(uuid.to_hex_cid()), ticket_token: format!("t={}", matrix_token), is_admin: Some(false), application_id: Some(0), device_id: Some(0), is_trusted_device: Some(false), is_strong_auth: Some(false), language_preference: Some(0), claims: Vec::new() };
-    
-            let headers = RequestHeaderContainer{ affinity_cache_header: Some(affinity_cache_header), storage_application_header: None, storage_user_header: Some(storage_user_header) };
-            let mut document_stream_array : Vec<DocumentStream> = Vec::new();
-
-
-            let mut static_user_tile_public_url = String::new();
-            if let Some(found_image_id) = image_mxid {
-                let user_tile_static = DocumentStream{ document_stream_name: Some(String::from("UserTileStatic")), mime_type: Some(String::from("image/jpeg")), data: None, data_size: 0, pre_auth_url: Some(format!("http://127.0.0.1/storage/usertile/{}/static", &found_image_id)), pre_auth_url_partner: None, document_stream_type: String::from("UserTileStatic"), write_mode: Some(String::from("Overwrite")), stream_version: Some(0), sha1_hash: None, genie: Some(false), stream_data_status: Some(String::from("None")), stream_status: Some(String::from("None")), is_alias_for_default:Some(false), expiration_date_time: Some(String::from("0001-01-01T00:00:00")) };
-                document_stream_array.push(user_tile_static);
-
-                let user_tile_small = DocumentStream{ document_stream_name: Some(String::from("UserTileSmall")), mime_type: None, data: None, data_size: 0, pre_auth_url: Some(format!("http://127.0.0.1/storage/usertile/{}/small", &found_image_id)), pre_auth_url_partner: None, document_stream_type: String::from("Named"), write_mode: Some(String::from("Overwrite")), stream_version: Some(0), sha1_hash: None, genie: Some(false), stream_data_status: Some(String::from("None")), stream_status: Some(String::from("None")), is_alias_for_default:Some(false), expiration_date_time: Some(String::from("0001-01-01T00:00:00")) };
-                document_stream_array.push(user_tile_small);
-
-                static_user_tile_public_url = format!("http://127.0.0.1/storage/usertile/{}/static", &found_image_id);
-            } 
-           
-
-            let document_streams = DocumentStreams{ document_stream: document_stream_array };
-    
-            let photo = DocumentBaseType{ resource_id: Some(format!("{}!205", uuid.to_hex_cid())), name: None, item_type: None, date_modified: None, document_streams: document_streams };
-    
-            let expression_profile = ExpressionProfile{ resource_id: format!("{}!118", uuid.to_hex_cid()), date_modified: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), version: Some(205), flags: None, photo: photo, attachments: None, personal_status: Some(psm), personal_status_last_modified:  Some(now.format("%Y-%m-%dT%H:%M:%SZ").to_string()), display_name: Some(display_name), display_name_last_modified: Some(now.format("%Y-%m-%dT%H:%M:%SZ").to_string()), static_user_tile_public_url };
-    
-            let get_profile_result = GetProfileResultType { resource_id: format!("{}!106", uuid.to_hex_cid()), date_modified: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), expression_profile: expression_profile };
-    
-            let get_profile_response = GetProfileResponse{ get_profile_result: get_profile_result };
-    
-            let request_body = GetProfileResponseMessage{ get_profile_response: get_profile_response };
-    
-            let body = SoapGetProfileResponseMessage{ body: request_body, fault: None };
-    
-    
-            return GetProfileResponseMessageSoapEnvelope{ header: Some(headers), body: body };
-        }
+        
     }
 
     pub struct UpdateDocumentResponseFactory;

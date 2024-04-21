@@ -35,7 +35,7 @@ pub async fn sharing_service(headers: HeaderMap, State(state): State<ClientStore
 
     match soap_action {
         "http://www.msn.com/webservices/AddressBook/FindMembership" => {
-            find_membership(FindMembershipRequestSoapEnvelope::try_from_xml(&body)?, token, client).await
+            find_membership(FindMembershipRequestSoapEnvelope::try_from_xml(&body)?, token, client, &state).await
         },
         "http://www.msn.com/webservices/AddressBook/AddMember" => {
             todo!()

@@ -1,5 +1,6 @@
 use yaserde_derive::{YaDeserialize, YaSerialize};
 use crate::soap::error::SoapMarshallError;
+use crate::soap::storage_service::headers::AffinityCacheHeader;
 use crate::soap::traits::xml::TryFromXml;
 
 

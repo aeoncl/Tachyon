@@ -29,8 +29,8 @@ pub enum ABError {
     SoapMarshallError(#[from] SoapMarshallError),
     #[error(transparent)]
     MatrixConversionError(#[from] MatrixConversionError),
-    #[error("An internal server error has occured")]
-    InternalServerError{source: anyhow::Error},
+    #[error(transparent)]
+    InternalServerError(#[from] anyhow::Error),
     #[error(transparent)]
     MatrixError(#[from] matrix_sdk::Error),
     #[error(transparent)]

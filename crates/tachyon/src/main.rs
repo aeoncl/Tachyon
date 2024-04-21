@@ -50,7 +50,7 @@ fn setup_logs() {
         //.target(env_logger::Target::Pipe(target))
         .target(Target::Stdout)
         .filter(Some("v2") , LevelFilter::Debug)
-        .filter(Some("matrix-sdk"), LevelFilter::Trace)
+        .filter(Some("matrix-sdk"), LevelFilter::Warn)
         .filter(Some("yaserde"), LevelFilter::Warn)
         .filter(None, LevelFilter::Debug)
         .init();

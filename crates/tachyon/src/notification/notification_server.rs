@@ -226,7 +226,7 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
 
                         SsoPhaseClient::S { ticket_token, challenge, endpoint_guid } => {
 
-                            let matrix_client = matrix::login::login(OwnedUserId::try_from_msn_addr(&local_store.email_addr)?, MatrixDeviceId::from_hostname()?, ticket_token.clone(), &Path::new(format!("C:\\temp\\{}", &local_store.email_addr).as_str()), None, false).await?;
+                            let matrix_client = matrix::login::login(OwnedUserId::try_from_msn_addr(&local_store.email_addr)?, MatrixDeviceId::from_hostname()?, ticket_token.clone(), &Path::new(format!("C:\\temp\\{}", &local_store.email_addr).as_str()), None, true).await?;
 
                             local_store.token = ticket_token.clone();
                             client_store.set_client_email(&ticket_token.0, local_store.email_addr.clone()).await?;

@@ -1,19 +1,25 @@
+use std::str::from_utf8;
 use std::sync::Arc;
 
 use anyhow::anyhow;
 use axum::{middleware, Router};
+use axum::body::Body;
 use axum::extract::{FromRequest, Request};
 use axum::http::{StatusCode, Uri};
 use axum::middleware::Next;
 use axum::response::Response;
 use axum::routing::{get, post};
-use log::{debug, error, info, warn};
+use log::{debug, error, info, Level, log_enabled, warn};
 use tokio::net::TcpListener;
 use tokio::sync::broadcast::Receiver;
+use http_body_util::BodyExt;
 
 use crate::notification::client_store::ClientStoreFacade;
 use crate::web::soap::ab_service::ab_service::address_book_service;
+use crate::web::soap::sharing_service::sharing_service::sharing_service;
+
 use crate::web::soap::rst2::rst2_handler;
+use crate::web::soap::storage_service::storage_service::storage_service;
 use crate::web::web_endpoints::{firewall_test, get_banner_ads, get_msgr_config, get_text_ad, ppcrlcheck, ppcrlconfigsrf, sha1auth, wlidsvcconfig};
 
 pub struct WebServer;
@@ -39,6 +45,8 @@ impl WebServer {
             .route("/RST2.srf", post(rst2_handler))
             //SOAP
             .route("/abservice/abservice.asmx", post(address_book_service))
+            .route("/abservice/SharingService.asmx", post(sharing_service))
+            .route("/storageservice/SchematizedStore.asmx", post(storage_service))
             .with_state(state)
             .layer(middleware::from_fn(my_middleware))
             .fallback(fallback);
@@ -55,13 +63,32 @@ async fn my_middleware(
     request: Request,
     next: Next,
 ) -> Response {
+
+    let mut request = request;
+
     info!("WEB << {} - SOAPAction: {:?}", request.uri(), request.headers().get("SOAPAction"));
-    debug!("{:?}", request.body());
-    
-    let response = next.run(request).await;
+
+    if log_enabled!(Level::Debug) {
+        let (parts, body) = request.into_parts();
+        let bytes = body.collect().await.unwrap().to_bytes();
+        debug!("{:?}", from_utf8(&bytes).unwrap());
+        
+        request = Request::from_parts(parts, Body::from(bytes))
+    }
+
+    let mut response = next.run(request).await;
 
     info!("WEB >> {}", &response.status());
-    debug!("{:?}", response.body());
+
+    if log_enabled!(Level::Debug) {
+        let (parts, body) = response.into_parts();
+        let bytes = body.collect().await.unwrap().to_bytes();
+
+        debug!("{:?}", from_utf8(&bytes).unwrap());
+
+        response = Response::from_parts(parts, Body::from(bytes))
+    }
+
 
     response
 }

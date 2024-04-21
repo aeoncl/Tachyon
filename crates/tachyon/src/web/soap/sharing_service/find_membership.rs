@@ -1,3 +1,5 @@
+use anyhow::anyhow;
+use axum::http::StatusCode;
 use axum::response::Response;
 use log::info;
 use matrix_sdk::Client;
@@ -8,29 +10,44 @@ use msnp::shared::models::role_id::RoleId;
 
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::abch::msnab_datatypes::{Annotation, ArrayOfAnnotation, BaseMember, MemberState};
+use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::abch::sharing_service::find_membership::request::FindMembershipRequestSoapEnvelope;
 use msnp::soap::abch::sharing_service::find_membership::response::factory::FindMembershipResponseFactory;
+use msnp::soap::traits::xml::ToXml;
 use crate::matrix::direct_target_resolver::resolve_direct_target;
+use crate::notification::client_store::ClientStoreFacade;
 use crate::shared::identifiers::MatrixIdCompatible;
+use crate::shared::traits::ToUuid;
 
 use crate::web::soap::error::ABError;
+use crate::web::soap::shared;
 
-pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, token: TicketToken, client: Client) -> Result<Response, ABError> {
-    let deltas_only = request.body.request.deltas_only;
+pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, token: TicketToken, client: Client, client_store: &ClientStoreFacade) -> Result<Response, ABError> {
+
+    let cache_key = &request.header.ok_or(anyhow!("Header missing"))?.application_header.cache_key.unwrap_or_default();
+
+
+    let deltas_only = request.body.request.deltas_only.unwrap_or(false);
 
     if deltas_only {
+        // Fetch from store. TODO
+        Ok(shared::build_soap_response(SoapFaultResponseEnvelope::new_fullsync_required("http://www.msn.com/webservices/AddressBook/FindMembership").to_xml()?, StatusCode::OK))
 
     } else {
         let (allow, reverse, block, pending) = get_fullsync_members(&client).await?;
         let msg_service = FindMembershipResponseFactory::get_messenger_service(allow, block, reverse, pending, true);
 
-        // let response = FindMembershipResponseFactory::get_response(
-        //     me.get_uuid(),
-        //     me.get_msn_addr(),
-        //     cache_key.clone(), msg_service);
+        let user_id = client.user_id().ok_or(anyhow!("Expected matrix client to have a logged-in user"))?;
+        let uuid = user_id.to_uuid();
+        let email_addr = EmailAddress::from_user_id(user_id);
 
+         let soap_body = FindMembershipResponseFactory::get_response(
+             uuid,
+             email_addr,
+             &cache_key, msg_service);
+
+        Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
     }
-    todo!()
 }
 
 async fn get_fullsync_members(matrix_client: &Client) -> Result<(Vec<BaseMember>, Vec<BaseMember>, Vec<BaseMember>, Vec<BaseMember>), ABError> {

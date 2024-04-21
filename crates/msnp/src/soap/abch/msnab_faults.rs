@@ -28,7 +28,7 @@ impl ToXml for SoapFaultResponseEnvelope {
 
 impl SoapFaultResponseEnvelope {
 
-	pub fn new_fullsync_required(soap_action: String) -> Self {
+	pub fn new_fullsync_required(soap_action: &str) -> Self {
 
 		let additional_details = FaultAdditionalDetails{
 			original_exception_error_message: Some("Full sync required.  Details: Delta syncs disabled.".into()),
@@ -46,7 +46,7 @@ impl SoapFaultResponseEnvelope {
 		let soap_fault = SoapFault{
 			fault_code: Some("soap:Client".into()),
 			fault_string: Some("Full sync required.  Details: Delta syncs disabled.".into()),
-			fault_actor: Some(soap_action),
+			fault_actor: Some(soap_action.to_owned()),
 			detail: Some(fault_detail),
 		};
 
@@ -433,14 +433,16 @@ impl std::fmt::Display for SoapFault {
 }
 
 #[derive(Debug, YaSerialize, YaDeserialize, Clone)]
+#[yaserde(rename = "FindMembership",
+namespace = "nsi1: http://www.msn.com/webservices/AddressBook")]
 pub struct FaultDetail{
-	#[yaserde(rename = "errorcode", namespace="xmlns: http://www.msn.com/webservices/AddressBook")]
+	#[yaserde(rename = "errorcode", prefix="nsi1")]
 	pub error_code: Option<FaultErrorCode>,
-	#[yaserde(rename = "errorstring", namespace="xmlns: http://www.msn.com/webservices/AddressBook")]
+	#[yaserde(rename = "errorstring", prefix="nsi1")]
 	pub error_string: Option<String>,
-	#[yaserde(rename = "machineName", namespace="xmlns: http://www.msn.com/webservices/AddressBook")]
+	#[yaserde(rename = "machineName", prefix="nsi1")]
 	pub machine_name: Option<String>,
-	#[yaserde(rename = "parameterFault", namespace="xmlns: http://www.msn.com/webservices/AddressBook")]
+	#[yaserde(rename = "parameterFault", prefix="nsi1")]
 	pub parameter_fault: Option<String>,
 	#[yaserde(rename = "additionalDetails")]
 	pub additional_details: Option<FaultAdditionalDetails>

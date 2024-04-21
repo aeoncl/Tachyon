@@ -35,3 +35,9 @@ impl ToUuid for OwnedUserId {
         Uuid::from_seed(&self.to_string())
     }
 }
+
+impl ToUuid for &UserId {
+    fn to_uuid(&self) -> Uuid {
+        Uuid::from_seed(&self.to_string())
+    }
+}
