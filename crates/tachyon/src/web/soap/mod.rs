@@ -5,3 +5,4 @@ pub mod error;
 
 pub mod shared;
 pub mod storage_service;
+pub mod rsi;

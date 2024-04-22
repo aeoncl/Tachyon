@@ -242,8 +242,6 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
                             notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
                             notif_sender.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await?;
 
-                            matrix::sync::start_sync_task(matrix_client, notif_sender.clone(), client_store.clone(), kill_signal.resubscribe()).await;
-
 
                             let uuid = Uuid::from_seed(&local_store.email_addr);
 
@@ -255,17 +253,15 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
 
                             notif_sender.send(initial_profile_msg).await?;
 
-                            notif_sender.send(NotificationServerCommand::MSG(MsgServer {
-                                sender: "Hotmail".to_string(),
-                                display_name: "Hotmail".to_string(),
-                                payload: MsgPayload::Raw(MsgPayloadFactory::get_initial_mail_data_notification())
-                            })).await?;
+
 
                             //Todo fetch endpoint data
                             let endpoint_data = b"<Data></Data>";
 
                             notif_sender.send(NotificationServerCommand::RAW(RawCommand::with_payload(&format!("UBX 1:{}", &local_store.email_addr), endpoint_data.to_vec()))).await?;
 
+
+                            matrix::sync::start_sync_task(matrix_client, notif_sender.clone(), client_store.clone(), kill_signal.resubscribe()).await;
 
                         }
 

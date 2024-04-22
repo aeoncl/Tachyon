@@ -90,6 +90,7 @@ pub enum ClientDataGetter {
 #[derive(Clone)]
 pub struct ClientStoreFacade {
     sender: Sender<ClientStoreOperation>
+    oims: Arc<Mutex<HashMap<String, MSG>>>
 }
 
 #[derive(Error, Debug)]

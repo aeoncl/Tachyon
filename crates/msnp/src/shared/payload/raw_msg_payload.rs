@@ -149,7 +149,9 @@ pub mod factories {
 
 
     use crate::{p2p::v2::p2p_transport_packet::P2PTransportPacket, shared::models::{msn_object::MsnObject, msn_user::MSNUser, uuid::Puid}};
+    use crate::shared::models::oim::MetaData;
     use crate::shared::models::ticket_token::TicketToken;
+    use crate::soap::traits::xml::ToXml;
 
     use super::RawMsgPayload;
 
@@ -186,9 +188,23 @@ pub mod factories {
             return out;
         }
 
-        pub fn get_initial_mail_data_notification() -> RawMsgPayload {
+        pub fn get_initial_mail_data_empty_notification() -> RawMsgPayload {
             let mut out = RawMsgPayload::new("text/x-msmsgsinitialmdatanotification");
-            out.set_body("Mail-Data: <MD><E><I>0</I><IU>0</IU><O>0</O><OU>0</OU></E><Q><QTM>409600</QTM><QNM>204800</QNM></Q></MD>\r\nInbox-Unread: 1\r\nFolders-Unread: 0\r\nInbox-URL: /cgi-bin/HoTMaiL\r\nFolders-URL: /cgi-bin/folders\r\nPost-URL: http://127.0.0.1:8080/email\r\n");
+            out.set_body("Mail-Data: <MD><E><I>0</I><IU>0</IU><O>0</O><OU>0</OU></E><Q><QTM>409600</QTM><QNM>204800</QNM></Q></MD>\r\nInbox-Unread: 0\r\nFolders-Unread: 0\r\nInbox-URL: /cgi-bin/HoTMaiL\r\nFolders-URL: /cgi-bin/folders\r\nPost-URL: http://127.0.0.1:8080/email\r\n");
+            out.disable_trailing_terminators();
+            return out;
+        }
+
+        pub fn get_initial_mail_data_too_large_notification() -> RawMsgPayload {
+            let mut out = RawMsgPayload::new("text/x-msmsgsinitialmdatanotification");
+            out.set_body("Mail-Data: too-large\r\nInbox-Unread: 0\r\nFolders-Unread: 0\r\nInbox-URL: /cgi-bin/HoTMaiL\r\nFolders-URL: /cgi-bin/folders\r\nPost-URL: http://127.0.0.1:8080/email\r\n");
+            out.disable_trailing_terminators();
+            return out;
+        }
+
+        pub fn get_initial_mail_data_notification(mail_data: MetaData) -> RawMsgPayload {
+            let mut out = RawMsgPayload::new("text/x-msmsgsinitialmdatanotification");
+            out.set_body(format!("Mail-Data: {}\r\nInbox-Unread: 0\r\nFolders-Unread: 0\r\nInbox-URL: /cgi-bin/HoTMaiL\r\nFolders-URL: /cgi-bin/folders\r\nPost-URL: http://127.0.0.1:8080/email\r\n", mail_data.to_xml().unwrap()).as_str());
             out.disable_trailing_terminators();
             return out;
         }

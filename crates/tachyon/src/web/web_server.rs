@@ -16,6 +16,7 @@ use http_body_util::BodyExt;
 
 use crate::notification::client_store::ClientStoreFacade;
 use crate::web::soap::ab_service::ab_service::address_book_service;
+use crate::web::soap::rsi::rsi::rsi;
 use crate::web::soap::sharing_service::sharing_service::sharing_service;
 
 use crate::web::soap::rst2::rst2_handler;
@@ -47,6 +48,7 @@ impl WebServer {
             .route("/abservice/abservice.asmx", post(address_book_service))
             .route("/abservice/SharingService.asmx", post(sharing_service))
             .route("/storageservice/SchematizedStore.asmx", post(storage_service))
+            .route("/rsi/rsi.asmx", post(rsi))
             .with_state(state)
             .layer(middleware::from_fn(my_middleware))
             .fallback(fallback);

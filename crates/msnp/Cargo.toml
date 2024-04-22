@@ -17,7 +17,7 @@ base64 = "0.22.0"
 sha1 = "0.10.6"
 html-escape = "0.2.13"
 new_mime_guess = "4.0.1"
-
+email-encoding = "0.3.0"
 
 # Used in P2P Status
 num = "0.4.1"
