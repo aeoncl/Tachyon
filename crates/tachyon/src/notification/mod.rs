@@ -1,2 +1,2 @@
 pub mod notification_server;
-pub mod client_store;
+pub(crate) mod client_store;

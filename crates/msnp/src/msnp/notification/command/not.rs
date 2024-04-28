@@ -151,13 +151,13 @@ pub mod factories {
 mod tests {
     use std::str::FromStr;
 
-    use crate::{msnp::notification::command::not::factories::NotificationFactory, shared::models::msn_user::MSNUser};
+    use crate::{msnp::notification::command::not::factories::NotificationFactory, shared::models::msn_user::MsnUser};
     use crate::shared::models::email_address::EmailAddress;
 
 
     #[test]
     fn ab_notification_test() {
-        let msn_user = MSNUser::without_endpoint_guid(EmailAddress::from_str("aeon.shl@shl.local").unwrap());
+        let msn_user = MsnUser::without_endpoint_guid(EmailAddress::from_str("aeon.shl@shl.local").unwrap());
         let notif = NotificationFactory::get_abch_updated(&msn_user.uuid, &msn_user.endpoint_id.email_addr.0);
 
         let notif_legacy = NotificationFactory::test(&msn_user.uuid, &msn_user.endpoint_id.email_addr.0);

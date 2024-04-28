@@ -93,9 +93,13 @@ pub mod request {
 }
 
 pub mod response {
+    use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::rsi::get_metadata::response::GetMetadataResponseMessageSoapEnvelope;
 
     use crate::soap::rsi::service_header::ServiceHeader;
+    use crate::soap::traits::xml::ToXml;
 
     #[cfg(test)]
     mod tests {
@@ -137,6 +141,14 @@ pub mod response {
         pub header: Option<ServiceHeader>,
         #[yaserde(rename = "Body", prefix = "soapenv")]
         pub body: SoapGetMessageResponseMessage,
+    }
+
+    impl ToXml for GetMessageResponseMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+
+        fn to_xml(&self) -> Result<String, Self::Error>  {
+            to_string(self).map_err(|e| SoapMarshallError::SerializationError { message: e})
+        }
     }
 
     impl GetMessageResponseMessageSoapEnvelope {

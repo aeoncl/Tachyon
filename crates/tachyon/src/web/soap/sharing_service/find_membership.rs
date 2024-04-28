@@ -5,7 +5,7 @@ use log::info;
 use matrix_sdk::Client;
 use matrix_sdk::ruma::events::room::member::MembershipState;
 use msnp::shared::models::email_address::EmailAddress;
-use msnp::shared::models::msn_user::MSNUser;
+use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::role_id::RoleId;
 
 use msnp::shared::models::ticket_token::TicketToken;
@@ -65,7 +65,7 @@ async fn get_fullsync_members(matrix_client: &Client) -> Result<(Vec<BaseMember>
             if let Some(direct_target) = direct_target {
 
                 if let Some(member) = joined_room.get_member(&direct_target).await? {
-                    let target_usr = MSNUser::with_email_addr(EmailAddress::from_user_id(&direct_target));
+                    let target_usr = MsnUser::with_email_addr(EmailAddress::from_user_id(&direct_target));
                     let target_uuid = target_usr.uuid;
                     let target_msn_addr = target_usr.endpoint_id.email_addr.to_string();
 
@@ -94,7 +94,7 @@ async fn get_fullsync_members(matrix_client: &Client) -> Result<(Vec<BaseMember>
             let direct_target = resolve_direct_target(&invited_room.direct_targets(), &invited_room, me, matrix_client).await?;
             if let Some(direct_target) = direct_target {
                 if let Some(member) = invited_room.get_member(&direct_target).await? {
-                    let target_usr = MSNUser::with_email_addr(EmailAddress::from_user_id(&direct_target));
+                    let target_usr = MsnUser::with_email_addr(EmailAddress::from_user_id(&direct_target));
                     let target_uuid = target_usr.uuid;
                     let target_msn_addr = target_usr.endpoint_id.email_addr.to_string();
 

@@ -1,6 +1,6 @@
 
 
-use crate::{msnp::error::PayloadError, shared::models::msn_user::MSNUser};
+use crate::{msnp::error::PayloadError, shared::models::msn_user::MsnUser};
 
 use super::p2p_transport_packet::P2PTransportPacket;
 
@@ -8,13 +8,13 @@ use super::p2p_transport_packet::P2PTransportPacket;
 pub struct PendingPacket {
     pub packet: P2PTransportPacket,
     chunks: Vec<P2PTransportPacket>,
-    pub sender: MSNUser,
-    pub receiver: MSNUser
+    pub sender: MsnUser,
+    pub receiver: MsnUser
 }
 
 impl PendingPacket {
     
-    pub fn new(packet: P2PTransportPacket, sender: MSNUser, receiver: MSNUser) -> Self {
+    pub fn new(packet: P2PTransportPacket, sender: MsnUser, receiver: MsnUser) -> Self {
         return PendingPacket{ packet, sender, receiver, chunks: Vec::new() };
     }
 

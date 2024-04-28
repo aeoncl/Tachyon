@@ -1,5 +1,5 @@
 
-use crate::{p2p::v2::pending_packet::PendingPacket, shared::models::msn_user::MSNUser};
+use crate::{p2p::v2::pending_packet::PendingPacket, shared::models::msn_user::MsnUser};
 
 use super::{p2p_session_type::P2PSessionType, p2p_status::P2PSessionStatus};
 
@@ -8,14 +8,14 @@ pub struct P2PSession {
     session_type: P2PSessionType,
     session_id: u32,
     status: P2PSessionStatus,
-    inviter: MSNUser,
-    invitee: MSNUser,
+    inviter: MsnUser,
+    invitee: MsnUser,
     content: Option<PendingPacket>,
 }
 
 impl P2PSession {
 
-    pub fn new(session_type: P2PSessionType, session_id: u32, inviter: MSNUser, invitee: MSNUser) -> Self {
+    pub fn new(session_type: P2PSessionType, session_id: u32, inviter: MsnUser, invitee: MsnUser) -> Self {
         P2PSession { session_type, session_id, status: P2PSessionStatus::WAITING, inviter, invitee, content: None }
     }
 
@@ -31,11 +31,11 @@ impl P2PSession {
         self.status
     }
 
-    pub fn get_inviter(&self) -> MSNUser {
+    pub fn get_inviter(&self) -> MsnUser {
         self.inviter.clone()
     }
 
-    pub fn get_invitee(&self) -> MSNUser {
+    pub fn get_invitee(&self) -> MsnUser {
         self.invitee.clone()
     }
 

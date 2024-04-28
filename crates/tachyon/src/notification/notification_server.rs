@@ -18,11 +18,13 @@ use msnp::shared::payload::raw_msg_payload::factories::MsgPayloadFactory;
 use msnp::shared::traits::MSNPCommand;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::OwnedWriteHalf, TcpListener, TcpStream}, sync::{broadcast::{self, Receiver}, mpsc::{self, Sender}}};
 use tokio::sync::oneshot;
+use msnp::shared::models::email_address::EmailAddress;
+use msnp::shared::models::endpoint_id::EndpointId;
+use msnp::shared::models::msn_user::MsnUser;
 use crate::matrix;
 
-use crate::notification::client_store::{ClientData, ClientDataGetter, ClientDataOperation, ClientDataSetter, ClientStoreFacade};
-use crate::shared::identifiers::MatrixDeviceId;
-use crate::shared::traits::TryFromMsnAddr;
+use crate::notification::client_store::{ClientData, ClientStoreFacade};
+use crate::shared::identifiers::{MatrixDeviceId, MatrixIdCompatible};
 
 pub struct NotificationServer;
 
@@ -61,14 +63,14 @@ impl NotificationServer {
 }
 
 struct LocalStore {
-    email_addr: String,
+    email_addr: EmailAddress,
     token: TicketToken
 }
 
 impl Default for LocalStore {
     fn default() -> Self {
         Self {
-            email_addr: String::new(),
+            email_addr: EmailAddress::default(),
             token: TicketToken(String::new()),
         }
     }
@@ -154,6 +156,7 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
     }
 
     client_kill_snd.send(())?;
+    client_store_facade.remove_client_data(local_store.token.0.as_str());
 
     info!("Client gracefully shutdown...");
     Ok(())
@@ -226,12 +229,17 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
 
                         SsoPhaseClient::S { ticket_token, challenge, endpoint_guid } => {
 
-                            let matrix_client = matrix::login::login(OwnedUserId::try_from_msn_addr(&local_store.email_addr)?, MatrixDeviceId::from_hostname()?, ticket_token.clone(), &Path::new(format!("C:\\temp\\{}", &local_store.email_addr).as_str()), None, true).await?;
-
+                            let user_id = local_store.email_addr.to_owned_user_id();
+                            let matrix_client = matrix::login::login(user_id, MatrixDeviceId::from_hostname()?, ticket_token.clone(), &Path::new(format!("C:\\temp\\{}", &local_store.email_addr).as_str()), None, true).await?;
                             local_store.token = ticket_token.clone();
-                            client_store.set_client_email(&ticket_token.0, local_store.email_addr.clone()).await?;
-                            client_store.set_ticket_token_and_endpoint_guid(&ticket_token.0, ticket_token.clone(), endpoint_guid).await?;
-                            client_store.set_matrix_client(&ticket_token.0, matrix_client.clone()).await?;
+
+
+                            let endpoint_id = EndpointId::new(local_store.email_addr.clone(), Some(endpoint_guid));
+                            let msn_user = MsnUser::new(endpoint_id);
+
+                            let uuid = msn_user.uuid.clone();
+
+                            client_store.insert_client_data(ticket_token.0.clone(), ClientData::new(msn_user, ticket_token.clone(), matrix_client.clone()));
 
                             let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
                                 email_addr: local_store.email_addr.clone(),
@@ -241,9 +249,6 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
 
                             notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
                             notif_sender.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await?;
-
-
-                            let uuid = Uuid::from_seed(&local_store.email_addr);
 
                             let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
                                 sender: "Hotmail".to_string(),

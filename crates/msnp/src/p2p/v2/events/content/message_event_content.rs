@@ -1,12 +1,12 @@
 use byteorder::{ByteOrder, LittleEndian};
 
-use crate::{p2p::v2::p2p_transport_packet::P2PTransportPacket, shared::models::msn_user::MSNUser};
+use crate::{p2p::v2::p2p_transport_packet::P2PTransportPacket, shared::models::msn_user::MsnUser};
 
 #[derive(Clone, Debug)]
 pub struct MessageEventContent {
     pub packets: Vec<P2PTransportPacket>,
-    pub sender: MSNUser,
-    pub receiver: MSNUser,
+    pub sender: MsnUser,
+    pub receiver: MsnUser,
 }
 
 impl MessageEventContent {

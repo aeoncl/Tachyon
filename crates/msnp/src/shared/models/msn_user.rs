@@ -9,7 +9,7 @@ use super::{capabilities::ClientCapabilities, msn_object::MsnObject, presence_st
 
 
 #[derive(Clone, Debug)]
-pub struct MSNUser {
+pub struct MsnUser {
     pub endpoint_id: EndpointId,
     pub uuid: Uuid,
     pub capabilities: ClientCapabilities,
@@ -19,11 +19,11 @@ pub struct MSNUser {
     pub display_picture: Option<MsnObject>
 }
 
-impl MSNUser {
+impl MsnUser {
 
     pub fn new(endpoint_id: EndpointId) -> Self {
         let uuid = Uuid::from_seed(&endpoint_id.email_addr.0);
-        MSNUser {
+        MsnUser {
             endpoint_id,
             uuid,
             display_name: String::default(),

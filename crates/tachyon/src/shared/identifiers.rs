@@ -35,7 +35,7 @@ pub trait MatrixIdCompatible {
 
     fn from_user_id(value: &UserId) -> Self;
 
-    fn into_owned_user_id(self) -> OwnedUserId;
+    fn to_owned_user_id(&self) -> OwnedUserId;
 }
 
 
@@ -53,8 +53,9 @@ impl MatrixIdCompatible for EmailAddress {
         EmailAddress::from_str(&format!("{}@{}", name, domain)).expect("UserId to be valid")
     }
 
-    fn into_owned_user_id(self) -> OwnedUserId {
-        let as_str : String = self.into();
+
+    fn to_owned_user_id(&self) -> OwnedUserId {
+        let as_str  = self.as_str();
         let (name, domain) = as_str.split_once("@").expect("Email to contain @");
         OwnedUserId::from_str(&format!("@{}:{}", name, domain)).expect("OwnedUserId to be valid")
     }

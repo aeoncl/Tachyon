@@ -8,7 +8,7 @@ use crate::notification::notification_server::NotificationServer;
 use crate::switchboard::switchboard_server::SwitchboardServer;
 use crate::web::web_server::WebServer;
 use std::io::Write;
-use crate::notification::client_store::{ClientStoreFacade, start_client_store_task};
+use crate::notification::client_store::{ClientStoreFacade};
 
 mod notification;
 mod web;
@@ -21,7 +21,7 @@ async fn main() {
     setup_logs();
     let (master_kill_signal,  kill_recv) = broadcast::channel::<()>(1);
 
-    let client_store_facade = ClientStoreFacade::new(start_client_store_task(kill_recv.resubscribe()));
+    let client_store_facade = ClientStoreFacade::default();
 
     let notification_server = NotificationServer::listen("127.0.0.1", 1863, kill_recv.resubscribe(), client_store_facade.clone());
     let switchboard_server = SwitchboardServer::listen("127.0.0.1", 1864, kill_recv.resubscribe(), client_store_facade.clone());

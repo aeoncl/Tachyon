@@ -5,6 +5,7 @@ use anyhow::anyhow;
 use strum_macros::{Display, EnumString};
 
 use crate::msnp::{error::CommandError, notification::models::endpoint_guid::EndpointGuid, raw_command_parser::RawCommand};
+use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::ticket_token::TicketToken;
 use crate::shared::traits::{MSNPCommand, MSNPCommandPart};
 
@@ -93,7 +94,7 @@ impl MSNPCommandPart for ShaPhaseClient{
 
 pub enum SsoPhaseClient {
     I {
-        email_addr: String,
+        email_addr: EmailAddress,
     },
     S {
         ticket_token: TicketToken,
@@ -112,7 +113,7 @@ impl MSNPCommandPart for SsoPhaseClient {
         match raw_sso_phase.as_str() {
             "I" => {
                 let email_addr = split.pop_front().ok_or(CommandError::MissingArgument(command.to_string(), "email_addr".into(), 4))?;
-                Ok(SsoPhaseClient::I { email_addr })
+                Ok(SsoPhaseClient::I { email_addr: EmailAddress::from_str(&email_addr)? })
             },
             "S" => {
                 let raw_token = split.pop_front().ok_or(CommandError::MissingArgument(command.to_string(), "ticket_token".into(), 5))?;
@@ -140,7 +141,7 @@ impl MSNPCommandPart for SsoPhaseClient {
 pub enum OperationTypeServer {
     Sso(SsoPhaseServer),
     Ok {
-        email_addr: String,
+        email_addr: EmailAddress,
         verified: bool,
         unknown_arg: bool,
     },

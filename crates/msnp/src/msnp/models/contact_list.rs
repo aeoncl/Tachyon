@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use strum::IntoEnumIterator;
 use crate::msnp::notification::command::adl::ADLPayload;
 use crate::shared::models::email_address::EmailAddress;
-use crate::shared::models::msn_user::MSNUser;
+use crate::shared::models::msn_user::MsnUser;
 use crate::shared::models::role_id::RoleId;
 
 pub struct ContactList {
@@ -18,7 +18,7 @@ impl Default for ContactList {
 }
 
 pub struct Contact {
-    user: MSNUser,
+    user: MsnUser,
     memberships: u8
 }
 
@@ -34,7 +34,7 @@ impl ContactList {
         for (msn_addr, memberships ) in contacts.drain() {
             match self.contact_list.get_mut(&msn_addr) {
                 None => {
-                    self.contact_list.insert(msn_addr.clone(), Contact{ user: MSNUser::with_email_addr(msn_addr), memberships });
+                    self.contact_list.insert(msn_addr.clone(), Contact{ user: MsnUser::with_email_addr(msn_addr), memberships });
                 },
                 Some(contact) => {
                     if is_initial {
@@ -51,7 +51,7 @@ impl ContactList {
         for (msn_addr, memberships ) in contacts.drain() {
             match self.contact_list.get_mut(&msn_addr) {
                 None => {
-                    self.contact_list.insert(msn_addr.clone(), Contact{ user: MSNUser::with_email_addr(msn_addr), memberships });
+                    self.contact_list.insert(msn_addr.clone(), Contact{ user: MsnUser::with_email_addr(msn_addr), memberships });
                 },
                 Some(contact) => {
                         contact.memberships -= memberships;
@@ -60,7 +60,7 @@ impl ContactList {
         }
     }
 
-    pub fn get_memberships(&self) -> HashMap<RoleId, Vec<MSNUser>> {
+    pub fn get_memberships(&self) -> HashMap<RoleId, Vec<MsnUser>> {
         let mut out = HashMap::new();
 
         for (_msn_addr, contact) in &self.contact_list {
@@ -74,7 +74,7 @@ impl ContactList {
         out
     }
 
-    pub fn get_forward_list(&self) -> Vec<MSNUser> {
+    pub fn get_forward_list(&self) -> Vec<MsnUser> {
         self.contact_list.iter().filter(|(k, v )| v.memberships & (RoleId::Forward as u8) != 0 ).map(|(k, v)| v.user.clone()).collect()
     }
 

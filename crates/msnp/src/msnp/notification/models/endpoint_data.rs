@@ -222,7 +222,7 @@ impl yaserde::YaDeserialize for ClientType {
 mod tests {
     use std::str::FromStr;
 
-    use crate::{msnp::notification::{command::not::factories::NotificationFactory, models::endpoint_data::{ClientType, EndpointData, PrivateEndpointData}}, shared::models::{msn_user::MSNUser, presence_status::PresenceStatus}};
+    use crate::{msnp::notification::{command::not::factories::NotificationFactory, models::endpoint_data::{ClientType, EndpointData, PrivateEndpointData}}, shared::models::{msn_user::MsnUser, presence_status::PresenceStatus}};
     use crate::shared::models::email_address::EmailAddress;
 
 
@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn ab_notification_test() {
-        let msn_user = MSNUser::without_endpoint_guid(EmailAddress::from_str("aeon.shl@shl.local").unwrap());
+        let msn_user = MsnUser::without_endpoint_guid(EmailAddress::from_str("aeon.shl@shl.local").unwrap());
         let notif = NotificationFactory::get_abch_updated(&msn_user.uuid, &msn_user.endpoint_id.email_addr.0);
 
         let notif_legacy = NotificationFactory::test(&msn_user.uuid, &msn_user.endpoint_id.email_addr.0);

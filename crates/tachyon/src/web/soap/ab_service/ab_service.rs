@@ -9,7 +9,7 @@ use log::{error, info, warn};
 use matrix_sdk::{Client, Error};
 use matrix_sdk::ruma::events::room::member::MembershipState;
 use msnp::shared::models::email_address::EmailAddress;
-use msnp::shared::models::msn_user::MSNUser;
+use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::ab_service::ab_contact_add::request::AbcontactAddMessageSoapEnvelope;
@@ -39,7 +39,9 @@ pub async fn address_book_service(headers: HeaderMap, State(state): State<Client
     let header_env = AuthHeaderSoapEnvelope::try_from_xml(&body)?;
     let token = TicketToken::from_str(&header_env.header.ab_auth_header.ticket_token).unwrap();
 
-    let client = state.get_matrix_client(&token.0).await?.ok_or(ABError::AuthenticationFailed {source: anyhow!("Missing Matrix Client in client store")})?;
+    let client_data = state.get_client_data(&token.0).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Client Data to be present in client Store")})?;
+
+    let client = client_data.get_matrix_client();
 
     let client_token = client.access_token().ok_or(ABError::AuthenticationFailed {source: anyhow!("No Token present in Matrix Client")})?;
     if token != client_token {

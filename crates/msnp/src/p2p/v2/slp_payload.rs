@@ -13,7 +13,7 @@ use num::FromPrimitive;
 
 
 
-use crate::{msnp::error::PayloadError, shared::models::{msn_object::MsnObject, msn_user::MSNUser, uuid::Uuid}};
+use crate::{msnp::error::PayloadError, shared::models::{msn_object::MsnObject, msn_user::MsnUser, uuid::Uuid}};
 use crate::shared::models::endpoint_id::EndpointId;
 
 use super::{app_id::AppID, slp_context::{PreviewData, SlpContext}};
@@ -52,20 +52,20 @@ impl SlpPayload {
     }
 
     //TODO Error handling here
-    pub fn get_sender(&self) -> Option<MSNUser> {
+    pub fn get_sender(&self) -> Option<MsnUser> {
         if let Some(from) = self.get_header(&String::from("From")) {
             let from_trimmed = from.to_owned()[9..from.len()-1].to_string();
 
-            let sender = MSNUser::new(EndpointId::from_str(&from_trimmed).unwrap());
+            let sender = MsnUser::new(EndpointId::from_str(&from_trimmed).unwrap());
             return Some(sender);
         }
         return None;
     }
 
-    pub fn get_receiver(&self) -> Option<MSNUser> {
+    pub fn get_receiver(&self) -> Option<MsnUser> {
         if let Some(to) = self.get_header(&String::from("To")) {
             let to_trimmed = to.to_owned()[9..to.len()-1].to_string();
-            let receiver = MSNUser::new(EndpointId::from_str(&to_trimmed).unwrap());
+            let receiver = MsnUser::new(EndpointId::from_str(&to_trimmed).unwrap());
             return Some(receiver);
 
         }

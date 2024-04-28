@@ -42,9 +42,13 @@ pub mod request {
 }
 
 pub mod response {
+    use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
     use crate::shared::models::oim::MetaData;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::passport::rst2::response::RST2ResponseMessageSoapEnvelope;
     use crate::soap::rsi::service_header::ServiceHeader;
+    use crate::soap::traits::xml::ToXml;
 
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
@@ -78,10 +82,26 @@ pub mod response {
         pub body: SoapGetMetadataResponseMessage,
     }
 
+    impl ToXml for GetMetadataResponseMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+
+        fn to_xml(&self) -> Result<String, Self::Error>  {
+            to_string(self).map_err(|e| SoapMarshallError::SerializationError { message: e})
+        }
+    }
+
     impl GetMetadataResponseMessageSoapEnvelope {
-        pub fn new(body: SoapGetMetadataResponseMessage) -> Self {
+        pub fn new(metadata: MetaData) -> Self {
+            let response = GetMetadataResponseType {
+                md: metadata,
+            };
+            
+            let message = SoapGetMetadataResponseMessage {
+                body: response,
+            };
+
             GetMetadataResponseMessageSoapEnvelope {
-                body,
+                body: message,
                 header: None,
             }
         }

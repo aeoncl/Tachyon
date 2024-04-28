@@ -5,6 +5,7 @@ use axum::response::{IntoResponse, Response};
 use log::error;
 use msnp::soap::error::SoapMarshallError;
 use thiserror::Error;
+use msnp::shared::errors::IdentifierError;
 use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::passport::rst2::response::factory::RST2ResponseFactory;
 use msnp::soap::traits::xml::ToXml;
@@ -111,6 +112,8 @@ pub enum RST2Error {
     #[error("Couldn't authenticate client")]
     AuthenticationFailed {source: anyhow::Error},
     #[error(transparent)]
+    IdentifierError(#[from] IdentifierError),
+    #[error(transparent)]
     SoapMarshallError(#[from] SoapMarshallError),
     #[error(transparent)]
     MatrixConversionError(#[from] MatrixConversionError),
@@ -125,12 +128,15 @@ impl IntoResponse for RST2Error {
             RST2Error::AuthenticationFailed { .. } => {
                 shared::build_soap_response(RST2ResponseFactory::get_auth_error_response(), StatusCode::OK)
             },
+            RST2Error::IdentifierError(_) => {
+                shared::build_soap_response(RST2ResponseFactory::get_auth_error_response(), StatusCode::OK)
+            },
             RST2Error::SoapMarshallError(_) => {
                 shared::build_soap_response(RST2ResponseFactory::get_bad_request(), StatusCode::OK)
-            }
+            },
             RST2Error::MatrixConversionError(_) => {
                 shared::build_soap_response(RST2ResponseFactory::get_bad_request(), StatusCode::OK)
-            }
+            },
             RST2Error::InternalServerError { .. } => {
                 shared::build_soap_response(RST2ResponseFactory::get_bad_request(), StatusCode::INTERNAL_SERVER_ERROR)
             }

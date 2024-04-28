@@ -10,6 +10,7 @@ use axum::response::{IntoResponse, Response};
 use log::{debug, error, info};
 use matrix_sdk::{Client, ClientBuilder, ServerName};
 use matrix_sdk::ruma::OwnedUserId;
+use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::passport::rst2::request::RST2RequestMessageSoapEnvelope;
 use msnp::soap::passport::rst2::response::factory::RST2ResponseFactory;
@@ -17,8 +18,8 @@ use msnp::soap::traits::xml::{ToXml, TryFromXml};
 
 use crate::matrix::login::get_matrix_client_builder;
 use crate::shared::error::MatrixConversionError;
-use crate::shared::identifiers::MatrixDeviceId;
-use crate::shared::traits::{ToUuid, TryFromMsnAddr};
+use crate::shared::identifiers::{MatrixDeviceId, MatrixIdCompatible};
+use crate::shared::traits::{ToUuid};
 use crate::web::soap::error::RST2Error;
 use crate::web::soap::shared;
 
@@ -28,7 +29,9 @@ pub async fn rst2_handler(body: String) -> Result<Response, RST2Error> {
 
     let creds = request.header.security.username_token.ok_or(RST2Error::AuthenticationFailed { source: anyhow!("Request Security Header didn't contain credentials") })?;
 
-    let matrix_id = OwnedUserId::try_from_msn_addr(&creds.username)?;
+    let email = EmailAddress::from_str(&creds.username)?;
+
+    let matrix_id = email.to_owned_user_id();
 
     let client = get_matrix_client_builder(matrix_id.server_name(), None, true).build().await.map_err(|e| RST2Error::InternalServerError {source: e.into()})?;
 

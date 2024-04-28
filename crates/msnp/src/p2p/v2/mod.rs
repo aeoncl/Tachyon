@@ -18,7 +18,7 @@ pub mod factories {
     use base64::engine::general_purpose;
     use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
-    use crate::{msnp::error::PayloadError, shared::models::{msn_object::MsnObject, msn_user::MSNUser, uuid::Uuid}};
+    use crate::{msnp::error::PayloadError, shared::models::{msn_object::MsnObject, msn_user::MsnUser, uuid::Uuid}};
 
     use super::{p2p_payload::P2PPayload, p2p_transport_packet::P2PTransportPacket, slp_context::PreviewData, slp_payload::{EufGUID, SlpPayload}, tlv::TLV};
 
@@ -133,7 +133,7 @@ SessionID: 2216804035
 
     impl SlpPayloadFactory {
 
-        pub fn get_session_bye(sender: &MSNUser, receiver: &MSNUser, call_id: Uuid, session_id: String) -> Result<SlpPayload, PayloadError> {
+        pub fn get_session_bye(sender: &MsnUser, receiver: &MsnUser, call_id: Uuid, session_id: String) -> Result<SlpPayload, PayloadError> {
             let mut out = SlpPayload::new();
             out.first_line = format!("BYE MSNMSGR:{mpop_id} MSNSLP/1.0", mpop_id = receiver.endpoint_id);
             out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.endpoint_id));
@@ -182,7 +182,7 @@ SessionID: 2216804035
             return Ok(out);
         }
 
-        pub fn get_file_transfer_request(sender: &MSNUser, receiver: &MSNUser, context: &PreviewData, session_id: u32) -> Result<SlpPayload, PayloadError> {
+        pub fn get_file_transfer_request(sender: &MsnUser, receiver: &MsnUser, context: &PreviewData, session_id: u32) -> Result<SlpPayload, PayloadError> {
             let mut out = SlpPayload::new();
             out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver.endpoint_id);
             out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.endpoint_id));
@@ -204,7 +204,7 @@ SessionID: 2216804035
             return Ok(out);
         }
 
-        pub fn get_msn_object_request(sender: &MSNUser, receiver: &MSNUser, context: &MsnObject, session_id: u32) -> Result<SlpPayload, PayloadError> {
+        pub fn get_msn_object_request(sender: &MsnUser, receiver: &MsnUser, context: &MsnObject, session_id: u32) -> Result<SlpPayload, PayloadError> {
 
 
             let context_b64 = general_purpose::STANDARD.encode(context.to_string_not_encoded());
@@ -370,7 +370,7 @@ SessionID: 2216804035
             return Ok(out);
         }
 
-        pub fn get_transport_request(sender: &MSNUser, receiver: &MSNUser) -> SlpPayload {
+        pub fn get_transport_request(sender: &MsnUser, receiver: &MsnUser) -> SlpPayload {
             let mut out = SlpPayload::new();
 
             out.first_line = format!("INVITE MSNMSGR:{mpop_id} MSNSLP/1.0", mpop_id = &receiver.endpoint_id);

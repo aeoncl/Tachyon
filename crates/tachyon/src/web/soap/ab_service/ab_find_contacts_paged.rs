@@ -8,7 +8,7 @@ use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::events::room::member::MembershipState;
 use matrix_sdk::ruma::{OwnedUserId, UserId};
 use msnp::shared::models::email_address::EmailAddress;
-use msnp::shared::models::msn_user::MSNUser;
+use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::request::AbfindContactsPagedMessageSoapEnvelope;
@@ -53,7 +53,7 @@ async fn get_fullsync_contact_list(matrix_client: &Client, me: &UserId) -> Resul
                 }
                 Some(direct_target) => {
 
-                    let target_usr = MSNUser::with_email_addr(EmailAddress::from_user_id(&direct_target));
+                    let target_usr = MsnUser::with_email_addr(EmailAddress::from_user_id(&direct_target));
                     let target_uuid = target_usr.uuid;
                     let target_msn_addr = target_usr.endpoint_id.email_addr.to_string();
 

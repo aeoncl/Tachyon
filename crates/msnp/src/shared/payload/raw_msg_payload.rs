@@ -148,7 +148,8 @@ pub mod factories {
 
 
 
-    use crate::{p2p::v2::p2p_transport_packet::P2PTransportPacket, shared::models::{msn_object::MsnObject, msn_user::MSNUser, uuid::Puid}};
+    use crate::{p2p::v2::p2p_transport_packet::P2PTransportPacket, shared::models::{msn_object::MsnObject, msn_user::MsnUser, uuid::Puid}};
+    use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::oim::MetaData;
     use crate::shared::models::ticket_token::TicketToken;
     use crate::soap::traits::xml::ToXml;
@@ -158,7 +159,7 @@ pub mod factories {
     pub struct MsgPayloadFactory;
 
     impl MsgPayloadFactory {
-        pub fn get_msmsgs_profile(puid: &Puid, msn_addr: &str, ticket_token: &TicketToken) -> RawMsgPayload {
+        pub fn get_msmsgs_profile(puid: &Puid, msn_addr: &EmailAddress, ticket_token: &TicketToken) -> RawMsgPayload {
             let mut out = RawMsgPayload::new("text/x-msmsgsprofile");
             let now = Local::now().timestamp_millis();
             out.add_header("LoginTime", &now.to_string());
@@ -166,7 +167,7 @@ pub mod factories {
             out.add_header("MemberIdHigh", &puid.get_most_significant_bytes().to_string());
             out.add_header("MemberIdLow", &puid.get_least_significant_bytes().to_string());
             out.add_header("lang_preference", "1033");
-            out.add_header("preferredEmail", &msn_addr);
+            out.add_header("preferredEmail", msn_addr.as_str());
             out.add_header("country", "");
             out.add_header("PostalCode", "");
             out.add_header("Gender", "");
@@ -256,7 +257,7 @@ pub mod factories {
             out
         }
 
-        pub fn get_p2p(source: &MSNUser, destination: &MSNUser, payload: &P2PTransportPacket) -> RawMsgPayload {
+        pub fn get_p2p(source: &MsnUser, destination: &MsnUser, payload: &P2PTransportPacket) -> RawMsgPayload {
             let mut out = RawMsgPayload::new("application/x-msnmsgrp2p");
             out.add_header("P2P-Dest", &destination.endpoint_id.to_string());
             out.add_header("P2P-Src",  &source.endpoint_id.to_string());

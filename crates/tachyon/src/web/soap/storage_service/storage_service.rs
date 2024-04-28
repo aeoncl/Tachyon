@@ -27,7 +27,9 @@ pub async fn storage_service(headers: HeaderMap, State(state): State<ClientStore
     let header_env = StorageServiceRequestSoapEnvelope::try_from_xml(&body)?;
     let token = TicketToken::from_str(&header_env.header.storage_user.unwrap().ticket_token).unwrap();
 
-    let client = state.get_matrix_client(&token.0).await?.ok_or(ABError::AuthenticationFailed {source: anyhow!("Missing Matrix Client in client store")})?;
+    let client_data = state.get_client_data(&token.0).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Client Data to be present in client Store")})?;
+
+    let client = client_data.get_matrix_client();
 
     let client_token = client.access_token().ok_or(ABError::AuthenticationFailed {source: anyhow!("No Token present in Matrix Client")})?;
     if token != client_token {

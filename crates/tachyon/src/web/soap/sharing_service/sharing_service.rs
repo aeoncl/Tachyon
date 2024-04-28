@@ -17,6 +17,7 @@ use msnp::soap::traits::xml::TryFromXml;
 use crate::notification::client_store::ClientStoreFacade;
 use crate::web::soap::ab_service::ab_find_contacts_paged::ab_find_contacts_paged;
 use crate::web::soap::error::ABError;
+use crate::web::soap::rsi::error::RSIError;
 use crate::web::soap::sharing_service::find_membership::find_membership;
 
 pub async fn sharing_service(headers: HeaderMap, State(state): State<ClientStoreFacade>, body: String) -> Result<Response, ABError> {
@@ -26,7 +27,9 @@ pub async fn sharing_service(headers: HeaderMap, State(state): State<ClientStore
     let header_env = AuthHeaderSoapEnvelope::try_from_xml(&body)?;
     let token = TicketToken::from_str(&header_env.header.ab_auth_header.ticket_token).unwrap();
 
-    let client = state.get_matrix_client(&token.0).await?.ok_or(ABError::AuthenticationFailed {source: anyhow!("Missing Matrix Client in client store")})?;
+    let client_data = state.get_client_data(&token.0).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Client Data to be present in client Store")})?;
+
+    let client = client_data.get_matrix_client();
 
     let client_token = client.access_token().ok_or(ABError::AuthenticationFailed {source: anyhow!("No Token present in Matrix Client")})?;
     if token != client_token {
