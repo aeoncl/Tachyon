@@ -1,16 +1,23 @@
 pub mod request {
+    use yaserde_derive::{YaDeserialize, YaSerialize};
+
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::rsi::get_message::request::GetMessageMessageSoapEnvelope;
+    use crate::soap::rsi::service_header::ServiceHeader;
+    use crate::soap::traits::xml::TryFromXml;
 
     #[cfg(test)]
     mod tests {
         use yaserde::de::from_str;
-        use crate::soap::rsi::delete_messages::request::DeleteMessagesMessageSoapEnvelope;
+
+        use crate::soap::rsi::delete_messages::request::DeleteMessagesSoapEnvelope;
 
         #[test]
         fn deser_test() {
 
             let msg = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap:Envelope xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Header><PassportCookie xmlns=\"http://www.hotmail.msn.com/ws/2004/09/oim/rsi\"><t>t0ken</t><p>ppppp</p></PassportCookie></soap:Header><soap:Body><DeleteMessages xmlns=\"http://www.hotmail.msn.com/ws/2004/09/oim/rsi\"><messageIds><messageId>id</messageId></messageIds></DeleteMessages></soap:Body></soap:Envelope>";
 
-            let deser = from_str::<DeleteMessagesMessageSoapEnvelope>(msg).expect("To work");
+            let deser = from_str::<DeleteMessagesSoapEnvelope>(msg).expect("To work");
 
             assert_eq!("t0ken", deser.header.expect("header to be here").passport_cookie.t);
             assert_eq!("id", deser.body.body.message_ids.message_id[0])
@@ -18,12 +25,6 @@ pub mod request {
 
 
     }
-
-
-    use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::rsi::service_header::ServiceHeader;
-
-
 
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
@@ -35,7 +36,7 @@ pub mod request {
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(rename = "DeleteMessages",
     namespace = "nsi1: http://www.hotmail.msn.com/ws/2004/09/oim/rsi",
-    prefix = "nsi1"
+    default_namespace = "nsi1"
     )]
     pub struct DeleteMessagesRequestType {
         #[yaserde(rename = "messageIds", default)]
@@ -60,16 +61,25 @@ pub mod request {
     namespace = "xsd: http://www.w3.org/2001/XMLSchema",
     prefix = "soapenv"
     )]
-    pub struct DeleteMessagesMessageSoapEnvelope {
+    pub struct DeleteMessagesSoapEnvelope {
         #[yaserde(rename = "Header", prefix = "soapenv")]
         pub header: Option<ServiceHeader>,
         #[yaserde(rename = "Body", prefix = "soapenv")]
         pub body: SoapDeleteMessagesMessage,
     }
 
-    impl DeleteMessagesMessageSoapEnvelope {
+    impl TryFromXml for DeleteMessagesSoapEnvelope {
+
+        type Error = SoapMarshallError;
+
+        fn try_from_xml(xml_str: &str) -> Result<Self, Self::Error> {
+            yaserde::de::from_str::<Self>(&xml_str).map_err(|e| Self::Error::DeserializationError { message: e})
+        }
+    }
+
+    impl DeleteMessagesSoapEnvelope {
         pub fn new(body: SoapDeleteMessagesMessage, header: Option<ServiceHeader>) -> Self {
-            DeleteMessagesMessageSoapEnvelope {
+            DeleteMessagesSoapEnvelope {
                 body,
                 header: None,
             }
@@ -80,8 +90,13 @@ pub mod request {
 }
 
 pub mod response {
+    use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
+
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::rsi::get_message::response::GetMessageResponseMessageSoapEnvelope;
     use crate::soap::rsi::service_header::ServiceHeader;
+    use crate::soap::traits::xml::ToXml;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapDeleteMessagesResponseMessage {
@@ -91,7 +106,9 @@ pub mod response {
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
-    rename = "DeleteMessagesResponseType",
+    rename = "DeleteMessagesResponse",
+    namespace = "nsi1: http://www.hotmail.msn.com/ws/2004/09/oim/rsi",
+    default_namespace = "nsi1"
     )]
     pub struct DeleteMessagesResponseType {}
 
@@ -112,11 +129,23 @@ pub mod response {
     }
 
 
+    impl ToXml for DeleteMessagesResponseSoapEnvelope {
+        type Error = SoapMarshallError;
+
+        fn to_xml(&self) -> Result<String, Self::Error>  {
+            to_string(self).map_err(|e| SoapMarshallError::SerializationError { message: e})
+        }
+    }
+
 
     impl DeleteMessagesResponseSoapEnvelope {
-        pub fn new(body: SoapDeleteMessagesResponseMessage) -> Self {
+        pub fn new() -> Self {
+            
+            
             DeleteMessagesResponseSoapEnvelope {
-                body,
+                body: SoapDeleteMessagesResponseMessage{
+                    body: DeleteMessagesResponseType{},
+                },
                 header: None,
             }
         }

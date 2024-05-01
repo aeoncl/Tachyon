@@ -33,6 +33,7 @@ pub mod request {
                             </soap:Envelope>"#;
 
             let deser : GetMessageMessageSoapEnvelope = from_str(req).unwrap();
+            //TODO assert
         }
 
 
@@ -48,7 +49,7 @@ pub mod request {
     #[yaserde(
     rename = "GetMessage",
     namespace = "nsi1: http://www.hotmail.msn.com/ws/2004/09/oim/rsi",
-    prefix = "nsi1"
+    default_namespace = "nsi1"
     )]
     pub struct GetMessageRequestType {
         #[yaserde(rename = "messageId", prefix="nsi1")]
@@ -95,6 +96,7 @@ pub mod request {
 pub mod response {
     use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
+    use crate::shared::models::oim::OIM;
     use crate::soap::error::SoapMarshallError;
     use crate::soap::rsi::get_metadata::response::GetMetadataResponseMessageSoapEnvelope;
 
@@ -103,11 +105,31 @@ pub mod response {
 
     #[cfg(test)]
     mod tests {
+        use yaserde::ser::to_string;
+        use crate::soap::rsi::get_message::response::{GetMessageResponse, GetMessageResponseMessageSoapEnvelope, SoapGetMessageResponseMessage};
+
         #[test]
         fn ser_test() {
 
 
+            let msg = GetMessageResponse {
+                get_message_result: Default::default(),
+            };
 
+            let body = SoapGetMessageResponseMessage {
+                body: msg,
+            };
+
+            let env = GetMessageResponseMessageSoapEnvelope {
+                header: None,
+                body,
+            };
+
+
+
+
+            let test = to_string(&env).unwrap();
+            print!("{}", test);
         }
 
     }
@@ -121,10 +143,12 @@ pub mod response {
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
     rename = "GetMessageResponse",
+    namespace = "nsi1: http://www.hotmail.msn.com/ws/2004/09/oim/rsi",
+    default_namespace = "nsi1"
     )]
     pub struct GetMessageResponse {
-        #[yaserde(rename = "GetMessageResult", default)]
-        pub get_message_result: String,
+        #[yaserde(rename = "GetMessageResult", prefix="nsi1")]
+        pub get_message_result: OIM,
     }
 
 
@@ -152,11 +176,22 @@ pub mod response {
     }
 
     impl GetMessageResponseMessageSoapEnvelope {
-        pub fn new(body: SoapGetMessageResponseMessage) -> Self {
-            GetMessageResponseMessageSoapEnvelope {
-                body,
+        pub fn new(oim: OIM) -> Self {
+
+            let msg = GetMessageResponse {
+                get_message_result: oim,
+            };
+
+            let body = SoapGetMessageResponseMessage {
+                body: msg,
+            };
+
+            let env = GetMessageResponseMessageSoapEnvelope {
                 header: None,
-            }
+                body,
+            };
+
+            env
         }
     }
 

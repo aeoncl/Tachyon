@@ -144,8 +144,12 @@ impl FromStr for RawMsgPayload {
 }
 
 pub mod factories {
-    use chrono::Local;
-
+    use std::num::TryFromIntError;
+    use base64::Engine;
+    use byteorder::{ByteOrder, LittleEndian};
+    use chrono::{DateTime, Local};
+    use email_encoding::headers::writer::EmailWriter;
+    use uuid::Uuid;
 
 
     use crate::{p2p::v2::p2p_transport_packet::P2PTransportPacket, shared::models::{msn_object::MsnObject, msn_user::MsnUser, uuid::Puid}};
@@ -268,6 +272,54 @@ pub mod factories {
             return out;
         }
 
+        pub fn get_oim(recv_datetime: DateTime<Local>, from: &str, to: &str, run_id: &str, seq_num: u32, message_id: &str, content: &str, content_type: &str) -> RawMsgPayload {
+
+
+
+            let mut out = RawMsgPayload::new(content_type);
+            let recv_datetime_formatted = recv_datetime.format("%a, %d %b %Y %H:%M:%S %z").to_string();
+            let filetime = MsgPayloadFactory::datetime_to_win32_filetime(&recv_datetime).unwrap();
+
+            out.add_header("X-Message-Info", "");
+            out.add_header_owned("Received".into(), format!("from Tachyon by 127.0.0.1 with Matrix;{}", &recv_datetime_formatted));
+            out.add_header("From", from);
+            out.add_header("To", to);
+            out.add_header("Subject", "");
+            out.add_header("X-OIM-originatingSource", "127.0.0.1");
+            out.add_header("X-OIMProxy", "MSNMSGR");
+            out.add_header("Content-Transfer-Encoding", "base64");
+            out.add_header("X-OIM-Message-Type", "OfflineMessage");
+            out.add_header("X-OIM-Run-Id", run_id);
+            out.add_header_owned("X-OIM-Sequence-Num".into(), format!("{}", &seq_num));
+            out.add_header("Message-ID", message_id);
+
+            let test = recv_datetime.format("%d %b %Y %H:%M:%S%.3f0 (%Z)").to_string();
+            out.add_header_owned("X-OriginalArrivalTime".into(), format!("{date} FILETIME={filetime}", date = test, filetime = filetime));
+            out.add_header_owned("Date".into(), recv_datetime.format("%d %b %Y %H:%M:%S %z").to_string());
+            out.add_header("Return-Path", "ndr@oim.messenger.msn.com");
+
+            out.set_body_owned(base64::engine::general_purpose::STANDARD.encode(content));
+
+            out
+        }
+
+        fn datetime_to_win32_filetime(datetime: &chrono::DateTime<Local>) -> Result<String, TryFromIntError> {
+            //https://devblogs.microsoft.com/oldnewthing/20090306-00/?p=18913
+            // Diff in milliseconds between Linux Epoch (1970) and Win32 epoch (January 1, 1601).
+            const EPOCH_DIFF_IN_MS: i64 = 11644473600000;
+            const MS_TO_100NS: i64 = 10000;
+
+            //https://learn.microsoft.com/fr-fr/windows/win32/api/minwinbase/ns-minwinbase-filetime
+            let ts_in_100_nanosec_interval = u64::try_from((EPOCH_DIFF_IN_MS + datetime.timestamp_millis()) * MS_TO_100NS)?;
+
+            let mut buf: [u8; 8] = [0; 8];
+            LittleEndian::write_u64(&mut buf, ts_in_100_nanosec_interval);
+
+            let least_significant_bytes = hex::encode_upper(&buf[0..4]);
+            let most_significant_bytes = hex::encode_upper(&buf[4..8]);
+            Ok(format!("[{}:{}]", least_significant_bytes, most_significant_bytes))
+
+        }
     }
 
 }
@@ -275,10 +327,58 @@ pub mod factories {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
+    use byteorder::{ByteOrder, LittleEndian};
+    use crate::shared::models::uuid::Uuid;
+    use crate::shared::payload::raw_msg_payload::factories::MsgPayloadFactory;
 
     use crate::shared::payload::raw_msg_payload::RawMsgPayload;
     use crate::shared::traits::MSNPPayload;
 
+
+    #[test]
+    fn test_padding() {
+        let mut buf: [u8; 8] = [0; 8];
+
+        LittleEndian::write_u64(&mut buf, 11644473600000);
+
+        let lsb_as_bytes = &buf[0..4];
+        let msb_as_bytes = &buf[4..8];
+
+        let lsb = LittleEndian::read_u32(lsb_as_bytes);
+        let msb = LittleEndian::read_u32(msb_as_bytes);
+
+        let lsb_ser = hex::encode_upper(&lsb_as_bytes);
+        let msb_ser = hex::encode_upper(&msb_as_bytes);
+
+
+        let mut lsb_deser = hex::decode(lsb_ser).unwrap();
+        let msb_deser = hex::decode(msb_ser).unwrap();
+
+
+        assert_eq!(lsb_as_bytes, lsb_deser.as_slice());
+        assert_eq!(msb_as_bytes, msb_deser.as_slice());
+
+
+        lsb_deser.extend_from_slice(msb_deser.as_slice());
+
+        let out = LittleEndian::read_u64(lsb_deser.as_slice());
+
+
+
+        assert_eq!(11644473600000, out);
+
+
+    }
+
+    #[test]
+    fn test_oim_ser() {
+        let oim = MsgPayloadFactory::get_oim(chrono::Local::now(), "from@shlasouf.local", "to@shlasouf.local", &Uuid::new().to_string(), 1, "id1", "Hello !!!!", "text/plain");
+
+        let test = oim.to_string();
+        print!("{}", test);
+
+
+    }
 
     #[test]
     fn test() {

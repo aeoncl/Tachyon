@@ -48,7 +48,7 @@ pub enum Error {
 }
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 
 pub struct Uuid {
     uuid : uuid::Uuid

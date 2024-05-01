@@ -6,6 +6,13 @@ use crate::msnp::error::CommandError;
 #[derive(Debug, Clone)]
 pub struct TicketToken(pub String);
 
+impl TicketToken {
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
 impl std::fmt::Display for TicketToken {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "t={}", self.0)

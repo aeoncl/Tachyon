@@ -1,6 +1,7 @@
 use axum::http::header::ToStrError;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use log::error;
 use thiserror::Error;
 use msnp::soap::error::SoapMarshallError;
 use crate::notification::client_store::ClientStoreError;
@@ -38,6 +39,7 @@ pub enum RSIError {
 
 impl IntoResponse for RSIError {
     fn into_response(self) -> Response {
+        error!("SOAP|RSI: {:?}", &self);
         build_soap_response("".into(), StatusCode::INTERNAL_SERVER_ERROR)
     }
 }

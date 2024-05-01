@@ -1,8 +1,11 @@
 use std::collections::{HashMap, VecDeque};
+use std::hash::RandomState;
+use std::ops::BitOr;
 use std::sync::{Arc, LockResult, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use anyhow::anyhow;
 use dashmap::DashMap;
-use dashmap::mapref::one::Ref;
+use dashmap::iter::Iter;
+use dashmap::mapref::one::{Ref, RefMut};
 use matrix_sdk::Client;
 use matrix_sdk::ruma::events::AnySyncMessageLikeEvent;
 use matrix_sdk::ruma::OwnedRoomId;
@@ -12,7 +15,9 @@ use tokio::sync::{mpsc, oneshot};
 use msnp::msnp::models::contact_list::ContactList;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::shared::models::msn_user::MsnUser;
+use msnp::shared::models::oim::{MetadataMessage, OIM};
 use msnp::shared::models::ticket_token::TicketToken;
+use msnp::shared::payload::raw_msg_payload::RawMsgPayload;
 
 
 #[derive(Clone)]
@@ -33,7 +38,7 @@ pub struct ClientDataInner {
 
 #[derive(Default)]
 pub struct SoapHolder {
-    oims: Mutex<VecDeque<AnySyncMessageLikeEvent>>,
+    oims: DashMap<String, OIM>,
     contacts: VecDeque<String>,
     memberships: VecDeque<String>
 }
@@ -90,12 +95,16 @@ impl ClientData {
         Ok(self.inner.user.write().map_err(|e| ClientStoreError::PoisonnedLockError {name: "User".into(), source: anyhow!(e.to_string())})?)
     }
 
-    pub fn add_oims(&mut self, events: Vec<AnySyncMessageLikeEvent>) {
-        self.inner.soap_holder.oims.lock().unwrap().extend(events);
+    pub fn add_oim(&mut self, oim: OIM) {
+        self.inner.soap_holder.oims.insert(oim.message_id.clone(), oim);
     }
 
-    pub fn get_oims(&mut self) -> MutexGuard<VecDeque<AnySyncMessageLikeEvent>>{
-        self.inner.soap_holder.oims.lock().unwrap()
+    pub fn get_oims(&mut self) -> &DashMap<String, OIM> {
+        &self.inner.soap_holder.oims
+    }
+
+    pub fn remove_oim(&mut self, message_id: &str) -> Option<(String, OIM)> {
+        self.inner.soap_holder.oims.remove(message_id)
     }
 
     pub fn get_ticket_token(&self) -> &TicketToken {

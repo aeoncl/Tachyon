@@ -1,12 +1,22 @@
+use std::fmt::{Display, Formatter};
+use std::io::{Read, Write};
+use std::str::FromStr;
 use chrono::{DateTime, Local};
 use email_encoding::headers::writer::EmailWriter;
 use log::Metadata;
-use yaserde::ser::{Config, to_string, to_string_with_config};
+use xml::attribute::OwnedAttribute;
+use xml::namespace::Namespace;
+use yaserde::ser::{Config, Serializer, to_string, to_string_with_config};
+use yaserde::{YaDeserialize, YaSerialize};
+use yaserde::de::Deserializer;
 use yaserde_derive::{YaDeserialize, YaSerialize};
+use crate::msnp::error::PayloadError;
 use crate::shared::config::yaserde::CONFIG_NO_DECL;
 
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::uuid::Uuid;
+use crate::shared::payload::raw_msg_payload::factories::MsgPayloadFactory;
+use crate::shared::payload::raw_msg_payload::RawMsgPayload;
 use crate::soap::error::SoapMarshallError;
 use crate::soap::traits::xml::ToXml;
 
@@ -15,16 +25,16 @@ use crate::soap::traits::xml::ToXml;
 rename = "M",
 )]
 pub struct MetadataMessage {
-    //Unknown, but has only been seen set to 11
+    //Type, but has only been seen set to 11
     #[yaserde(rename = "T", default)]
     pub t: i32,
-    //Unknown, but has only been seen set to 6
+    //Paid, has only been seen set to 6
     #[yaserde(rename = "S", default)]
     pub s: i32,
     //The date/time stamp for when the message was received by the server
     #[yaserde(rename = "RT", default)]
     pub received_timestamp: Option<String>,
-    //Unknown, but most likely is set to 1 if the message has been read before ("Read Set").
+    //ReadState, but most likely is set to 1 if the message has been read before ("Read Set").
     #[yaserde(rename = "RS", default)]
     pub rs: u8,
     //The size of the message, including headers
@@ -37,7 +47,7 @@ pub struct MetadataMessage {
     // and the Message ID format could change again anytime.
     #[yaserde(rename = "I", default)]
     pub message_id: String,
-    //Unknown, but has so far only been observed as either a GUID with a single 9 at the end, or as ".!!OIM" (in case you are already online when receiving the notification).
+    //FolderID, has so far only been observed as either a GUID with a single 9 at the end, or as ".!!OIM" (in case you are already online when receiving the notification).
     #[yaserde(rename = "F", default)]
     pub f: String,
     //This field contains the friendlyname of the person, wrapped in a special encoding. This encoding is defined in RFC 2047, but to get you started there is a quick overview of the format below
@@ -48,32 +58,32 @@ pub struct MetadataMessage {
     //    data: The data, either encoded with Base64 or Quoted-Printable.
     #[yaserde(rename = "N", default)]
     pub sender_display_name: String,
-    //Unknown, has only been observed to contain one space.
+    //Subject, has only been observed to contain one space.
     #[yaserde(rename = "SU", default)]
     pub su: String,
 }
 
 impl MetadataMessage {
-    pub fn new(timetamp: DateTime<Local>, sender: EmailAddress, sender_display_name: String, message_id: String, message_size: usize) -> Self{
+    pub fn new(timetamp: DateTime<Local>, sender: EmailAddress, sender_display_name: String, message_id: String, message_size: usize, read: bool) -> Self{
         //2005-11-15T22:24:27.000Z
         let ts = timetamp.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
 
-        let mut encoded = String::new();
-        {
-            let mut writer = EmailWriter::new(&mut encoded, 0, 0, false);
-            email_encoding::headers::rfc2047::encode(&sender_display_name, &mut writer).unwrap();
-        }
+        // let mut encoded = String::new();
+        // {
+        //     let mut writer = EmailWriter::new(&mut encoded, 0, 0, false);
+        //     email_encoding::headers::rfc2047::encode(&sender_display_name, &mut writer).unwrap();
+        // }
 
         Self {
             t: 11,
             s: 6,
             received_timestamp: Some(ts),
-            rs: 0,
+            rs: {if read { 1 } else { 0 }},
             size: message_size as u32,
             sender_email_addr: sender.0,
             message_id,
             f: "00000000-0000-0000-0000-000000000009".to_string(),
-            sender_display_name: encoded,
+            sender_display_name,
             su: " ".to_string(),
         }
     }
@@ -155,6 +165,73 @@ impl ToXml for MetaData {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct OIM {
+    pub recv_datetime: DateTime<Local>,
+    pub sender: EmailAddress,
+    pub sender_display_name: Option<String>,
+    pub receiver: EmailAddress,
+    pub run_id: Uuid,
+    pub seq_number: u32,
+    pub message_id: String,
+    pub content: String,
+    pub content_type: String,
+    pub read: bool
+}
+
+impl FromStr for OIM {
+    type Err = PayloadError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let msg_payload : RawMsgPayload = RawMsgPayload::from_str(s)?;
+        todo!("Deserializing an OIM is not yet implemented")
+    }
+}
+
+impl Display for OIM {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let msg_payload = MsgPayloadFactory::get_oim(self.recv_datetime, self.sender.as_str(), self.receiver.as_str(),self.run_id.to_string().as_str() ,self.seq_number, self.message_id.as_str(), self.content.as_str(), self.content_type.as_str());
+        write!(f, "{}", msg_payload)
+    }
+}
+
+impl YaSerialize for OIM {
+    fn serialize<W: Write>(&self, writer: &mut Serializer<W>) -> Result<(), String> {
+
+
+        let start_name = writer.get_start_event_name().unwrap_or("OIM".into());
+        let _ret = writer.write(xml::writer::XmlEvent::start_element(start_name.as_str()));
+
+        let _ret = writer.write(xml::writer::XmlEvent::characters(
+            &self.to_string(),
+        ));
+        let _ret = writer.write(xml::writer::XmlEvent::end_element());
+
+        Ok(())
+    }
+
+    fn serialize_attributes(&self, attributes: Vec<OwnedAttribute>, namespace: Namespace) -> Result<(Vec<OwnedAttribute>, Namespace), String> {
+        Ok((attributes, namespace))
+    }
+}
+
+
+impl YaDeserialize for OIM {
+    fn deserialize<R: Read>(reader: &mut Deserializer<R>) -> Result<Self, String> {
+        if let xml::reader::XmlEvent::StartElement { name, attributes, namespace } = reader.peek()?.to_owned() {
+            let _next = reader.next_event();
+        }
+        if let xml::reader::XmlEvent::Characters(text) = reader.peek()?.to_owned() {
+            let oim = OIM::from_str(text.as_str()).map_err(|e| e.to_string())?;
+            Ok(oim)
+        } else {
+            Err("Characters missing".to_string())
+        }
+    }
+}
+
+
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -164,6 +241,7 @@ mod tests {
     use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::oim::{MetaData, MetadataMessage};
     use crate::soap::traits::xml::ToXml;
+
 
     #[test]
     fn ser_metadata_message() {

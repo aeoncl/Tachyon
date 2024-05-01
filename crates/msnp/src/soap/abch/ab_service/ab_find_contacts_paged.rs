@@ -11,8 +11,7 @@ pub mod request {
 
         #[test]
         fn test_find_contacts_paged_request() {
-            let request_body = r#"
-                                    <?xml version="1.0" encoding="utf-8"?>
+            let request_body = r#"<?xml version="1.0" encoding="utf-8"?>
                                     <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
                                     	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                                     	xmlns:xsd="http://www.w3.org/2001/XMLSchema"

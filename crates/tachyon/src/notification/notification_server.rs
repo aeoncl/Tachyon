@@ -239,7 +239,7 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
 
                             let uuid = msn_user.uuid.clone();
 
-                            client_store.insert_client_data(ticket_token.0.clone(), ClientData::new(msn_user, ticket_token.clone(), matrix_client.clone()));
+                            client_store.insert_client_data(ticket_token.as_str().to_owned(), ClientData::new(msn_user, ticket_token.clone(), matrix_client.clone()));
 
                             let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
                                 email_addr: local_store.email_addr.clone(),
@@ -258,15 +258,13 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
 
                             notif_sender.send(initial_profile_msg).await?;
 
-
-
                             //Todo fetch endpoint data
                             let endpoint_data = b"<Data></Data>";
 
                             notif_sender.send(NotificationServerCommand::RAW(RawCommand::with_payload(&format!("UBX 1:{}", &local_store.email_addr), endpoint_data.to_vec()))).await?;
 
-
-                            matrix::sync::start_sync_task(matrix_client, notif_sender.clone(), client_store.clone(), kill_signal.resubscribe()).await;
+                            let client_data = client_store.get_client_data(local_store.token.as_str()).expect("client_data to be present.");
+                            matrix::sync::start_sync_task(matrix_client, notif_sender.clone(), client_data, kill_signal.resubscribe()).await;
 
                         }
 
@@ -274,6 +272,12 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
                 },
                 OperationTypeClient::Sha(phase) => {
 
+                    let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
+                        email_addr: local_store.email_addr.clone(),
+                        verified: true,
+                        unknown_arg: false,
+                    });
+                    notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
                 }
 
             }

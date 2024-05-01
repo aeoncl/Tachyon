@@ -222,6 +222,7 @@ mod tests {
 
     use crate::msnp::{error::CommandError, notification::command::usr::{OperationTypeClient, SsoPhaseClient}};
     use crate::msnp::raw_command_parser::RawCommand;
+    use crate::shared::models::email_address::EmailAddress;
     use crate::shared::traits::MSNPCommand;
 
     use super::{AuthPolicy, OperationTypeServer, SsoPhaseServer, UsrClient, UsrServer};
@@ -237,7 +238,7 @@ mod tests {
             assert!(matches!(content, SsoPhaseClient::I { .. }));
 
             if let SsoPhaseClient::I { email_addr } = content {
-                assert_eq!("login@test.com", email_addr);
+                assert_eq!("login@test.com", &email_addr.0);
             }
 
         } 
@@ -300,7 +301,7 @@ mod tests {
 
     #[test]
     fn client_sha_des_success() {
-        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SHA").unwrap()).unwrap();
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SHA A circleticket").unwrap()).unwrap();
         assert_eq!(4, usr1.tr_id);
         assert!(matches!(&usr1.auth_type, OperationTypeClient::Sha(_)));
     }
@@ -314,7 +315,7 @@ mod tests {
 
     #[test]
     fn server_ok_ser() {
-        let usr = UsrServer { tr_id: 2, auth_type : OperationTypeServer::Ok { email_addr: "Xx-taytay-xX@hotmail.com".to_string(), verified: true, unknown_arg: false }};
+        let usr = UsrServer { tr_id: 2, auth_type : OperationTypeServer::Ok { email_addr: EmailAddress("Xx-taytay-xX@hotmail.com".to_string()), verified: true, unknown_arg: false }};
         let ser = usr.to_string();
         assert_eq!("USR 2 OK Xx-taytay-xX@hotmail.com 1 0\r\n", ser);
     }
