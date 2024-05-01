@@ -34,7 +34,7 @@ use crate::web::soap::shared::build_soap_response;
 #[debug_handler]
 pub async fn address_book_service(headers: HeaderMap, State(state): State<ClientStoreFacade>, body: String) -> Result<Response, ABError> {
 
-    let soap_action = headers.get("SOAPAction").ok_or(ABError::MissingHeader("SOAPAction".into()))?.to_str()?;
+    let soap_action = headers.get("SOAPAction").ok_or(ABError::MissingHeader("SOAPAction".into()))?.to_str()?.trim_start_matches("\"").trim_end_matches("\"");
 
     let header_env = AuthHeaderSoapEnvelope::try_from_xml(&body)?;
     let token = TicketToken::from_str(&header_env.header.ab_auth_header.ticket_token).unwrap();

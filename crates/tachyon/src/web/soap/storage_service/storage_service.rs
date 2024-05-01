@@ -22,7 +22,7 @@ use crate::web::web_endpoints::DEFAULT_CACHE_KEY;
 
 pub async fn storage_service(headers: HeaderMap, State(state): State<ClientStoreFacade>, body: String) -> Result<Response, ABError> {
 
-    let soap_action = headers.get("SOAPAction").ok_or(ABError::MissingHeader("SOAPAction".into()))?.to_str()?;
+    let soap_action = headers.get("SOAPAction").ok_or(ABError::MissingHeader("SOAPAction".into()))?.to_str()?.trim_start_matches("\"").trim_end_matches("\"");
 
     let header_env = StorageServiceRequestSoapEnvelope::try_from_xml(&body)?;
     let token = TicketToken::from_str(&header_env.header.storage_user.unwrap().ticket_token).unwrap();
