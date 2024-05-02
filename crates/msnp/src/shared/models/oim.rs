@@ -25,6 +25,10 @@ rename = "M",
 )]
 pub struct MetadataMessage {
     //Type, but has only been seen set to 11
+    // Speculation:
+    // 11 = OIM, 12 = SMS & 13 = Federated
+    // SMS shares the same OIM syntax as OIM; but it starts to spin up a platform conversation with MobileDeviceType = 1; OIM Starts it with 0
+    // Federated seems to want another type of OIM as the normal one fails validation : message from [redacted] failed validation. dropping & deleting this offline message.
     #[yaserde(rename = "T", default)]
     pub message_type: i32,
     //Paid, has only been seen set to 6

@@ -205,6 +205,9 @@
 			<TermsOfUseURL>https://www.matrix.org</TermsOfUseURL>
 		</TermsOfUse>
 		<VoiceClip Hidden="0" />
+		<PublicFederated>
+			<YahooNetwork Enabled="false" OfflineIM="false" />
+		</PublicFederated>
 		<VoiceVideo>
 			<DisableSipProxyInviteTest>0</DisableSipProxyInviteTest>
 			<DisableSipProxyCapability>0</DisableSipProxyCapability>
