@@ -2,7 +2,6 @@ use std::fmt::{Display, Formatter};
 use std::io::{Read, Write};
 use std::str::FromStr;
 use chrono::{DateTime, Local};
-use email_encoding::headers::writer::EmailWriter;
 use log::Metadata;
 use xml::attribute::OwnedAttribute;
 use xml::namespace::Namespace;
@@ -68,11 +67,7 @@ impl MetadataMessage {
         //2005-11-15T22:24:27.000Z
         let ts = timetamp.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
 
-        // let mut encoded = String::new();
-        // {
-        //     let mut writer = EmailWriter::new(&mut encoded, 0, 0, false);
-        //     email_encoding::headers::rfc2047::encode(&sender_display_name, &mut writer).unwrap();
-        // }
+        let mut encoded = crate::shared::rfc2047::encode(&sender_display_name);
 
         Self {
             t: 11,
@@ -83,7 +78,7 @@ impl MetadataMessage {
             sender_email_addr: sender.0,
             message_id,
             f: "00000000-0000-0000-0000-000000000009".to_string(),
-            sender_display_name,
+            sender_display_name: encoded,
             su: " ".to_string(),
         }
     }
@@ -190,7 +185,7 @@ impl FromStr for OIM {
 
 impl Display for OIM {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let msg_payload = MsgPayloadFactory::get_oim(self.recv_datetime, self.sender.as_str(), self.receiver.as_str(),self.run_id.to_string().as_str() ,self.seq_number, self.message_id.as_str(), self.content.as_str(), self.content_type.as_str());
+        let msg_payload = MsgPayloadFactory::get_oim(self.recv_datetime, self.sender.as_str(), self.sender_display_name.as_ref().map(|e| e.as_str()).unwrap_or(""), self.receiver.as_str(),self.run_id.to_string().as_str() ,self.seq_number, self.message_id.as_str(), self.content.as_str(), self.content_type.as_str());
         write!(f, "{}", msg_payload)
     }
 }
@@ -246,7 +241,7 @@ mod tests {
     #[test]
     fn ser_metadata_message() {
 
-        let msg = MetadataMessage::new(Local::now(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), 123);
+        let msg = MetadataMessage::new(Local::now(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), 123, false);
         let str = msg.to_xml().unwrap();
         println!("{}", &str);
 
@@ -254,8 +249,8 @@ mod tests {
 
     #[test]
     fn ser_metadata() {
-        let msg = MetadataMessage::new(Local::now(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), 123);
-        let msg1 = MetadataMessage::new(Local::now(), EmailAddress::from_str("aeon2@test.com").unwrap(), "Aeon2".into(), "msgid2".into(), 123);
+        let msg = MetadataMessage::new(Local::now(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), 123, false);
+        let msg1 = MetadataMessage::new(Local::now(), EmailAddress::from_str("aeon2@test.com").unwrap(), "Aeon2".into(), "msgid2".into(), 123, false);
 
         let metadata = MetaData {
             messages: vec![msg, msg1],

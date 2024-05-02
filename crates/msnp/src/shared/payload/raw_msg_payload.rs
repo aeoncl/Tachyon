@@ -144,11 +144,11 @@ impl FromStr for RawMsgPayload {
 }
 
 pub mod factories {
+    use std::fmt::format;
     use std::num::TryFromIntError;
     use base64::Engine;
     use byteorder::{ByteOrder, LittleEndian};
     use chrono::{DateTime, Local};
-    use email_encoding::headers::writer::EmailWriter;
     use uuid::Uuid;
 
 
@@ -272,16 +272,18 @@ pub mod factories {
             return out;
         }
 
-        pub fn get_oim(recv_datetime: DateTime<Local>, from: &str, to: &str, run_id: &str, seq_num: u32, message_id: &str, content: &str, content_type: &str) -> RawMsgPayload {
-
-
+        pub fn get_oim(recv_datetime: DateTime<Local>, from: &str, from_display_name: &str, to: &str, run_id: &str, seq_num: u32, message_id: &str, content: &str, content_type: &str) -> RawMsgPayload {
 
             let mut out = RawMsgPayload::new(content_type);
             let recv_datetime_formatted = recv_datetime.format("%a, %d %b %Y %H:%M:%S %z").to_string();
             let filetime = MsgPayloadFactory::datetime_to_win32_filetime(&recv_datetime).unwrap();
 
+            let mut encoded = crate::shared::rfc2047::encode(from_display_name);
+
+
             out.add_header("X-Message-Info", "");
             out.add_header_owned("Received".into(), format!("from Tachyon by 127.0.0.1 with Matrix;{}", &recv_datetime_formatted));
+            //out.add_header_owned("From".into(), format!("{friendly}<{sender}>", friendly = encoded, sender = from));
             out.add_header("From", from);
             out.add_header("To", to);
             out.add_header("Subject", "");
@@ -335,6 +337,7 @@ mod tests {
     use crate::shared::traits::MSNPPayload;
 
 
+
     #[test]
     fn test_padding() {
         let mut buf: [u8; 8] = [0; 8];
@@ -372,7 +375,7 @@ mod tests {
 
     #[test]
     fn test_oim_ser() {
-        let oim = MsgPayloadFactory::get_oim(chrono::Local::now(), "from@shlasouf.local", "to@shlasouf.local", &Uuid::new().to_string(), 1, "id1", "Hello !!!!", "text/plain");
+        let oim = MsgPayloadFactory::get_oim(chrono::Local::now(), "from@shlasouf.local", "displayname","to@shlasouf.local", &Uuid::new().to_string(), 1, "id1", "Hello !!!!", "text/plain");
 
         let test = oim.to_string();
         print!("{}", test);
