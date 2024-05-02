@@ -185,23 +185,10 @@ pub fn get_message_options(from: Option<String>, to: Option<String>) -> Messages
 
 pub fn handle_text_message_event(room_id: &OwnedRoomId, room_uuid: Uuid, event_id: &EventId, event_timestamp: i64, sender: &UserId, sender_display_name: Option<String>, seq_num: u32, body: &str, me: EmailAddress) -> Result<OIM, OIMError> {
 
-    let timestamp = DateTime::from_timestamp_millis(event_timestamp).ok_or(OIMError::EventTimestampConvertionError{event_ts: event_timestamp })?.naive_local();
-    let local_ts = {
-        match Local.from_local_datetime(&timestamp) {
-            Single(result) => {
-                Ok(result)
-            },
-            Ambiguous(earliest, latest) => {
-                Err(OIMError::NativeDatetimeConversionError {source: anyhow!("Ambiguous local date time: earliest{:?} latest: {:?} - source naive date time: {:?}", earliest, latest, timestamp)})
-            }
-            chrono::offset::LocalResult::None => {
-                Err(OIMError::NativeDatetimeConversionError {source: anyhow!("Could not convert to LocalDateTime - source naive date time: {:?}", timestamp)})
-            }
-        }
-    }?;
+    let recv_datetime = DateTime::from_timestamp_millis(event_timestamp).ok_or(OIMError::EventTimestampConvertionError{event_ts: event_timestamp })?;
 
     Ok(OIM{
-        recv_datetime: local_ts,
+        recv_datetime,
         sender: EmailAddress::from_user_id(sender),
         sender_display_name,
         receiver: me,

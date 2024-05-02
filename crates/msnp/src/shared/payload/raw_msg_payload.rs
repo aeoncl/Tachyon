@@ -147,12 +147,13 @@ pub mod factories {
     use std::fmt::format;
     use std::num::TryFromIntError;
     use base64::Engine;
-    use byteorder::{ByteOrder, LittleEndian};
-    use chrono::{DateTime, Local};
+    use byteorder::{BigEndian, ByteOrder, LittleEndian};
+    use chrono::{DateTime, Local, Utc};
     use uuid::Uuid;
 
 
     use crate::{p2p::v2::p2p_transport_packet::P2PTransportPacket, shared::models::{msn_object::MsnObject, msn_user::MsnUser, uuid::Puid}};
+    use crate::shared::converters::filetime::FileTime;
     use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::oim::MetaData;
     use crate::shared::models::ticket_token::TicketToken;
@@ -272,19 +273,22 @@ pub mod factories {
             return out;
         }
 
-        pub fn get_oim(recv_datetime: DateTime<Local>, from: &str, from_display_name: &str, to: &str, run_id: &str, seq_num: u32, message_id: &str, content: &str, content_type: &str) -> RawMsgPayload {
+        pub fn get_oim(recv_datetime: DateTime<Utc>, from: &str, from_display_name: &str, to: &str, run_id: &str, seq_num: u32, message_id: &str, content: &str, content_type: &str) -> RawMsgPayload {
 
             let mut out = RawMsgPayload::new(content_type);
-            let recv_datetime_formatted = recv_datetime.format("%a, %d %b %Y %H:%M:%S %z").to_string();
-            let filetime = MsgPayloadFactory::datetime_to_win32_filetime(&recv_datetime).unwrap();
 
-            let mut encoded = crate::shared::rfc2047::encode(from_display_name);
+            let recv_datetime_local : DateTime<Local> = DateTime::from(recv_datetime.clone());
+            let recv_datetime_formatted = recv_datetime_local.format("%a, %d %b %Y %H:%M:%S %z").to_string();
+
+
+            let filetime = FileTime::from_utc_datetime(recv_datetime.clone());
+
+            let mut encoded = crate::shared::converters::rfc2047::encode(from_display_name);
 
 
             out.add_header("X-Message-Info", "");
             out.add_header_owned("Received".into(), format!("from Tachyon by 127.0.0.1 with Matrix;{}", &recv_datetime_formatted));
-            //out.add_header_owned("From".into(), format!("{friendly}<{sender}>", friendly = encoded, sender = from));
-            out.add_header("From", from);
+            out.add_header_owned("From".into(), format!("{friendly} <{sender}>", friendly = encoded, sender = from));
             out.add_header("To", to);
             out.add_header("Subject", "");
             out.add_header("X-OIM-originatingSource", "127.0.0.1");
@@ -295,9 +299,9 @@ pub mod factories {
             out.add_header_owned("X-OIM-Sequence-Num".into(), format!("{}", &seq_num));
             out.add_header("Message-ID", message_id);
 
-            let test = recv_datetime.format("%d %b %Y %H:%M:%S%.3f0 (%Z)").to_string();
+            let test = recv_datetime_local.format("%d %b %Y %H:%M:%S%.3f (%Z)").to_string();
             out.add_header_owned("X-OriginalArrivalTime".into(), format!("{date} FILETIME={filetime}", date = test, filetime = filetime));
-            out.add_header_owned("Date".into(), recv_datetime.format("%d %b %Y %H:%M:%S %z").to_string());
+            out.add_header_owned("Date".into(), recv_datetime_local.format("%d %b %Y %H:%M:%S %z").to_string());
             out.add_header("Return-Path", "ndr@oim.messenger.msn.com");
 
             out.set_body_owned(base64::engine::general_purpose::STANDARD.encode(content));
@@ -305,23 +309,7 @@ pub mod factories {
             out
         }
 
-        fn datetime_to_win32_filetime(datetime: &chrono::DateTime<Local>) -> Result<String, TryFromIntError> {
-            //https://devblogs.microsoft.com/oldnewthing/20090306-00/?p=18913
-            // Diff in milliseconds between Linux Epoch (1970) and Win32 epoch (January 1, 1601).
-            const EPOCH_DIFF_IN_MS: i64 = 11644473600000;
-            const MS_TO_100NS: i64 = 10000;
 
-            //https://learn.microsoft.com/fr-fr/windows/win32/api/minwinbase/ns-minwinbase-filetime
-            let ts_in_100_nanosec_interval = u64::try_from((EPOCH_DIFF_IN_MS + datetime.timestamp_millis()) * MS_TO_100NS)?;
-
-            let mut buf: [u8; 8] = [0; 8];
-            LittleEndian::write_u64(&mut buf, ts_in_100_nanosec_interval);
-
-            let least_significant_bytes = hex::encode_upper(&buf[0..4]);
-            let most_significant_bytes = hex::encode_upper(&buf[4..8]);
-            Ok(format!("[{}:{}]", least_significant_bytes, most_significant_bytes))
-
-        }
     }
 
 }
@@ -330,12 +318,32 @@ pub mod factories {
 mod tests {
     use std::str::FromStr;
     use byteorder::{ByteOrder, LittleEndian};
+    use chrono::{DateTime, FixedOffset, Local, NaiveDateTime, Utc};
+    use filetime_type::FileTime;
     use crate::shared::models::uuid::Uuid;
     use crate::shared::payload::raw_msg_payload::factories::MsgPayloadFactory;
 
     use crate::shared::payload::raw_msg_payload::RawMsgPayload;
     use crate::shared::traits::MSNPPayload;
 
+
+
+
+    #[test]
+    fn test_filetime() {
+
+        let test = chrono::Utc::now().format("%d %b %Y %H:%M:%S").to_string();
+
+        let test2= DateTime::parse_from_str("15 Nov 2005 22:24:27.020 (UTC)", "%d %b %Y %H:%M:%S%.3f (%Z)");
+
+        if test2.is_err() {
+            let err = test2.err().unwrap();
+            println!("{}", err);
+        }
+        test2.unwrap();
+
+        todo!()
+    }
 
 
     #[test]

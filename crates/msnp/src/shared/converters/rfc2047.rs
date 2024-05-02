@@ -6,6 +6,11 @@ const ENCODING_START_PREFIX: &str = "=?utf-8?b?";
 const ENCODING_START_PREFIX_MAJ: &str = "=?utf-8?B?";
 const ENCODING_END_SUFFIX: &str = "?=";
 pub fn encode(data: &str) -> String {
+
+    if data.is_ascii() {
+        return data.to_string();
+    }
+
     let mut encoded = String::new();
     {
         let mut writer = EmailWriter::new(&mut encoded, 0, 0, false);
@@ -20,12 +25,19 @@ pub fn encode(data: &str) -> String {
 mod tests {
     use super::encode;
     #[test]
-    fn test_mail_encoding() {
+    fn test_mail_encoding_ascii() {
         let name = "Inky";
         let encoded = encode(&name);
 
-        assert_eq!("=?utf-8?B?SW5reQ==?=", &encoded);
+        assert_eq!("Inky", &encoded);
+    }
 
+    #[test]
+    fn test_mail_encoding() {
+        let name = "Alinéa";
+        let encoded = encode(&name);
+
+        assert_eq!("=?utf-8?B?QWxpbsOpYQ==?=", &encoded);
     }
 
 }

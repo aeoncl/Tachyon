@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::io::{Read, Write};
 use std::str::FromStr;
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, Utc};
 use log::Metadata;
 use xml::attribute::OwnedAttribute;
 use xml::namespace::Namespace;
@@ -63,11 +63,11 @@ pub struct MetadataMessage {
 }
 
 impl MetadataMessage {
-    pub fn new(timetamp: DateTime<Local>, sender: EmailAddress, sender_display_name: String, message_id: String, message_size: usize, read: bool) -> Self{
+    pub fn new(timestamp: DateTime<Utc>, sender: EmailAddress, sender_display_name: String, message_id: String, message_size: usize, read: bool) -> Self{
         //2005-11-15T22:24:27.000Z
-        let ts = timetamp.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
+        let ts = timestamp.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
 
-        let mut encoded = crate::shared::rfc2047::encode(&sender_display_name);
+        let mut encoded = crate::shared::converters::rfc2047::encode(&sender_display_name);
 
         Self {
             t: 11,
@@ -162,7 +162,7 @@ impl ToXml for MetaData {
 
 #[derive(Debug, Clone, Default)]
 pub struct OIM {
-    pub recv_datetime: DateTime<Local>,
+    pub recv_datetime: DateTime<Utc>,
     pub sender: EmailAddress,
     pub sender_display_name: Option<String>,
     pub receiver: EmailAddress,
