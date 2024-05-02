@@ -3,7 +3,7 @@ use strum::IntoEnumIterator;
 use crate::msnp::notification::command::adl::ADLPayload;
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::msn_user::MsnUser;
-use crate::shared::models::role_id::RoleId;
+use crate::shared::models::role_list::RoleList;
 
 pub struct ContactList {
     pub contact_list: HashMap<EmailAddress, Contact>,
@@ -23,7 +23,7 @@ pub struct Contact {
 }
 
 impl Contact {
-    pub fn has_role(&self, role: RoleId) -> bool {
+    pub fn has_role(&self, role: RoleList) -> bool {
         self.memberships & role as u8 != 0
     }
 }
@@ -60,11 +60,11 @@ impl ContactList {
         }
     }
 
-    pub fn get_memberships(&self) -> HashMap<RoleId, Vec<MsnUser>> {
+    pub fn get_memberships(&self) -> HashMap<RoleList, Vec<MsnUser>> {
         let mut out = HashMap::new();
 
         for (_msn_addr, contact) in &self.contact_list {
-            for role_id in RoleId::iter() {
+            for role_id in RoleList::iter() {
                 if contact.has_role(role_id.clone()) {
                     let list = out.entry(role_id).or_insert(Vec::new());
                     list.push(contact.user.clone());
@@ -75,7 +75,7 @@ impl ContactList {
     }
 
     pub fn get_forward_list(&self) -> Vec<MsnUser> {
-        self.contact_list.iter().filter(|(k, v )| v.memberships & (RoleId::Forward as u8) != 0 ).map(|(k, v)| v.user.clone()).collect()
+        self.contact_list.iter().filter(|(k, v )| v.memberships & (RoleList::Forward as u8) != 0 ).map(|(k, v)| v.user.clone()).collect()
     }
 
 }

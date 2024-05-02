@@ -1,4 +1,4 @@
-use std::str::from_utf8;
+use std::str::{from_utf8, Utf8Error};
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -42,6 +42,7 @@ impl WebServer {
             .route("/ppcrlconfig.srf", get(ppcrlconfigsrf))
             .route("/ppcrlconfig.bin", get(ppcrlconfigsrf))
             .route("/PPCRLconfig.srf", get(wlidsvcconfig))
+            .route("/wlidsvcconfig.xml", get(wlidsvcconfig))
             .route("/ppcrlcheck.srf", get(ppcrlcheck))
             .route("/RST2.srf", post(rst2_handler))
             //SOAP
@@ -73,7 +74,14 @@ async fn my_middleware(
     if log_enabled!(Level::Debug) {
         let (parts, body) = request.into_parts();
         let bytes = body.collect().await.unwrap().to_bytes();
-        debug!("{:?}", from_utf8(&bytes).unwrap());
+
+        match from_utf8(&bytes) {
+            Ok(utf8) => {
+                debug!("{:?}", &utf8);
+            }
+            Err(_) => {}
+        }
+
         
         request = Request::from_parts(parts, Body::from(bytes))
     }
@@ -86,7 +94,12 @@ async fn my_middleware(
         let (parts, body) = response.into_parts();
         let bytes = body.collect().await.unwrap().to_bytes();
 
-        debug!("{:?}", from_utf8(&bytes).unwrap());
+        match from_utf8(&bytes) {
+            Ok(utf8) => {
+                debug!("{:?}", &utf8);
+            }
+            Err(_) => {}
+        }
 
         response = Response::from_parts(parts, Body::from(bytes))
     }

@@ -6,11 +6,16 @@
 		</Config>
 		<P2PConfig>
 			<ObjectStore>
-				<SendDelay>0</SendDelay>
+				<SendDelay>1</SendDelay>
 			</ObjectStore>
 		</P2PConfig>
 		<DisablePhoneDialer>1</DisablePhoneDialer>
 		<GetItemVersionForUnknown>false</GetItemVersionForUnknown>
+		<Logitech>
+			<PremiumAVConfigServer>http://mplocate.spotlife.net/locate.sxml</PremiumAVConfigServer>
+			<PreRollEnabled>0</PreRollEnabled>
+			<WebcamConfigServer>http://mlocate.spotlife.net/locate.sxml</WebcamConfigServer>
+		</Logitech>
 		<MinFlashPlayer BuildNumber="28" MajorVersion="9" MinorVersion="0" />
 		<Relay>
 			<Enabled>0</Enabled>
@@ -21,8 +26,9 @@
 			<Server ZombieServerDetectDelay="900" ZombieServerDetectResumeDelay="900" ZombieServerDetectConnectDelay="900" ZombieServerDetectLongDelay="900" />
 		</Contacts>
 		<TrustedDomains>
-			<domain name="localhost" />
-            <domain name="127.0.0.1" />
+            <domain name="localhost" />
+			<domain name="127.0.0.1" />
+            <domain name="storage.googleapis.com" />
 		</TrustedDomains>
 		<ErrorResponseTable>
 			<Feature type="0" name="Login">
@@ -100,43 +106,34 @@
 			<Device VID="0x045e" PID="0x0722"/>
 			<Device VID="0x041e" PID="0x4080"/>
 		</USBDevices>
-		<CirclesWeb General="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/" General-SiteId="73625"
-					Files="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/files" Files-SiteId="250206"
-					Photos="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/photos"
-					Photos-SiteId="250206" Disc="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/discussions"
-					Disc-SiteId="73625" Management="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/options"
-					Management-SiteId="73625"
-					Membership="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/membership"
-					Membership-SiteId="73625"
-					Leave="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/leavegroup" Leave-SiteId="73625" />
+		<CirclesWeb General="http://cid-$CIRCLECID$.groups.live.com/" General-SiteId="73625" Management="http://cid-$CIRCLECID$.groups.live.com/options/" Management-SiteId="73625" Membership="http://cid-$CIRCLECID$.groups.live.com/membership/" Membership-SiteId="73625" Leave="http://cid-$CIRCLECID$.groups.live.com/options/leavegroup/" Leave-SiteId="73625" />
 		<AnonymousIMSettings>
 			<SettingsPage URL="http://settings.messenger.live.com/applications/WebSettings.aspx" SiteID="76215" />
 		</AnonymousIMSettings>
 	</Simple>
-	<TabConfig>
-		<msntabsettings>
-			<oemtotallimit>1</oemtotallimit>
-			<oemdisplaylimit>1</oemdisplaylimit>
-		</msntabsettings>
-		<msntabdata>
-		</msntabdata>
-	</TabConfig>
+	
 	<AbchCfg>
 		<abchconfig>
-			<url>http://127.0.0.1:8080/abservice/abservice.asmx</url>
+			<url>http://localhost:80/abservice/abservice.asmx</url>
 		</abchconfig>
+
 	</AbchCfg>
 	<LocalizedConfig Market="en-US">
+		<TabConfig>
+			<RowNumber>1</RowNumber> 
+			<slots>
+				<URL id="1">http://localhost:80/GetAd=PG=IMASTA</URL> 
+			</slots>
+		</TabConfig>
 		<AdMainConfig>
-			<AdBanner20URL>http://127.0.0.1:8080/ads/banner?puid=$PUID$</AdBanner20URL>
-			<TextAdRotation>400</TextAdRotation>
+			<TextAdRotation>420</TextAdRotation>
 			<TextAdRefresh>1</TextAdRefresh>
-			<TextAdServer>http://127.0.0.1:8080/ads/text?puid=$PUID$</TextAdServer>
+			<TextAdServer>http://localhost:80/ads</TextAdServer>
 		</AdMainConfig>
 		<AppDirConfig>
-			<AppDirPageURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/Directory.aspx?L=en-us</AppDirPageURL>
-			<AppDirSeviceURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/AppDirectory.asmx</AppDirSeviceURL>
-			<AppDirVersionURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/GetAppdirVersion.aspx</AppDirVersionURL>
+			<AppDirPageURL>http://localhost:80/AppDirectory/Directory.aspx?L=en-US</AppDirPageURL>
+			<AppDirSeviceURL>http://localhost:80/AppDirectory/AppDirectory.asmx</AppDirSeviceURL>
+			<AppDirVersionURL>http://localhost:80/AppDirectory/GetAppdirVersion.aspx</AppDirVersionURL>
 		</AppDirConfig>
 		<Contacts>
 			<ABPendingRequests>
@@ -144,34 +141,30 @@
 				<height>672</height>
 				<IncludeSNRequests>true</IncludeSNRequests>
 				<width>808</width>
-				<urlcid>http://cid-%1!16.16I64X!.profile.live.com/invites?partner=Messenger</urlcid>
+				<urlcid>http://localhost/cid-%1!16.16I64X!/invites?partner=Messenger</urlcid>
 			</ABPendingRequests>
 			<EditMyLiveContactProfile>
-				<url>http://spaces.live.com/profile.aspx?action=edit&amp;mode=activecontacts&amp;mkt=en-us&amp;partner=Messenger</url>
+				<url>http://localhost:80/profile/profile.aspx?action=edit&amp;mode=activecontacts&amp;mkt=en-us&amp;partner=Messenger</url>
 				<SiteId>73625</SiteId>
 			</EditMyLiveContactProfile>
 			<EditMyProfile>
-				<url>http://profile.live.com/details</url>
+				<url>http://localhost:80/profile/details</url>
 				<SiteId>73625</SiteId>
 			</EditMyProfile>
-			<Import>
-				<url>http://cid-%1!16.16I64X!.profile.live.com/connect/?partner=Messenger</url>
-				<SiteId>73625</SiteId>
-			</Import>
 			<MessengerInvite>
-				<url>http://cid-%1.profile.live.com/connect/send.aspx?email=%2</url>
-				<urlcid>http://cid-%1.profile.live.com/connect/send.aspx?cid=%2</urlcid>
+				<url>http://localhost:80/connect/send.aspx?email=%2</url>
+				<urlcid>http://localhost:80/connect/send.aspx?cid=%2</urlcid>
 				<SiteId>73625</SiteId>
 			</MessengerInvite>
 			<Profile>
-				<url>http://spaces.live.com/Profile.aspx?partner=Messenger&amp;mkt=en-us&amp;mem=%ls</url>
-				<urlcid>http://spaces.live.com/Profile.aspx?partner=Messenger&amp;mkt=en-us&amp;cid=%ls</urlcid>
-				<urlcid2>http://cid-%1!16.16I64X!.profile.live.com</urlcid2>
+				<url>http://localhost:80/Profile.aspx?partner=Messenger&amp;mkt=en-us&amp;mem=%ls</url>
+				<urlcid>http://localhost:80/Profile.aspx?partner=Messenger&amp;mkt=en-us&amp;cid=%ls</urlcid>
+				<urlcid2>http://localhost:80/Profile.aspx?cid=cid-%1!16.16I64X!</urlcid2>
 				<SiteId>73625</SiteId>
 			</Profile>
 			<SNInvites>
-				<url>http://cid-%1.profile.live.com/connect/Messenger.aspx?Email=%2</url>
-				<urlcid>http://cid-%1.profile.live.com/connect/Messenger.aspx?cid=0x%2</urlcid>
+				<url>http://localhost:80/connect/Messenger.aspx?cid=%1&amp;Email=%2</url>
+				<urlcid>http://localhost:80/connect/Messenger.aspx?cid=0x%2</urlcid>
 				<SiteId>73625</SiteId>
 			</SNInvites>
 			<ViewMapEnabled>true</ViewMapEnabled>
@@ -184,7 +177,7 @@
 			<ImagesURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=images</ImagesURL>
 			<NearMeURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</NearMeURL>
 			<NewsURL>https://duckduckgo.com/?q=$QUERY$+news&amp;ia=news</NewsURL>
-			<PeopleSearchURL>http://home.live.com/search?query=$QUERY$</PeopleSearchURL>
+			<PeopleSearchURL>https://localhost:80/search?query=$QUERY$</PeopleSearchURL>
 			<PeopleSearchSiteID>73625</PeopleSearchSiteID>
 			<SearchKidsURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SearchKidsURL>
 			<SearchURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SearchURL>
@@ -193,9 +186,9 @@
 		</MSNSearch>
 		<MsnTodayConfig>
 			<MsnTodaySiteID>6528</MsnTodaySiteID>
-			<MsnTodayURL>https://escargot.log1p.xyz/etc/escargot-today</MsnTodayURL>
+			<MsnTodayURL>http://localhost:80/wlmatrixtoday</MsnTodayURL>
 			<Flags>2</Flags>
-		</MsnTodayConfig>
+        </MsnTodayConfig>
 		<OneCare Enabled="0" />
 		<PE Tracking=""/>
 		<PremiumAV Visibility="1" />
@@ -205,20 +198,17 @@
 			<ReportAbuseURL>http://support.live.com/default.aspx?productkey=wlmessengerabuse</ReportAbuseURL>
 		</ReportAbuse>
 		<RL>
-			<ViewProfileURL>http://g.msn.com/5meen_us/106?%1&amp;Plcid=%2!hs!&amp;%3&amp;Country=%4!hs!&amp;BrandID=%5&amp;passport=%6</ViewProfileURL>
+			<ViewProfileURL>http://localhost:80/viewprofile?%1&amp;Plcid=%2!hs!&amp;%3&amp;Country=%4!hs!&amp;BrandID=%5&amp;passport=%6</ViewProfileURL>
 		</RL>
 		<SDrive Enabled="true" />
 		<TermsOfUse>
 			<TermsOfUseSID>956</TermsOfUseSID>
-			<TermsOfUseURL>https://www.matrix.org</TermsOfUseURL>
+			<TermsOfUseURL>https://www.matrix.org/legal/code-of-conduct</TermsOfUseURL>
 		</TermsOfUse>
 		<VoiceClip Hidden="0" />
-		<PublicFederated>
-			<YahooNetwork Enabled="false" OfflineIM="false" />
-		</PublicFederated>
 		<VoiceVideo>
 			<DisableSipProxyInviteTest>0</DisableSipProxyInviteTest>
-			<DisableSipProxyCapability>0</DisableSipProxyCapability>
+			<DisableSipProxyCapability>1</DisableSipProxyCapability>
 			<DisableSipProxyInvite>0</DisableSipProxyInvite>
 			<DisableSipProxyCapability2>0</DisableSipProxyCapability2>
 			<DisableSipProxyInvite2>0</DisableSipProxyInvite2>

@@ -19,7 +19,7 @@ use yaserde_derive::{YaDeserialize, YaSerialize};
     use yaserde::{YaDeserialize, YaSerialize};
     use yaserde::de::from_str;
     use yaserde::ser::to_string;
-use crate::shared::models::role_id::RoleId;
+use crate::shared::models::role_list::RoleList;
 use crate::shared::models::uuid::Uuid;
 use crate::soap::abch::sharing_service::find_membership::response::ServiceType;
 
@@ -115,8 +115,246 @@ pub struct ArrayOfServiceName {
 )]
 pub struct ArrayOfRoleId {
 	#[yaserde(rename = "RoleId", prefix = "nsi1")]
-	pub role_id: Vec<RoleId>, 
+	pub role_id: Vec<RoleId>,
 }
+
+#[derive(Debug, YaSerialize, YaDeserialize, Clone)]
+#[yaserde(
+rename = "RoleId", namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+prefix = "nsi1",
+default_namespace="nsi1"
+)]
+pub enum RoleId {
+	
+	None,
+	
+	Admin,
+
+	AssistantAdmin,
+	
+	Member,
+	
+	Guest,
+
+	Banned,
+	
+	Delegate,
+	
+	Allow,
+	
+	Block,
+
+	Reverse,
+
+	Pending,
+
+	CalFreeBusy,
+
+	Contributor,
+
+	NamespaceQuota,
+
+	TwoWayRelationship,
+
+	OneWayRelationship,
+
+	ProfileCareer,
+
+	ProfileDating,
+
+	ProfileEducation,
+
+	ProfileGaming,
+	
+	ProfileGeneral,
+	
+	ProfilePersonalContact,
+
+	ProfileProfessionalContact,
+	
+	ProfileSocial,
+
+	ProfileExpression,
+
+	CircleProfileGeneral,
+
+	CircleProfileEvent,
+	
+	Custom,
+	
+	AllMember,
+
+	AllAdmin,
+
+	Partner,
+	
+	CircleContactProfile1,
+	
+	CircleContactProfile2,
+
+	PostPending,
+
+	VoteAsSpammer,
+
+	Reader,
+	
+	ReadWrite,
+	
+	ReadOnly,
+
+	WebProfileList,
+	
+	ReadSpacePhotos,
+	
+	ReadWriteSpacePhotos,
+
+	CircleProfileEventGeneral,
+
+	ContactsView,
+	
+	ContactsUpdate,
+	
+	ContactsSyncFullSync,
+
+	ContactsInvite,
+
+	ContactsNoUIInvite,
+
+	IMControlIMAllowAll,
+
+	MessengerSignIn,
+
+	IsvOffer8,
+
+	IsvOffer9,
+
+	IsvOffer10,
+	
+	ReadService,
+
+	ReadWriteService,
+
+	Favorite,
+
+	CalFreeBusyPlus,
+
+	StateNone,
+
+	StatePendingInbound,
+
+	StatePendingOutbound,
+
+	StateAccepted,
+
+	StateDeclined,
+
+	ProfilePublic,
+	
+	TwoDegrees,
+
+	AllowHidden,
+
+	ProfileLocation,
+	
+	ProfileShopping,
+	
+	RecentlySent,
+	
+	BlogsRead,
+	
+	BlogsUpdate,
+	
+	FilesRead,
+	
+	FilesUpdate,
+	
+	ListsRead,
+	
+	ListsUpdate,
+
+	GroupsRead,
+
+	GroupsModify,
+
+	GroupsCreate,
+	
+	EventsRead,
+	
+	EventsModify,
+
+	EventsCreate,
+	
+	RecentActivitiesRead,
+
+	WhatsNewRead,
+	
+	ProfileRead,
+	
+	ProfileUpdate,
+
+	Level1,
+
+	Level2,
+
+	Level3,
+
+	Level4,
+	
+	Level5,
+	
+	Level6,
+	
+	Level7,
+
+	Level8,
+
+	Level9,
+
+	Level10,
+	
+	Level11,
+	
+	Level12,
+	
+	Level13,
+	
+	Level14,
+
+	ApplicationDelegateRead,
+
+	ApplicationDelegateWrite,
+
+	ApplicationRead,
+	
+	ApplicationWrite,
+
+	SignIn,
+	
+	IMAllowAll,
+	
+	Email,
+	
+	SMS,
+	
+	Toast,
+
+	Hide,
+
+	ProfilePicture,
+
+	ProfileStatus,
+
+	ProfilePage,
+
+}
+
+impl Default for RoleId {
+	fn default() -> Self {
+		RoleId::None
+	}
+}
+
+
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 	rename = "abInfoType", namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
@@ -155,13 +393,30 @@ pub struct AbInfoType {
 	#[yaserde(rename = "NotifyExternalPartner", prefix = "nsi1")]
 	pub notify_external_partner: bool, 
 	#[yaserde(rename = "AddressBookType", prefix = "nsi1")]
-	pub address_book_type: String, 
+	pub address_book_type: AddressBookType,
 	#[yaserde(rename = "MessengerApplicationServiceCreated", prefix = "nsi1")]
 	pub messenger_application_service_created: Option<bool>, 
 	#[yaserde(rename = "IsBetaMigrated", prefix = "nsi1")]
 	pub is_beta_migrated: Option<bool>, 
 	#[yaserde(rename = "LastRelevanceUpdate", prefix = "nsi1")]
 	pub last_relevance_update: Option<String>, 
+}
+
+#[derive(Debug, YaSerialize, YaDeserialize, Clone)]
+#[yaserde(
+rename = "AddressBookType", namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
+prefix = "nsi1",
+default_namespace="nsi1"
+)]
+pub enum AddressBookType {
+	Individual,
+	Group
+}
+
+impl Default for AddressBookType {
+	fn default() -> Self {
+		Self::Individual
+	}
 }
 
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
@@ -282,10 +537,10 @@ pub xsi_type: String,
 pub struct RoleMember {
 	#[yaserde(flatten, prefix = "nsi1")]
 	pub base_member: BaseMember, 
-#[yaserde(prefix = "xsi", rename="type", attribute)]
-pub xsi_type: String,
+	#[yaserde(prefix = "xsi", rename="type", attribute)]
+	pub xsi_type: String,
 	#[yaserde(rename = "Id", prefix = "nsi1")]
-	pub id: RoleId, 
+	pub id: RoleId,
 	#[yaserde(rename = "DefiningService", prefix = "nsi1")]
 	pub defining_service: Option<HandleType>, 
 	#[yaserde(rename = "MaxRoleRecursionDepth", prefix = "nsi1")]
@@ -452,7 +707,60 @@ impl ContactType {
 
 		let me_contact_info = ContactInfoType{ emails: None, phones: None, locations: None, web_sites: None, annotations: Some(array_of_annotations), group_ids: None, group_ids_deleted: None, contact_type: Some(ContactTypeEnum::Me), quick_name: Some(display_name.to_string()), first_name: None, middle_name: None, last_name: None, suffix: None, name_title: None, passport_name: Some(msn_addr.to_string()), display_name: Some(display_name.to_string()), puid: Some(0), cid: Some(uuid.to_decimal_cid()), brand_id_list: None, comment: None, is_mobile_im_enabled: Some(false), is_messenger_user: Some(true), is_favorite: Some(false), is_smtp: Some(false), has_space: Some(true), spot_watch_state: Some(String::from("NoDevice")), birthdate: Some(String::from("0001-01-01T00:00:00")), primary_email_type: Some(ContactEmailTypeType{ body: String::from("Passport") }), primary_location: Some(ContactLocationTypeType{ body: String::from("ContactLocationPersonal") }), primary_phone: Some(String::from("ContactPhonePersonal")), is_private: Some(false), anniversary: None, gender: Some(String::from("Unspecified") ), time_zone: Some(String::from("None")), trust_level: None, network_info_list: None, public_display_name: None, is_auto_update_disabled: None, is_hidden: None, is_passport_name_hidden: Some(false), is_not_mobile_visible: Some(false), is_shell_contact: None, messenger_member_info: None, properties_changed: None, client_error_data: None, link_info: None, source_handle: None, file_as: None, ur_ls: None };
 		return ContactType{ contact_id: Some(uuid.to_string()), contact_info: Some(me_contact_info), properties_changed: Some(String::new()), f_deleted: Some(false), last_change: Some(now.format("%Y-%m-%dT%H:%M:%SZ").to_string()), create_date: None, last_modified_by: None, created_by: None };
+	}
 
+	pub fn new_me_circle(uuid: &Uuid, msn_addr: &str, display_name: &str) -> ContactType {
+
+		let now = Local::now();
+
+		let me_contact_info = ContactInfoType{ emails: None, phones: None, locations: None, web_sites: None, annotations: None, group_ids: None, group_ids_deleted: None, contact_type: Some(ContactTypeEnum::Me), quick_name: Some(display_name.to_string()), first_name: None, middle_name: None, last_name: None, suffix: None, name_title: None, passport_name: Some(msn_addr.to_string()), display_name: Some(display_name.to_string()), puid: Some(0), cid: Some(uuid.to_decimal_cid()), brand_id_list: None, comment: None, is_mobile_im_enabled: Some(false), is_messenger_user: Some(false), is_favorite: Some(false), is_smtp: Some(false), has_space: Some(false), spot_watch_state: Some(String::from("NoDevice")), birthdate: Some(String::from("0001-01-01T00:00:00")), primary_email_type: Some(ContactEmailTypeType{ body: String::from("Passport") }), primary_location: Some(ContactLocationTypeType{ body: String::from("ContactLocationPersonal") }), primary_phone: Some(String::from("ContactPhonePersonal")), is_private: Some(false), anniversary: None, gender: Some(String::from("Unspecified") ), time_zone: Some(String::from("None")), trust_level: None, network_info_list: None, public_display_name: None, is_auto_update_disabled: None, is_hidden: None, is_passport_name_hidden: Some(false), is_not_mobile_visible: Some(false), is_shell_contact: None, messenger_member_info: None, properties_changed: None, client_error_data: None, link_info: None, source_handle: None, file_as: None, ur_ls: None };
+		return ContactType{ contact_id: Some(uuid.to_string()), contact_info: Some(me_contact_info), properties_changed: Some(String::new()), f_deleted: Some(false), last_change: Some(now.format("%Y-%m-%dT%H:%M:%SZ").to_string()), create_date: None, last_modified_by: None, created_by: None };
+	}
+
+	pub fn new_circle(room_id: &str, display_name: &str, deleted: bool)-> ContactType {
+		let contact_id = format!("00000000-0000-0000-0009-{}", &room_id);
+		let passport_name = format!("{}@hotmail.com", contact_id);
+		let uuid = Uuid::from_seed(room_id);
+
+		let now = Local::now();
+		let now_serialized = now.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+		let network_info = NetworkInfoType {
+			annotations: None,
+			domain_id: 1,
+			source_id: Some("WL".into()),
+			domain_tag: None,
+			user_tile_url: None,
+			profile_url: None,
+			display_name: None,
+			relationship_type: RelationshipType::CircleGroup as i32,
+			relationship_state: RelationshipState::Accepted as i32,
+			relationship_state_date: now_serialized.clone(),
+			relationship_role: 0,
+			extended_data: None,
+			ndr_count: 0,
+			inviter_message: None,
+			inviter_cid: 0,
+			inviter_name: None,
+			inviter_email: None,
+			create_date: now_serialized.clone(),
+			last_changed: now_serialized.clone(),
+			properties_changed: "".to_string(),
+			forwarding_email: None,
+			settings: 0,
+			account_name: None,
+		};
+
+		//if user not admin;
+		// domaintag = contactid
+		// displayname = contactid
+
+
+
+		let network_info_list = NetworkInfoList{ network_info: vec![network_info] };
+
+		let contact_info = ContactInfoType{ emails: None, phones: None, locations: None, web_sites: None, annotations: None, group_ids: None, group_ids_deleted: None, contact_type: Some(ContactTypeEnum::Circle), quick_name: Some(display_name.to_string()), first_name: None, middle_name: None, last_name: None, suffix: None, name_title: None, passport_name: Some(passport_name.to_string()), display_name: Some(display_name.to_string()), puid: Some(0), cid: Some(uuid.to_decimal_cid()), brand_id_list: None, comment: None, is_mobile_im_enabled: Some(false), is_messenger_user: Some(true), is_favorite: Some(false), is_smtp: Some(false), has_space: Some(true), spot_watch_state: Some(String::from("NoDevice")), birthdate: Some(String::from("0001-01-01T00:00:00")), primary_email_type: Some(ContactEmailTypeType{ body: String::from("Passport") }), primary_location: Some(ContactLocationTypeType{ body: String::from("ContactLocationPersonal") }), primary_phone: Some(String::from("ContactPhonePersonal")), is_private: Some(false), anniversary: None, gender: Some(String::from("Unspecified") ), time_zone: Some(String::from("None")), trust_level: None, network_info_list: Some(network_info_list), public_display_name: None, is_auto_update_disabled: None, is_hidden: Some(true), is_passport_name_hidden: Some(false), is_not_mobile_visible: Some(false), is_shell_contact: None, messenger_member_info: None, properties_changed: None, client_error_data: None, link_info: None, source_handle: None, file_as: None, ur_ls: None };
+		return ContactType{ contact_id: Some(contact_id.to_string()), contact_info: Some(contact_info), properties_changed: Some(String::new()), f_deleted: Some(deleted), last_change: Some(now_serialized.clone()), create_date: None, last_modified_by: None, created_by: None };
 	}
 
 	pub fn new(uuid: &Uuid, msn_addr: &str, display_name: &str, contact_type: ContactTypeEnum, deleted: bool) -> ContactType {
@@ -505,7 +813,8 @@ pub enum ContactTypeEnum {
 	Regular,
 	Me,
 	Live,
-	LivePending
+	LivePending,
+	Circle
 }
 
 impl Default for ContactTypeEnum {
@@ -1012,6 +1321,40 @@ pub struct NetworkInfoType {
 	#[yaserde(rename = "AccountName", prefix = "nsi1")]
 	pub account_name: Option<String>, 
 }
+
+//Todo move this in XML
+pub enum RelationshipType {
+	IndividualAddressBook = 3,
+	CircleGroup = 5
+}
+
+impl Default for RelationshipType {
+	fn default() -> Self {
+		RelationshipType::IndividualAddressBook
+	}
+}
+
+//Todo move this in XML
+//Indicates the status of  contact in an addressbook.
+pub enum RelationshipState {
+	None = 0,
+	//The remote circle owner invite you to join, pending your response.
+	WaitingResponse = 1,
+	//The contact is deleted by one of the domain owners.
+	Left = 2,
+	//The contact is in the circle's addressbook list.
+	Accepted = 3,
+	//The contact already left the circle.
+	Rejected = 4
+}
+
+impl Default for RelationshipState {
+	fn default() -> Self {
+		RelationshipState::None
+	}
+}
+
+
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 	rename = "ContactFilterType", namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
@@ -1271,9 +1614,9 @@ pub struct CollapseConditionType {
 )] 
 pub struct CirclePersonalMembershipType {
 	#[yaserde(rename = "Role", prefix = "nsi1")]
-	pub role: RoleId, 
+	pub role: RoleId,
 	#[yaserde(rename = "State", prefix = "nsi1")]
-	pub state: String, 
+	pub state: String,
 }
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
@@ -1524,7 +1867,7 @@ pub struct ContactURLType {
 	}
 
 	impl BaseMember {
-		pub fn new_passport_member(uuid: &Uuid, msn_addr: &str, state: MemberState, role_id: RoleId, deleted: bool) -> BaseMember {
+		pub fn new_passport_member(uuid: &Uuid, msn_addr: &str, state: MemberState, role_id: RoleList, deleted: bool) -> BaseMember {
 			let now = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
 			let create_date = String::from("2014-10-31T00:00:00Z");
 			let no_date = String::from("0001-01-01T00:00:00");

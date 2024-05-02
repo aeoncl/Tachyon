@@ -129,9 +129,9 @@ pub mod request {
 pub mod response {
     use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::shared::models::role_id::RoleId;
+    use crate::shared::models::role_list::RoleList;
     use crate::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContactsPagedResponseMessageSoapEnvelope;
-    use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType};
+    use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType, RoleId};
 
     use crate::soap::abch::msnab_faults::SoapFault;
     use crate::soap::abch::service_header::ServiceHeaderContainer;
@@ -141,11 +141,11 @@ pub mod response {
     pub mod factory {
         use chrono::Local;
         use crate::shared::models::email_address::EmailAddress;
-        use crate::shared::models::role_id::RoleId;
+        use crate::shared::models::role_list::RoleList;
 
         use crate::shared::models::uuid::Uuid;
         use crate::soap::abch::sharing_service::find_membership::response::{ArrayOfServiceType, CircleAttributesType, FindMembershipResponse, FindMembershipResponseMessage, FindMembershipResponseMessageSoapEnvelope, Handle, InfoType, Members, Membership, MembershipResult, Memberships, OwnerNamespaceInfoType, OwnerNamespaceType, ServiceType, SoapFindMembershipResponseMessage};
-        use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType, ServiceName};
+        use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType, RoleId, ServiceName};
         use crate::soap::abch::service_header::ServiceHeaderContainer;
 
         pub struct FindMembershipResponseFactory;
@@ -232,12 +232,12 @@ pub mod response {
     mod tests {
         use yaserde::de::from_str;
         use yaserde::ser::to_string;
-        use crate::shared::models::role_id::RoleId;
+        use crate::shared::models::role_list::RoleList;
 
         use crate::shared::models::uuid::Uuid;
         use crate::soap::abch::sharing_service::find_membership::response::{ArrayOfServiceType, CircleAttributesType, FindMembershipResponse, FindMembershipResponseMessage, FindMembershipResponseMessageSoapEnvelope, Handle, InfoType, Members, Membership, MembershipResult, Memberships, OwnerNamespaceInfoType, OwnerNamespaceType, ServiceType, SoapFindMembershipResponseMessage};
         use crate::soap::abch::sharing_service::find_membership::response::factory::FindMembershipResponseFactory;
-        use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType, MemberState, MemberType, ServiceName};
+        use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType, MemberState, MemberType, RoleId, ServiceName};
 
         #[test]
         fn test_get_empty_find_membership_response() {

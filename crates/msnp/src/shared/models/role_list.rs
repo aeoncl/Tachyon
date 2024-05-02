@@ -7,7 +7,7 @@ use yaserde_derive::{YaDeserialize, YaSerialize};
 	prefix = "nsi1",
 	default_namespace="nsi1"
 )]
-pub enum RoleId {
+pub enum RoleList {
 	//Contact doesn't belong to the contact list, but belongs to the address book
 	None = 0x00,
 	//Contact belongs to our contact list
@@ -22,8 +22,8 @@ pub enum RoleId {
 	Pending = 0x10
 }
 
-impl Default for RoleId {
+impl Default for RoleList {
     fn default() -> Self {
-        RoleId::Allow
+        RoleList::Allow
     }
 }

@@ -13,31 +13,70 @@ use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::request::AbfindContactsPagedMessageSoapEnvelope;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContactsPagedResponseMessageSoapEnvelope;
-use msnp::soap::abch::msnab_datatypes::{ContactType, ContactTypeEnum};
+use msnp::soap::abch::msnab_datatypes::{AbHandleType, AddressBookType, ContactType, ContactTypeEnum};
 use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::traits::xml::ToXml;
 use crate::matrix::direct_target_resolver::resolve_direct_target;
 use crate::shared::identifiers::MatrixIdCompatible;
+use crate::shared::traits::ToUuid;
 use crate::web::soap::error::ABError;
 use crate::web::soap::error::ABError::InternalServerError;
 use crate::web::soap::shared;
 
 pub async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, token: TicketToken, client: Client) -> Result<Response, ABError> {
+    let body = &request.body.body;
+
+    let ab_id = {
+        match body.ab_handle.as_ref(){
+            None => {
+                "00000000-0000-0000-0000-000000000000".to_string()
+            }
+            Some(ab_handle) => {
+                ab_handle.ab_id.as_str().to_string()
+            }
+        }
+    };
+
+
+
+
+    if &ab_id == "00000000-0000-0000-0000-000000000000" {
+        //Handle User Request
+        return handle_user_contact_list(request, client).await;
+    } else if ab_id.starts_with("00000000-0000-0000-0009"){
+        //Handle Circle Request
+        return handle_circle_request(request, &ab_id, client).await;
+    }
+
+    Err(anyhow!("Unsupported AB Id"))?
+}
+
+async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, ab_id: &str, client: Client) -> Result<Response, ABError> {
+    let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or_default();
+    let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_circle(ab_id, &cache_key, vec![]);
+    Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
+}
+
+async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelope, client: Client) -> Result<Response, ABError> {
     let body = request.body.body;
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or_default();
     let user_id = client.user_id().ok_or(anyhow!("Matrix client has no user ID."))?;
-    let msn_addr = EmailAddress::from_user_id(user_id).to_string();
-
+    let uuid = user_id.to_uuid();
+    let msn_addr = EmailAddress::from_user_id(&user_id);
 
     if body.filter_options.deltas_only {
         // Fetch from store. TODO
         Ok(shared::build_soap_response(SoapFaultResponseEnvelope::new_fullsync_required("http://www.msn.com/webservices/AddressBook/ABFindContactsPaged").to_xml()?, StatusCode::OK))
     } else {
         // Full contact list demanded.
-        let contacts = get_fullsync_contact_list(&client, user_id).await?;
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new(Uuid::from_seed(&user_id.to_string()), &cache_key, &msn_addr, &msn_addr, contacts, false);
+        let mut contacts = get_fullsync_contact_list(&client, user_id).await?;
+
+        let circles = vec![ContactType::new_circle("000000000001", "my circle", false)];
+
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(uuid, &cache_key, msn_addr.as_str(), msn_addr.as_str(), contacts, false, circles);
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
     }
+
 }
 
 async fn get_fullsync_contact_list(matrix_client: &Client, me: &UserId) -> Result<Vec<ContactType>, ABError> {

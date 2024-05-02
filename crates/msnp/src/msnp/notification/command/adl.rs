@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use yaserde::{de::from_str, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
-use crate::{msnp::{error::{CommandError, PayloadError}, raw_command_parser::RawCommand}, shared::{command::ok::OkCommand, models::role_id::RoleId}};
+use crate::{msnp::{error::{CommandError, PayloadError}, raw_command_parser::RawCommand}, shared::{command::ok::OkCommand, models::role_list::RoleList}};
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::traits::{MSNPCommand, MSNPPayload};
 use crate::shared::errors::IdentifierError;
@@ -173,7 +173,7 @@ impl ADLPayload {
 mod tests {
     use std::str::FromStr;
 
-    use crate::shared::models::role_id::RoleId;
+    use crate::shared::models::role_list::RoleList;
 
     use super::ADLPayload;
 

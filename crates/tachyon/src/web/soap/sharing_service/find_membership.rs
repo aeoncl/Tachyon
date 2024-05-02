@@ -6,7 +6,7 @@ use matrix_sdk::Client;
 use matrix_sdk::ruma::events::room::member::MembershipState;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_user::MsnUser;
-use msnp::shared::models::role_id::RoleId;
+use msnp::shared::models::role_list::RoleList;
 
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::abch::msnab_datatypes::{Annotation, ArrayOfAnnotation, BaseMember, MemberState};
@@ -71,12 +71,12 @@ async fn get_fullsync_members(matrix_client: &Client) -> Result<(Vec<BaseMember>
 
                     match member.membership() {
                         MembershipState::Invite => {
-                            let allow_member = BaseMember::new_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
+                            let allow_member = BaseMember::new_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleList::Allow, false);
                             allow_list.push(allow_member);
                         }
                         MembershipState::Join => {
-                            let allow_member = BaseMember::new_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Allow, false);
-                            let reverse_member = BaseMember::new_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, false);
+                            let allow_member = BaseMember::new_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleList::Allow, false);
+                            let reverse_member = BaseMember::new_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleList::Reverse, false);
                             allow_list.push(allow_member);
                             reverse_list.push(reverse_member);
                         }
@@ -101,8 +101,8 @@ async fn get_fullsync_members(matrix_client: &Client) -> Result<(Vec<BaseMember>
                     match member.membership() {
                         _ => {}
                         MembershipState::Join => {
-                            let current_reverse_member = BaseMember::new_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Reverse, false);
-                            let mut current_pending_member = BaseMember::new_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleId::Pending, false);
+                            let current_reverse_member = BaseMember::new_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleList::Reverse, false);
+                            let mut current_pending_member = BaseMember::new_passport_member(&target_uuid, &target_msn_addr, MemberState::Accepted, RoleList::Pending, false);
                             current_pending_member.display_name = Some(target_msn_addr.clone());
                             //TODO fetch message
                             let annotation = Annotation::new_invite("");
