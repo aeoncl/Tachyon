@@ -26,16 +26,16 @@ rename = "M",
 pub struct MetadataMessage {
     //Type, but has only been seen set to 11
     #[yaserde(rename = "T", default)]
-    pub t: i32,
+    pub message_type: i32,
     //Paid, has only been seen set to 6
     #[yaserde(rename = "S", default)]
-    pub s: i32,
+    pub paid: i32,
     //The date/time stamp for when the message was received by the server
     #[yaserde(rename = "RT", default)]
     pub received_timestamp: Option<String>,
     //ReadState, but most likely is set to 1 if the message has been read before ("Read Set").
     #[yaserde(rename = "RS", default)]
-    pub rs: u8,
+    pub read_state: u8,
     //The size of the message, including headers
     #[yaserde(rename = "SZ", default)]
     pub size: u32,
@@ -48,7 +48,7 @@ pub struct MetadataMessage {
     pub message_id: String,
     //FolderID, has so far only been observed as either a GUID with a single 9 at the end, or as ".!!OIM" (in case you are already online when receiving the notification).
     #[yaserde(rename = "F", default)]
-    pub f: String,
+    pub folder_id: String,
     //This field contains the friendlyname of the person, wrapped in a special encoding. This encoding is defined in RFC 2047, but to get you started there is a quick overview of the format below
     //When this field is found in a non-initial notification it will contain a space in the data field. You must filter this space (trim the string) in order to correctly decode this field!
     //    =?charset?encoding-type?data?=
@@ -59,7 +59,7 @@ pub struct MetadataMessage {
     pub sender_display_name: String,
     //Subject, has only been observed to contain one space.
     #[yaserde(rename = "SU", default)]
-    pub su: String,
+    pub subject: String,
 }
 
 impl MetadataMessage {
@@ -70,16 +70,16 @@ impl MetadataMessage {
         let mut encoded = crate::shared::converters::rfc2047::encode(&sender_display_name);
 
         Self {
-            t: 11,
-            s: 6,
+            message_type: 11,
+            paid: 6,
             received_timestamp: Some(ts),
-            rs: {if read { 1 } else { 0 }},
+            read_state: {if read { 1 } else { 0 }},
             size: message_size as u32,
             sender_email_addr: sender.0,
             message_id,
-            f: "00000000-0000-0000-0000-000000000009".to_string(),
+            folder_id: "00000000-0000-0000-0000-000000000009".to_string(),
             sender_display_name: encoded,
-            su: " ".to_string(),
+            subject: " ".to_string(),
         }
     }
 }
@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn ser_metadata_message() {
 
-        let msg = MetadataMessage::new(Local::now(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), 123, false);
+        let msg = MetadataMessage::new(Local::now().to_utc(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), 123, false);
         let str = msg.to_xml().unwrap();
         println!("{}", &str);
 
@@ -249,8 +249,8 @@ mod tests {
 
     #[test]
     fn ser_metadata() {
-        let msg = MetadataMessage::new(Local::now(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), 123, false);
-        let msg1 = MetadataMessage::new(Local::now(), EmailAddress::from_str("aeon2@test.com").unwrap(), "Aeon2".into(), "msgid2".into(), 123, false);
+        let msg = MetadataMessage::new(Local::now().to_utc(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), 123, false);
+        let msg1 = MetadataMessage::new(Local::now().to_utc(), EmailAddress::from_str("aeon2@test.com").unwrap(), "Aeon2".into(), "msgid2".into(), 123, false);
 
         let metadata = MetaData {
             messages: vec![msg, msg1],

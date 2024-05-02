@@ -285,7 +285,6 @@ pub mod factories {
 
             let mut encoded = crate::shared::converters::rfc2047::encode(from_display_name);
 
-
             out.add_header("X-Message-Info", "");
             out.add_header_owned("Received".into(), format!("from Tachyon by 127.0.0.1 with Matrix;{}", &recv_datetime_formatted));
             out.add_header_owned("From".into(), format!("{friendly} <{sender}>", friendly = encoded, sender = from));
@@ -383,7 +382,7 @@ mod tests {
 
     #[test]
     fn test_oim_ser() {
-        let oim = MsgPayloadFactory::get_oim(chrono::Local::now(), "from@shlasouf.local", "displayname","to@shlasouf.local", &Uuid::new().to_string(), 1, "id1", "Hello !!!!", "text/plain");
+        let oim = MsgPayloadFactory::get_oim(chrono::Local::now().to_utc(), "from@shlasouf.local", "displayname","to@shlasouf.local", &Uuid::new().to_string(), 1, "id1", "Hello !!!!", "text/plain");
 
         let test = oim.to_string();
         print!("{}", test);
