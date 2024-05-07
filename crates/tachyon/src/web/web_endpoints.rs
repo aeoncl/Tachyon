@@ -22,8 +22,6 @@ lazy_static_include_bytes! {
     PPCRLCHECK => "./assets/web/ppcrlcheck.srf.html"
 }
 
-
-
 pub async fn firewall_test() -> StatusCode {
     StatusCode::OK
 }
@@ -52,7 +50,9 @@ pub async fn get_text_ad() -> Response<Body> {
 }
 
 pub async fn sha1auth(body: String) -> (StatusCode, HeaderMap ){
-    let captures = SHA1_REGEX.captures(&body).unwrap();
+
+    let bodyDecoded = urlencoding::decode(&body).unwrap().to_string();
+    let captures = SHA1_REGEX.captures(&bodyDecoded).unwrap();
     let redirect_url = urlencoding::decode(&captures[1]).expect("Url to be correct").into_owned();
 
     let mut headers = HeaderMap::new();

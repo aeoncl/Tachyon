@@ -100,15 +100,15 @@
 			<Device VID="0x045e" PID="0x0722"/>
 			<Device VID="0x041e" PID="0x4080"/>
 		</USBDevices>
-		<CirclesWeb General="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/" General-SiteId="73625"
-					Files="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/files" Files-SiteId="250206"
-					Photos="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/photos"
-					Photos-SiteId="250206" Disc="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/discussions"
-					Disc-SiteId="73625" Management="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/options"
-					Management-SiteId="73625"
-					Membership="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/membership"
-					Membership-SiteId="73625"
-					Leave="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/leavegroup" Leave-SiteId="73625" />
+<CirclesWeb General="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/" General-SiteId="73625"
+			Files="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/files" Files-SiteId="250206"
+			Photos="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/photos"
+			Photos-SiteId="250206" Disc="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/discussions"
+			Disc-SiteId="73625" Management="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/options"
+			Management-SiteId="73625"
+			Membership="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/membership"
+			Membership-SiteId="73625"
+			Leave="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/leavegroup" Leave-SiteId="73625" />
 		<AnonymousIMSettings>
 			<SettingsPage URL="http://settings.messenger.live.com/applications/WebSettings.aspx" SiteID="76215" />
 		</AnonymousIMSettings>
