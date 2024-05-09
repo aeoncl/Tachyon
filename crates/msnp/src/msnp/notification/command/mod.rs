@@ -10,4 +10,5 @@ pub mod blp;
 pub mod chg;
 pub mod prp;
 pub mod uun;
-mod url;
+pub mod url;
+pub mod uum;

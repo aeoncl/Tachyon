@@ -17,7 +17,6 @@ use crate::shared::payload::raw_msg_payload::RawMsgPayload;
 use crate::shared::traits::{MSNPCommand, MSNPPayload};
 
 pub struct MsgClient {
-
     tr_id: u128,
     ack_type: MsgAcknowledgment,
     payload: RawMsgPayload
@@ -92,12 +91,18 @@ impl MSNPPayload for MsgPayload {
     type Err = PayloadError;
 
     fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> {
+        let rawMsgPayload = RawMsgPayload::try_from_bytes(bytes)?;
+
+
         todo!()
     }
 
     fn to_bytes(self) -> Vec<u8> {
         match self {
             MsgPayload::Raw(payload) => { payload.to_bytes() }
+            _ => {
+                todo!()
+            }
         }
     }
 }

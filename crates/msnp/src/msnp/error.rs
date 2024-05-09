@@ -1,6 +1,7 @@
 
 use std::{num::ParseIntError, str::Utf8Error};
 use std::string::FromUtf8Error;
+use hex::FromHexError;
 use strum::ParseError;
 use crate::shared::errors::IdentifierError;
 use thiserror::Error;
@@ -87,6 +88,8 @@ pub enum PayloadError {
     PayloadSizeExceed {
         expected_size: usize, overflowing_size: usize, payload: Vec<u8>
     },
+    #[error(transparent)]
+    HexDecodeError(#[from] FromHexError),
     #[error(transparent)]
     AnyError(#[from] anyhow::Error)
 

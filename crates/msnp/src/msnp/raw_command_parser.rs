@@ -209,7 +209,7 @@ impl RawCommandParser {
     }
 
 fn is_payload_command(operand: &str) -> bool {
-    matches!(operand, "ADL" | "RML" | "UUX" | "UUN" | "UUM"  | "MSG" | "NOT" | "QRY" | "FQY" | "PUT" | "DEL" | "VAS" | "SDC" | "SDG")
+    matches!(operand, "ADL" | "RML" | "UUX" | "UUN" | "UUM" | "MSG" | "NOT" | "QRY" | "FQY" | "PUT" | "DEL" | "VAS" | "SDC" | "SDG")
 }
 
 impl FromStr for RawCommand {

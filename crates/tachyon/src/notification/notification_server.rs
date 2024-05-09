@@ -4,7 +4,8 @@ use std::str::from_utf8_unchecked;
 
 use anyhow::anyhow;
 use log::{debug, error, info};
-use matrix_sdk::Client;
+use matrix_sdk::{Client, Room};
+use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use matrix_sdk::ruma::OwnedUserId;
 use msnp::msnp::{notification::command::command::NotificationServerCommand, raw_command_parser::{RawCommand, RawCommandParser}};
 use msnp::msnp::notification::command::command::NotificationClientCommand;
@@ -18,6 +19,7 @@ use msnp::shared::payload::raw_msg_payload::factories::MsgPayloadFactory;
 use msnp::shared::traits::MSNPCommand;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::OwnedWriteHalf, TcpListener, TcpStream}, sync::{broadcast::{self, Receiver}, mpsc::{self, Sender}}};
 use tokio::sync::oneshot;
+use msnp::msnp::notification::command::uum::{FontStyle, UumPayload};
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
@@ -71,7 +73,7 @@ impl Default for LocalStore {
     fn default() -> Self {
         Self {
             email_addr: EmailAddress::default(),
-            token: TicketToken(String::new()),
+            token: TicketToken(String::new())
         }
     }
 }
@@ -298,6 +300,65 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
         NotificationClientCommand::UUX(command) => {
             notif_sender.send(NotificationServerCommand::Uux(command.get_ok_response())).await?;
             Ok(())
+        },
+        NotificationClientCommand::UUM(command) => {
+
+            let ok_response = command.get_ok_response();
+
+            match command.payload {
+                UumPayload::TextMessage(content) => {
+                    let client_data = client_store.get_client_data(local_store.token.as_str()).expect("client_data to be present.");
+                    let matrix_client = client_data.get_matrix_client();
+                    let room = matrix_client.get_dm_room(&command.destination.email_addr.to_owned_user_id());
+                    match room {
+                        None => {
+                            //NO DM ROOM FOUND
+                        }
+                        Some(room) => {
+                            //TODO SMILEY TO EMOJI
+                            //TODO Store event id for dedup
+
+
+                            let mut message = content.body.clone();
+
+                            if content.font_styles.matches(FontStyle::Bold) {
+                                message = format!("<b>{}</b>", message)
+                            }
+
+                            if content.font_styles.matches(FontStyle::Italic) {
+                                message = format!("<i>{}</i>", message)
+                            }
+
+                            if content.font_styles.matches(FontStyle::Underline) {
+                                message = format!("<u>{}</u>", message)
+                            }
+
+                            if content.font_styles.matches(FontStyle::StrikeThrough) {
+                                message = format!("<strike>{}</strike>", message)
+                            }
+
+                            let test = format!("<font color=\"#FFFFFF\">{}</font>", message);
+                            let content = RoomMessageEventContent::text_html(content.body, test);
+
+                            let response = room.send(content).await?;
+                            //self.add_to_events_sent(response.event_id.to_string());
+                            notif_sender.send(NotificationServerCommand::Ok(ok_response)).await?;
+                        }
+                    }
+
+                    Ok(())
+                },
+                UumPayload::TypingUser() => {
+                    todo!()
+                }
+                UumPayload::Nudge() => {
+                    todo!()
+
+                }
+                UumPayload::Raw(_) => {
+                    todo!()
+                }
+            }
         }
         NotificationClientCommand::BLP(command) => {
             notif_sender.send(NotificationServerCommand::BLP(command)).await?;

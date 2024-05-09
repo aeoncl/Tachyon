@@ -7,6 +7,7 @@ use crate::msnp::notification::command::chg::ChgServer;
 use crate::msnp::notification::command::cvr::CvrServer;
 use crate::msnp::notification::command::msg::MsgServer;
 use crate::msnp::notification::command::usr::UsrServer;
+use crate::msnp::notification::command::uum::UumClient;
 use crate::msnp::notification::command::uux::UuxServer;
 use crate::msnp::notification::command::ver::VerServer;
 use crate::shared::command::ok::OkCommand;
@@ -27,6 +28,7 @@ pub enum NotificationClientCommand {
     CHG(ChgClient),
     PRP(PrpClient),
     UUN(UunClient),
+    UUM(UumClient),
     XFR(),
     OUT,
     RAW(RawCommand)
@@ -48,6 +50,7 @@ impl MSNPCommand for NotificationClientCommand {
             "CHG" => NotificationClientCommand::CHG(ChgClient::try_from_raw(raw)?),
             "PRP" => NotificationClientCommand::PRP(PrpClient::try_from_raw(raw)?),
             "UUN" => NotificationClientCommand::UUN(UunClient::try_from_raw(raw)?),
+            "UUM" => NotificationClientCommand::UUM(UumClient::try_from_raw(raw)?),
             "XFR" => NotificationClientCommand::XFR(),
             "OUT" => NotificationClientCommand::OUT,
             _ => NotificationClientCommand::RAW(raw)

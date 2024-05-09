@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::io::{Read, Write};
-use std::str::FromStr;
+use std::str::{from_utf8, FromStr};
 use chrono::{DateTime, Local, Utc};
 use log::Metadata;
 use xml::attribute::OwnedAttribute;
@@ -16,6 +16,7 @@ use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::uuid::Uuid;
 use crate::shared::payload::raw_msg_payload::factories::MsgPayloadFactory;
 use crate::shared::payload::raw_msg_payload::RawMsgPayload;
+use crate::shared::traits::MSNPPayload;
 use crate::soap::error::SoapMarshallError;
 use crate::soap::traits::xml::ToXml;
 
@@ -182,7 +183,7 @@ impl FromStr for OIM {
     type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let msg_payload : RawMsgPayload = RawMsgPayload::from_str(s)?;
+       // let msg_payload : RawMsgPayload = RawMsgPayload::from_str(s)?;
         todo!("Deserializing an OIM is not yet implemented")
     }
 }
@@ -190,7 +191,9 @@ impl FromStr for OIM {
 impl Display for OIM {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let msg_payload = MsgPayloadFactory::get_oim(self.recv_datetime, self.sender.as_str(), self.sender_display_name.as_ref().map(|e| e.as_str()).unwrap_or(""), self.receiver.as_str(),self.run_id.to_string().as_str() ,self.seq_number, self.message_id.as_str(), self.content.as_str(), self.content_type.as_str());
-        write!(f, "{}", msg_payload)
+        let bytes = msg_payload.to_bytes();
+
+        write!(f, "{}", from_utf8(&bytes).expect("OIM payload to never contain binary data"))
     }
 }
 
