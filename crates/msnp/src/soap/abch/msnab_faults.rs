@@ -433,7 +433,7 @@ impl std::fmt::Display for SoapFault {
 }
 
 #[derive(Debug, YaSerialize, YaDeserialize, Clone)]
-#[yaserde(rename = "FindMembership",
+#[yaserde(rename = "detail",
 namespace = "nsi1: http://www.msn.com/webservices/AddressBook")]
 pub struct FaultDetail{
 	#[yaserde(rename = "errorcode", prefix="nsi1")]

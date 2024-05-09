@@ -128,7 +128,7 @@ pub mod response {
     mod tests {
         use yaserde::ser::to_string;
         use crate::soap::abch::ab_service::ab_find_contacts_paged::response::{Ab, AbfindContactsPagedResponse, AbfindContactsPagedResponseMessageSoapEnvelope, AbfindContactsPagedResultType, Groups, SoapAbfindContactsPagedResponseMessage};
-        use crate::soap::abch::msnab_datatypes::{AbInfoType, ArrayOfContactType, CircleResultType, ContactType, GroupType};
+        use crate::soap::abch::msnab_datatypes::{AbInfoType, AddressBookType, ArrayOfContactType, CircleResultType, ContactType, GroupType};
         use crate::soap::abch::service_header::{ServiceHeader, ServiceHeaderContainer};
 
         #[test]
@@ -136,7 +136,7 @@ pub mod response {
             let service_header = ServiceHeader{ version: String::from("15.01.1408.0000"), cache_key: Some(String::from("cache_key")), cache_key_changed: Some(true), preferred_host_name: Some(String::from("localhost")), session_id: None };
             let service_header_container = ServiceHeaderContainer{ service_header };
 
-            let ab_info_type = AbInfoType{ migrated_to: None, beta_status: None, name: None, owner_puid: 0, owner_cid: 0, owner_email:None, f_default: false, joined_namespace: false, is_bot: false, is_parent_managed: false, account_tier: None, account_tier_last_changed: String::new(), profile_version: 0, subscribe_external_partner: false, notify_external_partner: false, address_book_type: String::new(), messenger_application_service_created: None, is_beta_migrated: None, last_relevance_update: None};
+            let ab_info_type = AbInfoType{ migrated_to: None, beta_status: None, name: None, owner_puid: 0, owner_cid: 0, owner_email:None, f_default: false, joined_namespace: false, is_bot: false, is_parent_managed: false, account_tier: None, account_tier_last_changed: String::new(), profile_version: 0, subscribe_external_partner: false, notify_external_partner: false, address_book_type: AddressBookType::Individual, messenger_application_service_created: None, is_beta_migrated: None, last_relevance_update: None};
             let ab = Ab{ ab_id: String::from("new_ab_id"), ab_info: ab_info_type, last_change: String::new(), dynamic_item_last_changed: String::new(), recent_activity_item_last_changed: None, create_date: String::new(), properties_changed: String::new() };
 
             let contact_array : Vec<ContactType> = Vec::new();
@@ -147,7 +147,7 @@ pub mod response {
 
             let circle_result = CircleResultType{ circles: None, circle_ticket: String::from("&lt;?xml version=\"1.0\" encoding=\"utf-16\"?&gt;&lt;SignedTicket xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" ver=\"1\" keyVer=\"1\"&gt;&lt;Data&gt;PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTE2Ij8+DQo8VGlja2V0IHhtbG5zOnhzaT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEtaW5zdGFuY2UiIHhtbG5zOnhzZD0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiPg0KICA8VFM+MDAwMC0wMS0wMVQwMDowMDowMDwvVFM+DQogIDxDSUQ+LTc3NzY5ODI1NzkyNzI5Mzc1NzI8L0NJRD4NCjwvVGlja2V0Pg==&lt;/Data&gt;&lt;Sig&gt;SLE8LXFmBW/2nMY9t+lG/7w4APZt3Z5U4nsu3G7KSWSdTEvTt9mt2kdssQaxxjEhy8udrLlC2dFSQXtHI/6mmbHhtaf7wx2WvRb4F1ayv5kZmrp5lJPkEXhdSwzJHlYPZM530Gsr7Md9MW4w67F7ct7i2MhsQyBLXr5nEDLlILHjTNUkbIa31IZJ5Qpwnr7Cj4XLPYOl8Phl6mHSjWdLo/CvohxRnAb/akABRyIhdd4rIvZREYsYhjSyZ/RLc6j0eLF7zkn8jjLKVGkIIFNvcGGnv/9ZtQ4zO5a/OkNB18Pvj6excNHt8zeCXiPomIikZrUOEZ4sshYRAJ7/5k/PAA==&lt;/Sig&gt;&lt;/SignedTicket&gt;") };
 
-            let result = AbfindContactsPagedResultType{ groups: Some(groups), contacts: Some(array_of_contact), circle_result: circle_result, ab: ab };
+            let result = AbfindContactsPagedResultType{ groups: Some(groups), contacts: Some(array_of_contact), circle_result: Some(circle_result), ab: ab };
             let body_body = AbfindContactsPagedResponse{ ab_find_contacts_paged_result: result };
             let body = SoapAbfindContactsPagedResponseMessage{ body: body_body, fault: None };
             let r = AbfindContactsPagedResponseMessageSoapEnvelope{header: Some(service_header_container), body };

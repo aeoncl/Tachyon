@@ -41,7 +41,7 @@ pub enum ABError {
 }
 
 
-const MARSHALL_ERROR : &str = r#"<?xml version="1.0" encoding="utf-8"?>
+pub const MARSHALL_ERROR : &str = r#"<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <soap:Body>
         <soap:Fault>
