@@ -1,20 +1,14 @@
 use axum::http::StatusCode;
 use axum::response::Response;
-use chrono::{DateTime, Local, TimeZone};
 use matrix_sdk::Client;
-use matrix_sdk::ruma::events::{AnySyncMessageLikeEvent, SyncMessageLikeEvent};
-use matrix_sdk::ruma::events::room::message::MessageType;
-use msnp::shared::models::email_address::EmailAddress;
+
 use msnp::shared::models::oim::{MetaData, MetadataMessage};
 use msnp::shared::models::ticket_token::TicketToken;
-use msnp::shared::payload::raw_msg_payload::factories::MsgPayloadFactory;
-use msnp::shared::payload::raw_msg_payload::RawMsgPayload;
-use msnp::soap::rsi::get_message::request::GetMessageMessageSoapEnvelope;
 use msnp::soap::rsi::get_metadata::request::GetMetadataMessageSoapEnvelope;
 use msnp::soap::rsi::get_metadata::response::GetMetadataResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::ToXml;
-use crate::notification::client_store::{ClientData, ClientDataInner, ClientStoreFacade};
-use crate::shared::identifiers::MatrixIdCompatible;
+
+use crate::notification::client_store::ClientData;
 use crate::web::soap::rsi::error::RSIError;
 use crate::web::soap::shared;
 

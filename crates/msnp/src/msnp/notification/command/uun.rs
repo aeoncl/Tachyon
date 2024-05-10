@@ -46,7 +46,7 @@ impl MSNPCommand for UunClient {
 
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         todo!()
     }
 }
@@ -67,7 +67,7 @@ impl MSNPPayload for UunPayload {
         todo!()
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         match self {
             UunPayload::DisconnectClient => b"goawyplzthxbye".to_vec(),
             UunPayload::DisconnectAllClients => b"gtfo".to_vec(),
@@ -185,10 +185,10 @@ impl MSNPCommand for UbnServer {
         todo!()
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         let payload_type  = UserNotificationType::from(&self.payload);
 
-        let mut payload = self.payload.to_bytes();
+        let mut payload = self.payload.into_bytes();
         let mut command = format!("UBN {dest} {payload_type} {payload_size}\r\n", dest = self.destination, payload_type = payload_type as u32, payload_size = payload.len()).into_bytes();
 
         command.append(&mut payload);

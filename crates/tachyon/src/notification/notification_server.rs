@@ -15,14 +15,15 @@ use msnp::msnp::notification::command::usr::{AuthPolicy, OperationTypeClient, Op
 use msnp::msnp::notification::models::msnp_version::MsnpVersion::MSNP18;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
-use msnp::shared::payload::raw_msg_payload::factories::MsgPayloadFactory;
+use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use msnp::shared::traits::MSNPCommand;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::OwnedWriteHalf, TcpListener, TcpStream}, sync::{broadcast::{self, Receiver}, mpsc::{self, Sender}}};
 use tokio::sync::oneshot;
-use msnp::msnp::notification::command::uum::{FontStyle, UumPayload};
+use msnp::msnp::notification::command::uum::UumPayload;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
+use msnp::shared::payload::msg::text_msg::FontStyle;
 use crate::matrix;
 
 use crate::notification::client_store::{ClientData, ClientStoreFacade};
@@ -175,7 +176,7 @@ fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> S
                 command = receiver.recv() => {
                     if let Some(command) = command {
 
-                        let bytes = command.to_bytes();
+                        let bytes = command.into_bytes();
 
                         unsafe {
                             debug!("NS >> | {}", from_utf8_unchecked(&bytes));
@@ -255,7 +256,7 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
                             let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
                                 sender: "Hotmail".to_string(),
                                 display_name: "Hotmail".to_string(),
-                                payload: MsgPayload::Raw(MsgPayloadFactory::get_msmsgs_profile(&uuid.get_puid(), &local_store.email_addr, &ticket_token))
+                                payload: MsgPayload::Raw(RawMsgPayloadFactory::get_msmsgs_profile(&uuid.get_puid(), &local_store.email_addr, &ticket_token))
                             });
 
                             notif_sender.send(initial_profile_msg).await?;
@@ -289,7 +290,7 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
             notif_sender.send(NotificationServerCommand::QNG(60)).await?;
             Ok(())
         }
-        //Seems to wait indefinitely for ADL Response
+        //The client waits indefinitely for initial ADL Response, useful if we need time to sync contacts without hitting the timeout :D
         NotificationClientCommand::ADL(command) => {
 
             notif_sender.send(NotificationServerCommand::Ok(command.get_ok_response("ADL"))).await?;
@@ -345,8 +346,6 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
                                 let face_attr = if content.is_default_font() { String::new() } else { format!(" face=\"{}\"", content.font_family) };
                                 message = format!("<font{}{}>{}</font>",  color_attr, face_attr, message);
 
-
-
                                 RoomMessageEventContent::text_html(content.body, message)
                             };
 
@@ -358,10 +357,10 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
 
                     Ok(())
                 },
-                UumPayload::TypingUser() => {
+                UumPayload::TypingUser(_) => {
                     todo!()
                 }
-                UumPayload::Nudge() => {
+                UumPayload::Nudge(_) => {
                     todo!()
 
                 }

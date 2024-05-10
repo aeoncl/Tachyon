@@ -37,7 +37,7 @@ impl MSNPCommand for UsrClient {
         })
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         todo!()
     }
 }
@@ -56,7 +56,7 @@ impl MSNPCommand for UsrServerOk {
         todo!()
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         format!("USR {} {} {} OK\r\n", self.tr_id, self.email_addr, self.display_name).into_bytes()
     }
 }

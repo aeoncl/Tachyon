@@ -313,7 +313,7 @@ impl MSNPCommand for RawCommand {
         Ok(raw)
     }
 
-    fn to_bytes(mut self) -> Vec<u8> {
+    fn into_bytes(mut self) -> Vec<u8> {
         let mut cmd = if !self.payload.is_empty() {
             format!("{} {}\r\n", &self.command, self.payload.len())
         } else {

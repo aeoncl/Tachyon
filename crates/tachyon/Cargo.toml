@@ -13,6 +13,8 @@ hostname = "0.4.0"
 http-body-util = "0.1.1"
 dashmap = "5.5.3"
 
+#Used for message formatting parsing
+html5ever = "0.27.0"
 
 #Workspace dependencies
 anyhow.workspace = true

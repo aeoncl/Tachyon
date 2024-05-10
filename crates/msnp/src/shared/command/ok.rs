@@ -22,6 +22,6 @@ impl MSNPCommand for OkCommand {
         todo!()
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()    }
 }

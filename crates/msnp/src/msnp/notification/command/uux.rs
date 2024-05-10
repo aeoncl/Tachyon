@@ -45,7 +45,7 @@ impl MSNPCommand for Uux {
         })
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         self.to_string().as_bytes().to_vec()
     }
 }
@@ -73,7 +73,7 @@ impl MSNPPayload for UuxPayload {
         UuxPayload::from_str(&payload)
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
 }

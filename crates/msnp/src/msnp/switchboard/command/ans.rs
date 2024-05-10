@@ -43,7 +43,7 @@ impl MSNPCommand for AnsClient {
         })
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         todo!()
     }
 }

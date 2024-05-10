@@ -28,7 +28,7 @@ impl MSNPCommand for CalClient {
 
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         todo!()
     }
 }
@@ -45,7 +45,7 @@ impl MSNPCommand for CalServer {
         todo!()
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         format!("CAL {} {}\r\n", self.tr_id, self.session_id).into_bytes()
     }
 }

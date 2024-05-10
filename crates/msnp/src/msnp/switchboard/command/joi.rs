@@ -24,7 +24,7 @@ impl MSNPCommand for JoiServer {
         todo!()
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         format!("JOI {endpoint_id} {display_name} {capabilities}\r\n",endpoint_id =  self.endpoint_id, display_name = self.display_name, capabilities = self.capabilities).into_bytes()
     }
 }

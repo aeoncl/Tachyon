@@ -48,7 +48,7 @@ impl MSNPCommand for VerClient {
 
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
 }
@@ -92,7 +92,7 @@ impl MSNPCommand for VerServer {
 
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
 }

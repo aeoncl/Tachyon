@@ -1,21 +1,21 @@
 use std::fmt::{Display, Formatter};
 use std::io::{Read, Write};
 use std::str::{from_utf8, FromStr};
+
 use chrono::{DateTime, Local, Utc};
 use log::Metadata;
 use xml::attribute::OwnedAttribute;
 use xml::namespace::Namespace;
-use yaserde::ser::{Config, Serializer, to_string, to_string_with_config};
 use yaserde::{YaDeserialize, YaSerialize};
 use yaserde::de::Deserializer;
+use yaserde::ser::{Config, Serializer, to_string, to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
+
 use crate::msnp::error::PayloadError;
 use crate::shared::config::yaserde::CONFIG_NO_DECL;
-
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::uuid::Uuid;
-use crate::shared::payload::raw_msg_payload::factories::MsgPayloadFactory;
-use crate::shared::payload::raw_msg_payload::RawMsgPayload;
+use crate::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use crate::shared::traits::MSNPPayload;
 use crate::soap::error::SoapMarshallError;
 use crate::soap::traits::xml::ToXml;
@@ -190,8 +190,8 @@ impl FromStr for OIM {
 
 impl Display for OIM {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let msg_payload = MsgPayloadFactory::get_oim(self.recv_datetime, self.sender.as_str(), self.sender_display_name.as_ref().map(|e| e.as_str()).unwrap_or(""), self.receiver.as_str(),self.run_id.to_string().as_str() ,self.seq_number, self.message_id.as_str(), self.content.as_str(), self.content_type.as_str());
-        let bytes = msg_payload.to_bytes();
+        let msg_payload = RawMsgPayloadFactory::get_oim(self.recv_datetime, self.sender.as_str(), self.sender_display_name.as_ref().map(|e| e.as_str()).unwrap_or(""), self.receiver.as_str(), self.run_id.to_string().as_str(), self.seq_number, self.message_id.as_str(), self.content.as_str(), self.content_type.as_str());
+        let bytes = msg_payload.into_bytes();
 
         write!(f, "{}", from_utf8(&bytes).expect("OIM payload to never contain binary data"))
     }
@@ -243,7 +243,6 @@ mod tests {
     use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::oim::{MetaData, MetadataMessage};
     use crate::soap::traits::xml::ToXml;
-
 
     #[test]
     fn ser_metadata_message() {

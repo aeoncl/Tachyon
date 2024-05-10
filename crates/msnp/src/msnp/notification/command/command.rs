@@ -60,7 +60,7 @@ impl MSNPCommand for NotificationClientCommand {
         Ok(out)
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         todo!()
     }
 }
@@ -90,19 +90,19 @@ impl MSNPCommand for NotificationServerCommand {
         todo!()
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         match self {
-            NotificationServerCommand::VER(command) => command.to_bytes(),
-            NotificationServerCommand::CVR(command) => command.to_bytes(),
-            NotificationServerCommand::MSG(command) => command.to_bytes(),
+            NotificationServerCommand::VER(command) => command.into_bytes(),
+            NotificationServerCommand::CVR(command) => command.into_bytes(),
+            NotificationServerCommand::MSG(command) => command.into_bytes(),
             NotificationServerCommand::QNG(timeout) => format!("QNG {}\r\n", timeout).into_bytes(),
-            NotificationServerCommand::USR(command) => command.to_bytes(),
-            NotificationServerCommand::Ok(command) => command.to_bytes(),
-            NotificationServerCommand::Uux(command) => command.to_bytes(),
-            NotificationServerCommand::CHG(command) => command.to_bytes(),
-            NotificationServerCommand::BLP(command) => command.to_bytes(),
+            NotificationServerCommand::USR(command) => command.into_bytes(),
+            NotificationServerCommand::Ok(command) => command.into_bytes(),
+            NotificationServerCommand::Uux(command) => command.into_bytes(),
+            NotificationServerCommand::CHG(command) => command.into_bytes(),
+            NotificationServerCommand::BLP(command) => command.into_bytes(),
             NotificationServerCommand::OUT => b"OUT\r\n".to_vec(),
-            NotificationServerCommand::RAW(content) => content.to_bytes(),
+            NotificationServerCommand::RAW(content) => content.into_bytes(),
         }    }
 }
 

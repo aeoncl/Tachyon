@@ -25,7 +25,7 @@ impl MSNPCommand for IroServer {
         todo!()
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         format!("IRO {tr_id} {index} {roster_count} {endpoint_id} {display_name} {capabilities}\r\n", tr_id = self.tr_id, index = self.index, roster_count = self.roster_count, endpoint_id =  self.endpoint_id, display_name = self.display_name, capabilities = self.capabilities).into_bytes()
     }
 }

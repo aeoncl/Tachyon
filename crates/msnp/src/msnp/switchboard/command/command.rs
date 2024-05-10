@@ -35,7 +35,7 @@ impl MSNPCommand for SwitchboardClientCommand {
         };
         Ok(out)    }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         todo!()
     }
 }
@@ -60,16 +60,16 @@ impl MSNPCommand for SwitchboardServerCommand {
         todo!()
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         match self {
-            SwitchboardServerCommand::OK(command) => command.to_bytes(),
-            SwitchboardServerCommand::USR(command) => command.to_bytes(),
-            SwitchboardServerCommand::CAL(command) => command.to_bytes(),
-            SwitchboardServerCommand::ACK(command) => command.to_bytes(),
-            SwitchboardServerCommand::MSG(command) => command.to_bytes(),
-            SwitchboardServerCommand::IRO(command) => command.to_bytes(),
-            SwitchboardServerCommand::JOI(command) => command.to_bytes(),
+            SwitchboardServerCommand::OK(command) => command.into_bytes(),
+            SwitchboardServerCommand::USR(command) => command.into_bytes(),
+            SwitchboardServerCommand::CAL(command) => command.into_bytes(),
+            SwitchboardServerCommand::ACK(command) => command.into_bytes(),
+            SwitchboardServerCommand::MSG(command) => command.into_bytes(),
+            SwitchboardServerCommand::IRO(command) => command.into_bytes(),
+            SwitchboardServerCommand::JOI(command) => command.into_bytes(),
             SwitchboardServerCommand::OUT => b"OUT\r\n".to_vec(),
-            SwitchboardServerCommand::RAW(command) => command.to_bytes(),
+            SwitchboardServerCommand::RAW(command) => command.into_bytes(),
         }    }
 }

@@ -134,7 +134,7 @@ impl MSNPPayload for RawMsgPayload {
      Body
      \r\n (sometimes)
      */
-    fn to_bytes(mut self) -> Vec<u8> {
+    fn into_bytes(mut self) -> Vec<u8> {
         let mut out = TEMPLATE.as_bytes().to_vec();
 
         out.append(&mut self.content_type.into_bytes());
@@ -181,9 +181,9 @@ pub mod factories {
 
     use super::RawMsgPayload;
 
-    pub struct MsgPayloadFactory;
+    pub struct RawMsgPayloadFactory;
 
-    impl MsgPayloadFactory {
+    impl RawMsgPayloadFactory {
         pub fn get_msmsgs_profile(puid: &Puid, msn_addr: &EmailAddress, ticket_token: &TicketToken) -> RawMsgPayload {
             let mut out = RawMsgPayload::new("text/x-msmsgsprofile");
             let now = Local::now().timestamp_millis();
@@ -340,8 +340,8 @@ mod tests {
     use byteorder::{ByteOrder, LittleEndian};
 
     use crate::shared::models::uuid::Uuid;
-    use crate::shared::payload::raw_msg_payload::factories::MsgPayloadFactory;
-    use crate::shared::payload::raw_msg_payload::RawMsgPayload;
+    use crate::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
+    use crate::shared::payload::msg::raw_msg_payload::RawMsgPayload;
     use crate::shared::traits::MSNPPayload;
 
     #[test]
@@ -381,8 +381,8 @@ mod tests {
 
     #[test]
     fn test_oim_ser() {
-        let oim = MsgPayloadFactory::get_oim(chrono::Local::now().to_utc(), "from@shlasouf.local", "displayname","to@shlasouf.local", &Uuid::new().to_string(), 1, "id1", "Hello !!!!", "text/plain");
-        let oim_ser = oim.to_bytes();
+        let oim = RawMsgPayloadFactory::get_oim(chrono::Local::now().to_utc(), "from@shlasouf.local", "displayname", "to@shlasouf.local", &Uuid::new().to_string(), 1, "id1", "Hello !!!!", "text/plain");
+        let oim_ser = oim.into_bytes();
         let test = from_utf8(oim_ser.as_slice()).unwrap();
         print!("{}", test);
     }
@@ -392,7 +392,7 @@ mod tests {
         let mut payload = RawMsgPayload::new("content-type");
         payload.add_header("headerName","headerValue");
         payload.disable_trailing_terminators();
-        let serialized = payload.to_bytes();
+        let serialized = payload.into_bytes();
         assert_eq!(b"MIME-Version: 1.0\r\nContent-Type: content-type; charset=UTF-8\r\nheaderName: headerValue\r\n\r\n", serialized.as_slice());
     }
 
@@ -406,7 +406,7 @@ mod tests {
         assert_eq!(result.content_type, "text/plain");
         assert_eq!(Some("FN=Segoe%20UI; EF=; CO=0; CS=1; PF=0"), result.get_header("X-MMS-IM-Format"));
 
-        let serialized = result.to_bytes();
+        let serialized = result.into_bytes();
         assert_eq!("MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nX-MMS-IM-Format: FN=Segoe%20UI; EF=; CO=0; CS=1; PF=0\r\n\r\nfaefeafa", from_utf8(serialized.as_slice()).unwrap());
     }
 }

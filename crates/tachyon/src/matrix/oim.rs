@@ -6,7 +6,7 @@ use matrix_sdk::{Client, Room};
 use matrix_sdk::room::MessagesOptions;
 use matrix_sdk::ruma::api::client::filter::RoomEventFilter;
 use matrix_sdk::ruma::events::{AnyMessageLikeEvent, AnySyncMessageLikeEvent, AnySyncTimelineEvent, AnyTimelineEvent, EventContent, MessageLikeEvent, MessageLikeEventType, SyncMessageLikeEvent};
-use matrix_sdk::ruma::events::room::message::{MessageType, RoomMessageEvent, SyncRoomMessageEvent};
+use matrix_sdk::ruma::events::room::message::{FormattedBody, MessageType, RoomMessageEvent, SyncRoomMessageEvent};
 use matrix_sdk::ruma::{EventId, OwnedRoomId, OwnedUserId, uint, UserId};
 use matrix_sdk::ruma::events::room::member::MembershipState;
 use matrix_sdk::ruma::events::StateEvent::{Original, Redacted};
@@ -19,7 +19,7 @@ use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::oim::OIM;
 use msnp::shared::models::uuid::Uuid;
-use msnp::shared::payload::raw_msg_payload::factories::MsgPayloadFactory;
+use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use crate::notification::client_store::{ClientData, ClientStoreError};
 use crate::shared::identifiers::MatrixIdCompatible;
 
@@ -139,7 +139,7 @@ pub async fn handle_oims(client: Client, response: SyncResponse, mut client_data
     }
 
 
-    let payload = if !client_data.get_oims().is_empty() { MsgPayloadFactory::get_initial_mail_data_too_large_notification() } else { MsgPayloadFactory::get_initial_mail_data_empty_notification() };
+    let payload = if !client_data.get_oims().is_empty() { RawMsgPayloadFactory::get_initial_mail_data_too_large_notification() } else { RawMsgPayloadFactory::get_initial_mail_data_empty_notification() };
 
     notif_sender.send(NotificationServerCommand::MSG(MsgServer {
         sender: "Hotmail".to_string(),

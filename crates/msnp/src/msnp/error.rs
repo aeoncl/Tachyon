@@ -91,6 +91,7 @@ pub enum PayloadError {
     #[error(transparent)]
     HexDecodeError(#[from] FromHexError),
     #[error(transparent)]
-    AnyError(#[from] anyhow::Error)
-
+    AnyError(#[from] anyhow::Error),
+    #[error(transparent)]
+    IdentifierError(#[from] IdentifierError)
 }

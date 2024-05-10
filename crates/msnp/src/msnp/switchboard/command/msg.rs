@@ -13,7 +13,7 @@ use strum_macros::{Display, EnumString};
 
 use crate::msnp::error::{CommandError, PayloadError};
 use crate::msnp::raw_command_parser::RawCommand;
-use crate::shared::payload::raw_msg_payload::RawMsgPayload;
+use crate::shared::payload::msg::raw_msg_payload::RawMsgPayload;
 use crate::shared::traits::{MSNPCommand, MSNPPayload};
 
 pub struct MsgClient {
@@ -43,7 +43,7 @@ impl MSNPCommand for MsgClient {
         })
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         todo!()
     }
 }
@@ -74,8 +74,8 @@ impl MSNPCommand for MsgServer {
         todo!()
     }
 
-    fn to_bytes(self) -> Vec<u8> {
-        let mut payload = self.payload.to_bytes();
+    fn into_bytes(self) -> Vec<u8> {
+        let mut payload = self.payload.into_bytes();
         let mut cmd = format!("MSG {} {} {}\r\n", self.sender, self.display_name, payload.len()).into_bytes();
         cmd.append(&mut payload);
 
@@ -97,9 +97,9 @@ impl MSNPPayload for MsgPayload {
         todo!()
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         match self {
-            MsgPayload::Raw(payload) => { payload.to_bytes() }
+            MsgPayload::Raw(payload) => { payload.into_bytes() }
             _ => {
                 todo!()
             }

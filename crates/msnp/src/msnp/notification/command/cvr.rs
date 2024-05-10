@@ -84,7 +84,7 @@ impl MSNPCommand for CvrClient {
         })
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         todo!()
     }
 }
@@ -142,7 +142,7 @@ impl MSNPCommand for CvrServer {
         todo!()
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
 }

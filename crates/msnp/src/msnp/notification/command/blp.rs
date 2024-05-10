@@ -32,7 +32,7 @@ impl MSNPCommand for Blp {
         let list_type = ListType::from_str(&raw_list_type)?;
         Ok(Self { tr_id, list_type })    }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
 }

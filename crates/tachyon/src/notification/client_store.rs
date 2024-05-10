@@ -1,24 +1,19 @@
-use std::collections::{HashMap, VecDeque};
-use std::hash::RandomState;
-use std::ops::BitOr;
-use std::sync::{Arc, LockResult, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::collections::VecDeque;
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+
 use anyhow::anyhow;
 use dashmap::DashMap;
-use dashmap::iter::Iter;
-use dashmap::mapref::one::{Ref, RefMut};
 use matrix_sdk::Client;
-use matrix_sdk::ruma::events::AnySyncMessageLikeEvent;
 use matrix_sdk::ruma::OwnedRoomId;
 use thiserror::__private::AsDynError;
 use thiserror::Error;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
+
 use msnp::msnp::models::contact_list::ContactList;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::shared::models::msn_user::MsnUser;
-use msnp::shared::models::oim::{MetadataMessage, OIM};
+use msnp::shared::models::oim::OIM;
 use msnp::shared::models::ticket_token::TicketToken;
-use msnp::shared::payload::raw_msg_payload::RawMsgPayload;
-
 
 #[derive(Clone)]
 pub struct SwitchboardHandle {

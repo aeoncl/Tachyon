@@ -62,7 +62,7 @@ impl MSNPCommand for Prp {
         Ok(Self { tr_id, operation })
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         todo!()
     }
 }

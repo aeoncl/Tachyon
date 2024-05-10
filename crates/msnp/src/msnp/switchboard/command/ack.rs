@@ -14,7 +14,7 @@ impl MSNPCommand for AckServer {
         todo!()
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         format!("ACK {}\r\n", self.tr_id).into_bytes()
     }
 }

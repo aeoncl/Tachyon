@@ -50,7 +50,7 @@ impl MSNPCommand for AdlClient {
         })
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         todo!()
     }
 }
@@ -142,7 +142,7 @@ impl MSNPPayload for ADLPayload {
         Self::from_str(&payload)
     }
 
-    fn to_bytes(self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
 }
