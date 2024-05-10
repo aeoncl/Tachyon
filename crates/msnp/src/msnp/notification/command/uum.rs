@@ -115,93 +115,145 @@ impl UumPayload {
 
 }
 
-pub struct FontColor(u32);
+#[derive(Debug)]
+pub struct OvercomplicatedFontColor {
+    red: u8,
+    green: u8,
+    blue: u8
+}
 
-impl FontColor {
+impl OvercomplicatedFontColor {
 
     const BGR_RED_MASK: u32 = 0xFF000000;
     const BGR_GREEN_MASK: u32 = 0x00FF0000;
     const BGR_BLUE_MASK: u32 = 0x0000FF00;
 
+    fn parse_hex_str(hex_str: &str) -> Result<u32, PayloadError> {
+        let mut hex_str = hex_str.to_string();
+        if(hex_str.len() % 2 != 0){
+            hex_str = format!("0{}", &hex_str);
+        }
+
+        if(hex_str.len() > 6) {
+            return Err(PayloadError::AnyError(anyhow!("Hex String Color Invalid size: length: {} str: {}", hex_str.len(), hex_str)));
+        }
+
+        let mut hex_str_buffer = hex::decode(hex_str)?;
+        if hex_str_buffer.len() < 4 {
+            let mut padding: Vec<u8> = vec![0; 4 - hex_str_buffer.len()];
+            padding.append(&mut hex_str_buffer);
+            hex_str_buffer = padding;
+        }
+
+        Ok(LittleEndian::read_u32(&hex_str_buffer))
+    }
+
+    pub fn parse_from_rgb(rgb: &str) -> Result<Self, PayloadError> {
+
+        let color_flags = OvercomplicatedFontColor::parse_hex_str(rgb)?;
+
+        let red =  ((color_flags & Self::BGR_BLUE_MASK) >> 8) as u8;
+
+        let blue =  ((color_flags & Self::BGR_RED_MASK) >> 24) as u8;
+
+        let green = ((color_flags& Self::BGR_GREEN_MASK) >> 16) as u8;
+
+        Ok(Self{
+            red,
+            green,
+            blue,
+        })
+    }
+
     pub fn parse_from_bgr(bgr: &str) -> Result<Self, PayloadError> {
 
-        if(bgr=="0"){
-            return Ok(Self(0));
-        }
+        let color_flags = OvercomplicatedFontColor::parse_hex_str(bgr)?;
 
-        if(bgr.len() > 6 || bgr.len() % 2 != 0) {
-            return Err(PayloadError::AnyError(anyhow!("BGR Color Invalid size: length: {} str: {}", bgr.len(), bgr)));
-        }
+        let red =  ((color_flags & Self::BGR_RED_MASK) >> 24) as u8;
 
+        let blue =  ((color_flags & Self::BGR_BLUE_MASK) >> 8) as u8;
 
+        let green = ((color_flags& Self::BGR_GREEN_MASK) >> 16) as u8;
 
-        let mut bgr_buffer = hex::decode(bgr)?;
-        bgr_buffer.resize(4, 0);
-
-        let bgr_parsed= BigEndian::read_u32(&bgr_buffer);
-
-
-        Ok(Self(bgr_parsed))
-    }
-
-    fn print_array(&self, str: &str, value: u32) {
-        let mut buf: [u8;4] = [0;4];
-        BigEndian::write_u32(&mut buf, value);
-        let array = BitArray::<u8, U32>::from_bytes(&buf);
-        println!("{}: {:?}", str, array);
-    }
-
-    pub fn get_blue(&self) -> u8{
-        println!("--BLUE--");
-        self.print_array("Global Array", self.0);
-
-        self.print_array("Mask:       ",  Self::BGR_BLUE_MASK);
-        self.print_array("Mask And:   ", (self.0 & Self::BGR_BLUE_MASK) as u32);
-        let bitshift =  ((self.0 & Self::BGR_BLUE_MASK));
-
-        self.print_array("Bitshift:   ", bitshift);
-
-        bitshift as u8
+        Ok(Self{
+            red,
+            green,
+            blue,
+        })
     }
 
     pub fn get_red(&self) -> u8{
-        println!("--RED--");
-
-        self.print_array("Global Array", self.0);
-        self.print_array("Mask:       ",  Self::BGR_RED_MASK);
-        self.print_array("Mask And:   ", (self.0 & Self::BGR_RED_MASK) as u32);
-        self.print_array("Bitshift:   ", ((self.0 & Self::BGR_RED_MASK)) as u32);
-
-        let bitshift = ((self.0 & Self::BGR_RED_MASK) >> 24);
-        self.print_array("Bitshift:   ", bitshift);
-
-
-        bitshift as u8
+        self.red
     }
 
     pub fn get_green(&self) -> u8{
-        println!("--GREEN--");
+        self.green
+    }
 
-        self.print_array("Global Array", self.0);
-        self.print_array("Mask:       ",  Self::BGR_GREEN_MASK);
-        self.print_array("Mask And:   ", (self.0 & Self::BGR_GREEN_MASK) as u32);
+    pub fn get_blue(&self) -> u8{
+        self.blue
+    }
 
-        let bitshift = ((self.0 & Self::BGR_GREEN_MASK) >> 16);
+    pub fn serialize_bgr(&self) -> String {
+        hex::encode(vec![self.blue, self.green, self.red])
+    }
 
-        self.print_array("Bitshift:   ", bitshift);
-
-        bitshift as u8
+    pub fn serialize_rgb(&self) -> String {
+        hex::encode(vec![self.red, self.green, self.blue])
     }
 
 }
 
+impl Display for OvercomplicatedFontColor {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.serialize_bgr())
+    }
+}
+
+#[derive(Debug)]
+pub struct FontColor(String);
+
+impl FontColor{
+
+    pub fn is_black(&self) -> bool {
+        &self.0 == "000000"
+    }
+
+    pub fn parse_from_rgb(rgb: &str) -> Result<Self, PayloadError> {
+        Self::parse_from_bgr(&format!("{}{}{}", &rgb[4..6], &rgb[2..4], &rgb[0..2]))
+    }
+
+    pub fn parse_from_bgr(bgr: &str) -> Result<Self, PayloadError> {
+
+        let mut hex_str = bgr.to_string();
+
+        if(hex_str.len() % 2 != 0){
+            hex_str = format!("0{:0>5}", &hex_str);
+        } else {
+            hex_str = format!("{:0>6}", &hex_str);
+        }
+
+        if(hex_str.len() > 6) {
+            return Err(PayloadError::AnyError(anyhow!("Hex String Color Invalid size: length: {} str: {}", hex_str.len(), hex_str)));
+        }
+
+        let _hex_str_buffer = hex::decode(hex_str.clone())?;
+
+        Ok(Self(hex_str.to_lowercase()))
+    }
+
+    pub fn serialize_bgr(&self) -> String {
+        self.0.to_string()
+    }
+
+    pub fn serialize_rgb(&self) -> String {
+        format!("{}{}{}", &self.0[4..6], &self.0[2..4], &self.0[0..2])
+    }
+}
+
 impl Display for FontColor {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-
-        let mut buf :[u8;4] = [0;4];
-        LittleEndian::write_u32(&mut buf, self.0);
-
-        write!(f, "{}", hex::encode(buf))
+        write!(f, "{}", self.serialize_bgr())
     }
 }
 
@@ -278,6 +330,27 @@ pub struct TextMessageContent {
     pub body : String,
 }
 
+impl TextMessageContent {
+
+    pub fn is_styling_default(&self) -> bool {
+       self.is_default_font_color() && self.is_default_font_styles() && self.is_default_font()
+    }
+
+    pub fn is_default_font_styles(&self) -> bool {
+        self.font_styles.0 == 0
+    }
+
+    pub fn is_default_font_color(&self) -> bool {
+        self.font_color.is_black()
+    }
+
+    pub fn is_default_font(&self) -> bool {
+        &self.font_family == "Segoe UI"
+    }
+
+}
+
+
 pub struct TypingUserMessageContent(RawMsgPayload);
 pub struct NudgeMessageContent(RawMsgPayload);
 
@@ -333,7 +406,7 @@ impl UumClient {
 
 #[cfg(test)]
 mod tests {
-    use crate::msnp::notification::command::uum::{FontColor, FontStyle, MessageType, NetworkId, UumClient, UumPayload};
+    use crate::msnp::notification::command::uum::{OvercomplicatedFontColor, FontStyle, MessageType, NetworkId, UumClient, UumPayload, FontColor};
     use crate::msnp::raw_command_parser::{RawCommand, RawCommandParser};
     use crate::shared::traits::MSNPCommand;
 
@@ -375,8 +448,8 @@ mod tests {
 
         if let UumPayload::TextMessage(content) = uum_client.payload {
            // assert_eq!(0, content.font_color);
-            assert_eq!("Microsoft Sans Serif", &content.font_family);
-            assert_eq!("Hello Bob !", &content.body);
+            assert_eq!("Segoe UI Semibold", &content.font_family);
+            assert_eq!("TEST", &content.body);
             assert_eq!(false, content.right_to_left);
             assert!(content.font_styles.matches(FontStyle::Italic));
             assert!(content.font_styles.matches(FontStyle::Underline));
@@ -384,49 +457,123 @@ mod tests {
 
     }
 
-    fn font_color_ser_tests() {
+    #[test]
+    pub fn complicated_font_color_tests_rgb() {
+        let some_purple = OvercomplicatedFontColor::parse_from_rgb("762EE1").expect("to be kinda purple");
 
+        println!("{:?}", &some_purple);
+        assert_eq!(118, some_purple.get_red());
+        assert_eq!(46, some_purple.get_green());
+        assert_eq!(225, some_purple.get_blue());
+        let some_purple_str = some_purple.serialize_rgb();
+        assert_eq!("762ee1", &some_purple_str);
     }
 
     #[test]
-    pub fn font_color_deser_tests() {
-        // let black = FontColor::parse_from_bgr("0").expect("to be black");
-        // assert_eq!(0, black.get_blue());
-        // assert_eq!(0, black.get_green());
-        // assert_eq!(0, black.get_red());
+    pub fn complicated_font_color_tests_bgr() {
+        let black = OvercomplicatedFontColor::parse_from_bgr("0").expect("to be black");
+        assert_eq!(0, black.get_blue());
+        assert_eq!(0, black.get_green());
+        assert_eq!(0, black.get_red());
+        let black_str = black.to_string();
+        assert_eq!("000000", &black_str);
 
-        // let purple=FontColor::parse_from_bgr("ff00ff").expect("to be purple");
-        // assert_eq!(255, purple.get_blue());
-        // assert_eq!(0, purple.get_green());
-        // assert_eq!(255, purple.get_red());
+        let black = OvercomplicatedFontColor::parse_from_bgr("1").expect("to be black");
+        assert_eq!(0, black.get_blue());
+        assert_eq!(0, black.get_green());
+        assert_eq!(1, black.get_red());
+        let black_str = black.to_string();
+        assert_eq!("000001", &black_str);
 
-        // let red=FontColor::parse_from_bgr("ff").expect("to be red");
-        // assert_eq!(0, red.get_blue());
-        // assert_eq!(0, red.get_green());
-        // assert_eq!(255, red.get_red());
-        //
-        // let blue=FontColor::parse_from_bgr("ff0000").expect("to be blue");
-        // assert_eq!(255, blue.get_blue());
-        // assert_eq!(0, blue.get_green());
-        // assert_eq!(0, blue.get_red());
-        //
-         let green=FontColor::parse_from_bgr("ff00").expect("to be green");
+        let purple= OvercomplicatedFontColor::parse_from_bgr("ff00ff").expect("to be purple");
+        assert_eq!(255, purple.get_blue());
+        assert_eq!(0, purple.get_green());
+        assert_eq!(255, purple.get_red());
+        let purple_str = purple.to_string();
+        assert_eq!("ff00ff", &purple_str);
+
+        let red= OvercomplicatedFontColor::parse_from_bgr("ff").expect("to be red");
+        assert_eq!(0, red.get_blue());
+        assert_eq!(0, red.get_green());
+        assert_eq!(255, red.get_red());
+        let red_str = red.to_string();
+        assert_eq!("0000ff", &red_str);
+
+        let blue= OvercomplicatedFontColor::parse_from_bgr("ff0000").expect("to be blue");
+        assert_eq!(255, blue.get_blue());
+        assert_eq!(0, blue.get_green());
+        assert_eq!(0, blue.get_red());
+        let blue_str = blue.to_string();
+        assert_eq!("ff0000", &blue_str);
+
+         let green= OvercomplicatedFontColor::parse_from_bgr("ff00").expect("to be green");
          assert_eq!(0, green.get_blue());
          assert_eq!(255, green.get_green());
          assert_eq!(0, green.get_red());
+        let green_str = green.to_string();
+        assert_eq!("00ff00", &green_str);
 
+        let light_brown = OvercomplicatedFontColor::parse_from_bgr("8080").expect("to be light brown");
+        assert_eq!(0, light_brown.get_blue());
+        assert_eq!(128, light_brown.get_green());
+        assert_eq!(128, light_brown.get_red());
+        let light_brown_str = light_brown.to_string();
+        assert_eq!("008080", &light_brown_str);
 
+        let some_purple = OvercomplicatedFontColor::parse_from_bgr("E12E76").expect("to be kinda purple");
 
+        println!("{:?}", &some_purple);
+        assert_eq!(118, some_purple.get_red());
+        assert_eq!(46, some_purple.get_green());
+        assert_eq!(225, some_purple.get_blue());
+        let some_purple_str = some_purple.serialize_bgr();
+        assert_eq!("e12e76", &some_purple_str);
+    }
 
-        // let light_brown = FontColor::parse_from_bgr("008080").expect("to be light brown");
-        // assert_eq!(0, light_brown.get_blue());
-        // assert_eq!(128, light_brown.get_green());
-        // assert_eq!(128, light_brown.get_red());
+    #[test]
+    pub fn font_color_tests_rgb() {
+        let some_purple = FontColor::parse_from_rgb("762EE1").expect("to be kinda purple");
 
-        // let light_brown = FontColor::parse_from_bgr("8080").expect("to be light brown");
-        // assert_eq!(0, light_brown.get_blue());
-        // assert_eq!(128, light_brown.get_green());
-        // assert_eq!(128, light_brown.get_red());
+        println!("{:?}", &some_purple);
+        let some_purple_str = some_purple.serialize_rgb();
+        assert_eq!("762ee1", &some_purple_str);
+    }
+
+    #[test]
+    pub fn font_color_tests_bgr() {
+        let black = FontColor::parse_from_bgr("0").expect("to be black");
+        let black_str = black.to_string();
+        assert_eq!("000000", &black_str);
+
+        let black = FontColor::parse_from_bgr("1").expect("to be black");
+        let black_str = black.to_string();
+        assert_eq!("000001", &black_str);
+
+        let purple= FontColor::parse_from_bgr("ff00ff").expect("to be purple");
+        let purple_str = purple.to_string();
+        assert_eq!("ff00ff", &purple_str);
+
+        let red= FontColor::parse_from_bgr("ff").expect("to be red");
+        let red_str = red.to_string();
+        assert_eq!("0000ff", &red_str);
+
+        let blue= FontColor::parse_from_bgr("ff0000").expect("to be blue");
+        let blue_str = blue.to_string();
+        assert_eq!("ff0000", &blue_str);
+
+        let green= FontColor::parse_from_bgr("ff00").expect("to be green");
+        let green_str = green.to_string();
+        assert_eq!("00ff00", &green_str);
+
+        let light_brown = FontColor::parse_from_bgr("8080").expect("to be light brown");
+        let light_brown_str = light_brown.to_string();
+        assert_eq!("008080", &light_brown_str);
+
+        let some_purple = FontColor::parse_from_bgr("E12E76").expect("to be kinda purple");
+
+        println!("{:?}", &some_purple);
+        let some_purple_str = some_purple.serialize_bgr();
+        assert_eq!("e12e76", &some_purple_str);
     }
 
 }

@@ -318,27 +318,37 @@ async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Se
                             //TODO SMILEY TO EMOJI
                             //TODO Store event id for dedup
 
+                            let content = if content.is_styling_default() {
+                                RoomMessageEventContent::text_plain(content.body)
+                            } else {
+                                let mut message = content.body.clone();
 
-                            let mut message = content.body.clone();
+                                if !content.is_default_font_styles() {
+                                    if content.font_styles.matches(FontStyle::Bold) {
+                                        message = format!("<b>{}</b>", message)
+                                    }
 
-                            if content.font_styles.matches(FontStyle::Bold) {
-                                message = format!("<b>{}</b>", message)
-                            }
+                                    if content.font_styles.matches(FontStyle::Italic) {
+                                        message = format!("<i>{}</i>", message)
+                                    }
 
-                            if content.font_styles.matches(FontStyle::Italic) {
-                                message = format!("<i>{}</i>", message)
-                            }
+                                    if content.font_styles.matches(FontStyle::Underline) {
+                                        message = format!("<u>{}</u>", message)
+                                    }
 
-                            if content.font_styles.matches(FontStyle::Underline) {
-                                message = format!("<u>{}</u>", message)
-                            }
+                                    if content.font_styles.matches(FontStyle::StrikeThrough) {
+                                        message = format!("<strike>{}</strike>", message)
+                                    }
+                                }
 
-                            if content.font_styles.matches(FontStyle::StrikeThrough) {
-                                message = format!("<strike>{}</strike>", message)
-                            }
+                                let color_attr = if content.is_default_font_color() { String::new() } else { format!(" color=\"{}\"", content.font_color.serialize_rgb())};
+                                let face_attr = if content.is_default_font() { String::new() } else { format!(" face=\"{}\"", content.font_family) };
+                                message = format!("<font{}{}>{}</font>",  color_attr, face_attr, message);
 
-                            let test = format!("<font color=\"#FFFFFF\">{}</font>", message);
-                            let content = RoomMessageEventContent::text_html(content.body, test);
+
+
+                                RoomMessageEventContent::text_html(content.body, message)
+                            };
 
                             let response = room.send(content).await?;
                             //self.add_to_events_sent(response.event_id.to_string());
