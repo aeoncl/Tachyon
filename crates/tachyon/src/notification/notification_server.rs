@@ -27,6 +27,7 @@ use msnp::shared::payload::msg::text_msg::FontStyle;
 use crate::matrix;
 
 use crate::notification::client_store::{ClientData, ClientStoreFacade};
+use crate::notification::handlers::{handle_auth, handle_command, handle_negotiation};
 use crate::shared::identifiers::{MatrixDeviceId, MatrixIdCompatible};
 
 pub struct NotificationServer;
@@ -65,22 +66,37 @@ impl NotificationServer {
     
 }
 
-struct LocalStore {
-    email_addr: EmailAddress,
-    token: TicketToken
+pub(crate) enum Phase {
+    Negotiating,
+    Authenticating,
+    Ready
+}
+
+impl Default for Phase {
+    fn default() -> Self {
+        Phase::Negotiating
+    }
+}
+
+pub(crate) struct LocalStore {
+    pub(crate) phase: Phase,
+    pub(crate) email_addr: EmailAddress,
+    pub(crate) token: TicketToken,
+    pub(crate) client_data: Option<ClientData>
 }
 
 impl Default for LocalStore {
     fn default() -> Self {
         Self {
+            phase: Phase::default(),
             email_addr: EmailAddress::default(),
-            token: TicketToken(String::new())
+            token: TicketToken(String::new()),
+            client_data: None,
         }
     }
 }
 
 async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Receiver<()>, client_store_facade: ClientStoreFacade) -> Result<(), anyhow::Error> {
-
     debug!("Client connected...");
 
     let (read, write) = socket.into_split();
@@ -90,8 +106,6 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
     let command_sender = start_write_task(write, client_kill_recv.resubscribe());
 
     let mut local_store = LocalStore::default();
-
-
 
     let mut parser = RawCommandParser::new();
     let mut reader = BufReader::new(read);
@@ -123,7 +137,6 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
                                 for command in commands {
                                     debug!("NS << | {}", command.get_command());
 
-
                                     let notification_command = NotificationClientCommand::try_from_raw(command);
                                     match notification_command {
                                         Err(e) => {
@@ -131,7 +144,19 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
                                             debug!("{:?}", e);
                                         },
                                         Ok(notification_command) => {
-                                            let command_result = handle_command(notification_command, command_sender.clone(), &client_store_facade, &mut local_store, &client_kill_recv).await;
+                                            let command_result = match &local_store.phase {
+                                                Phase::Negotiating => {
+                                                    handle_negotiation(notification_command, command_sender.clone(), &mut local_store).await
+                                                },
+                                                Phase::Authenticating  => {
+                                                    handle_auth(notification_command, command_sender.clone(), &client_store_facade, &mut local_store, &client_kill_recv).await
+                                                },
+                                                Phase::Ready => {
+                                                    let client_data = local_store.client_data.as_ref().ok_or(anyhow!("Client Data should be here by now"))?.clone();
+                                                    handle_command(notification_command, command_sender.clone(), client_data, &mut local_store, &client_kill_recv).await
+                                                }
+                                            };
+
                                             if let Err(error) = command_result {
                                                 error!("MSNP|NS: An error has occured handling a notification command: {}", &error);
                                                 debug!("MSNP|NS: {:?}", &error);
@@ -195,194 +220,7 @@ fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> S
     sender
 }
 
-const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"9999\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"200\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
-
-async fn handle_command(raw_command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, client_store: &ClientStoreFacade, mut local_store: &mut LocalStore, kill_signal: &broadcast::Receiver<()>) -> Result<(), anyhow::Error> {
-    match raw_command {
-        NotificationClientCommand::VER(command) => {
-            if command.first_candidate != MSNP18 && command.second_candidate != MSNP18 {
-                //Unsupported protocol version
-                //TODO add error code
-                notif_sender.send(NotificationServerCommand::OUT).await?;
-                return Ok(());
-            }
-
-            notif_sender.send(NotificationServerCommand::VER(command.get_response_for(MSNP18))).await;
-            Ok(())
-        },
-        NotificationClientCommand::CVR(command) => {
-            notif_sender.send(NotificationServerCommand::CVR(CvrServer::new(command.tr_id, "14.0.8117.0416".to_string(), "14.0.8117.0416".to_string(), "14.0.8117.0416".to_string(), "localhost".to_string(), "localhost".to_string() ))).await?;
-            Ok(())
-        },
-        NotificationClientCommand::USR(command) => {
-            match command.auth_type {
-
-                OperationTypeClient::Sso(content) => {
-
-                    match content {
-
-                        SsoPhaseClient::I { email_addr } => {
-                            local_store.email_addr = email_addr;
-                            let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Sso(SsoPhaseServer::S { policy: AuthPolicy::MbiKeyOld, nonce: "LAhAAUzdC+JvuB33nooLSa6Oh0oDFCbKrN57EVTY0Dmca8Reb3C1S1czlP12N8VU".to_string() }));
-                            let gcf_response = RawCommand::with_payload("GCF 0", SHIELDS_PAYLOAD.as_bytes().to_vec());
-
-                            notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
-                            notif_sender.send(NotificationServerCommand::RAW(gcf_response)).await?;
-                        },
-
-                        SsoPhaseClient::S { ticket_token, challenge, endpoint_guid } => {
-
-                            let user_id = local_store.email_addr.to_owned_user_id();
-                            let matrix_client = matrix::login::login(user_id, MatrixDeviceId::from_hostname()?, ticket_token.clone(), &Path::new(format!("C:\\temp\\{}", &local_store.email_addr).as_str()), None, true).await?;
-                            local_store.token = ticket_token.clone();
 
 
-                            let endpoint_id = EndpointId::new(local_store.email_addr.clone(), Some(endpoint_guid));
-                            let msn_user = MsnUser::new(endpoint_id);
-
-                            let uuid = msn_user.uuid.clone();
-
-                            client_store.insert_client_data(ticket_token.as_str().to_owned(), ClientData::new(msn_user, ticket_token.clone(), matrix_client.clone()));
-
-                            let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
-                                email_addr: local_store.email_addr.clone(),
-                                verified: true,
-                                unknown_arg: false,
-                            });
-
-                            notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
-                            notif_sender.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await?;
-
-                            let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
-                                sender: "Hotmail".to_string(),
-                                display_name: "Hotmail".to_string(),
-                                payload: MsgPayload::Raw(RawMsgPayloadFactory::get_msmsgs_profile(&uuid.get_puid(), &local_store.email_addr, &ticket_token))
-                            });
-
-                            notif_sender.send(initial_profile_msg).await?;
-
-                            //Todo fetch endpoint data
-                            let endpoint_data = b"<Data></Data>";
-
-                            notif_sender.send(NotificationServerCommand::RAW(RawCommand::with_payload(&format!("UBX 1:{}", &local_store.email_addr), endpoint_data.to_vec()))).await?;
-
-                            let client_data = client_store.get_client_data(local_store.token.as_str()).expect("client_data to be present.");
-                            matrix::sync::start_sync_task(matrix_client, notif_sender.clone(), client_data, kill_signal.resubscribe()).await;
-
-                        }
-
-                    }
-                },
-                OperationTypeClient::Sha(phase) => {
-
-                    let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
-                        email_addr: local_store.email_addr.clone(),
-                        verified: true,
-                        unknown_arg: false,
-                    });
-                    notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
-                }
-
-            }
-            Ok(())
-        },
-        NotificationClientCommand::PNG => {
-            notif_sender.send(NotificationServerCommand::QNG(60)).await?;
-            Ok(())
-        }
-        //The client waits indefinitely for initial ADL Response, useful if we need time to sync contacts without hitting the timeout :D
-        NotificationClientCommand::ADL(command) => {
-
-            notif_sender.send(NotificationServerCommand::Ok(command.get_ok_response("ADL"))).await?;
-
-            Ok(())
-        }
-        NotificationClientCommand::RML(command) => {Ok(())}
-        NotificationClientCommand::UUX(command) => {
-            notif_sender.send(NotificationServerCommand::Uux(command.get_ok_response())).await?;
-            Ok(())
-        },
-        NotificationClientCommand::UUM(command) => {
-
-            let ok_response = command.get_ok_response();
-
-            match command.payload {
-                UumPayload::TextMessage(content) => {
-                    let client_data = client_store.get_client_data(local_store.token.as_str()).expect("client_data to be present.");
-                    let matrix_client = client_data.get_matrix_client();
-                    let room = matrix_client.get_dm_room(&command.destination.email_addr.to_owned_user_id());
-                    match room {
-                        None => {
-                            //NO DM ROOM FOUND
-                        }
-                        Some(room) => {
-                            //TODO SMILEY TO EMOJI
-                            //TODO Store event id for dedup
-
-                            let content = if content.is_styling_default() {
-                                RoomMessageEventContent::text_plain(content.body)
-                            } else {
-                                let mut message = content.body.clone();
-
-                                if !content.is_default_font_styles() {
-                                    if content.font_styles.matches(FontStyle::Bold) {
-                                        message = format!("<b>{}</b>", message)
-                                    }
-
-                                    if content.font_styles.matches(FontStyle::Italic) {
-                                        message = format!("<i>{}</i>", message)
-                                    }
-
-                                    if content.font_styles.matches(FontStyle::Underline) {
-                                        message = format!("<u>{}</u>", message)
-                                    }
-
-                                    if content.font_styles.matches(FontStyle::StrikeThrough) {
-                                        message = format!("<strike>{}</strike>", message)
-                                    }
-                                }
-
-                                let color_attr = if content.is_default_font_color() { String::new() } else { format!(" color=\"{}\"", content.font_color.serialize_rgb())};
-                                let face_attr = if content.is_default_font() { String::new() } else { format!(" face=\"{}\"", content.font_family) };
-                                message = format!("<font{}{}>{}</font>",  color_attr, face_attr, message);
-
-                                RoomMessageEventContent::text_html(content.body, message)
-                            };
-
-                            let response = room.send(content).await?;
-                            //self.add_to_events_sent(response.event_id.to_string());
-                            notif_sender.send(NotificationServerCommand::Ok(ok_response)).await?;
-                        }
-                    }
-
-                    Ok(())
-                },
-                UumPayload::TypingUser(_) => {
-                    todo!()
-                }
-                UumPayload::Nudge(_) => {
-                    todo!()
-
-                }
-                UumPayload::Raw(_) => {
-                    todo!()
-                }
-            }
-        }
-        NotificationClientCommand::BLP(command) => {
-            notif_sender.send(NotificationServerCommand::BLP(command)).await?;
-            Ok(())
-        }
-        NotificationClientCommand::CHG(command) => {
-            notif_sender.send(NotificationServerCommand::CHG(command)).await?;
-            Ok(())
-        }
-        NotificationClientCommand::PRP(command) => {Ok(())}
-        NotificationClientCommand::UUN(command) => {Ok(())}
-        NotificationClientCommand::XFR() => {Ok(())}
-        NotificationClientCommand::RAW(command) => {Ok(())}
-        NotificationClientCommand::OUT => {Ok(())}
-    }
-}
 
 
