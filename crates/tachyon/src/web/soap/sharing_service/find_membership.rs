@@ -14,15 +14,15 @@ use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::abch::sharing_service::find_membership::request::FindMembershipRequestSoapEnvelope;
 use msnp::soap::abch::sharing_service::find_membership::response::factory::FindMembershipResponseFactory;
 use msnp::soap::traits::xml::ToXml;
-use crate::matrix::direct_target_resolver::resolve_direct_target;
-use crate::notification::client_store::ClientStoreFacade;
+use crate::matrix::directs::resolve_direct_target;
+use crate::notification::client_store::{ClientData, ClientStoreFacade};
 use crate::shared::identifiers::MatrixIdCompatible;
 use crate::shared::traits::ToUuid;
 
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 
-pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, token: TicketToken, client: Client, client_store: &ClientStoreFacade) -> Result<Response, ABError> {
+pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, token: TicketToken, client: Client, mut client_data: ClientData) -> Result<Response, ABError> {
 
     let cache_key = &request.header.ok_or(anyhow!("Header missing"))?.application_header.cache_key.unwrap_or_default();
 
@@ -31,7 +31,20 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, token:
 
     if deltas_only {
         // Fetch from store. TODO
-        Ok(shared::build_soap_response(SoapFaultResponseEnvelope::new_fullsync_required("http://www.msn.com/webservices/AddressBook/FindMembership").to_xml()?, StatusCode::OK))
+        // Ok(shared::build_soap_response(SoapFaultResponseEnvelope::new_fullsync_required("http://www.msn.com/webservices/AddressBook/FindMembership").to_xml()?, StatusCode::OK))
+        let (allow, reverse, block, pending) = get_delta_sync(&mut client_data)?;
+
+        let msg_service = FindMembershipResponseFactory::get_messenger_service(allow, block, reverse, pending, false);
+        let user_id = client.user_id().ok_or(anyhow!("Expected matrix client to have a logged-in user"))?;
+        let uuid = user_id.to_uuid();
+        let email_addr = EmailAddress::from_user_id(user_id);
+
+        let soap_body = FindMembershipResponseFactory::get_response(
+            uuid,
+            email_addr,
+            &cache_key, msg_service);
+
+        Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
 
     } else {
         let (allow, reverse, block, pending) = get_fullsync_members(&client).await?;
@@ -48,6 +61,39 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, token:
 
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
     }
+}
+
+fn get_delta_sync(client_data: &mut ClientData) -> Result<(Vec<BaseMember>, Vec<BaseMember>, Vec<BaseMember>, Vec<BaseMember>), ABError> {
+    let mut allow_list = Vec::new();
+    let mut reverse_list = Vec::new();
+    let mut block_list = Vec::new();
+    let mut pending_list = Vec::new();
+
+    let mut memberships = client_data.get_member_holder_mut().unwrap();
+
+    for member in memberships.drain(..) {
+        match member.role_list {
+
+            RoleList::Allow => {
+                allow_list.push(member);
+            }
+            RoleList::Block => {
+                block_list.push(member);
+            }
+            RoleList::Reverse => {
+                reverse_list.push(member);
+            }
+            RoleList::Pending => {
+                pending_list.push(member);
+            },
+            _ => {
+
+            },
+        }
+
+    }
+
+    Ok((allow_list, reverse_list, block_list, pending_list))
 }
 
 async fn get_fullsync_members(matrix_client: &Client) -> Result<(Vec<BaseMember>, Vec<BaseMember>, Vec<BaseMember>, Vec<BaseMember>), ABError> {

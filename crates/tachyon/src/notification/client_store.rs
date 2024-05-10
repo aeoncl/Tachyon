@@ -1,8 +1,9 @@
 use std::collections::VecDeque;
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Arc, LockResult, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use anyhow::anyhow;
 use dashmap::DashMap;
+use dashmap::mapref::one::RefMut;
 use matrix_sdk::Client;
 use matrix_sdk::ruma::OwnedRoomId;
 use thiserror::__private::AsDynError;
@@ -14,6 +15,7 @@ use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::oim::OIM;
 use msnp::shared::models::ticket_token::TicketToken;
+use msnp::soap::abch::msnab_datatypes::{BaseMember, ContactType};
 
 #[derive(Clone)]
 pub struct SwitchboardHandle {
@@ -33,14 +35,14 @@ pub struct ClientDataInner {
 
 #[derive(Default)]
 pub struct SoapHolder {
-    oims: DashMap<String, OIM>,
-    contacts: VecDeque<String>,
-    memberships: VecDeque<String>
+    pub oims: DashMap<String, OIM>,
+    pub contacts: Mutex<Vec<ContactType>>,
+    pub memberships: Mutex<VecDeque<BaseMember>>
 }
 
 #[derive(Clone)]
 pub struct ClientData {
-    inner: Arc<ClientDataInner>
+    pub inner: Arc<ClientDataInner>
 }
 
 #[derive(Error, Debug)]
@@ -96,6 +98,15 @@ impl ClientData {
 
     pub fn get_oims(&mut self) -> &DashMap<String, OIM> {
         &self.inner.soap_holder.oims
+    }
+
+    pub fn get_contact_holder_mut(&mut self) -> LockResult<MutexGuard<'_, Vec<ContactType>>> {
+       self.inner.soap_holder.contacts.lock()
+    }
+
+    pub fn get_member_holder_mut(&mut self) -> LockResult<MutexGuard<'_, VecDeque<BaseMember>>> {
+        self.inner.soap_holder.memberships.lock()
+
     }
 
     pub fn remove_oim(&mut self, message_id: &str) -> Option<(String, OIM)> {

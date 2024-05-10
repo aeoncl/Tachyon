@@ -423,6 +423,9 @@ impl OvercomplicatedFontColor {
         })
     }
 
+    //FF00FF
+    //0
+    //
     pub fn parse_from_bgr(bgr: &str) -> Result<Self, PayloadError> {
 
         let color_flags = OvercomplicatedFontColor::parse_hex_str(bgr)?;

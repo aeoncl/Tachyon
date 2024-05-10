@@ -2,7 +2,44 @@ use std::fmt::Display;
 
 use yaserde::ser::to_string_with_config;
 use yaserde_derive::{YaDeserialize, YaSerialize};
+use crate::msnp::error::PayloadError;
+use crate::msnp::raw_command_parser::RawCommand;
+use crate::shared::traits::{MSNPCommand, MSNPPayload};
 
+//NOT {payload_size}\r\n{payload}
+pub struct NotServer {
+    pub payload: NotificationPayload
+}
+
+impl MSNPCommand for NotServer {
+    type Err = PayloadError;
+
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
+        todo!()
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+
+        let mut payload = self.payload.into_bytes();
+        let mut out = format!("NOT {}\r\n", payload.len()).into_bytes();
+        out.append(&mut payload);
+
+        out
+    }
+}
+
+
+impl MSNPPayload for NotificationPayload {
+    type Err = PayloadError;
+
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> where Self: Sized {
+        todo!()
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        self.to_string().into_bytes()
+    }
+}
 
 #[derive(Default, YaSerialize, YaDeserialize)]
 #[yaserde(rename = "NOTIFICATION")]

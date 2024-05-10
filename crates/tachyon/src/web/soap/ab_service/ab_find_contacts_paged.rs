@@ -1,7 +1,9 @@
+use std::mem;
 use anyhow::anyhow;
 use axum::http::StatusCode;
 use axum::response::Response;
 use axum::routing::any;
+use lazy_static_include::syn::ReturnType::Default;
 use log::{debug, warn};
 use matrix_sdk::Client;
 use matrix_sdk::room::RoomMember;
@@ -16,14 +18,15 @@ use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContac
 use msnp::soap::abch::msnab_datatypes::{AbHandleType, AddressBookType, ContactType, ContactTypeEnum};
 use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::traits::xml::ToXml;
-use crate::matrix::direct_target_resolver::resolve_direct_target;
+use crate::matrix::directs::resolve_direct_target;
+use crate::notification::client_store::ClientData;
 use crate::shared::identifiers::MatrixIdCompatible;
 use crate::shared::traits::ToUuid;
 use crate::web::soap::error::ABError;
 use crate::web::soap::error::ABError::InternalServerError;
 use crate::web::soap::shared;
 
-pub async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, token: TicketToken, client: Client) -> Result<Response, ABError> {
+pub async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, token: TicketToken, client: Client, mut client_data: ClientData) -> Result<Response, ABError> {
     let body = &request.body.body;
 
     let ab_id = {
@@ -42,7 +45,7 @@ pub async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnve
 
     if &ab_id == "00000000-0000-0000-0000-000000000000" {
         //Handle User Request
-        return handle_user_contact_list(request, client).await;
+        return handle_user_contact_list(request, client, &mut client_data).await;
     } else if ab_id.starts_with("00000000-0000-0000-0009"){
         //Handle Circle Request
         return handle_circle_request(request, &ab_id, client).await;
@@ -57,7 +60,7 @@ async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, 
     Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
 }
 
-async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelope, client: Client) -> Result<Response, ABError> {
+async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelope, client: Client, client_data: &mut ClientData) -> Result<Response, ABError> {
     let body = request.body.body;
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or_default();
     let user_id = client.user_id().ok_or(anyhow!("Matrix client has no user ID."))?;
@@ -66,6 +69,8 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
 
     if body.filter_options.deltas_only {
         // Fetch from store. TODO
+        let contacts = get_delta_contact_list(client_data);
+
         Ok(shared::build_soap_response(SoapFaultResponseEnvelope::new_fullsync_required("http://www.msn.com/webservices/AddressBook/ABFindContactsPaged").to_xml()?, StatusCode::OK))
     } else {
         // Full contact list demanded.
@@ -77,6 +82,12 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
     }
 
+}
+
+fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<ContactType>, ABError> {
+    let mut contacts = client_data.get_contact_holder_mut().unwrap();
+
+    Ok(mem::replace(&mut *contacts, Vec::new()))
 }
 
 async fn get_fullsync_contact_list(matrix_client: &Client, me: &UserId) -> Result<Vec<ContactType>, ABError> {

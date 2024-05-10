@@ -1,16 +1,18 @@
-use matrix_sdk::Client;
+use log::debug;
+use matrix_sdk::{Client, LoopCtrl};
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::ruma::presence::PresenceState;
+use matrix_sdk::sync::SyncResponse;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::Sender;
 
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 
+use crate::matrix::memberships::handle_memberships;
 use crate::matrix::oim::handle_oims;
 use crate::notification::client_store::ClientData;
 
-pub async fn start_sync_task(client: Client, notif_sender: Sender<NotificationServerCommand>, mut client_data: ClientData, kill_signal: broadcast::Receiver<()>) {
-
+pub async fn start_sync_task(client: Client, notif_sender: Sender<NotificationServerCommand>, mut client_data: ClientData, mut kill_signal: broadcast::Receiver<()>) {
     let sync_token = client.sync_token().await;
 
 
@@ -22,11 +24,43 @@ pub async fn start_sync_task(client: Client, notif_sender: Sender<NotificationSe
 
     //TODO handle contact list & address book -> Keep syncing
 
-    let response = client.sync_once(settings).await.unwrap();
+    let mut is_first_iteration = true;
 
-    tokio::spawn(async move{
-        handle_oims(client.clone(), response.clone(), client_data.clone(), notif_sender.clone(), sync_token).await.unwrap();
-    });
+    loop {
+        tokio::select! {
+            response = client.sync_once(settings.clone()) => {
+            let response = response.unwrap();
+                settings = settings.token(&response.next_batch);
 
+        if is_first_iteration {
+
+            is_first_iteration = false;
+            let client_cloned = client.clone();
+            let response_cloned = response.clone();
+            let client_data_cloned = client_data.clone();
+            let notif_sender_cloned = notif_sender.clone();
+            let sync_token_clone = sync_token.clone();
+            tokio::spawn(async move{
+                handle_oims(client_cloned, response_cloned, client_data_cloned, notif_sender_cloned, sync_token_clone).await.unwrap();
+            });
+
+        }
+
+        let client_cloned = client.clone();
+        let response_cloned = response.clone();
+        let client_data_cloned = client_data.clone();
+        let notif_sender_cloned = notif_sender.clone();
+
+        tokio::spawn(async move {
+            handle_memberships(client_cloned, response_cloned, client_data_cloned, notif_sender_cloned).await.unwrap();
+        });
+
+            },
+            kill_signal = kill_signal.recv() => {
+                debug!("Matrix loop stopped gracefully");
+                break;
+            }
+
+        }
+    }
 }
-

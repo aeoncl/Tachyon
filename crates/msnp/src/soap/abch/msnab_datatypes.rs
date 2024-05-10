@@ -1864,6 +1864,8 @@ pub struct ContactURLType {
 		pub expiration_date: Option<String>,
 		#[yaserde(rename = "Changes", prefix = "nsi1")]
 		pub changes: Option<String>,
+		#[yaserde(skip_serializing = true)]
+		pub role_list: RoleList
 	}
 
 	impl BaseMember {
@@ -1872,7 +1874,7 @@ pub struct ContactURLType {
 			let create_date = String::from("2014-10-31T00:00:00Z");
 			let no_date = String::from("0001-01-01T00:00:00");
 			let membership_id = format!("{}\\{}", role_id.to_string(), uuid.to_string());
-			return BaseMember{ membership_id: Some(membership_id), xsi_type: String::from("PassportMember"), rs_type: MemberType::Passport, location: None, display_name: None, state, passport_name: Some(msn_addr.to_string()), circle_id: None, is_passport_name_hidden: Some(false), passport_id: Some(0), cid: Some(uuid.to_decimal_cid()), passport_changes: Some(String::new()), lookedup_by_cid: Some(false), new_role: None, annotations: None, deleted: Some(deleted), last_changed: Some(now), joined_date: Some(create_date), expiration_date: Some(no_date), changes: Some(String::new()) };
+			return BaseMember{ membership_id: Some(membership_id), xsi_type: String::from("PassportMember"), rs_type: MemberType::Passport, location: None, display_name: None, state, passport_name: Some(msn_addr.to_string()), circle_id: None, is_passport_name_hidden: Some(false), passport_id: Some(0), cid: Some(uuid.to_decimal_cid()), passport_changes: Some(String::new()), lookedup_by_cid: Some(false), new_role: None, annotations: None, deleted: Some(deleted), last_changed: Some(now), joined_date: Some(create_date), expiration_date: Some(no_date), changes: Some(String::new()), role_list: role_id };
 		}
 	}
 

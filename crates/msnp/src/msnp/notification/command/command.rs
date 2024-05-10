@@ -6,6 +6,7 @@ use crate::msnp::notification::command::blp::BlpServer;
 use crate::msnp::notification::command::chg::ChgServer;
 use crate::msnp::notification::command::cvr::CvrServer;
 use crate::msnp::notification::command::msg::MsgServer;
+use crate::msnp::notification::command::not::NotServer;
 use crate::msnp::notification::command::usr::UsrServer;
 use crate::msnp::notification::command::uum::UumClient;
 use crate::msnp::notification::command::uux::UuxServer;
@@ -79,6 +80,7 @@ pub enum NotificationServerCommand {
     Ok(OkCommand),
     CHG(ChgServer),
     BLP(BlpServer),
+    NOT(NotServer),
     OUT,
     RAW(RawCommand)
 }
@@ -103,6 +105,7 @@ impl MSNPCommand for NotificationServerCommand {
             NotificationServerCommand::BLP(command) => command.into_bytes(),
             NotificationServerCommand::OUT => b"OUT\r\n".to_vec(),
             NotificationServerCommand::RAW(content) => content.into_bytes(),
+            NotificationServerCommand::NOT(content) => {content.into_bytes()}
         }    }
 }
 

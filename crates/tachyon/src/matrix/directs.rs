@@ -6,6 +6,49 @@ use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, UserId};
 use matrix_sdk::ruma::events::direct::DirectEventContent;
 use matrix_sdk::ruma::events::GlobalAccountDataEventType;
 
+pub enum RoomMappingInfo {
+    Direct(OwnedUserId),
+    Group
+}
+
+
+pub async fn get_room_mapping_info(room: &Room, me: &UserId, client: &Client ) -> Result<RoomMappingInfo,  matrix_sdk::Error> {
+
+    if !room.is_direct().await? {
+        return Ok(RoomMappingInfo::Group);
+    }
+
+    let direct_target = resolve_direct_target(&room.direct_targets(), room, me, client).await?;
+
+    let is_main_dm_room = match direct_target.as_ref() {
+        None => {
+            warn!("No direct target for room: {}", &room.room_id());
+            false
+        }
+        Some(direct_target) => {
+            match client.get_dm_room(&direct_target) {
+                None => {
+                    warn!("Direct room couldn't be fetched by get_dm_room method: {}", &room.room_id());
+                    false
+                }
+                Some(dm_room) => {
+                    dm_room.room_id() == room.room_id()
+                }
+            }
+        }
+    };
+
+    let is_one_on_one= room.joined_members_count() <= 2;
+
+    if is_main_dm_room && is_one_on_one {
+        Ok(RoomMappingInfo::Direct(direct_target.expect("to be here")))
+    } else {
+        Ok(RoomMappingInfo::Group)
+    }
+
+}
+
+
 pub async fn resolve_direct_target(direct_targets: &HashSet<OwnedUserId>, room: &Room, me: &UserId, client: &Client) -> Result<Option<OwnedUserId>, matrix_sdk::Error> {
     let maybe_found_direct_target = try_fetch_in_direct_targets(direct_targets, me);
     if maybe_found_direct_target.is_some() {
