@@ -1,8 +1,17 @@
 pub mod request {
+    use yaserde_derive::{YaDeserialize, YaSerialize};
+
+    use crate::soap::abch::msnab_datatypes::HandleType;
+    use crate::soap::abch::request_header::RequestHeaderContainer;
+    use crate::soap::abch::sharing_service::find_membership::request::FindMembershipRequestSoapEnvelope;
+    use crate::soap::abch::sharing_service::find_membership::response::Memberships;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::TryFromXml;
 
     #[cfg(test)]
     mod tests {
         use yaserde::de::from_str;
+
         use crate::soap::abch::sharing_service::add_member::request::AddMemberMessageSoapEnvelope;
 
         #[test]
@@ -55,11 +64,6 @@ pub mod request {
 
     }
 
-    use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::abch::sharing_service::find_membership::response::Memberships;
-    use crate::soap::abch::request_header::RequestHeaderContainer;
-    use crate::soap::abch::msnab_datatypes::HandleType;
-
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAddMemberMessage {
         #[yaserde(rename = "AddMember", default)]
@@ -103,13 +107,30 @@ pub mod request {
             }
         }
     }
+
+    impl TryFromXml for AddMemberMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+
+        fn try_from_xml(xml_str: &str) -> Result<Self, Self::Error> {
+            yaserde::de::from_str::<Self>(&xml_str).map_err(|e| Self::Error::DeserializationError { message: e})
+        }
+    }
 }
 
 pub mod response {
+    use yaserde::ser::to_string;
+    use yaserde_derive::{YaDeserialize, YaSerialize};
+
+    use crate::soap::abch::msnab_faults::SoapFault;
+    use crate::soap::abch::service_header::ServiceHeaderContainer;
+    use crate::soap::abch::sharing_service::add_dynamic_item::response::AddDynamicItemResponseMessageSoapEnvelope;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::ToXml;
 
     #[cfg(test)]
     mod tests {
         use yaserde::ser::to_string;
+
         use crate::soap::abch::sharing_service::add_member::response::AddMemberResponseMessageSoapEnvelope;
 
         #[test]
@@ -124,10 +145,6 @@ pub mod response {
 
 
     }
-
-    use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::abch::msnab_faults::SoapFault;
-    use crate::soap::abch::service_header::ServiceHeaderContainer;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAddMemberResponseMessage {
@@ -169,5 +186,13 @@ pub mod response {
             };
             Self{body, header: Some(ServiceHeaderContainer::new(cache_key))}
         }
+    }
+
+    impl ToXml for AddMemberResponseMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+        fn to_xml(&self) -> Result<String, Self::Error>  {
+            to_string(self).map_err(|e| SoapMarshallError::SerializationError { message: e})
+        }
+
     }
 }

@@ -1,9 +1,11 @@
 pub mod request {
     use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::abch::request_header::RequestHeaderContainer;
+
     use crate::soap::abch::msnab_datatypes::{EntityHandle, Locale};
-
-
+    use crate::soap::abch::request_header::RequestHeaderContainer;
+    use crate::soap::abch::sharing_service::break_connection::request::BreakConnectionMessageSoapEnvelope;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::TryFromXml;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     #[yaserde(
@@ -48,15 +50,27 @@ pub mod request {
         pub count: i32,
     }
 
+    impl TryFromXml for GetContactsRecentActivityMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+
+        fn try_from_xml(xml_str: &str) -> Result<Self, Self::Error> {
+            yaserde::de::from_str::<Self>(&xml_str).map_err(|e| Self::Error::DeserializationError { message: e})
+        }
+    }
+
 }
 
 pub mod response {
+    use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::abch::msnab_datatypes::{CollapseConditionType, RecentActivityTemplateType, Activities};
+
+    use crate::soap::abch::msnab_datatypes::{Activities, CollapseConditionType, RecentActivityTemplateType};
     use crate::soap::abch::msnab_faults::SoapFault;
     use crate::soap::abch::request_header::RequestHeaderContainer;
     use crate::soap::abch::service_header::ServiceHeaderContainer;
-
+    use crate::soap::abch::sharing_service::break_connection::response::BreakConnectionResponseMessageSoapEnvelope;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::ToXml;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapGetContactsRecentActivityResponseMessage {
@@ -166,6 +180,14 @@ pub mod response {
     pub struct RequestedLocalesType {
         #[yaserde(rename = "string", prefix = "nsi1")]
         pub string: Vec<String>,
+    }
+
+    impl ToXml for GetContactsRecentActivityResponseMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+        fn to_xml(&self) -> Result<String, Self::Error>  {
+            to_string(self).map_err(|e| SoapMarshallError::SerializationError { message: e})
+        }
+
     }
 
 }

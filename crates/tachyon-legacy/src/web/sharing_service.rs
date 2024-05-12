@@ -55,7 +55,7 @@ async fn add_member(body: web::Bytes, request: HttpRequest) -> Result<HttpRespon
 
     let matrix_client = authorize(&header.ab_auth_header)?;
 
-    let cache_key = &header.application_header.cache_key.unwrap_or_default();
+        let cache_key = &header.application_header.cache_key.unwrap_or_default();
 
 
     let response = AddMemberResponseFactory::get_response(cache_key.to_string());

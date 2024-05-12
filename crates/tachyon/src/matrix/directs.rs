@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use matrix_sdk::{Client, Error, Room, RoomMemberships};
-use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, UserId};
+use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 use matrix_sdk::ruma::events::direct::DirectEventContent;
 use matrix_sdk::ruma::events::GlobalAccountDataEventType;
+use matrix_sdk::ruma::events::room::member::StrippedRoomMemberEvent;
 
 pub enum RoomMappingInfo {
     Direct(OwnedUserId),
@@ -12,7 +13,61 @@ pub enum RoomMappingInfo {
 }
 
 
-pub async fn get_room_mapping_info(room: &Room, me: &UserId, client: &Client ) -> Result<RoomMappingInfo,  matrix_sdk::Error> {
+pub async fn get_invite_room_mapping_info(room_id: &RoomId, direct_target: &UserId, event: &StrippedRoomMemberEvent , client: &Client) -> Result<RoomMappingInfo,  matrix_sdk::Error> {
+
+    let room = client.get_dm_room(direct_target);
+
+    let is_direct = {
+        match event.content.is_direct{
+            None => {
+                match room.as_ref() {
+                    None => {
+                        false
+                    }
+                    Some(room) => {
+                        room.is_direct().await?
+                    }
+                }
+            },
+            Some(is_direct) => {
+                is_direct
+            }
+        }
+    };
+
+    if !is_direct {
+        return Ok(RoomMappingInfo::Group)
+    }
+
+    let is_main_dm_room = {
+       match room {
+           None => {
+               true
+           }
+           Some(dm_room) => {
+               dm_room.room_id() == room_id
+           }
+       }
+    };
+
+    let is_one_on_one = match client.get_room(room_id) {
+        None => {
+            debug!("WESH: INVITE ROOM NOT FOUND: {}", room_id);
+            false
+        }
+        Some(room) => {
+            room.joined_members_count() <= 2
+        }
+    };
+
+    if is_main_dm_room && is_one_on_one {
+        Ok(RoomMappingInfo::Direct(direct_target.to_owned()))
+    } else {
+        Ok(RoomMappingInfo::Group)
+    }
+}
+
+pub async fn get_joined_room_mapping_info(room: &Room, me: &UserId, client: &Client ) -> Result<RoomMappingInfo,  matrix_sdk::Error> {
 
     if !room.is_direct().await? {
         return Ok(RoomMappingInfo::Group);
@@ -28,8 +83,7 @@ pub async fn get_room_mapping_info(room: &Room, me: &UserId, client: &Client ) -
         Some(direct_target) => {
             match client.get_dm_room(&direct_target) {
                 None => {
-                    warn!("Direct room couldn't be fetched by get_dm_room method: {}", &room.room_id());
-                    false
+                    true
                 }
                 Some(dm_room) => {
                     dm_room.room_id() == room.room_id()

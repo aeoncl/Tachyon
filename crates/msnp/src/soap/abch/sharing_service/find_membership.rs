@@ -129,24 +129,24 @@ pub mod request {
 pub mod response {
     use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
+
     use crate::shared::models::role_list::RoleList;
     use crate::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContactsPagedResponseMessageSoapEnvelope;
     use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType, RoleId};
-
     use crate::soap::abch::msnab_faults::SoapFault;
     use crate::soap::abch::service_header::ServiceHeaderContainer;
+    use crate::soap::abch::sharing_service::find_friends_in_common::response::FindFriendsInCommonResponseMessageSoapEnvelope;
     use crate::soap::error::SoapMarshallError;
     use crate::soap::traits::xml::ToXml;
 
     pub mod factory {
         use chrono::Local;
-        use crate::shared::models::email_address::EmailAddress;
-        use crate::shared::models::role_list::RoleList;
 
+        use crate::shared::models::email_address::EmailAddress;
         use crate::shared::models::uuid::Uuid;
-        use crate::soap::abch::sharing_service::find_membership::response::{ArrayOfServiceType, CircleAttributesType, FindMembershipResponse, FindMembershipResponseMessage, FindMembershipResponseMessageSoapEnvelope, Handle, InfoType, Members, Membership, MembershipResult, Memberships, OwnerNamespaceInfoType, OwnerNamespaceType, ServiceType, SoapFindMembershipResponseMessage};
         use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType, RoleId, ServiceName};
         use crate::soap::abch::service_header::ServiceHeaderContainer;
+        use crate::soap::abch::sharing_service::find_membership::response::{ArrayOfServiceType, CircleAttributesType, FindMembershipResponse, FindMembershipResponseMessage, FindMembershipResponseMessageSoapEnvelope, Handle, InfoType, Members, Membership, MembershipResult, Memberships, OwnerNamespaceInfoType, OwnerNamespaceType, ServiceType, SoapFindMembershipResponseMessage};
 
         pub struct FindMembershipResponseFactory;
 
@@ -232,12 +232,11 @@ pub mod response {
     mod tests {
         use yaserde::de::from_str;
         use yaserde::ser::to_string;
-        use crate::shared::models::role_list::RoleList;
 
         use crate::shared::models::uuid::Uuid;
+        use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType, MemberState, MemberType, RoleId, ServiceName};
         use crate::soap::abch::sharing_service::find_membership::response::{ArrayOfServiceType, CircleAttributesType, FindMembershipResponse, FindMembershipResponseMessage, FindMembershipResponseMessageSoapEnvelope, Handle, InfoType, Members, Membership, MembershipResult, Memberships, OwnerNamespaceInfoType, OwnerNamespaceType, ServiceType, SoapFindMembershipResponseMessage};
         use crate::soap::abch::sharing_service::find_membership::response::factory::FindMembershipResponseFactory;
-        use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType, MemberState, MemberType, RoleId, ServiceName};
 
         #[test]
         fn test_get_empty_find_membership_response() {
@@ -265,7 +264,7 @@ pub mod response {
             let owner_namespace = OwnerNamespaceType{ info: owner_namespace_info, changes: "Hi".to_string(), create_date: "date".to_string(), last_change: "date".to_string() };
 
             let mut members = Vec::new();
-            let member = BaseMember{ membership_id: Some(String::from("faefaef")), rs_type: MemberType::Passport, location: None, display_name: Some("displayName".to_string()), state: MemberState::Accepted, new_role: None, annotations: None, deleted: Some(false), last_changed: Some("date".to_string()), joined_date: Some("date".to_string()), expiration_date: Some("date".to_string()), changes: None, xsi_type: String::from("faefa"), passport_name: None, circle_id: None, is_passport_name_hidden: None, passport_id: None, cid: None, passport_changes: None, lookedup_by_cid: None };
+            let member = BaseMember{ membership_id: Some(String::from("faefaef")), rs_type: MemberType::Passport, location: None, display_name: Some("displayName".to_string()), state: MemberState::Accepted, new_role: None, annotations: None, deleted: Some(false), last_changed: Some("date".to_string()), joined_date: Some("date".to_string()), expiration_date: Some("date".to_string()), changes: None, xsi_type: String::from("faefa"), passport_name: None, circle_id: None, is_passport_name_hidden: None, passport_id: None, cid: None, passport_changes: None, lookedup_by_cid: None, role_list: Default::default() };
 
             members.push(member);
 
@@ -533,6 +532,5 @@ pub mod response {
             }
         }
     }
-
 
 }

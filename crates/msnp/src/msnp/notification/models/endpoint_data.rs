@@ -268,13 +268,4 @@ mod tests {
            assert_eq!(parsed, String::from("<PrivateEndpointData><EpName>M1CROW8Vl</EpName><Idle>true</Idle><ClientType>2</ClientType><State>AWY</State></PrivateEndpointData>"));
    
     }
-
-    #[test]
-    fn ab_notification_test() {
-        let msn_user = MsnUser::without_endpoint_guid(EmailAddress::from_str("aeon.shl@shl.local").unwrap());
-        let notif = NotificationFactory::get_abch_updated(&msn_user.uuid, &msn_user.endpoint_id.email_addr.0);
-
-        let notif_legacy = NotificationFactory::test(&msn_user.uuid, &msn_user.endpoint_id.email_addr.0);
-        assert_eq!(notif.to_string(), notif_legacy);
-    }
 }

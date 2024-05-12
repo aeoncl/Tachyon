@@ -1,7 +1,11 @@
 pub mod request {
     use yaserde_derive::{YaDeserialize, YaSerialize};
+
     use crate::soap::abch::msnab_datatypes::{AbHandleType, ArrayOfAnnotation};
     use crate::soap::abch::request_header::RequestHeaderContainer;
+    use crate::soap::abch::sharing_service::find_membership_by_role::request::FindMembershipByRoleMessageSoapEnvelope;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::TryFromXml;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapManageWLConnectionMessage {
@@ -56,16 +60,26 @@ pub mod request {
         }
     }
 
+    impl TryFromXml for ManageWLConnectionMessageSoapEnvelope {
+        type Error = SoapMarshallError;
 
+        fn try_from_xml(xml_str: &str) -> Result<Self, Self::Error> {
+            yaserde::de::from_str::<Self>(&xml_str).map_err(|e| Self::Error::DeserializationError { message: e})
+        }
+    }
 
 }
 
 pub mod response {
+    use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
+
     use crate::soap::abch::msnab_datatypes::ContactType;
     use crate::soap::abch::msnab_faults::SoapFault;
     use crate::soap::abch::request_header::RequestHeaderContainer;
     use crate::soap::abch::service_header::ServiceHeaderContainer;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::ToXml;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapManageWLConnectionResponseMessage {
@@ -111,6 +125,13 @@ pub mod response {
         }
     }
 
+    impl ToXml for ManageWLConnectionResponseMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+        fn to_xml(&self) -> Result<String, Self::Error>  {
+            to_string(self).map_err(|e| SoapMarshallError::SerializationError { message: e})
+        }
+
+    }
 
 
 

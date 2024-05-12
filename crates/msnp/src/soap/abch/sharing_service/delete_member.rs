@@ -1,8 +1,12 @@
 pub mod request {
     use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::abch::sharing_service::find_membership::response::Memberships;
-    use crate::soap::abch::msnab_datatypes::{ ContentHandleType, HandleType};
+
+    use crate::soap::abch::msnab_datatypes::{ContentHandleType, HandleType};
     use crate::soap::abch::request_header::RequestHeaderContainer;
+    use crate::soap::abch::sharing_service::delete_contact::request::DeleteContactMessageSoapEnvelope;
+    use crate::soap::abch::sharing_service::find_membership::response::Memberships;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::TryFromXml;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapDeleteMemberMessage {
@@ -49,13 +53,30 @@ pub mod request {
             }
         }
     }
+
+    impl TryFromXml for DeleteMemberMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+
+        fn try_from_xml(xml_str: &str) -> Result<Self, Self::Error> {
+            yaserde::de::from_str::<Self>(&xml_str).map_err(|e| Self::Error::DeserializationError { message: e})
+        }
+    }
 }
 
 pub mod response {
+    use yaserde::ser::to_string;
+    use yaserde_derive::{YaDeserialize, YaSerialize};
+
+    use crate::soap::abch::msnab_faults::SoapFault;
+    use crate::soap::abch::service_header::ServiceHeaderContainer;
+    use crate::soap::abch::sharing_service::delete_contact::response::DeleteContactResponseMessageSoapEnvelope;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::ToXml;
 
     #[cfg(test)]
     mod tests {
         use yaserde::ser::to_string;
+
         use crate::soap::abch::sharing_service::delete_member::response::DeleteMemberResponseMessageSoapEnvelope;
 
         #[test]
@@ -67,10 +88,6 @@ pub mod response {
         }
 
     }
-
-    use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::abch::msnab_faults::SoapFault;
-    use crate::soap::abch::service_header::ServiceHeaderContainer;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapDeleteMemberResponseMessage {
@@ -102,7 +119,7 @@ pub mod response {
     }
 
     impl DeleteMemberResponseMessageSoapEnvelope {
-        pub fn get_response(cache_key: &str) -> DeleteMemberResponseMessageSoapEnvelope {
+        pub fn new(cache_key: &str) -> DeleteMemberResponseMessageSoapEnvelope {
 
             let body = SoapDeleteMemberResponseMessage{
                 body: DeleteMemberResponse {},
@@ -110,6 +127,14 @@ pub mod response {
             };
             Self {body, header: Some(ServiceHeaderContainer::new(cache_key))}
         }
+    }
+
+    impl ToXml for DeleteMemberResponseMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+        fn to_xml(&self) -> Result<String, Self::Error>  {
+            to_string(self).map_err(|e| SoapMarshallError::SerializationError { message: e})
+        }
+
     }
 
 }

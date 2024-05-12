@@ -37,6 +37,7 @@ pub struct ClientDataInner {
 pub struct SoapHolder {
     pub oims: DashMap<String, OIM>,
     pub contacts: Mutex<Vec<ContactType>>,
+    pub circles: DashMap<String, Vec<ContactType>>,
     pub memberships: Mutex<VecDeque<BaseMember>>
 }
 

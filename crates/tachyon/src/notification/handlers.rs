@@ -151,7 +151,7 @@ pub(crate) async fn handle_command(raw_command: NotificationClientCommand, notif
             Ok(())
         },
         NotificationClientCommand::PNG => {
-            notif_sender.send(NotificationServerCommand::QNG(60)).await?;
+            notif_sender.send(NotificationServerCommand::QNG(3600)).await?;
             Ok(())
         }
         //The client waits indefinitely for initial ADL Response, useful if we need time to sync contacts without hitting the timeout :D

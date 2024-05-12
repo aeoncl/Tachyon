@@ -43,7 +43,7 @@ impl WebServer {
             .route("/ppcrlconfig.bin", get(ppcrlconfigsrf))
             .route("/PPCRLconfig.srf", get(wlidsvcconfig))
             .route("/wlidsvcconfig.xml", get(wlidsvcconfig))
-            .route("/ppcrlcheck.srf", get(ppcrlcheck))
+            .route("/pcrlcheck.srf", get(ppcrlcheck))
             .route("/RST2.srf", post(rst2_handler))
             //SOAP
             .route("/abservice/abservice.asmx", post(address_book_service))

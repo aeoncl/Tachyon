@@ -68,10 +68,13 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
     let msn_addr = EmailAddress::from_user_id(&user_id);
 
     if body.filter_options.deltas_only {
-        // Fetch from store. TODO
-        let contacts = get_delta_contact_list(client_data);
+        let contacts = get_delta_contact_list(client_data)?;
 
-        Ok(shared::build_soap_response(SoapFaultResponseEnvelope::new_fullsync_required("http://www.msn.com/webservices/AddressBook/ABFindContactsPaged").to_xml()?, StatusCode::OK))
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(uuid, &cache_key, msn_addr.as_str(), msn_addr.as_str(), contacts, false, Vec::new());
+
+        Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
+
+        //Ok(shared::build_soap_response(SoapFaultResponseEnvelope::new_fullsync_required("http://www.msn.com/webservices/AddressBook/ABFindContactsPaged").to_xml()?, StatusCode::OK))
     } else {
         // Full contact list demanded.
         let mut contacts = get_fullsync_contact_list(&client, user_id).await?;

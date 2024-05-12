@@ -1,8 +1,16 @@
 pub mod request {
+    use yaserde_derive::{YaDeserialize, YaSerialize};
+
+    use crate::soap::abch::msnab_datatypes::DynamicItems;
+    use crate::soap::abch::request_header::RequestHeaderContainer;
+    use crate::soap::abch::sharing_service::manage_wl_connection::request::ManageWLConnectionMessageSoapEnvelope;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::TryFromXml;
 
     #[cfg(test)]
     mod tests {
         use yaserde::de::from_str;
+
         use crate::soap::abch::ab_service::ab_contact_add::request::AbcontactAddMessageSoapEnvelope;
 
         #[test]
@@ -15,10 +23,6 @@ pub mod request {
         }
 
     }
-
-    use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::abch::request_header::RequestHeaderContainer;
-    use crate::soap::abch::msnab_datatypes::DynamicItems;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapUpdateDynamicItemMessage {
@@ -64,13 +68,31 @@ pub mod request {
         }
     }
 
+    impl TryFromXml for UpdateDynamicItemMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+
+        fn try_from_xml(xml_str: &str) -> Result<Self, Self::Error> {
+            yaserde::de::from_str::<Self>(&xml_str).map_err(|e| Self::Error::DeserializationError { message: e})
+        }
+    }
+
+
 }
 
 #[cfg(test)]
 pub mod response {
+    use yaserde::ser::to_string;
+    use yaserde_derive::{YaDeserialize, YaSerialize};
+
+    use crate::soap::abch::msnab_faults::SoapFault;
+    use crate::soap::abch::service_header::ServiceHeaderContainer;
+    use crate::soap::abch::sharing_service::manage_wl_connection::response::ManageWLConnectionResponseMessageSoapEnvelope;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::ToXml;
 
     mod tests {
         use yaserde::ser::to_string;
+
         use crate::soap::abch::sharing_service::update_dynamic_item::response::{SoapUpdateDynamicItemResponseMessage, UpdateDynamicItemResponseMessage, UpdateDynamicItemResponseMessageSoapEnvelope};
 
         #[test]
@@ -85,10 +107,6 @@ pub mod response {
         }
 
     }
-
-    use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::abch::msnab_faults::SoapFault;
-    use crate::soap::abch::service_header::ServiceHeaderContainer;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapUpdateDynamicItemResponseMessage {
@@ -125,6 +143,14 @@ pub mod response {
             let body = SoapUpdateDynamicItemResponseMessage { body: body_content, fault: None };
             Self{ header: Some(ServiceHeaderContainer::new(cache_key)), body }
         }
+    }
+
+    impl ToXml for UpdateDynamicItemResponseMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+        fn to_xml(&self) -> Result<String, Self::Error>  {
+            to_string(self).map_err(|e| SoapMarshallError::SerializationError { message: e})
+        }
+
     }
 
 }

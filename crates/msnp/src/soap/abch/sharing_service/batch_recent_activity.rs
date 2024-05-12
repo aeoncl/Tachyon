@@ -1,7 +1,10 @@
 pub mod request {
     use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::abch::request_header::RequestHeaderContainer;
+
     use crate::soap::abch::msnab_datatypes::{EntityHandle, Locale};
+    use crate::soap::abch::request_header::RequestHeaderContainer;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::TryFromXml;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapGetBatchRecentActivityMessage {
@@ -55,16 +58,28 @@ pub mod request {
         }
     }
 
+    impl TryFromXml for GetBatchRecentActivityMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+
+        fn try_from_xml(xml_str: &str) -> Result<Self, Self::Error> {
+            yaserde::de::from_str::<Self>(&xml_str).map_err(|e| Self::Error::DeserializationError { message: e})
+        }
+    }
 
 }
 
 pub mod response {
+    use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::abch::sharing_service::contact_recent_activity::response::{Templates};
+
+    use crate::soap::abch::msnab_datatypes::Activities;
     use crate::soap::abch::msnab_faults::SoapFault;
     use crate::soap::abch::request_header::RequestHeaderContainer;
-    use crate::soap::abch::msnab_datatypes::Activities;
     use crate::soap::abch::service_header::ServiceHeaderContainer;
+    use crate::soap::abch::sharing_service::add_service::response::AddServiceResponseMessageSoapEnvelope;
+    use crate::soap::abch::sharing_service::contact_recent_activity::response::Templates;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::ToXml;
 
     #[cfg(test)]
     mod tests {
@@ -113,6 +128,14 @@ pub mod response {
                 header: None,
             }
         }
+    }
+
+    impl ToXml for GetBatchRecentActivityResponseMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+        fn to_xml(&self) -> Result<String, Self::Error>  {
+            to_string(self).map_err(|e| SoapMarshallError::SerializationError { message: e})
+        }
+
     }
 
 

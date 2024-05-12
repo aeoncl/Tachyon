@@ -57,7 +57,7 @@ pub async fn handle_oims(client: Client, response: SyncResponse, mut client_data
                     for event in messages.chunk {
 
                         if let Ok(AnyTimelineEvent::MessageLike(e)) = event.event.deserialize() {
-                            debug!("Loopty_LOOP: {:?}", e);
+                         //   debug!("Loopty_LOOP: {:?}", e);
 
                             match e {
                                 AnyMessageLikeEvent::RoomMessage(ref room_message) => {

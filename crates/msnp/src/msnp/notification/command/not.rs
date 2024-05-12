@@ -5,6 +5,8 @@ use yaserde_derive::{YaDeserialize, YaSerialize};
 use crate::msnp::error::PayloadError;
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::traits::{MSNPCommand, MSNPPayload};
+use crate::soap::error::SoapMarshallError;
+use crate::soap::traits::xml::ToXml;
 
 //NOT {payload_size}\r\n{payload}
 pub struct NotServer {
@@ -37,7 +39,7 @@ impl MSNPPayload for NotificationPayload {
     }
 
     fn into_bytes(self) -> Vec<u8> {
-        self.to_string().into_bytes()
+        self.to_xml().expect("To work").into_bytes()
     }
 }
 
@@ -56,9 +58,10 @@ pub struct NotificationPayload {
     message: Message
 }
 
-impl Display for NotificationPayload {
+impl ToXml for NotificationPayload {
+    type Error = SoapMarshallError;
 
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn to_xml(&self) -> Result<String, Self::Error> {
 
         let yaserde_cfg = yaserde::ser::Config{
             perform_indent: false,
@@ -66,14 +69,10 @@ impl Display for NotificationPayload {
             indent_string: None
         };
 
-        if let Ok(serialized) = to_string_with_config(self, &yaserde_cfg) {
-            write!(f, "{}", serialized)
-        } else {
-            Err(std::fmt::Error)
-        }
-     
+        to_string_with_config(self, &yaserde_cfg).map_err(|e| SoapMarshallError::SerializationError { message: e})
     }
 }
+
 
 
 #[derive(Default, YaSerialize, YaDeserialize)]
@@ -81,11 +80,11 @@ impl Display for NotificationPayload {
 pub struct Message{
     #[yaserde(rename = "id", attribute)]
     id: i32,
-    #[yaserde(rename = "SUBSCR", attribute)]
+    #[yaserde(rename = "SUBSCR", default)]
     subscriber: Url,
-    #[yaserde(rename = "ACTION", attribute)]
+    #[yaserde(rename = "ACTION", default)]
     action: Url,
-    #[yaserde(rename = "BODY", attribute)]
+    #[yaserde(rename = "BODY", default)]
     body: String
 }
 
@@ -135,6 +134,21 @@ pub struct NotificationData {
 
 }
 
+impl ToXml for NotificationData {
+    type Error = SoapMarshallError;
+
+    fn to_xml(&self) -> Result<String, Self::Error> {
+        let yaserde_cfg = yaserde::ser::Config{
+            perform_indent: false,
+            write_document_declaration: false,
+            indent_string: None
+        };
+
+        to_string_with_config(self, &yaserde_cfg).map_err(|e| SoapMarshallError::SerializationError { message: e})
+    }
+}
+
+
 
 pub mod factories {
     use chrono::Local;
@@ -142,6 +156,7 @@ pub mod factories {
 
 
     use crate::shared::models::uuid::Uuid;
+    use crate::soap::traits::xml::ToXml;
 
     use super::{Message, NotificationData, NotificationPayload, Recipient, Url, Via};
 
@@ -156,10 +171,10 @@ pub mod factories {
             let now = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     
             let body = NotificationData{ service: String::from("ABCHInternal"), cid: uuid.to_decimal_cid(), last_modified_date: now, has_new_item: true };
-    
-            let body_serialized = html_escape::encode_text(to_string(&body).unwrap().as_str()).into_owned();
-    
-            let message = Message{ id: 0, subscriber: Url{ url: String::from("s.htm")}, action: Url{ url: String::from("a.htm")}, body: body_serialized };
+
+            let notification_data_ser = body.to_xml().unwrap();
+
+            let message = Message{ id: 0, subscriber: Url{ url: String::from("s.htm")}, action: Url{ url: String::from("a.htm")}, body: notification_data_ser };
     
             NotificationPayload{ id: 0, site_id: 45705, site_url: String::from("http://contacts.msn.com"), to: recipient, message }
         }
@@ -190,14 +205,14 @@ mod tests {
 
     use crate::{msnp::notification::command::not::factories::NotificationFactory, shared::models::msn_user::MsnUser};
     use crate::shared::models::email_address::EmailAddress;
-
+    use crate::soap::traits::xml::ToXml;
 
     #[test]
-    fn ab_notification_test() {
+    fn ab_notification_test_2() {
         let msn_user = MsnUser::without_endpoint_guid(EmailAddress::from_str("aeon.shl@shl.local").unwrap());
         let notif = NotificationFactory::get_abch_updated(&msn_user.uuid, &msn_user.endpoint_id.email_addr.0);
 
         let notif_legacy = NotificationFactory::test(&msn_user.uuid, &msn_user.endpoint_id.email_addr.0);
-        assert_eq!(notif.to_string(), notif_legacy);
+        assert_eq!(notif.to_xml().unwrap().as_str(), notif_legacy.replace("\r\n", ""));
     }
 }
