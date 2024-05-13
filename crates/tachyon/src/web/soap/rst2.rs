@@ -7,6 +7,7 @@ use axum::handler::Handler;
 use axum::http::header::CONTENT_TYPE;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use chrono::format;
 use log::{debug, error, info};
 use matrix_sdk::{Client, ClientBuilder, ServerName};
 use matrix_sdk::ruma::OwnedUserId;
@@ -35,7 +36,7 @@ pub async fn rst2_handler(body: String) -> Result<Response, RST2Error> {
 
     let client = get_matrix_client_builder(matrix_id.server_name(), None, true).build().await.map_err(|e| RST2Error::InternalServerError {source: e.into()})?;
 
-    let device_id = MatrixDeviceId::from_hostname()?.to_string();
+    let device_id = format!("tachyon3-{}", MatrixDeviceId::from_hostname()?.to_string());
 
     let result = client.matrix_auth()
                 .login_username(&matrix_id, &creds.password)

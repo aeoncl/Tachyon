@@ -4,8 +4,8 @@ use log::{debug, error, info, warn};
 use matrix_sdk::{Client, Error, Room, RoomMemberships};
 use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 use matrix_sdk::ruma::events::direct::DirectEventContent;
-use matrix_sdk::ruma::events::GlobalAccountDataEventType;
-use matrix_sdk::ruma::events::room::member::StrippedRoomMemberEvent;
+use matrix_sdk::ruma::events::{GlobalAccountDataEventType, OriginalSyncStateEvent};
+use matrix_sdk::ruma::events::room::member::{RoomMemberEventContent, StrippedRoomMemberEvent};
 
 pub enum RoomMappingInfo {
     Direct(OwnedUserId),
@@ -34,6 +34,9 @@ pub async fn get_invite_room_mapping_info(room_id: &RoomId, direct_target: &User
             }
         }
     };
+
+    debug!("SYNC|MEMBERSHIPS|INVITE|MAPPING: Room: {} is is direct ? {}", room_id, is_direct);
+
 
     if !is_direct {
         return Ok(RoomMappingInfo::Group)
@@ -67,17 +70,30 @@ pub async fn get_invite_room_mapping_info(room_id: &RoomId, direct_target: &User
     }
 }
 
-pub async fn get_joined_room_mapping_info(room: &Room, me: &UserId, client: &Client ) -> Result<RoomMappingInfo,  matrix_sdk::Error> {
+pub async fn get_joined_room_mapping_info(room: &Room, me: &UserId, event: &OriginalSyncStateEvent<RoomMemberEventContent>, client: &Client ) -> Result<RoomMappingInfo,  matrix_sdk::Error> {
 
-    if !room.is_direct().await? {
-        return Ok(RoomMappingInfo::Group);
+    let is_direct = {
+        match event.content.is_direct{
+            None => {
+                room.is_direct().await?
+            },
+            Some(is_direct) => {
+                is_direct
+            }
+        }
+    };
+
+    debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING: Room: {} is is direct ? {}", room.room_id(), is_direct);
+
+    if !is_direct {
+        return Ok(RoomMappingInfo::Group)
     }
 
     let direct_target = resolve_direct_target(&room.direct_targets(), room, me, client).await?;
 
     let is_main_dm_room = match direct_target.as_ref() {
         None => {
-            warn!("No direct target for room: {}", &room.room_id());
+            warn!("SYNC|MEMBERSHIPS|JOIN|MAPPING: Room: {} No direct target found.", &room.room_id());
             false
         }
         Some(direct_target) => {
@@ -102,23 +118,36 @@ pub async fn get_joined_room_mapping_info(room: &Room, me: &UserId, client: &Cli
 
 }
 
+pub async fn get_left_room_mapping_info(room: &Room, me: &UserId, client: &Client ) -> Result<RoomMappingInfo,  matrix_sdk::Error> {
+
+    //TODO check from ClientData contact list of room was a Group or not.
+
+
+todo!()
+
+}
+
 
 pub async fn resolve_direct_target(direct_targets: &HashSet<OwnedUserId>, room: &Room, me: &UserId, client: &Client) -> Result<Option<OwnedUserId>, matrix_sdk::Error> {
     let maybe_found_direct_target = try_fetch_in_direct_targets(direct_targets, me);
     if maybe_found_direct_target.is_some() {
+        debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING|DIRECT_TARGET: Room: {} Direct Target found in direct_targets: {}", room.room_id(), maybe_found_direct_target.as_ref().expect("to be here"));
         return Ok(maybe_found_direct_target);
     }
 
     let maybe_found_m_direct = find_direct_target_from_account_data(client, &room.room_id().to_owned()).await?;
     if maybe_found_m_direct.is_some() {
+        debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING|DIRECT_TARGET: Room: {} Direct Target found in account_data: {}", room.room_id(), maybe_found_direct_target.as_ref().expect("to be here"));
         return Ok(maybe_found_m_direct);
     }
 
+    debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING|DIRECT_TARGET: Room: {} Direct Target not found", room.room_id());
     return Ok(None);
 }
 
 fn try_fetch_in_direct_targets(direct_targets: &HashSet<OwnedUserId>, me: &UserId) -> Option<OwnedUserId> {
     if direct_targets.len() > 2 {
+        debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING|DIRECT_TARGET: Direct Target was more than size 2");
         return None;
     }
 
@@ -155,7 +184,7 @@ async fn get_m_direct_account_data(client: &Client) -> Result<Option<DirectEvent
         return  Ok(Some(raw_content.deserialize_as::<DirectEventContent>()?));
     }
 
-    error!("Could not fetch account data either from the server or locally");
+    error!("SYNC|MEMBERSHIPS|JOIN|MAPPING|DIRECT_TARGET: Could not fetch account data either from the server or locally");
     return Ok(None)
 
 }

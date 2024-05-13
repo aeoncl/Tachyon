@@ -66,7 +66,10 @@ pub(crate) async fn handle_auth(raw_command: NotificationClientCommand, notif_se
 
                             let user_id = local_store.email_addr.to_owned_user_id();
 
-                            let matrix_client = matrix::login::login(user_id, MatrixDeviceId::from_hostname()?, ticket_token.clone(), &Path::new(format!("C:\\temp\\{}", &local_store.email_addr).as_str()), None, true).await?;
+                            let device_id = format!("tachyon3-{}", MatrixDeviceId::from_hostname()?.to_string());
+
+
+                            let matrix_client = matrix::login::login(user_id, device_id, ticket_token.clone(), &Path::new(format!("C:\\temp\\{}", &local_store.email_addr).as_str()), None, true).await?;
 
                             let endpoint_id = EndpointId::new(local_store.email_addr.clone(), Some(endpoint_guid));
                             let msn_user = MsnUser::new(endpoint_id);

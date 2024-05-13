@@ -27,7 +27,7 @@ pub fn get_matrix_client_builder(server_name: &ServerName, homeserver_url: Optio
     client_builder
 }
 
-pub async fn login(matrix_id: OwnedUserId, device_id: MatrixDeviceId, token: TicketToken, store_path: &Path, homeserver_url: Option<String>, disable_ssl: bool) -> Result<Client, Error> {
+pub async fn login(matrix_id: OwnedUserId, device_id: String, token: TicketToken, store_path: &Path, homeserver_url: Option<String>, disable_ssl: bool) -> Result<Client, Error> {
     let device_id_str = device_id.to_string();
     let device_id = device_id!(device_id_str.as_str()).to_owned();
 

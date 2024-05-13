@@ -8,6 +8,7 @@ use crate::notification::notification_server::NotificationServer;
 use crate::switchboard::switchboard_server::SwitchboardServer;
 use crate::web::web_server::WebServer;
 use std::io::Write;
+use env_logger::Target::Stdout;
 use crate::notification::client_store::{ClientStoreFacade};
 
 mod notification;
@@ -33,7 +34,7 @@ async fn main() {
 
 
 fn setup_logs() {
-    let target = Box::new(File::create("C:\\temp\\log.txt").expect("Can't create file"));
+    let target = Box::new(File::create("C:\\temp\\tachyon.txt").expect("Can't create file"));
     log_print_panics::init();
     Builder::new()
         .format(|buf, record| {
@@ -47,8 +48,7 @@ fn setup_logs() {
                 record.line().unwrap_or(0),
             )
         })
-        //.target(env_logger::Target::Pipe(target))
-        .target(Target::Stdout)
+        .target(env_logger::Target::Pipe(target))
         .filter(Some("v2") , LevelFilter::Debug)
         .filter(Some("tachyon") , LevelFilter::Debug)
         .filter(Some("msnp") , LevelFilter::Debug)
