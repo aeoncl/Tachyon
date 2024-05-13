@@ -72,6 +72,8 @@ pub async fn get_invite_room_mapping_info(room_id: &RoomId, direct_target: &User
 
 pub async fn get_joined_room_mapping_info(room: &Room, me: &UserId, event: &OriginalSyncStateEvent<RoomMemberEventContent>, client: &Client ) -> Result<RoomMappingInfo,  matrix_sdk::Error> {
 
+    //TODO Fetch invite event for me, check if is_direct is set.
+
     let is_direct = {
         match event.content.is_direct{
             None => {
@@ -129,6 +131,9 @@ todo!()
 
 
 pub async fn resolve_direct_target(direct_targets: &HashSet<OwnedUserId>, room: &Room, me: &UserId, client: &Client) -> Result<Option<OwnedUserId>, matrix_sdk::Error> {
+    //TODO Find m.room.create event and get the sender
+    //TODO Fetch account data from server if it's not in local account data.
+
     let maybe_found_direct_target = try_fetch_in_direct_targets(direct_targets, me);
     if maybe_found_direct_target.is_some() {
         debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING|DIRECT_TARGET: Room: {} Direct Target found in direct_targets: {}", room.room_id(), maybe_found_direct_target.as_ref().expect("to be here"));
