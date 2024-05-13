@@ -10,9 +10,11 @@ use crate::shared::models::email_address::EmailAddress;
 use crate::shared::traits::{MSNPCommand, MSNPPayload};
 use crate::shared::errors::IdentifierError;
 
+
+#[derive(Debug)]
 pub struct AdlClient {
-    tr_id: u128,
-    payload: ADLPayload
+    pub tr_id: u128,
+    pub payload: ADLPayload
 }
 
 pub type RmlClient = AdlClient;

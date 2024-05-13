@@ -28,7 +28,7 @@ pub struct ClientDataInner {
     pub user: RwLock<MsnUser>,
     pub ticket_token: TicketToken,
     pub matrix_client: Client,
-    pub contact_list: ContactList,
+    pub contact_list: Mutex<ContactList>,
     pub soap_holder: SoapHolder,
     pub switchboards: DashMap<OwnedRoomId, SwitchboardHandle>,
 }

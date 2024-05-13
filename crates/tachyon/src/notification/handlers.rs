@@ -1,5 +1,6 @@
 use std::path::Path;
 use anyhow::anyhow;
+use log::debug;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::Sender;
@@ -154,17 +155,27 @@ pub(crate) async fn handle_command(raw_command: NotificationClientCommand, notif
             Ok(())
         },
         NotificationClientCommand::PNG => {
-            notif_sender.send(NotificationServerCommand::QNG(3600)).await?;
+            notif_sender.send(NotificationServerCommand::QNG(60)).await?;
             Ok(())
         }
         //The client waits indefinitely for initial ADL Response, useful if we need time to sync contacts without hitting the timeout :D
         NotificationClientCommand::ADL(command) => {
 
+            debug!("ADL: {:?}", &command);
+            client_data.inner.contact_list.lock().unwrap().add_contacts(command.payload.get_contacts()?, command.payload.is_initial());
+
             notif_sender.send(NotificationServerCommand::Ok(command.get_ok_response("ADL"))).await?;
 
             Ok(())
         }
-        NotificationClientCommand::RML(command) => {Ok(())}
+        NotificationClientCommand::RML(command) => {
+            debug!("RML: {:?}", &command);
+
+            client_data.inner.contact_list.lock().unwrap().remove_contacts(command.payload.get_contacts()?);
+            notif_sender.send(NotificationServerCommand::Ok(command.get_ok_response("RML"))).await?;
+
+            Ok(())
+        }
         NotificationClientCommand::UUX(command) => {
             notif_sender.send(NotificationServerCommand::Uux(command.get_ok_response())).await?;
             Ok(())
