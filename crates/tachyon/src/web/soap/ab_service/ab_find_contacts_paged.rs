@@ -1,11 +1,12 @@
 use std::mem;
+use std::str::FromStr;
 use anyhow::anyhow;
 use axum::http::StatusCode;
 use axum::response::Response;
 use axum::routing::any;
 use lazy_static_include::syn::ReturnType::Default;
 use log::{debug, warn};
-use matrix_sdk::Client;
+use matrix_sdk::{Client, RoomMemberships};
 use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::events::room::member::MembershipState;
 use matrix_sdk::ruma::{OwnedUserId, UserId};
@@ -15,11 +16,11 @@ use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::request::AbfindContactsPagedMessageSoapEnvelope;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContactsPagedResponseMessageSoapEnvelope;
-use msnp::soap::abch::msnab_datatypes::{AbHandleType, AddressBookType, ContactType, ContactTypeEnum};
+use msnp::soap::abch::msnab_datatypes::{AbHandleType, AddressBookType, CircleRelationshipRole, ContactType, ContactTypeEnum, RelationshipState};
 use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::traits::xml::ToXml;
 use crate::matrix::directs::resolve_direct_target;
-use crate::notification::client_store::ClientData;
+use crate::notification::client_store::{ClientData, Contact};
 use crate::shared::identifiers::MatrixIdCompatible;
 use crate::shared::traits::ToUuid;
 use crate::web::soap::error::ABError;
@@ -46,7 +47,7 @@ pub async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnve
     if &ab_id == "00000000-0000-0000-0000-000000000000" {
         //Handle User Request
         return handle_user_contact_list(request, client, &mut client_data).await;
-    } else if ab_id.starts_with("00000000-0000-0000-0009"){
+    } else {
         //Handle Circle Request
         return handle_circle_request(request, &ab_id, client).await;
     }
@@ -55,9 +56,90 @@ pub async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnve
 }
 
 async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, ab_id: &str, client: Client) -> Result<Response, ABError> {
+    let body = request.body.body;
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or_default();
-    let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_circle(ab_id, &cache_key, vec![]);
-    Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
+
+    if body.filter_options.deltas_only {
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_circle(ab_id, &cache_key, vec![]);
+        Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
+
+    } else {
+        //TODO have hashmap to avoid computing all the rooms uuid
+        let ab_id_uuid = Uuid::from_str(ab_id).unwrap();
+        let me = client.user_id().expect("to be here");
+
+        let rooms = client.rooms();
+        let found = rooms.iter().find(|r| {
+            let room_uuid = Uuid::from_seed(r.room_id().as_str());
+            room_uuid == ab_id_uuid
+        });
+
+        if found.is_none() {
+            return Err(ABError::InternalServerError(anyhow!("todo")));
+        };
+
+        let found = found.unwrap();
+        let me = found.get_member_no_sync(me).await?.unwrap();
+
+        let contacts = match me.membership() {
+            MembershipState::Join => {
+                let mut contacts = Vec::new();
+
+                let mut joined_members = found.members(RoomMemberships::JOIN).await?;
+
+                for current in joined_members.drain(..){
+                    if current.user_id() != client.user_id().expect("user-id to be present") {
+                        let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
+                        contacts.push(ContactType::new_circle_member_contact(&msn_user.uuid, msn_user.get_email_address().as_str(), current.display_name().unwrap_or(msn_user.get_email_address().as_str()), ContactTypeEnum::Live, RelationshipState::Accepted , CircleRelationshipRole::Member , false));
+                    }
+                }
+
+                let mut invite_members = found.members(RoomMemberships::INVITE).await?;
+
+                for current in invite_members.drain(..){
+                    if current.user_id() != client.user_id().expect("user-id to be present") {
+                        let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
+                        contacts.push(ContactType::new_circle_member_contact(&msn_user.uuid, msn_user.get_email_address().as_str(), current.display_name().unwrap_or(msn_user.get_email_address().as_str()), ContactTypeEnum::LivePending, RelationshipState::WaitingResponse , CircleRelationshipRole::Member,false));
+                    }
+                }
+
+                contacts
+            }
+            _=> {
+                let mut contacts = Vec::new();
+
+                let mut joined_members = found.members_no_sync(RoomMemberships::JOIN).await?;
+
+                for current in joined_members.drain(..){
+                    if current.user_id() != client.user_id().expect("user-id to be present") {
+                        let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
+                        contacts.push(ContactType::new_circle_member_contact(&msn_user.uuid, msn_user.get_email_address().as_str(), current.display_name().unwrap_or(msn_user.get_email_address().as_str()), ContactTypeEnum::Live,RelationshipState::Accepted , CircleRelationshipRole::Member, false));
+                    }
+                }
+
+                let mut invite_members = found.members_no_sync(RoomMemberships::INVITE).await?;
+
+                for current in invite_members.drain(..){
+                    if current.user_id() != client.user_id().expect("user-id to be present") {
+                        let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
+                        contacts.push(ContactType::new_circle_member_contact(&msn_user.uuid, msn_user.get_email_address().as_str(), current.display_name().unwrap_or(msn_user.get_email_address().as_str()), ContactTypeEnum::LivePending, RelationshipState::WaitingResponse , CircleRelationshipRole::Member,false));
+                    }
+                }
+
+                contacts
+
+            }
+        };
+
+
+
+
+
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_circle(ab_id, &cache_key, contacts);
+        Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
+    }
+
+
 }
 
 async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelope, client: Client, client_data: &mut ClientData) -> Result<Response, ABError> {
@@ -68,26 +150,39 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
     let msn_addr = EmailAddress::from_user_id(&user_id);
 
     if body.filter_options.deltas_only {
-        let contacts = get_delta_contact_list(client_data)?;
+        let (contacts, circles) = {
 
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(uuid, &cache_key, msn_addr.as_str(), msn_addr.as_str(), contacts, false, Vec::new());
+           let mut contacts = Vec::new();
+           let mut circles = Vec::new();
+           for current in get_delta_contact_list(client_data)?.drain(..) {
+                match current {
+                    Contact::Contact(contact) => {
+                        contacts.push(contact);
+                    }
+                    Contact::Circle(circle_data) => {
+                        circles.push(circle_data);
+                    }
+                }
+            }
+            (contacts, circles)
+        };
+
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(uuid, &cache_key, msn_addr.as_str(), msn_addr.as_str(), contacts, circles,false);
 
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
 
         //Ok(shared::build_soap_response(SoapFaultResponseEnvelope::new_fullsync_required("http://www.msn.com/webservices/AddressBook/ABFindContactsPaged").to_xml()?, StatusCode::OK))
     } else {
         // Full contact list demanded.
+        //TODO Circle fullsync
         let mut contacts = get_fullsync_contact_list(&client, user_id).await?;
-
-        let circles = vec![ContactType::new_circle("000000000001", "my circle", false)];
-
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(uuid, &cache_key, msn_addr.as_str(), msn_addr.as_str(), contacts, false, circles);
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(uuid, &cache_key, msn_addr.as_str(), msn_addr.as_str(), contacts, Vec::new(),false );
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
     }
 
 }
 
-fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<ContactType>, ABError> {
+fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<Contact>, ABError> {
     let mut contacts = client_data.get_contact_holder_mut().unwrap();
 
     Ok(mem::replace(&mut *contacts, Vec::new()))

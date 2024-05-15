@@ -4,6 +4,7 @@ use std::mem;
 use log::{debug, error, warn};
 use matrix_sdk::{Client, Room};
 use matrix_sdk::deserialized_responses::SyncTimelineEvent;
+use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::events::{AnyGlobalAccountDataEvent, AnyStrippedStateEvent, AnySyncStateEvent, AnySyncTimelineEvent, OriginalSyncStateEvent};
 use matrix_sdk::ruma::events::room::member::{MembershipChange, MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::ruma::{OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, UserId};
@@ -21,9 +22,10 @@ use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::role_list::RoleList;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
-use msnp::soap::abch::msnab_datatypes::{Annotation, ArrayOfAnnotation, BaseMember, ContactType, ContactTypeEnum, MemberState, MemberType, RoleId};
+use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::CircleData;
+use msnp::soap::abch::msnab_datatypes::{Annotation, ArrayOfAnnotation, BaseMember, ContactType, ContactTypeEnum, MemberState, MemberType, CircleRelationshipRole, RelationshipState, RoleId, NetworkInfoType, CircleInverseInfoType};
 use crate::matrix::directs::{force_update_rooms_with_fresh_m_direct, get_invite_room_mapping_info, get_joined_room_mapping_info, get_left_room_mapping_info, RoomMappingInfo};
-use crate::notification::client_store::ClientData;
+use crate::notification::client_store::{ClientData, Contact};
 use crate::shared::identifiers::MatrixIdCompatible;
 
 pub async fn handle_memberships(client: Client, response: SyncResponse, mut client_data: ClientData, notif_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error> {
@@ -203,7 +205,7 @@ pub async fn handle_memberships(client: Client, response: SyncResponse, mut clie
 }
 
 
-async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Room, me: &UserId, client: &Client, contacts: &mut Vec<ContactType>, memberships: &mut VecDeque<BaseMember>) -> Result<(), anyhow::Error> {
+async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Room, me: &UserId, client: &Client, contacts: &mut Vec<Contact>, memberships: &mut VecDeque<BaseMember>) -> Result<(), anyhow::Error> {
 
             match event {
                 SyncRoomMemberEvent::Original(og_rm_event) => {
@@ -229,7 +231,7 @@ async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Roo
                                         let invited_contact = ContactType::new(&target_msn_user.uuid, target_msn_addr, &display_name, ContactTypeEnum::Live, false);
                                         let invited_reverse_member = BaseMember::new_passport_member(&target_msn_user.uuid, target_msn_addr, MemberState::Accepted, RoleList::Reverse, false);
 
-                                        contacts.push(invited_contact);
+                                        contacts.push(Contact::Contact(invited_contact));
                                         memberships.push_back(invited_reverse_member);
                                     }
                                     MembershipChange::Left | MembershipChange::Banned | MembershipChange::Kicked | MembershipChange::KickedAndBanned => {
@@ -238,8 +240,8 @@ async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Roo
                                         let left_contact = ContactType::new(&target_msn_user.uuid, target_msn_addr, &display_name, ContactTypeEnum::Live, true);
                                         let left_contact_pending = ContactType::new(&target_msn_user.uuid, target_msn_addr, &display_name, ContactTypeEnum::LivePending, false);
                                         let left_reverse_member = BaseMember::new_passport_member(&target_msn_user.uuid, target_msn_addr, MemberState::Accepted, RoleList::Reverse, true);
-                                        contacts.push(left_contact);
-                                        contacts.push(left_contact_pending);
+                                        contacts.push(Contact::Contact(left_contact));
+                                        contacts.push(Contact::Contact(left_contact_pending));
                                         memberships.push_back(left_reverse_member);
                                     }
                                     MembershipChange::Invited => {
@@ -247,7 +249,7 @@ async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Roo
                                         //I Invited him, Add to allow list, add to contact pending.
                                         let invited_contact = ContactType::new(&target_msn_user.uuid, target_msn_addr, &display_name, ContactTypeEnum::LivePending, false);
                                         let invited_allow_member = BaseMember::new_passport_member(&target_msn_user.uuid, target_msn_addr, MemberState::Accepted, RoleList::Allow, false);
-                                        contacts.push(invited_contact);
+                                        contacts.push(Contact::Contact(invited_contact));
                                         memberships.push_back(invited_allow_member);
                                     }
                                     _ => {}
@@ -262,7 +264,7 @@ async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Roo
                                         let current_reverse_member = BaseMember::new_passport_member(&target_msn_user.uuid, target_msn_addr, MemberState::Accepted, RoleList::Reverse, true);
                                         let current_pending_member = BaseMember::new_passport_member(&target_msn_user.uuid, target_msn_addr, MemberState::Accepted, RoleList::Pending, true);
 
-                                        contacts.push(current_contact);
+                                        contacts.push(Contact::Contact(current_contact));
                                         memberships.push_back(current_allow_member);
                                         memberships.push_back(current_reverse_member);
                                         memberships.push_back(current_pending_member);
@@ -272,7 +274,7 @@ async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Roo
                                         let inviter_contact = ContactType::new(&target_msn_user.uuid, target_msn_addr, target_msn_addr, ContactTypeEnum::Live, false);
                                         let inviter_allow_member = BaseMember::new_passport_member(&target_msn_user.uuid, target_msn_addr, MemberState::Accepted, RoleList::Allow, false);
                                         let inviter_pending_member = BaseMember::new_passport_member(&target_msn_user.uuid, target_msn_addr, MemberState::Accepted, RoleList::Pending, true);
-                                        contacts.push(inviter_contact);
+                                        contacts.push(Contact::Contact(inviter_contact));
                                         memberships.push_back(inviter_allow_member);
                                         memberships.push_back(inviter_pending_member);
                                     }
@@ -296,13 +298,14 @@ async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Roo
     Ok(())
 }
 
-async fn handle_invite_room_member_event(event: &StrippedRoomMemberEvent, room_id: &RoomId, me: &UserId, client: &Client, contacts: &mut Vec<ContactType>, memberships: &mut VecDeque<BaseMember>) -> Result<(), anyhow::Error> {
+async fn handle_invite_room_member_event(event: &StrippedRoomMemberEvent, room_id: &RoomId, me: &UserId, client: &Client, contacts: &mut Vec<Contact>, memberships: &mut VecDeque<BaseMember>) -> Result<(), anyhow::Error> {
     match event.content.membership {
         MembershipState::Invite => {
 
             if event.state_key == me {
 
                 let target_user = event.sender.as_ref();
+                let target_msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(target_user));
                 let mapping = get_invite_room_mapping_info(&room_id, target_user, &event, &client).await?;
 
                 match mapping {
@@ -310,7 +313,6 @@ async fn handle_invite_room_member_event(event: &StrippedRoomMemberEvent, room_i
                         debug!("SYNC|MEMBERSHIPS|INVITE: Mapping is Direct({})", &direct_target);
 
                         //I've been invited ! ADD TO PENDING LIST WITH INVITE MSG, ADD TO REVERSE LIST
-
                         let target_msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(&direct_target));
                         let target_msn_addr = target_msn_user.get_email_address().as_str();
 
@@ -331,6 +333,23 @@ async fn handle_invite_room_member_event(event: &StrippedRoomMemberEvent, room_i
                     RoomMappingInfo::Group => {
                         debug!("SYNC|MEMBERSHIPS|INVITE: Mapping is Group");
                         log::info!("SYNC|MEMBERSHIPS|INVITE: I received a Group invite from: {}", &target_user);
+                        let room = client.get_room(room_id).unwrap();
+                        let mut circle = ContactType::new_circle(room_id.as_str(), &room.computed_display_name().await.unwrap().to_string(), false, RelationshipState::WaitingResponse, CircleRelationshipRole::StatePendingOutbound);
+                        let contact_info = circle.contact_info.as_mut().unwrap();
+                        let network_info = contact_info.network_info_list.as_mut().unwrap();
+                        let network_info_first = network_info.network_info.get_mut(0).unwrap();
+
+                        network_info_first.inviter_message = event.content.reason.clone();
+                        network_info_first.inviter_email = Some(target_msn_user.get_email_address().to_string());
+                        network_info_first.inviter_cid = target_msn_user.uuid.to_decimal_cid() as u64;
+                        network_info_first.inviter_name = Some(target_msn_user.get_email_address().to_string());
+                        //network_info_first.inviter_name = Some(room.get_member(&target_user).await?.unwrap().display_name().unwrap_or(target_msn_user.get_email_address().as_str()).to_string());
+
+                        let inverse_info = CircleInverseInfoType::new(circle.contact_id.clone().expect("to be here"), room.computed_display_name().await.expect("").to_string(), false, CircleRelationshipRole::StatePendingOutbound, RelationshipState::WaitingResponse);
+                        contacts.push(Contact::Circle(CircleData {
+                            contact: circle,
+                            inverse_info,
+                        }));
                     }
                 }
 
@@ -343,7 +362,7 @@ async fn handle_invite_room_member_event(event: &StrippedRoomMemberEvent, room_i
 
 }
 
-async fn handle_leave_room_member_event(event: &SyncRoomMemberEvent, room: &Room, me: &UserId, client: &Client, contacts: &mut Vec<ContactType>, memberships: &mut VecDeque<BaseMember>) -> Result<(), anyhow::Error> {
+async fn handle_leave_room_member_event(event: &SyncRoomMemberEvent, room: &Room, me: &UserId, client: &Client, contacts: &mut Vec<Contact>, memberships: &mut VecDeque<BaseMember>) -> Result<(), anyhow::Error> {
     match event {
         SyncRoomMemberEvent::Original(og_rm_event) => {
             debug!("SYNC|MEMBERSHIPS|LEAVE: Original SyncRoomMemberEvent Received: {:?}", og_rm_event);

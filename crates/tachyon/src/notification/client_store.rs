@@ -15,6 +15,7 @@ use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::oim::OIM;
 use msnp::shared::models::ticket_token::TicketToken;
+use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::CircleData;
 use msnp::soap::abch::msnab_datatypes::{BaseMember, ContactType};
 
 #[derive(Clone)]
@@ -33,11 +34,16 @@ pub struct ClientDataInner {
     pub switchboards: DashMap<OwnedRoomId, SwitchboardHandle>,
 }
 
+pub enum Contact {
+    Contact(ContactType),
+    Circle(CircleData)
+}
+
 #[derive(Default)]
 pub struct SoapHolder {
     pub oims: DashMap<String, OIM>,
-    pub contacts: Mutex<Vec<ContactType>>,
-    pub circles: DashMap<String, Vec<ContactType>>,
+    pub contacts: Mutex<Vec<Contact>>,
+    pub circle_contacts: DashMap<String, Vec<ContactType>>,
     pub memberships: Mutex<VecDeque<BaseMember>>
 }
 
@@ -101,7 +107,7 @@ impl ClientData {
         &self.inner.soap_holder.oims
     }
 
-    pub fn get_contact_holder_mut(&mut self) -> LockResult<MutexGuard<'_, Vec<ContactType>>> {
+    pub fn get_contact_holder_mut(&mut self) -> LockResult<MutexGuard<'_, Vec<Contact>>> {
        self.inner.soap_holder.contacts.lock()
     }
 

@@ -38,6 +38,15 @@ pub struct AbapplicationHeader {
 }
 
 
+//todo
+pub enum ParnerScenario {
+    Initial,
+    Timer,
+    ABChangeNotifyAlert,
+    NewCircleDuringPull
+}
+
+
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 rename = "ABAuthHeader",

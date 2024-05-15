@@ -77,12 +77,6 @@ pub async fn get_invite_room_mapping_info(room_id: &RoomId, direct_target: &User
 
 pub async fn get_joined_room_mapping_info(room: &Room, me: &UserId, event: &OriginalSyncStateEvent<RoomMemberEventContent>, client: &Client ) -> Result<RoomMappingInfo,  matrix_sdk::Error> {
 
-
-
-
-
-
-
     let is_direct = {
         match event.content.is_direct {
             None => {
@@ -127,8 +121,6 @@ pub async fn get_joined_room_mapping_info(room: &Room, me: &UserId, event: &Orig
     if !is_direct {
         return Ok(RoomMappingInfo::Group)
     }
-
-
 
     let joined_members_count = {
 
