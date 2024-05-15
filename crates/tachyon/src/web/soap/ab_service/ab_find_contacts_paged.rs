@@ -81,58 +81,28 @@ async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, 
         let found = found.unwrap();
         let me = found.get_member_no_sync(me).await?.unwrap();
 
-        let contacts = match me.membership() {
-            MembershipState::Join => {
-                let mut contacts = Vec::new();
 
-                let mut joined_members = found.members(RoomMemberships::JOIN).await?;
+        let mut contacts = Vec::new();
 
-                for current in joined_members.drain(..){
-                    if current.user_id() != client.user_id().expect("user-id to be present") {
-                        let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
-                        contacts.push(ContactType::new_circle_member_contact(&msn_user.uuid, msn_user.get_email_address().as_str(), current.display_name().unwrap_or(msn_user.get_email_address().as_str()), ContactTypeEnum::Live, RelationshipState::Accepted , CircleRelationshipRole::Member , false));
-                    }
-                }
+        let mut members = if matches!(me.membership(), MembershipState::Join) {found.members(RoomMemberships::JOIN.union(RoomMemberships::INVITE)).await? } else { found.members_no_sync(RoomMemberships::JOIN.union(RoomMemberships::INVITE)).await?  };
 
-                let mut invite_members = found.members(RoomMemberships::INVITE).await?;
+        for current in members.drain(..){
 
-                for current in invite_members.drain(..){
-                    if current.user_id() != client.user_id().expect("user-id to be present") {
-                        let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
-                        contacts.push(ContactType::new_circle_member_contact(&msn_user.uuid, msn_user.get_email_address().as_str(), current.display_name().unwrap_or(msn_user.get_email_address().as_str()), ContactTypeEnum::LivePending, RelationshipState::WaitingResponse , CircleRelationshipRole::Member,false));
-                    }
-                }
-
-                contacts
+            if current.user_id() != client.user_id().expect("user-id to be present") {
+                continue;
             }
-            _=> {
-                let mut contacts = Vec::new();
 
-                let mut joined_members = found.members_no_sync(RoomMemberships::JOIN).await?;
-
-                for current in joined_members.drain(..){
-                    if current.user_id() != client.user_id().expect("user-id to be present") {
-                        let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
-                        contacts.push(ContactType::new_circle_member_contact(&msn_user.uuid, msn_user.get_email_address().as_str(), current.display_name().unwrap_or(msn_user.get_email_address().as_str()), ContactTypeEnum::Live,RelationshipState::Accepted , CircleRelationshipRole::Member, false));
-                    }
+            match current.membership() {
+                MembershipState::Join => {
+                    let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
+                    contacts.push(ContactType::new_circle_member_contact(&msn_user.uuid, msn_user.get_email_address().as_str(), current.display_name().unwrap_or(msn_user.get_email_address().as_str()), ContactTypeEnum::Live, RelationshipState::Accepted , CircleRelationshipRole::Member , false));
                 }
-
-                let mut invite_members = found.members_no_sync(RoomMemberships::INVITE).await?;
-
-                for current in invite_members.drain(..){
-                    if current.user_id() != client.user_id().expect("user-id to be present") {
-                        let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
-                        contacts.push(ContactType::new_circle_member_contact(&msn_user.uuid, msn_user.get_email_address().as_str(), current.display_name().unwrap_or(msn_user.get_email_address().as_str()), ContactTypeEnum::LivePending, RelationshipState::WaitingResponse , CircleRelationshipRole::Member,false));
-                    }
+                _ => {
+                    let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
+                    contacts.push(ContactType::new_circle_member_contact(&msn_user.uuid, msn_user.get_email_address().as_str(), current.display_name().unwrap_or(msn_user.get_email_address().as_str()), ContactTypeEnum::LivePending, RelationshipState::WaitingResponse , CircleRelationshipRole::Member,false));
                 }
-
-                contacts
-
             }
-        };
-
-
-
+        }
 
 
         let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_circle(ab_id, &cache_key, contacts);
