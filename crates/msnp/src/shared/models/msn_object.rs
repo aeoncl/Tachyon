@@ -279,7 +279,7 @@ impl MsnObject {
 
 
 #[derive(Clone, Debug)]
-struct FriendlyName(String);
+pub struct FriendlyName(String);
 
 impl FriendlyName {
 

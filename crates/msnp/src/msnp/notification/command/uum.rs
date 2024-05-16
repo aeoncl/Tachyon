@@ -10,6 +10,7 @@ use crate::msnp::error::{CommandError, PayloadError};
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::command::ok::OkCommand;
 use crate::shared::models::endpoint_id::EndpointId;
+use crate::shared::models::network_id::NetworkId;
 use crate::shared::payload::msg::datacast_msg::{DatacastMessageContent, DatacastType};
 use crate::shared::payload::msg::raw_msg_payload::RawMsgPayload;
 use crate::shared::payload::msg::text_msg::TextMessageContent;
@@ -23,10 +24,11 @@ mod tests {
     use crate::msnp::raw_command_parser::RawCommandParser;
     use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::endpoint_id::EndpointId;
+    use crate::shared::models::network_id::NetworkId;
     use crate::shared::payload::msg::text_msg::{FontStyle, TextMessageContent};
     use crate::shared::traits::MSNPCommand;
 
-    use super::{NetworkId, UumClient, UumPayload};
+    use super::{UumClient, UumPayload};
 
     #[test]
     fn uum_client_text_message_deser() {
@@ -105,17 +107,6 @@ pub struct UumClient {
     pub destination: EndpointId,
     pub network_id: NetworkId,
     pub payload: UumPayload
-}
-#[derive(FromPrimitive, Eq, PartialEq, Debug)]
-pub enum NetworkId {
-    WindowsLive = 0x01,
-    OfficeCommunicator = 0x02,
-    Telephone = 0x04,
-    //used by Vodafone
-    MobileNetworkInterop = 0x08,
-    //Jaguire, Japanese mobile interop
-    Smtp = 0x10,
-    Yahoo = 0x20
 }
 
 #[derive(FromPrimitive, Clone, Eq, PartialEq, Debug)]

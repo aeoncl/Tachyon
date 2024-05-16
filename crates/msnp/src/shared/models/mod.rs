@@ -8,3 +8,4 @@ pub mod ticket_token;
 pub mod oim;
 pub mod endpoint_id;
 pub mod email_address;
+pub mod network_id;
