@@ -81,7 +81,7 @@ pub mod response {
 
         #[test]
         fn test_delete_member_response() {
-            let response = DeleteMemberResponseMessageSoapEnvelope::get_response("cachekey");
+            let response = DeleteMemberResponseMessageSoapEnvelope::new("cachekey");
 
             let response_serialized = to_string(&response).unwrap();
             println!("{}", response_serialized);
