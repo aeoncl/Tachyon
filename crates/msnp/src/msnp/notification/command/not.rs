@@ -124,13 +124,15 @@ pub struct Via {
 pub struct NotificationData {
 
     #[yaserde(rename = "Service")]
-    service: String,
+    service: Option<String>,
     #[yaserde(rename = "CID")]
-    cid: i64,
+    cid: Option<i64>,
     #[yaserde(rename = "LastModifiedDate")]
-    last_modified_date: String,
+    last_modified_date: Option<String>,
     #[yaserde(rename = "HasNewItem")]
-    has_new_item: bool
+    has_new_item: bool,
+    #[yaserde(rename = "CircleId")]
+    circle_id: Option<String>,
 
 }
 
@@ -170,13 +172,27 @@ pub mod factories {
     
             let now = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     
-            let body = NotificationData{ service: String::from("ABCHInternal"), cid: uuid.to_decimal_cid(), last_modified_date: now, has_new_item: true };
+            let body = NotificationData{ service: Some(String::from("ABCHInternal")), cid: Some(uuid.to_decimal_cid()), last_modified_date: Some(now), has_new_item: true, circle_id: None };
 
             let notification_data_ser = body.to_xml().unwrap();
 
             let message = Message{ id: 0, subscriber: Url{ url: String::from("s.htm")}, action: Url{ url: String::from("a.htm")}, body: notification_data_ser };
     
             NotificationPayload{ id: 0, site_id: 45705, site_url: String::from("http://contacts.msn.com"), to: recipient, message }
+        }
+
+        pub fn get_circle_updated(me_uuid: &Uuid, me_msn_addr: &str, circle_id: &Uuid) -> NotificationPayload {
+            let recipient_pid = format!("0x{}:0x{}", me_uuid.get_least_significant_bytes_as_hex(), me_uuid.get_most_significant_bytes_as_hex());
+            let recipient = Recipient{ pid: recipient_pid, name: me_msn_addr.to_string(), via: Via{ agent: String::from("messenger") } };
+
+            let body = NotificationData{ service: None, cid: None, last_modified_date: None, has_new_item: true, circle_id: Some(circle_id.to_string()) };
+
+            let notification_data_ser = body.to_xml().unwrap();
+
+            let message = Message{ id: 0, subscriber: Url{ url: String::from("s.htm")}, action: Url{ url: String::from("a.htm")}, body: notification_data_ser };
+
+            NotificationPayload{ id: 0, site_id: 45705, site_url: String::from("http://contacts.msn.com"), to: recipient, message }
+
         }
 
         pub fn test(uuid: &Uuid, msn_addr: &str) -> String {
