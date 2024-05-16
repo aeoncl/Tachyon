@@ -14,7 +14,6 @@ pub struct UunClient {
     tr_id: u128,
     destination: EndpointId,
     payload: UunPayload
-
 }
 
 impl UunClient {
