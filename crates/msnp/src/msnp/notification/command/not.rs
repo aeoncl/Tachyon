@@ -181,7 +181,7 @@ pub mod factories {
             NotificationPayload{ id: 0, site_id: 45705, site_url: String::from("http://contacts.msn.com"), to: recipient, message }
         }
 
-        pub fn get_circle_updated(me_uuid: &Uuid, me_msn_addr: &str, circle_id: &Uuid) -> NotificationPayload {
+        pub fn get_circle_updated(me_uuid: &Uuid, me_msn_addr: &str, circle_id: &str) -> NotificationPayload {
             let recipient_pid = format!("0x{}:0x{}", me_uuid.get_least_significant_bytes_as_hex(), me_uuid.get_most_significant_bytes_as_hex());
             let recipient = Recipient{ pid: recipient_pid, name: me_msn_addr.to_string(), via: Via{ agent: String::from("messenger") } };
 

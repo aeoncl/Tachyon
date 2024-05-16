@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::convert::Infallible;
 use std::mem;
+use dashmap::mapref::one::RefMut;
 use log::{debug, error, warn};
-use matrix_sdk::{Client, Room};
+use matrix_sdk::{Client, Room, RoomMemberships};
 use matrix_sdk::deserialized_responses::SyncTimelineEvent;
 use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::events::{AnyGlobalAccountDataEvent, AnyStrippedStateEvent, AnySyncStateEvent, AnySyncTimelineEvent, OriginalSyncStateEvent};
@@ -21,6 +22,7 @@ use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::role_list::RoleList;
+use msnp::shared::models::uuid::Uuid;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::CircleData;
 use msnp::soap::abch::msnab_datatypes::{Annotation, ArrayOfAnnotation, BaseMember, ContactType, ContactTypeEnum, MemberState, MemberType, CircleRelationshipRole, RelationshipState, RoleId, NetworkInfoType, CircleInverseInfoType};
@@ -36,6 +38,7 @@ pub async fn handle_memberships(client: Client, response: SyncResponse, mut clie
 
     let mut contacts = Vec::new();
     let mut memberships = VecDeque::new();
+    let mut circle_members: HashMap<String, Vec<ContactType>> = HashMap::new();
 
     // for account_data_event in response.account_data {
     //     match account_data_event.deserialize() {
@@ -93,7 +96,7 @@ pub async fn handle_memberships(client: Client, response: SyncResponse, mut clie
                     if dedup.get(room_member_event.event_id().as_str()).is_none() {
                         dedup.insert(room_member_event.event_id().to_string());
                     }
-                    handle_joined_room_member_event(&room_member_event, &room, me, &client, &mut contacts, &mut memberships).await?;
+                    handle_joined_room_member_event(&room_member_event, &room, me, &client, &mut contacts, &mut memberships, &mut circle_members).await?;
                 },
                 Ok(other) => {
                     error!("SYNC|MEMBERSHIPS|JOIN: Received non member event : {:?}", other);
@@ -109,7 +112,7 @@ pub async fn handle_memberships(client: Client, response: SyncResponse, mut clie
                 Ok(AnySyncTimelineEvent::State(AnySyncStateEvent::RoomMember(room_member_event))) => {
                     if dedup.get(room_member_event.event_id().as_str()).is_none() {
                         dedup.insert(room_member_event.event_id().to_string());
-                        handle_joined_room_member_event(&room_member_event, &room, me, &client, &mut contacts, &mut memberships).await?;
+                        handle_joined_room_member_event(&room_member_event, &room, me, &client, &mut contacts, &mut memberships, &mut circle_members).await?;
                     }
                 },
                 Ok(other) => {
@@ -170,6 +173,8 @@ pub async fn handle_memberships(client: Client, response: SyncResponse, mut clie
 
     }
 
+    let me_msn_usr = MsnUser::without_endpoint_guid(EmailAddress::from_user_id(&me));
+
 
     if !contacts.is_empty() || !memberships.is_empty() {
         {
@@ -192,7 +197,6 @@ pub async fn handle_memberships(client: Client, response: SyncResponse, mut clie
 
 
 
-        let me_msn_usr = MsnUser::without_endpoint_guid(EmailAddress::from_user_id(&me));
 
         //TODO make this less shit later
         notif_sender.send(NotificationServerCommand::NOT(NotServer {
@@ -201,11 +205,33 @@ pub async fn handle_memberships(client: Client, response: SyncResponse, mut clie
 
     }
 
+    if !circle_members.is_empty() {
+
+       for (circle_id, mut members) in circle_members.drain() {
+
+            match client_data.inner.soap_holder.circle_contacts.get_mut(&circle_id) {
+                None => {
+                    client_data.inner.soap_holder.circle_contacts.insert(circle_id.clone(), members);
+                }
+                Some(mut circle_members) => {
+                    circle_members.append(&mut members);
+                }
+            }
+
+           notif_sender.send(NotificationServerCommand::NOT(NotServer {
+               payload: NotificationFactory::get_circle_updated(&me_msn_usr.uuid, me_msn_usr.get_email_address().as_str(), &circle_id)
+           })).await;
+       }
+
+
+    }
+
+
     Ok(())
 }
 
 
-async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Room, me: &UserId, client: &Client, contacts: &mut Vec<Contact>, memberships: &mut VecDeque<BaseMember>) -> Result<(), anyhow::Error> {
+async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Room, me: &UserId, client: &Client, contacts: &mut Vec<Contact>, memberships: &mut VecDeque<BaseMember>, circle_members: &mut HashMap<String, Vec<ContactType>>) -> Result<(), anyhow::Error> {
 
             match event {
                 SyncRoomMemberEvent::Original(og_rm_event) => {
@@ -286,10 +312,118 @@ async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Roo
                         }
                         RoomMappingInfo::Group => {
                             debug!("SYNC|MEMBERSHIPS|JOIN: Mapping is Group");
+                            let room_id = room.room_id();
+                            let circle_uuid = Uuid::from_seed(room_id.as_str());
+
+                            if &og_rm_event.state_key == me {
+                                // Me action
+                                match og_rm_event.membership_change() {
+                                    MembershipChange::Left => {
+                                        //I Left the Circle
+                                        let mut circle = ContactType::new_circle(room_id.as_str(), &room.computed_display_name().await.unwrap().to_string(), true, RelationshipState::Accepted, CircleRelationshipRole::None);
+                                        let inverse_info = CircleInverseInfoType::new(circle.contact_id.clone().expect("to be here"), room.computed_display_name().await.expect("").to_string(), true, CircleRelationshipRole::Member, RelationshipState::Accepted);
+                                        contacts.push(Contact::Circle(CircleData {
+                                            contact: circle,
+                                            inverse_info,
+                                        }));
+
+                                    }
+                                    MembershipChange::InvitationAccepted | MembershipChange::Joined => {
+                                        //I accepted an invite to a circle
+
+                                        let mut circle = ContactType::new_circle(room_id.as_str(), &room.computed_display_name().await.unwrap().to_string(), false, RelationshipState::Accepted, CircleRelationshipRole::Member);
+                                        let inverse_info = CircleInverseInfoType::new(circle.contact_id.clone().expect("to be here"), room.computed_display_name().await.expect("").to_string(), false, CircleRelationshipRole::Member, RelationshipState::Accepted);
+
+                                        contacts.push(Contact::Circle(CircleData {
+                                            contact: circle,
+                                            inverse_info,
+                                        }));
+
+                                        let circle_members = {
+                                            match circle_members.get_mut(&circle_uuid.to_string()) {
+                                                None => {
+                                                    circle_members.insert(circle_uuid.to_string(), Vec::new());
+                                                    circle_members.get_mut(&circle_uuid.to_string()).expect("to be here")
+                                                }
+                                                Some(circle_members) => {
+                                                    circle_members
+                                                }
+                                            }
+                                        };
+
+                                        let mut members = room.members(RoomMemberships::ACTIVE).await?;
+
+                                        //This method is the same as in GetContactsPaged TODO cleanup
+                                        for current in members.drain(..){
+
+                                            if current.user_id() != client.user_id().expect("user-id to be present") {
+                                                continue;
+                                            }
+
+                                            match current.membership() {
+                                                MembershipState::Join => {
+                                                    let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
+                                                    circle_members.push(ContactType::new_circle_member_contact(&msn_user.uuid, msn_user.get_email_address().as_str(), current.display_name().unwrap_or(msn_user.get_email_address().as_str()), ContactTypeEnum::Live, RelationshipState::Accepted , CircleRelationshipRole::Member , false));
+                                                }
+                                                _ => {
+                                                    let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
+                                                    circle_members.push(ContactType::new_circle_member_contact(&msn_user.uuid, msn_user.get_email_address().as_str(), current.display_name().unwrap_or(msn_user.get_email_address().as_str()), ContactTypeEnum::LivePending, RelationshipState::WaitingResponse , CircleRelationshipRole::Member,false));
+                                                }
+                                            }
+                                        }
+
+                                    }
+                                    _ => {
+                                        //TODO maybe
+                                    }
+                                }
+
+                            } else {
+                                // Some circle member action
+
+                                let display_name = room.get_member_no_sync(&og_rm_event.state_key).await?.map(|rm| rm.display_name().map(|name| name.to_string())).unwrap_or(None);
+                                let target_user = MsnUser::with_email_addr(EmailAddress::from_user_id(&og_rm_event.state_key));
+                                let target_msn_addr = target_user.get_email_address().as_str();
+                                let display_name = display_name.unwrap_or(target_msn_addr.to_string());
+
+                                let circle_members = {
+                                    match circle_members.get_mut(&circle_uuid.to_string()) {
+                                        None => {
+                                            circle_members.insert(circle_uuid.to_string(), Vec::new());
+                                            circle_members.get_mut(&circle_uuid.to_string()).expect("to be here")
+                                        }
+                                        Some(circle_members) => {
+                                            circle_members
+                                        }
+                                    }
+                                };
+
+
+                                match og_rm_event.membership_change() {
+                                    MembershipChange::Joined | MembershipChange::InvitationAccepted | MembershipChange::KnockAccepted => {
+                                        debug!("SYNC|MEMBERSHIPS|JOIN: Sent Invite was accepted by contact in circle: {}", &target_msn_addr);
+                                        circle_members.push(ContactType::new_circle_member_contact(&target_user.uuid, target_msn_addr, &display_name, ContactTypeEnum::Live, RelationshipState::Accepted , CircleRelationshipRole::Member , false));
+                                    },
+                                    MembershipChange::Left | MembershipChange::Banned | MembershipChange::Kicked | MembershipChange::KickedAndBanned => {
+                                        debug!("SYNC|MEMBERSHIPS|JOIN: Contact Left the circle: {}", &target_msn_addr);
+                                        circle_members.push(ContactType::new_circle_member_contact(&target_user.uuid, target_msn_addr, &display_name, ContactTypeEnum::Live, RelationshipState::Accepted , CircleRelationshipRole::Member , true));
+                                    },
+                                    MembershipChange::Invited => {
+                                        debug!("SYNC|MEMBERSHIPS|JOIN: Invited contact to join circle: {}", &target_msn_addr);
+                                        circle_members.push(ContactType::new_circle_member_contact(&target_user.uuid, target_msn_addr, &display_name, ContactTypeEnum::Live, RelationshipState::WaitingResponse , CircleRelationshipRole::Member , false));
+                                    }
+
+                                    _ => {
+                                        //TODO maybe
+                                    }
+                                }
+                                }
+
                         }
                     }
                 }
                 _ => {
+                    //TODO Handle redactions :(
                     debug!("SYNC|MEMBERSHIPS|JOIN: Non Original SyncRoomMemberEvent Received: {:?}", event);
 
                 }

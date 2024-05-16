@@ -49,18 +49,21 @@ pub async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnve
         return handle_user_contact_list(request, client, &mut client_data).await;
     } else {
         //Handle Circle Request
-        return handle_circle_request(request, &ab_id, client).await;
+        return handle_circle_request(request, &ab_id, client, &mut client_data).await;
     }
 
     Err(anyhow!("Unsupported AB Id"))?
 }
 
-async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, ab_id: &str, client: Client) -> Result<Response, ABError> {
+async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, ab_id: &str, client: Client, client_data: &mut ClientData) -> Result<Response, ABError> {
     let body = request.body.body;
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or_default();
 
     if body.filter_options.deltas_only {
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_circle(ab_id, &cache_key, vec![]);
+
+        let contacts = client_data.inner.soap_holder.circle_contacts.remove(ab_id).map(|(id, contacts)| contacts).unwrap_or(Vec::new());
+
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_circle(ab_id, &cache_key, contacts);
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
 
     } else {
