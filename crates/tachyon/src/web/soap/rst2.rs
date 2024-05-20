@@ -49,7 +49,7 @@ pub async fn rst2_handler(body: String) -> Result<Response, RST2Error> {
      let soap_body = RST2ResponseFactory::get_rst2_success_response(
          TicketToken(result.access_token),
          creds.username,
-        matrix_id.to_uuid(),
+        email.to_uuid(),
      );
 
      Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))

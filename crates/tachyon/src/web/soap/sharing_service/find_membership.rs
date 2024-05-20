@@ -36,8 +36,8 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, token:
 
         let msg_service = FindMembershipResponseFactory::get_messenger_service(allow, block, reverse, pending, false);
         let user_id = client.user_id().ok_or(anyhow!("Expected matrix client to have a logged-in user"))?;
-        let uuid = user_id.to_uuid();
         let email_addr = EmailAddress::from_user_id(user_id);
+        let uuid = email_addr.to_uuid();
 
         let soap_body = FindMembershipResponseFactory::get_response(
             uuid,
@@ -51,8 +51,8 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, token:
         let msg_service = FindMembershipResponseFactory::get_messenger_service(allow, block, reverse, pending, true);
 
         let user_id = client.user_id().ok_or(anyhow!("Expected matrix client to have a logged-in user"))?;
-        let uuid = user_id.to_uuid();
         let email_addr = EmailAddress::from_user_id(user_id);
+        let uuid = email_addr.to_uuid();
 
          let soap_body = FindMembershipResponseFactory::get_response(
              uuid,

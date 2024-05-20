@@ -333,7 +333,7 @@ async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Roo
                                     MembershipChange::InvitationAccepted | MembershipChange::Joined => {
                                         //I accepted an invite to a circle
 
-                                        let mut circle = ContactType::new_circle(room_id.as_str(), &room.computed_display_name().await.unwrap().to_string(), false, RelationshipState::Accepted, CircleRelationshipRole::Member);
+                                        let mut circle = ContactType::new_circle(room_id.as_str(), &room.computed_display_name().await.unwrap().to_string(), false, RelationshipState::Accepted, CircleRelationshipRole::None);
                                         let inverse_info = CircleInverseInfoType::new(circle.contact_id.clone().expect("to be here"), room.computed_display_name().await.expect("").to_string(), false, CircleRelationshipRole::Member, RelationshipState::Accepted);
 
                                         contacts.push(Contact::Circle(CircleData {
@@ -357,10 +357,6 @@ async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Roo
 
                                         //This method is the same as in GetContactsPaged TODO cleanup
                                         for current in members.drain(..){
-
-                                            if current.user_id() != client.user_id().expect("user-id to be present") {
-                                                continue;
-                                            }
 
                                             match current.membership() {
                                                 MembershipState::Join => {

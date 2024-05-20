@@ -758,7 +758,7 @@ impl ContactType {
 
 		let network_info_list = NetworkInfoList{ network_info: vec![network_info] };
 
-		let contact_info = ContactInfoType{ emails: None, phones: None, locations: None, web_sites: None, annotations: None, group_ids: None, group_ids_deleted: None, contact_type: Some(ContactTypeEnum::Circle), quick_name: Some(display_name.to_string()), first_name: None, middle_name: None, last_name: None, suffix: None, name_title: None, passport_name: Some(passport_name.to_string()), display_name: Some(display_name.to_string()), puid: Some(0), cid: Some(uuid.to_decimal_cid()), brand_id_list: None, comment: None, is_mobile_im_enabled: Some(false), is_messenger_user: Some(true), is_favorite: Some(false), is_smtp: Some(false), has_space: Some(true), spot_watch_state: Some(String::from("NoDevice")), birthdate: Some(String::from("0001-01-01T00:00:00")), primary_email_type: Some(ContactEmailTypeType{ body: String::from("Passport") }), primary_location: Some(ContactLocationTypeType{ body: String::from("ContactLocationPersonal") }), primary_phone: Some(String::from("ContactPhonePersonal")), is_private: Some(false), anniversary: None, gender: Some(String::from("Unspecified") ), time_zone: Some(String::from("None")), trust_level: None, network_info_list: Some(network_info_list), public_display_name: None, is_auto_update_disabled: None, is_hidden: Some(true), is_passport_name_hidden: Some(false), is_not_mobile_visible: Some(false), is_shell_contact: None, messenger_member_info: None, properties_changed: None, client_error_data: None, link_info: None, source_handle: None, file_as: None, ur_ls: None };
+		let contact_info = ContactInfoType{ emails: None, phones: None, locations: None, web_sites: None, annotations: None, group_ids: None, group_ids_deleted: None, contact_type: Some(ContactTypeEnum::Circle), quick_name: Some(display_name.to_string()), first_name: None, middle_name: None, last_name: None, suffix: None, name_title: None, passport_name: Some(passport_name.to_string()), display_name: Some(display_name.to_string()), puid: Some(0), cid: Some(uuid.to_decimal_cid()), brand_id_list: None, comment: None, is_mobile_im_enabled: Some(false), is_messenger_user: Some(true), is_favorite: Some(false), is_smtp: Some(false), has_space: Some(false), spot_watch_state: Some(String::from("NoDevice")), birthdate: Some(String::from("0001-01-01T00:00:00")), primary_email_type: Some(ContactEmailTypeType{ body: String::from("Passport") }), primary_location: Some(ContactLocationTypeType{ body: String::from("ContactLocationPersonal") }), primary_phone: Some(String::from("ContactPhonePersonal")), is_private: Some(false), anniversary: None, gender: Some(String::from("Unspecified") ), time_zone: Some(String::from("None")), trust_level: Some(0), network_info_list: Some(network_info_list), public_display_name: None, is_auto_update_disabled: None, is_hidden: Some(true), is_passport_name_hidden: Some(false), is_not_mobile_visible: Some(false), is_shell_contact: Some(false), messenger_member_info: None, properties_changed: None, client_error_data: None, link_info: None, source_handle: None, file_as: None, ur_ls: None };
 		return ContactType{ contact_id: Some(uuid.to_string()), contact_info: Some(contact_info), properties_changed: Some(String::new()), f_deleted: Some(deleted), last_change: Some(now_serialized.clone()), create_date: None, last_modified_by: None, created_by: None };
 	}
 
@@ -1368,11 +1368,11 @@ pub struct NetworkInfoType {
 	default_namespace="nsi1"
 )]
 pub enum CircleRelationshipRole {
-	None,
-	Admin,
-	AssistantAdmin,
-	Member,
-	StatePendingOutbound
+	None = 0,
+	Admin = 1,
+	AssistantAdmin = 2,
+	Member = 3,
+	StatePendingOutbound = 4
 }
 
 impl Default for CircleRelationshipRole {
@@ -1829,7 +1829,7 @@ impl CircleInverseInfoType {
 					rs_type: 2,
 					membership_access: 0,
 					is_presence_enabled: true,
-					request_membership_option: 2,
+					request_membership_option: 0,
 					display_name: display_name.clone(),
 					profile_last_updated: Some("0001-01-01T00:00:00".into()),
 					changes: None,

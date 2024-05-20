@@ -90,11 +90,6 @@ async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, 
         let mut members = if matches!(me.membership(), MembershipState::Join) {found.members(RoomMemberships::JOIN.union(RoomMemberships::INVITE)).await? } else { found.members_no_sync(RoomMemberships::JOIN.union(RoomMemberships::INVITE)).await?  };
 
         for current in members.drain(..){
-
-            if current.user_id() == client.user_id().expect("user-id to be present") {
-                continue;
-            }
-
             match current.membership() {
                 MembershipState::Join => {
                     let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
@@ -118,9 +113,10 @@ async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, 
 async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelope, client: Client, client_data: &mut ClientData) -> Result<Response, ABError> {
     let body = request.body.body;
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or_default();
-    let user_id = client.user_id().ok_or(anyhow!("Matrix client has no user ID."))?;
-    let uuid = user_id.to_uuid();
-    let msn_addr = EmailAddress::from_user_id(&user_id);
+    let user_id = client.user_id().expect("UserId to be present");
+    let me_user = client_data.get_user_clone()?;
+    let uuid = &me_user.uuid;
+    let msn_addr = me_user.get_email_address();
 
     if body.filter_options.deltas_only {
         let (contacts, circles) = {
@@ -140,7 +136,7 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
             (contacts, circles)
         };
 
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(uuid, &cache_key, msn_addr.as_str(), msn_addr.as_str(), contacts, circles,false);
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(uuid.clone(), &cache_key, msn_addr.as_str(), msn_addr.as_str(), contacts, circles,false);
 
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
 
@@ -149,7 +145,7 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
         // Full contact list demanded.
         //TODO Circle fullsync
         let mut contacts = get_fullsync_contact_list(&client, user_id).await?;
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(uuid, &cache_key, msn_addr.as_str(), msn_addr.as_str(), contacts, Vec::new(),false );
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(uuid.clone(), &cache_key, msn_addr.as_str(), msn_addr.as_str(), contacts, Vec::new(),false );
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
     }
 

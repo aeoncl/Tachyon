@@ -52,7 +52,7 @@ pub async fn storage_service(headers: HeaderMap, State(state): State<ClientStore
 async fn get_profile(request: GetProfileMessageSoapEnvelope, token: TicketToken, matrix_client: Client) -> Result<Response, ABError> {
     let user_id = matrix_client.user_id().ok_or(anyhow!("Expected to have user_id in matrix client"))?;
     let msn_addr = EmailAddress::from_user_id(user_id);
-    let uuid = user_id.to_uuid();
+    let uuid = msn_addr.to_uuid();
 
     let display_name = matrix_client.account().get_display_name().await?.unwrap_or(msn_addr.to_string());
 
