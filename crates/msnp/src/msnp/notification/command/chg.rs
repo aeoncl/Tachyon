@@ -4,12 +4,13 @@ use std::fmt::Display;
 use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}, shared::models::{capabilities::ClientCapabilities, msn_object::MsnObject, presence_status::PresenceStatus}};
 use crate::shared::traits::MSNPCommand;
 
+#[derive(Clone)]
 pub struct Chg {
 
-    tr_id: u128,
-    presence_status: PresenceStatus,
-    client_capabilities : ClientCapabilities,
-    avatar: Option<MsnObject>
+    pub tr_id: u128,
+    pub presence_status: PresenceStatus,
+    pub client_capabilities : ClientCapabilities,
+    pub avatar: Option<MsnObject>
 
 }
 

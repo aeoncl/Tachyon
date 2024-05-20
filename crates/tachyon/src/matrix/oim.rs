@@ -20,6 +20,7 @@ use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::oim::OIM;
 use msnp::shared::models::uuid::Uuid;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
+use msnp::shared::payload::msg::raw_msg_payload::MsgContentType;
 use crate::notification::client_store::{ClientData, ClientStoreError};
 use crate::shared::identifiers::MatrixIdCompatible;
 
@@ -196,7 +197,7 @@ pub fn handle_text_message_event(room_id: &OwnedRoomId, room_uuid: Uuid, event_i
         seq_number: seq_num,
         message_id: format!("{room_id}_{event_id}", room_id = room_id.as_str(), event_id = event_id.as_str()),
         content: body.to_owned(),
-        content_type: "text/plain".to_string(),
+        content_type: MsgContentType::TextPlain,
         read: false,
     })
 }

@@ -4,8 +4,8 @@ use crate::msnp::{error::{CommandError, PayloadError}, notification::models::end
 use crate::shared::traits::{MSNPCommand, MSNPPayload};
 
 pub struct Uux {
-    tr_id : u128,
-    payload: Option<UuxPayload>
+    pub tr_id : u128,
+    pub payload: Option<UuxPayload>
 }
 
 pub type UuxClient = Uux;

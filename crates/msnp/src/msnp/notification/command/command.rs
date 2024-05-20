@@ -7,7 +7,12 @@ use crate::msnp::notification::command::chg::ChgServer;
 use crate::msnp::notification::command::cvr::CvrServer;
 use crate::msnp::notification::command::iln::IlnServer;
 use crate::msnp::notification::command::msg::MsgServer;
+use crate::msnp::notification::command::nfy::NfyServer;
+use crate::msnp::notification::command::nln::NlnServer;
 use crate::msnp::notification::command::not::NotServer;
+use crate::msnp::notification::command::put::{PutClient, PutServer};
+use crate::msnp::notification::command::sdg::SdgClient;
+use crate::msnp::notification::command::ubx::UbxServer;
 use crate::msnp::notification::command::usr::UsrServer;
 use crate::msnp::notification::command::uum::UumClient;
 use crate::msnp::notification::command::uux::UuxServer;
@@ -31,6 +36,8 @@ pub enum NotificationClientCommand {
     PRP(PrpClient),
     UUN(UunClient),
     UUM(UumClient),
+    SDG(SdgClient),
+    PUT(PutClient),
     XFR(),
     OUT,
     RAW(RawCommand)
@@ -53,6 +60,8 @@ impl MSNPCommand for NotificationClientCommand {
             "PRP" => NotificationClientCommand::PRP(PrpClient::try_from_raw(raw)?),
             "UUN" => NotificationClientCommand::UUN(UunClient::try_from_raw(raw)?),
             "UUM" => NotificationClientCommand::UUM(UumClient::try_from_raw(raw)?),
+            "SDG" => NotificationClientCommand::SDG(SdgClient::try_from_raw(raw)?),
+            "PUT" => NotificationClientCommand::PUT(PutClient::try_from_raw(raw)?),
             "XFR" => NotificationClientCommand::XFR(),
             "OUT" => NotificationClientCommand::OUT,
             _ => NotificationClientCommand::RAW(raw)
@@ -78,11 +87,15 @@ pub enum NotificationServerCommand {
     QNG(u32),
     USR(UsrServer),
     Uux(UuxServer),
+    UBX(UbxServer),
     Ok(OkCommand),
     CHG(ChgServer),
+    NFY(NfyServer),
     BLP(BlpServer),
     NOT(NotServer),
     ILN(IlnServer),
+    NLN(NlnServer),
+    PUT(PutServer),
     OUT,
     RAW(RawCommand)
 }
@@ -107,8 +120,13 @@ impl MSNPCommand for NotificationServerCommand {
             NotificationServerCommand::BLP(command) => command.into_bytes(),
             NotificationServerCommand::OUT => b"OUT\r\n".to_vec(),
             NotificationServerCommand::RAW(content) => content.into_bytes(),
-            NotificationServerCommand::NOT(content) => {content.into_bytes()}
-            NotificationServerCommand::ILN(content) => {content.into_bytes()}
-        }    }
+            NotificationServerCommand::NOT(content) => {content.into_bytes()},
+            NotificationServerCommand::ILN(content) => { content.into_bytes() },
+            NotificationServerCommand::UBX(content) => { content.into_bytes()}
+            NotificationServerCommand::NFY(content) => {content.into_bytes()}
+            NotificationServerCommand::PUT(content) => {content.into_bytes()}
+            NotificationServerCommand::NLN(content) => { content.into_bytes() }
+        }
+    }
 }
 

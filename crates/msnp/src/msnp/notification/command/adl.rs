@@ -6,9 +6,12 @@ use yaserde::{de::from_str, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
 use crate::{msnp::{error::{CommandError, PayloadError}, raw_command_parser::RawCommand}, shared::{command::ok::OkCommand, models::role_list::RoleList}};
+use crate::msnp::models::contact::Contact;
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::traits::{MSNPCommand, MSNPPayload};
 use crate::shared::errors::IdentifierError;
+use crate::shared::models::network_id::NetworkId;
+use crate::shared::models::network_id_email::NetworkIdEmail;
 
 
 #[derive(Debug)]
@@ -71,10 +74,10 @@ pub struct ADLPayload {
 
 impl ADLPayload {
 
-    pub fn get_contacts(&self) -> Result<HashMap<EmailAddress, u8>, IdentifierError> {
-        let mut out = HashMap::new();
+    pub fn get_contacts(&self) -> Result<Vec<Contact>, IdentifierError> {
+        let mut out = Vec::new();
         for domain in &self.domains {
-            out.extend(domain.get_contacts_and_roles()?);
+            out.extend(domain.get_contacts()?);
         }
         Ok(out)
     }
@@ -93,8 +96,8 @@ pub struct ADLDomain {
 }
 
 impl ADLDomain {
-    pub fn get_contacts_and_roles(&self) -> Result<HashMap<EmailAddress, u8>, IdentifierError> {
-        let test : Result<HashMap<EmailAddress, u8>, IdentifierError> = self.contacts.iter().map(|c| Ok((c.get_msn_addr(&self.domain)?, c.list_type))).collect();
+    pub fn get_contacts(&self) -> Result<Vec<Contact>, IdentifierError> {
+        let test : Result<Vec<Contact>, IdentifierError> = self.contacts.iter().map(|c| Ok(c.get_contact(&self.domain)?)).collect();
         test
     }
 }
@@ -109,12 +112,12 @@ pub struct ADLContact {
     pub list_type: u8,
 
     #[yaserde(rename = "t", attribute)]
-    pub contact_type: String
+    pub contact_type: NetworkId
 }
 
 impl ADLContact {
-    pub fn get_msn_addr(&self, domain: &str) -> Result<EmailAddress, IdentifierError> {
-        EmailAddress::from_str(&format!("{}@{}", &self.email_part, domain))
+    pub fn get_contact(&self, domain: &str) -> Result<Contact, IdentifierError> {
+        Ok(Contact::new(EmailAddress::from_str(&format!("{}@{}", &self.email_part, domain))?, self.contact_type.clone(), self.list_type))
     }
 }
 

@@ -20,6 +20,7 @@ use msnp::shared::traits::MSNPCommand;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::OwnedWriteHalf, TcpListener, TcpStream}, sync::{broadcast::{self, Receiver}, mpsc::{self, Sender}}};
 use tokio::sync::oneshot;
 use msnp::msnp::notification::command::uum::UumPayload;
+use msnp::msnp::notification::models::endpoint_data::PrivateEndpointData;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
@@ -82,7 +83,9 @@ pub(crate) struct LocalStore {
     pub(crate) phase: Phase,
     pub(crate) email_addr: EmailAddress,
     pub(crate) token: TicketToken,
-    pub(crate) client_data: Option<ClientData>
+    pub(crate) client_data: Option<ClientData>,
+    pub(crate) private_endpoint_data: PrivateEndpointData,
+    pub(crate) needs_initial_presence: bool
 }
 
 impl Default for LocalStore {
@@ -92,6 +95,8 @@ impl Default for LocalStore {
             email_addr: EmailAddress::default(),
             token: TicketToken(String::new()),
             client_data: None,
+            private_endpoint_data: Default::default(),
+            needs_initial_presence: true,
         }
     }
 }

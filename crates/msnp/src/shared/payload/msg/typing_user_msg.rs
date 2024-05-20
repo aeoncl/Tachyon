@@ -1,10 +1,11 @@
 use std::str::FromStr;
+
 use anyhow::anyhow;
+
 use crate::msnp::error::PayloadError;
 use crate::shared::models::email_address::EmailAddress;
+use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
 use crate::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
-use crate::shared::payload::msg::raw_msg_payload::RawMsgPayload;
-use crate::shared::payload::msg::text_msg::TextMessageContent;
 use crate::shared::traits::{MSGPayload, MSNPPayload};
 
 pub struct TypingUserMessageContent {
@@ -18,7 +19,7 @@ impl MSGPayload for TypingUserMessageContent {
 
     fn try_from_raw(mut raw_msg_payload: RawMsgPayload) -> Result<Self, Self::Err> where Self: Sized {
 
-        if "text/x-msmsgscontrol" != &raw_msg_payload.content_type {
+        if MsgContentType::Control != raw_msg_payload.get_content_type().unwrap() {
             return Err(PayloadError::PayloadPropertyParseError {
                 property_name: "Content-Type".to_string(),
                 raw_value: format!("{:?}", raw_msg_payload),

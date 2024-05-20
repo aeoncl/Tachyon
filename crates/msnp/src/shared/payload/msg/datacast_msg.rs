@@ -5,7 +5,7 @@ use num_traits::FromPrimitive;
 use crate::msnp::error::PayloadError;
 use crate::shared::models::msn_object::MsnObject;
 use crate::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
-use crate::shared::payload::msg::raw_msg_payload::RawMsgPayload;
+use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
 use crate::shared::traits::{MSGPayload, MSNPPayload};
 
 pub struct DatacastMessageContent {
@@ -22,7 +22,7 @@ impl MSGPayload for DatacastMessageContent {
     type Err = PayloadError;
 
     fn try_from_raw(mut raw_msg_payload: RawMsgPayload) -> Result<Self, Self::Err> where Self: Sized {
-        if "text/x-msnmsgr-datacast" != &raw_msg_payload.content_type {
+        if MsgContentType::Datacast != raw_msg_payload.get_content_type().unwrap() {
             return Err(PayloadError::PayloadPropertyParseError {
                 property_name: "Content-Type".to_string(),
                 raw_value: format!("{:?}", raw_msg_payload),

@@ -10,7 +10,8 @@ use log::warn;
 use crate::msnp::error::PayloadError;
 use crate::msnp::notification::command::uum::UumPayload;
 use crate::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
-use crate::shared::payload::msg::raw_msg_payload::RawMsgPayload;
+use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
+use crate::shared::payload::msg::raw_msg_payload::MsgContentType::TextPlain;
 use crate::shared::traits::{MSGPayload, MSNPPayload};
 
 #[cfg(test)]
@@ -150,7 +151,7 @@ impl MSGPayload for TextMessageContent {
 
     fn try_from_raw(mut raw: RawMsgPayload) -> Result<Self, Self::Err> where Self: Sized {
 
-        if "text/plain" != &raw.content_type {
+        if MsgContentType::TextPlain != raw.get_content_type().unwrap() {
             return Err(PayloadError::PayloadPropertyParseError {
                 property_name: "Content-Type".to_string(),
                 raw_value: format!("{:?}", raw),
@@ -193,14 +194,13 @@ impl MSGPayload for TextMessageContent {
     }
 
     fn into_bytes(self) -> Vec<u8> {
-        let mut out = RawMsgPayload::new("text/plain");
+        let mut out = RawMsgPayload::new(TextPlain, false);
 
         let font_family = urlencoding::encode(&self.font_family);
         let right_left = if self.right_to_left { "1" } else { "0" };
 
         out.add_header_owned("X-MMS-IM-Format".into(), format!("FN={}; EF={}; CO={}; PF={}; RL={}", font_family, self.font_styles, self.font_color, 0, right_left));
         out.set_body_string(self.body);
-        out.disable_trailing_terminators();
         out.into_bytes()
     }
 }

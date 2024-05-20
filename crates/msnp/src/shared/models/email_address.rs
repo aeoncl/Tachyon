@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::shared::errors::IdentifierError;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Default)]
-pub struct EmailAddress(pub(crate) String);
+pub struct EmailAddress(pub String);
 
 impl FromStr for EmailAddress {
     type Err = IdentifierError;
@@ -22,6 +22,9 @@ impl FromStr for EmailAddress {
 impl EmailAddress {
     pub fn as_str(&self) -> &str {
         self.0.as_str()
+    }
+    pub fn crack(&self) -> (&str, &str) {
+        self.0.split_once("@").expect("To be a valid email")
     }
 }
 

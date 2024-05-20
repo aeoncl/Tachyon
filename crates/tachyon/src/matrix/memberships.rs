@@ -7,7 +7,7 @@ use matrix_sdk::{Client, Room, RoomMemberships};
 use matrix_sdk::deserialized_responses::SyncTimelineEvent;
 use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::events::{AnyGlobalAccountDataEvent, AnyStrippedStateEvent, AnySyncStateEvent, AnySyncTimelineEvent, OriginalSyncStateEvent};
-use matrix_sdk::ruma::events::room::member::{MembershipChange, MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent};
+use matrix_sdk::ruma::events::room::member::{MembershipChange, MembershipDetails, MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::ruma::{OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, UserId};
 use matrix_sdk::ruma::events::GlobalAccountDataEventType::IgnoredUserList;
 use matrix_sdk::ruma::events::ignored_user_list::IgnoredUserListEvent;
@@ -89,25 +89,7 @@ pub async fn handle_memberships(client: Client, response: SyncResponse, mut clie
         let room = client.get_room(&room_id).expect("Room to be here");
         let mut dedup: HashSet<String> = HashSet::new();
 
-        for state_event in &update.state {
-            let event = state_event.deserialize();
-            match event {
-                Ok(AnySyncStateEvent::RoomMember(room_member_event)) => {
-                    if dedup.get(room_member_event.event_id().as_str()).is_none() {
-                        dedup.insert(room_member_event.event_id().to_string());
-                    }
-                    handle_joined_room_member_event(&room_member_event, &room, me, &client, &mut contacts, &mut memberships, &mut circle_members).await?;
-                },
-                Ok(other) => {
-                    error!("SYNC|MEMBERSHIPS|JOIN: Received non member event : {:?}", other);
-                },
-                Err(e) => {
-                    error!("SYNC|MEMBERSHIPS|JOIN: Couldnt deserialize sync state event: {:?}", e);
-                }
-            }
-        }
-
-        for event in &update.timeline.events {
+        for event in update.timeline.events.iter().rev() {
             match event.event.deserialize() {
                 Ok(AnySyncTimelineEvent::State(AnySyncStateEvent::RoomMember(room_member_event))) => {
                     if dedup.get(room_member_event.event_id().as_str()).is_none() {
@@ -124,6 +106,27 @@ pub async fn handle_memberships(client: Client, response: SyncResponse, mut clie
             }
         }
 
+        if (update.timeline.limited) {
+
+            for state_event in &update.state {
+                let event = state_event.deserialize();
+                match event {
+                    Ok(AnySyncStateEvent::RoomMember(room_member_event)) => {
+                        if dedup.get(room_member_event.event_id().as_str()).is_none() {
+                            dedup.insert(room_member_event.event_id().to_string());
+                        }
+                        handle_joined_room_member_event(&room_member_event, &room, me, &client, &mut contacts, &mut memberships, &mut circle_members).await?;
+                    },
+                    Ok(other) => {
+                        error!("SYNC|MEMBERSHIPS|JOIN: Received non member event : {:?}", other);
+                    },
+                    Err(e) => {
+                        error!("SYNC|MEMBERSHIPS|JOIN: Couldnt deserialize sync state event: {:?}", e);
+                    }
+                }
+            }
+
+        }
     }
 
     for (room_id, update) in response.rooms.invite {
@@ -235,7 +238,6 @@ async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Roo
 
             match event {
                 SyncRoomMemberEvent::Original(og_rm_event) => {
-
                     debug!("SYNC|MEMBERSHIPS|JOIN: Original SyncRoomMemberEvent Received: {:?}", og_rm_event);
 
                     let mapping = get_joined_room_mapping_info(&room, me, &og_rm_event, &client).await?;

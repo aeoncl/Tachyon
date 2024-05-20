@@ -1,5 +1,6 @@
 use std::fmt::Display;
 use std::str::FromStr;
+use anyhow::anyhow;
 use crate::msnp::error::CommandError;
 use crate::msnp::notification::models::endpoint_guid::EndpointGuid;
 use crate::shared::models::email_address::EmailAddress;

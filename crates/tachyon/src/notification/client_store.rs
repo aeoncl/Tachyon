@@ -95,6 +95,10 @@ impl ClientData {
         Ok(out)
     }
 
+    pub fn get_user_clone(&self) -> Result<MsnUser, ClientStoreError> {
+        Ok(self.get_user()?.clone())
+    }
+
     pub fn get_user_mut(&mut self) -> Result<RwLockWriteGuard<MsnUser>, ClientStoreError> {
         Ok(self.inner.user.write().map_err(|e| ClientStoreError::PoisonnedLockError {name: "User".into(), source: anyhow!(e.to_string())})?)
     }

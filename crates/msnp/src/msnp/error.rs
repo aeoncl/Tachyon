@@ -46,7 +46,10 @@ pub enum CommandError {
     IdentifierError(#[from] IdentifierError),
 
     #[error(transparent)]
-    PayloadError(#[from] PayloadError)
+    PayloadError(#[from] PayloadError),
+
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error)
 }
 
 #[derive(Error, Debug)]

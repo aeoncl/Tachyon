@@ -6,20 +6,21 @@ use yaserde_derive::{YaDeserialize, YaSerialize};
 use crate::{msnp::error::PayloadError, shared::models::{capabilities::ClientCapabilities, presence_status::PresenceStatus}};
 
 use anyhow::anyhow;
+use crate::msnp::notification::models::endpoint_guid::EndpointGuid;
 
 #[derive(Debug, Clone, Default, YaSerialize, YaDeserialize)]
 
 pub struct EndpointData {
 
     #[yaserde(rename = "id", attribute)]
-    pub machine_guid: Option<String>,
+    pub machine_guid: Option<EndpointGuid>,
     #[yaserde(rename = "Capabilities")]
     pub capabilities: ClientCapabilities,
 
 }
 
 impl EndpointData {
-    pub fn new(machine_guid: Option<String>, capabilities: ClientCapabilities) -> Self {
+    pub fn new(machine_guid: Option<EndpointGuid>, capabilities: ClientCapabilities) -> Self {
         return EndpointData{
             machine_guid,
             capabilities,
@@ -246,13 +247,13 @@ mod tests {
     #[test]
     fn test_endpoint_data() {
         //Arrange
-        let command = "<EndpointData id=\"machine_guid\"><Capabilities>2789003324:48</Capabilities></EndpointData>";
+        let command = "<EndpointData id=\"{00000000-0000-0000-0000-000000000000}\"><Capabilities>2789003324:48</Capabilities></EndpointData>";
 
         //Act
         let parsed = EndpointData::from_str(command).unwrap();
 
         //Assert
-        assert_eq!(parsed.machine_guid, Some("machine_guid".to_string()));
+        assert_eq!(parsed.machine_guid.map(|e| e.0.to_string()), Some("00000000-0000-0000-0000-000000000000".to_string()));
         assert_eq!(parsed.capabilities.to_string(), String::from("2789003324:48"));
     }
 

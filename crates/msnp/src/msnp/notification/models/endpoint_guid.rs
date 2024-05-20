@@ -1,10 +1,37 @@
 use std::{fmt::Display, str::FromStr};
+use std::io::{Read, Write};
 
 use crate::{msnp::error::{CommandError}, shared::models::uuid::Uuid};
 use anyhow::anyhow;
+use xml::attribute::OwnedAttribute;
+use xml::namespace::Namespace;
+use yaserde::ser::Serializer;
+use yaserde::{YaDeserialize, YaSerialize};
+use yaserde::de::Deserializer;
 
 #[derive(Debug, Clone)]
 pub struct EndpointGuid(pub Uuid);
+
+impl YaSerialize for EndpointGuid {
+    fn serialize<W: Write>(&self, writer: &mut Serializer<W>) -> Result<(), String> {
+        let _ret = writer.write(xml::writer::XmlEvent::characters(
+            &self.to_string(),
+        ));
+
+        Ok(())
+    }
+
+    fn serialize_attributes(&self, attributes: Vec<OwnedAttribute>, namespace: Namespace) -> Result<(Vec<OwnedAttribute>, Namespace), String> {
+        Ok((attributes, namespace))
+    }
+}
+
+impl YaDeserialize for EndpointGuid {
+    fn deserialize<R: Read>(reader: &mut Deserializer<R>) -> Result<Self, String> {
+        todo!()
+    }
+}
+
 
 impl FromStr for EndpointGuid {
     type Err = CommandError;

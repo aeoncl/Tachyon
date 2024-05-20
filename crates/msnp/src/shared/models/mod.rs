@@ -9,3 +9,4 @@ pub mod oim;
 pub mod endpoint_id;
 pub mod email_address;
 pub mod network_id;
+pub mod network_id_email;

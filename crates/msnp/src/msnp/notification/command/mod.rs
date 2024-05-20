@@ -14,3 +14,7 @@ pub mod url;
 pub mod uum;
 pub mod iln;
 pub mod ubx;
+pub mod sdg;
+pub mod nfy;
+pub mod put;
+pub mod nln;

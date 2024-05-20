@@ -4,6 +4,7 @@ use std::str::{from_utf8, FromStr};
 
 use chrono::{DateTime, Local, Utc};
 use log::Metadata;
+use mime::Mime;
 use xml::attribute::OwnedAttribute;
 use xml::namespace::Namespace;
 use yaserde::{YaDeserialize, YaSerialize};
@@ -16,6 +17,7 @@ use crate::shared::config::yaserde::CONFIG_NO_DECL;
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::uuid::Uuid;
 use crate::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
+use crate::shared::payload::msg::raw_msg_payload::MsgContentType;
 use crate::shared::traits::MSNPPayload;
 use crate::soap::error::SoapMarshallError;
 use crate::soap::traits::xml::ToXml;
@@ -175,7 +177,7 @@ pub struct OIM {
     pub seq_number: u32,
     pub message_id: String,
     pub content: String,
-    pub content_type: String,
+    pub content_type: MsgContentType,
     pub read: bool
 }
 
@@ -190,7 +192,7 @@ impl FromStr for OIM {
 
 impl Display for OIM {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let msg_payload = RawMsgPayloadFactory::get_oim(self.recv_datetime, self.sender.as_str(), self.sender_display_name.as_ref().map(|e| e.as_str()).unwrap_or(""), self.receiver.as_str(), self.run_id.to_string().as_str(), self.seq_number, self.message_id.as_str(), self.content.as_str(), self.content_type.as_str());
+        let msg_payload = RawMsgPayloadFactory::get_oim(self.recv_datetime, self.sender.as_str(), self.sender_display_name.as_ref().map(|e| e.as_str()).unwrap_or(""), self.receiver.as_str(), self.run_id.to_string().as_str(), self.seq_number, self.message_id.as_str(), self.content.as_str(), self.content_type.clone());
         let bytes = msg_payload.into_bytes();
 
         write!(f, "{}", from_utf8(&bytes).expect("OIM payload to never contain binary data"))

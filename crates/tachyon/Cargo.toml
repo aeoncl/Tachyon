@@ -26,6 +26,7 @@ env_logger.workspace = true
 log.workspace = true
 chrono.workspace = true
 regex.workspace = true
+mime = "0.3.17"
 
 
 [dependencies.matrix-sdk]

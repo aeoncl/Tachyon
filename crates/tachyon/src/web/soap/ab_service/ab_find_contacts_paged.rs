@@ -91,7 +91,7 @@ async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, 
 
         for current in members.drain(..){
 
-            if current.user_id() != client.user_id().expect("user-id to be present") {
+            if current.user_id() == client.user_id().expect("user-id to be present") {
                 continue;
             }
 

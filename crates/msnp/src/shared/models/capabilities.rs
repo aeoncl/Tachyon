@@ -158,9 +158,12 @@ impl Default for ClientCapabilities {
       + ExtendedCapabilities::CustomEmoticonsCapable as u32
       + ExtendedCapabilities::SupportsUTF8MoodMessages as u32
       + ExtendedCapabilities::SupportsP4Activity as u32
-      + ExtendedCapabilities::SupportsMultipartyConversations as u32;
+      + ExtendedCapabilities::SupportsMultipartyConversations as u32
+      + ExtendedCapabilities::VoiceClipSupportsCircleIM as u32;
 
-  ClientCapabilities::new(STANDARD_CAP, EXTENDED_CAP)
+
+  //ClientCapabilities::new(STANDARD_CAP, EXTENDED_CAP)
+        ClientCapabilities::new(2789003324, 48)
   }
 }
 

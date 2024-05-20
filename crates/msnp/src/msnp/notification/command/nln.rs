@@ -21,13 +21,12 @@ mod tests {
     use crate::shared::models::presence_status::PresenceStatus;
     use crate::shared::traits::MSNPCommand;
 
-    use super::IlnServer;
+    use super::{NlnServer};
 
     #[test]
     pub fn test_nln_via_ser_msn_obj() {
 
-        let iln = IlnServer {
-            tr_id: 1,
+        let iln = NlnServer {
             presence_status: PresenceStatus::BSY,
             target_user: NetworkIdEmail::new(NetworkId::WindowsLive, EmailAddress::from_str("test@shlasouf.local").unwrap()),
             via: Some(NetworkIdEmail::new(NetworkId::Circle, EmailAddress::from_str("test@live.fr").unwrap())),
@@ -39,16 +38,15 @@ mod tests {
 
         let bytes = iln.into_bytes();
 
-        let iln_deser = String::from_utf8(bytes).unwrap();
+        let nln_deser = String::from_utf8(bytes).unwrap();
 
-        assert_eq!("NLN 1 BSY 1:test@shlasouf.local;via=9:test@live.fr Testo 0:0 <msnobj Creator=\"test@shlasouf.local\" Type=\"3\" SHA1D=\"2jmj7l5rSw0yVb/vlWAYkK/YBwk=\" Size=\"0\" Location=\"blabla.tmp\" Friendly=\"YgBsAGEAYgBsAGEALgBqAHAAZwAAAA==\" contenttype=\"D\" />\r\n", &iln_deser);
+        assert_eq!("NLN BSY 1:test@shlasouf.local;via=9:test@live.fr Testo 0:0 <msnobj Creator=\"test@shlasouf.local\" Type=\"3\" SHA1D=\"2jmj7l5rSw0yVb/vlWAYkK/YBwk=\" Size=\"0\" Location=\"blabla.tmp\" Friendly=\"YgBsAGEAYgBsAGEALgBqAHAAZwAAAA==\" contenttype=\"D\" />\r\n", &nln_deser);
     }
 
     #[test]
-    pub fn test_iln_ser_msn_obj() {
+    pub fn test_nln_ser_msn_obj() {
 
-        let iln = IlnServer {
-            tr_id: 1,
+        let nln = NlnServer {
             presence_status: PresenceStatus::BSY,
             target_user: NetworkIdEmail::new(NetworkId::WindowsLive, EmailAddress::from_str("test@shlasouf.local").unwrap()),
             via: None,
@@ -58,18 +56,17 @@ mod tests {
             badge_url: None,
         };
 
-        let bytes = iln.into_bytes();
+        let bytes = nln.into_bytes();
 
-        let iln_deser = String::from_utf8(bytes).unwrap();
+        let nln_deser = String::from_utf8(bytes).unwrap();
 
-        assert_eq!("ILN 1 BSY 1:test@shlasouf.local Testo 0:0 <msnobj Creator=\"test@shlasouf.local\" Type=\"3\" SHA1D=\"2jmj7l5rSw0yVb/vlWAYkK/YBwk=\" Size=\"0\" Location=\"blabla.tmp\" Friendly=\"YgBsAGEAYgBsAGEALgBqAHAAZwAAAA==\" contenttype=\"D\" />\r\n", &iln_deser);
+        assert_eq!("NLN BSY 1:test@shlasouf.local Testo 0:0 <msnobj Creator=\"test@shlasouf.local\" Type=\"3\" SHA1D=\"2jmj7l5rSw0yVb/vlWAYkK/YBwk=\" Size=\"0\" Location=\"blabla.tmp\" Friendly=\"YgBsAGEAYgBsAGEALgBqAHAAZwAAAA==\" contenttype=\"D\" />\r\n", &nln_deser);
     }
 
     #[test]
-    pub fn test_iln_ser_no_msn_obj() {
+    pub fn test_nln_ser_no_msn_obj() {
 
-        let iln = IlnServer {
-            tr_id: 1,
+        let nln = NlnServer {
             presence_status: PresenceStatus::BSY,
             target_user: NetworkIdEmail::new(NetworkId::WindowsLive, EmailAddress::from_str("test@shlasouf.local").unwrap()),
             via: None,
@@ -80,18 +77,17 @@ mod tests {
         };
 
 
-        let bytes = iln.into_bytes();
+        let bytes = nln.into_bytes();
 
-        let iln_deser = String::from_utf8(bytes).unwrap();
+        let nln_deser = String::from_utf8(bytes).unwrap();
 
-        assert_eq!("ILN 1 BSY 1:test@shlasouf.local Testo 0:0 0\r\n", &iln_deser);
+        assert_eq!("NLN BSY 1:test@shlasouf.local Testo 0:0 0\r\n", &nln_deser);
     }
 
     #[test]
-    pub fn test_iln_ser_no_msn_obj_badge() {
+    pub fn test_nln_ser_no_msn_obj_badge() {
 
-        let iln = IlnServer {
-            tr_id: 1,
+        let nln = NlnServer {
             presence_status: PresenceStatus::BSY,
             target_user: NetworkIdEmail::new(NetworkId::WindowsLive, EmailAddress::from_str("test@shlasouf.local").unwrap()),
             via: None,
@@ -102,19 +98,18 @@ mod tests {
         };
 
 
-        let bytes = iln.into_bytes();
+        let bytes = nln.into_bytes();
 
-        let iln_deser = String::from_utf8(bytes).unwrap();
+        let nln_deser = String::from_utf8(bytes).unwrap();
 
-        assert_eq!("ILN 1 BSY 1:test@shlasouf.local Testo 0:0 0 http://badge.jpg\r\n", &iln_deser);
+        assert_eq!("NLN BSY 1:test@shlasouf.local Testo 0:0 0 http://badge.jpg\r\n", &nln_deser);
     }
 
 
 }
 
 
-pub struct IlnServer {
-    pub tr_id: u128,
+pub struct NlnServer {
     pub presence_status: PresenceStatus,
     pub target_user: NetworkIdEmail,
     pub via: Option<NetworkIdEmail>,
@@ -124,7 +119,7 @@ pub struct IlnServer {
     pub badge_url: Option<String>,
 }
 
-impl MSNPCommand for IlnServer {
+impl MSNPCommand for NlnServer {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
@@ -144,13 +139,12 @@ impl MSNPCommand for IlnServer {
 
 
 
-        let mut out = format!("ILN {tr_id} {presence_status} {target_user} {display_name} {capab} {avatar}",
-                tr_id = self.tr_id,
-                presence_status = self.presence_status,
-                target_user = target_user,
-                display_name = self.display_name,
-                capab = self.client_capabilities,
-                avatar = self.avatar.map(|a| a.to_string()).unwrap_or("0".into())
+        let mut out = format!("NLN {presence_status} {target_user} {display_name} {capab} {avatar}",
+                              presence_status = self.presence_status,
+                              target_user = target_user,
+                              display_name = self.display_name,
+                              capab = self.client_capabilities,
+                              avatar = self.avatar.map(|a| a.to_string()).unwrap_or("0".into())
         );
 
 
