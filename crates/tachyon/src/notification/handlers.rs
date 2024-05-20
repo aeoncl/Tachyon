@@ -1,12 +1,14 @@
 use std::path::Path;
 use std::str::FromStr;
-use anyhow::anyhow;
+
+use anyhow::{anyhow, Error};
 use lazy_static_include::syn::BinOp::Ne;
-use log::{debug, warn};
+use log::{debug, error, warn};
 use matrix_sdk::RoomMemberships;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::Sender;
+
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
 use msnp::msnp::notification::command::cvr::CvrServer;
 use msnp::msnp::notification::command::iln::IlnServer;
@@ -32,12 +34,13 @@ use msnp::shared::models::uuid::Uuid;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use msnp::shared::payload::msg::text_msg::FontStyle;
 use msnp::shared::payload::nfy::nfy_put_payload::RawNfyPayload;
-use crate::matrix;
+
+use crate::{matrix, notification};
+use crate::matrix::msn_user_resolver;
+use crate::matrix::sync::initial_sync;
 use crate::notification::client_store::{ClientData, ClientStoreFacade};
 use crate::notification::notification_server::{LocalStore, Phase};
 use crate::shared::identifiers::{MatrixDeviceId, MatrixIdCompatible};
-use crate::shared::msn_user_resolver;
-
 
 pub(crate) async fn handle_negotiation(raw_command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, mut local_store: &mut LocalStore) -> Result<(), anyhow::Error> {
     match raw_command {
@@ -124,13 +127,6 @@ pub(crate) async fn handle_auth(raw_command: NotificationClientCommand, notif_se
                                 let endpoint_data = b"<Data></Data>";
                                 notif_sender_ed.send(NotificationServerCommand::RAW(RawCommand::with_payload(&format!("UBX 1:{}", &email_addr.as_str()), endpoint_data.to_vec()))).await;
                             });
-
-                            let kill_signal_clone = kill_signal.resubscribe();
-                            tokio::spawn(async move {
-                                matrix::sync::start_sync_task(matrix_client, notif_sender, client_data, kill_signal_clone).await;
-                            });
-
-
                         }
 
                     }
@@ -287,140 +283,34 @@ pub(crate) async fn handle_command(raw_command: NotificationClientCommand, notif
             Ok(())
         }
         NotificationClientCommand::CHG(command) => {
-            notif_sender.send(NotificationServerCommand::CHG(command.clone())).await?;
+            if local_store.needs_initial_presence {
+                local_store.needs_initial_presence = false;
 
+                let notif_sender = notif_sender.clone();
+                let client_data = client_data.clone();
+                let kill_signal = kill_signal.clone();
 
-            let contacts = {
-                let lock = client_data.inner.contact_list.lock().unwrap();
-                lock.get_forward_list()
-            };
+                tokio::spawn(async move {
+                    let initial_sync_result = initial_sync(command.tr_id, &client_data).await;
+                    if let Err(err) = initial_sync_result.as_ref() {
+                        error!("An error occured during initial sync: {}", err);
+                        //TODO return a real error instead of outing the client
+                        let _result = notif_sender.send(NotificationServerCommand::OUT).await;
+                    }
 
+                    let (mut iln, mut notifications) = initial_sync_result.expect("to be here");
 
-            for (contact) in contacts {
+                    for current in iln.drain(..) {
+                        let _result = notif_sender.send(NotificationServerCommand::ILN(current)).await;
+                    }
 
-                if contact.is_from_network(NetworkId::WindowsLive) && local_store.needs_initial_presence {
-                    let msn_user = msn_user_resolver::resolve_msn_user(&contact.email_address.to_owned_user_id(), None, &client_data, true, true).await?;
-                    notif_sender.send(NotificationServerCommand::ILN(IlnServer {
-                        tr_id: command.tr_id,
-                        presence_status: PresenceStatus::NLN,
-                        target_user: contact.get_network_id_email(),
-                        via: None,
-                        display_name: msn_user.compute_display_name().to_string(),
-                        client_capabilities: msn_user.capabilities.clone(),
-                        avatar: None,
-                        badge_url: None,
-                    })).await?;
-
-                    notif_sender.send(NotificationServerCommand::UBX(UbxServer{
-                        target_user: contact.get_network_id_email(),
-                        via: None,
-                        payload: UbxPayload::ExtendedPresence(ExtendedPresenceContent {
-                            psm: msn_user.psm.clone(),
-                            current_media: "".to_string(),
-                            endpoint_data: EndpointData { machine_guid: msn_user.endpoint_id.endpoint_guid.clone(), capabilities: Default::default() },
-                            private_endpoint_data: None,
-                        })
-                    })).await?;
-
-                } else if contact.is_from_network(NetworkId::Circle) {
-
-                        let circle_target_user = contact.get_network_id_email();
-                        let (local_part, _domain) = circle_target_user.email.crack();
-                        //TODO have a store of UUID room mappings
-                        let circle_uuid = Uuid::from_str(local_part).unwrap();
-                        let rooms = client_data.get_matrix_client().rooms();
-                        let found = rooms.iter().find(|r| {
-                            let room_uuid = Uuid::from_seed(r.room_id().as_str());
-                            room_uuid == circle_uuid
-                        }).unwrap();
-
-
-                    let presence_body = format!("<circle><props><presence dtype=\"xml\"><Data><UTL></UTL><MFN>{}</MFN><PSM></PSM><CurrentMedia></CurrentMedia></Data></presence></props></circle>", found.name().unwrap());
-
-                    let mut presence_payload = RawNfyPayload::new_circle(contact.get_network_id_email(), NetworkIdEmail::new(NetworkId::WindowsLive, local_store.email_addr.clone()));
-                    presence_payload.set_body_string(presence_body);
-
-                    notif_sender.send(NotificationServerCommand::NFY(NfyServer {
-                        operation: NfyOperation::Put,
-                        payload: presence_payload
-                    })).await?;
-
-
-                        let members = found.members_no_sync(RoomMemberships::JOIN).await.unwrap();
-
-                        for member in members {
-
-                            let msn_user = msn_user_resolver::resolve_msn_user_from_rm(&member, &client_data, true, true).await?;
-
-                            //TODO avatar
-
-                            notif_sender.send(NotificationServerCommand::NLN(NlnServer {
-                                presence_status: PresenceStatus::NLN,
-                                target_user: msn_user.get_network_id_email(),
-                                via: Some(circle_target_user.clone()),
-                                display_name: msn_user.compute_display_name().to_string(),
-                                client_capabilities: msn_user.capabilities.clone(),
-                                avatar: None,
-                                badge_url: None
-                            })).await?;
-
-                            notif_sender.send(NotificationServerCommand::UBX(UbxServer{
-                                target_user: msn_user.get_network_id_email(),
-                                via: Some(circle_target_user.clone()),
-                                payload: UbxPayload::ExtendedPresence(ExtendedPresenceContent {
-                                    psm: msn_user.psm.clone(),
-                                    current_media: "".to_string(),
-                                    endpoint_data: EndpointData { machine_guid: msn_user.endpoint_id.endpoint_guid.clone(), capabilities: Default::default() },
-                                    private_endpoint_data: None,
-                                })
-                            })).await?;
-
-
-
-
-                            let roster_body = format!("<circle><roster><id>IM</id><user><id>{network_id_email}</id></user></roster></circle>", network_id_email = msn_user.get_network_id_email());
-
-                            let mut roster_payload = RawNfyPayload::new_circle_partial(contact.get_network_id_email(), NetworkIdEmail::new(NetworkId::WindowsLive, local_store.email_addr.clone()));
-                            roster_payload.set_body_string(roster_body);
-
-                            notif_sender.send(NotificationServerCommand::NFY(NfyServer {
-                                operation: NfyOperation::Put,
-                                payload: roster_payload
-                            })).await?;
-
-                        }
-                }
-
-
-
-
-
-
+                    for current in notifications.drain(..) {
+                        let _result = notif_sender.send(NotificationServerCommand::NOT(current)).await;
+                    }
+                });
             }
-            local_store.needs_initial_presence = false;
 
-            let me = client_data.get_user_clone().unwrap();
-
-            notif_sender.send(NotificationServerCommand::NLN(NlnServer {
-                presence_status: PresenceStatus::NLN,
-                target_user: NetworkIdEmail::new(NetworkId::WindowsLive, local_store.email_addr.clone()),
-                via: None,
-                display_name: local_store.email_addr.to_string(),
-                client_capabilities: Default::default(),
-                avatar: None,
-                badge_url: None,
-            })).await?;
-
-            notif_sender.send(NotificationServerCommand::UBX(UbxServer{
-                target_user: NetworkIdEmail::new(NetworkId::WindowsLive, local_store.email_addr.clone()),
-                via: None,
-                payload: UbxPayload::ExtendedPresence(ExtendedPresenceContent {
-                    psm: "".to_string(),
-                    current_media: "".to_string(),
-                    endpoint_data: EndpointData { machine_guid: me.endpoint_id.endpoint_guid, capabilities: Default::default() },
-                    private_endpoint_data: Some(local_store.private_endpoint_data.clone()),
-                })
-            })).await?;
+            notif_sender.send(NotificationServerCommand::CHG(command.clone())).await?;
 
             Ok(())
         }

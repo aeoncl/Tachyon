@@ -20,6 +20,7 @@ mod matrix;
 #[tokio::main]
 async fn main() {
     setup_logs();
+
     let (master_kill_signal,  kill_recv) = broadcast::channel::<()>(1);
 
     let client_store_facade = ClientStoreFacade::default();
@@ -29,6 +30,7 @@ async fn main() {
     let web_server = WebServer::listen("127.0.0.1", 8080, kill_recv, client_store_facade);
 
     join!(notification_server, switchboard_server, web_server, listen_for_stop_signal(master_kill_signal));
+
     info!("Byebye, world!");
 }
 

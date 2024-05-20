@@ -17,6 +17,7 @@ pub enum RoomMappingInfo {
 }
 
 
+
 pub async fn get_invite_room_mapping_info(room_id: &RoomId, direct_target: &UserId, event: &StrippedRoomMemberEvent , client: &Client) -> Result<RoomMappingInfo,  matrix_sdk::Error> {
 
     let room = client.get_dm_room(direct_target);
@@ -125,7 +126,7 @@ pub async fn get_joined_room_mapping_info(room: &Room, me: &UserId, event: &Orig
     let joined_members_count = {
 
         if room.joined_members_count() == 0 {
-            let join_members = room.members(RoomMemberships::JOIN).await?;
+            let join_members = room.members_no_sync(RoomMemberships::JOIN).await?;
             join_members.len() as u64
         } else {
             room.joined_members_count()
@@ -176,6 +177,7 @@ todo!()
 }
 
 
+
 pub async fn resolve_direct_target(direct_targets: &HashSet<OwnedUserId>, room: &Room, me: &UserId, client: &Client) -> Result<Option<OwnedUserId>, matrix_sdk::Error> {
     let maybe_found_direct_target = try_fetch_in_direct_targets(direct_targets, me);
     if maybe_found_direct_target.is_some() {
@@ -183,7 +185,7 @@ pub async fn resolve_direct_target(direct_targets: &HashSet<OwnedUserId>, room: 
         return Ok(maybe_found_direct_target);
     }
 
-    for member in room.members(RoomMemberships::JOIN).await? {
+    for member in room.members_no_sync(RoomMemberships::JOIN).await? {
         if member.user_id() != me {
             return Ok(Some(member.user_id().to_owned()));
         }
@@ -193,6 +195,7 @@ pub async fn resolve_direct_target(direct_targets: &HashSet<OwnedUserId>, room: 
     debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING|DIRECT_TARGET: Room: {} Direct Target not found", room.room_id());
     return Ok(None);
 }
+
 
 fn try_fetch_in_direct_targets(direct_targets: &HashSet<OwnedUserId>, me: &UserId) -> Option<OwnedUserId> {
     if direct_targets.len() > 2 {
@@ -208,6 +211,7 @@ fn try_fetch_in_direct_targets(direct_targets: &HashSet<OwnedUserId>, me: &UserI
 
     return None;
 }
+
 
 pub async fn force_update_rooms_with_fresh_m_direct(client: &Client) -> Result<(), matrix_sdk::Error> {
     if let Some(raw_content) = client.account().fetch_account_data(GlobalAccountDataEventType::Direct).await? {
@@ -226,6 +230,7 @@ pub async fn force_update_rooms_with_fresh_m_direct(client: &Client) -> Result<(
     return Ok(())
 
 }
+
 
 async fn fetch_m_direct_account_data(client: &Client) -> Result<Option<DirectEventContent>, matrix_sdk::Error> {
 

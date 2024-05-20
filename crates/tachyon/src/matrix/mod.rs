@@ -1,5 +1,6 @@
 pub mod login;
 pub mod sync;
 pub mod directs;
-mod oim;
-mod memberships;
+pub mod oim;
+pub mod memberships;
+pub mod msn_user_resolver;

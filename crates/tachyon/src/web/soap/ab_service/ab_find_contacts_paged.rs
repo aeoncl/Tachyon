@@ -87,7 +87,7 @@ async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, 
 
         let mut contacts = Vec::new();
 
-        let mut members = if matches!(me.membership(), MembershipState::Join) {found.members(RoomMemberships::JOIN.union(RoomMemberships::INVITE)).await? } else { found.members_no_sync(RoomMemberships::JOIN.union(RoomMemberships::INVITE)).await?  };
+        let mut members = found.members_no_sync(RoomMemberships::JOIN.union(RoomMemberships::INVITE)).await?;
 
         for current in members.drain(..){
             match current.membership() {

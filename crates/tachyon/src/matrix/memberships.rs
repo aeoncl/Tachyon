@@ -30,10 +30,9 @@ use crate::matrix::directs::{force_update_rooms_with_fresh_m_direct, get_invite_
 use crate::notification::client_store::{ClientData, Contact};
 use crate::shared::identifiers::MatrixIdCompatible;
 
-pub async fn handle_memberships(client: Client, response: SyncResponse, mut client_data: ClientData, notif_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error> {
+
+pub async fn handle_memberships(client: Client, response: SyncResponse) -> Result<(Vec<Contact>, VecDeque<BaseMember>, HashMap<String, Vec<ContactType>>), anyhow::Error> {
     debug!("---Handle Memberships---");
-
-
     let me = client.user_id().expect("UserID to be here");
 
     let mut contacts = Vec::new();
@@ -176,65 +175,10 @@ pub async fn handle_memberships(client: Client, response: SyncResponse, mut clie
 
     }
 
-    let me_msn_usr = MsnUser::without_endpoint_guid(EmailAddress::from_user_id(&me));
-
-
-    if !contacts.is_empty() || !memberships.is_empty() {
-        {
-            let mut contacts_mtx = client_data.inner.soap_holder.contacts.lock().unwrap();
-            let mut memberships_mtx = client_data.inner.soap_holder.memberships.lock().unwrap();
-
-            if (contacts_mtx.is_empty()) {
-                let _ = mem::replace(&mut *contacts_mtx, contacts);
-            } else {
-                contacts_mtx.append(&mut contacts);
-            }
-
-            if memberships_mtx.is_empty() {
-                let _ = mem::replace(&mut *memberships_mtx, memberships);
-            } else {
-                memberships_mtx.append(&mut memberships);
-            }
-        }
-
-
-
-
-
-        //TODO make this less shit later
-        notif_sender.send(NotificationServerCommand::NOT(NotServer {
-            payload: NotificationFactory::get_abch_updated(&me_msn_usr.uuid, me_msn_usr.get_email_address().as_str()),
-        })).await;
-
-    }
-
-    if !circle_members.is_empty() {
-
-       for (circle_id, mut members) in circle_members.drain() {
-
-            match client_data.inner.soap_holder.circle_contacts.get_mut(&circle_id) {
-                None => {
-                    client_data.inner.soap_holder.circle_contacts.insert(circle_id.clone(), members);
-                }
-                Some(mut circle_members) => {
-                    circle_members.append(&mut members);
-                }
-            }
-
-           notif_sender.send(NotificationServerCommand::NOT(NotServer {
-               payload: NotificationFactory::get_circle_updated(&me_msn_usr.uuid, me_msn_usr.get_email_address().as_str(), &circle_id)
-           })).await;
-       }
-
-
-    }
-
-
-    Ok(())
+    Ok((contacts, memberships, circle_members))
 }
 
-
-async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Room, me: &UserId, client: &Client, contacts: &mut Vec<Contact>, memberships: &mut VecDeque<BaseMember>, circle_members: &mut HashMap<String, Vec<ContactType>>) -> Result<(), anyhow::Error> {
+pub async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Room, me: &UserId, client: &Client, contacts: &mut Vec<Contact>, memberships: &mut VecDeque<BaseMember>, circle_members: &mut HashMap<String, Vec<ContactType>>) -> Result<(), anyhow::Error> {
 
             match event {
                 SyncRoomMemberEvent::Original(og_rm_event) => {
@@ -353,7 +297,7 @@ async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: &Roo
                                             }
                                         };
 
-                                        let mut members = room.members(RoomMemberships::ACTIVE).await?;
+                                        let mut members = room.members_no_sync(RoomMemberships::ACTIVE).await?;
 
                                         //This method is the same as in GetContactsPaged TODO cleanup
                                         for current in members.drain(..){

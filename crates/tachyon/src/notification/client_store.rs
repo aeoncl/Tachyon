@@ -3,7 +3,6 @@ use std::sync::{Arc, LockResult, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwL
 
 use anyhow::anyhow;
 use dashmap::DashMap;
-use dashmap::mapref::one::RefMut;
 use matrix_sdk::Client;
 use matrix_sdk::ruma::OwnedRoomId;
 use thiserror::__private::AsDynError;
@@ -17,6 +16,7 @@ use msnp::shared::models::oim::OIM;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::CircleData;
 use msnp::soap::abch::msnab_datatypes::{BaseMember, ContactType};
+use crate::notification::circle_store::CircleStore;
 
 #[derive(Clone)]
 pub struct SwitchboardHandle {
@@ -32,6 +32,7 @@ pub struct ClientDataInner {
     pub contact_list: Mutex<ContactList>,
     pub soap_holder: SoapHolder,
     pub switchboards: DashMap<OwnedRoomId, SwitchboardHandle>,
+    pub circle_store: CircleStore
 }
 
 pub enum Contact {
@@ -67,6 +68,7 @@ impl ClientData {
             contact_list: Default::default(),
             soap_holder: Default::default(),
             switchboards: Default::default(),
+            circle_store: CircleStore::new(),
         })
         }
     }
