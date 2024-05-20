@@ -8,8 +8,12 @@ Tachyon is a **translation layer** between **MSNP18** & **the Matrix API**.
 ## What's sort of working now
  - Redirection to localhost
  - User/Password login
- - Profile pics
+ - Group Chats
+ - Memberships and Contacts
  - Display names
+
+## Works on Master branch but needs refactoring
+ - Profile pics
  - Presence (kinda working, WLM is not really compatible with the Matrix way of handling presence currently)
  - 1v1 DM Rooms
  - Text messages
@@ -17,8 +21,7 @@ Tachyon is a **translation layer** between **MSNP18** & **the Matrix API**.
  - Multiple Points of Presence (showing all your logged in sessions)
  - E2E encryption (kinda, no client validation)
  - Vocal messages
- - Group dms (they appear when someone else talks in them)
-
+   
 ## What's next
  - Photo sharing
  - Contact management (Add, remove, etc)
