@@ -12,6 +12,7 @@ use yaserde_derive::{YaDeserialize, YaSerialize};
 
 use crate::{msnp::error::PayloadError, p2p::v2::slp_context::SlpContext};
 use crate::msnp::error::CommandError;
+use crate::shared::models::email_address::EmailAddress;
 
 
 // Documentation source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/MSN_Object
@@ -493,10 +494,10 @@ pub struct MSNObjectFactory;
 
 impl MSNObjectFactory {
 
-    pub fn get_display_picture(image: &[u8], creator_msn_addr: String, location: String, friendly: FriendlyName) -> MsnObject {
+    pub fn get_display_picture(image: &[u8], creator_msn_addr: &EmailAddress, location: String, friendly: FriendlyName) -> MsnObject {
         let sha1d = compute_sha1(&image);
 
-        return MsnObject::new(creator_msn_addr, MsnObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MsnObjectContentType::D), false);
+        return MsnObject::new(creator_msn_addr.to_string(), MsnObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MsnObjectContentType::D), false);
     }
 
     pub fn get_me_display_picture(image: &[u8], creator_msn_addr: String, friendly: FriendlyName) -> MsnObject {

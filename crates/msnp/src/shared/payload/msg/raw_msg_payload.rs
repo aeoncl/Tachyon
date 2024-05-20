@@ -201,6 +201,8 @@ pub mod factories {
     pub struct RawMsgPayloadFactory;
 
     impl RawMsgPayloadFactory {
+
+        //Flags: 1610613827
         pub fn get_msmsgs_profile(puid: &Puid, msn_addr: &EmailAddress, ticket_token: &TicketToken) -> RawMsgPayload {
             let mut out = RawMsgPayload::new(MsgContentType::Profile, false);
             let now = Local::now().timestamp_millis();
@@ -218,13 +220,14 @@ pub mod factories {
             out.add_header("BDayPre", "");
             out.add_header("Birthday", "");
             out.add_header("Wallet", "");
-            out.add_header("Flags", "1610613827");
+            out.add_header("Flags", "536872513");
             out.add_header("sid", "507");
             out.add_header("MSPAuth", &ticket_token.0);
             out.add_header("ClientIP", "");
             out.add_header("ClientPort","");
             out.add_header("ABCHMigrated", "1");
             out.add_header("MPOPEnabled", "1");
+            out.add_header("BetaInvites", "1");
 
             return out;
         }
