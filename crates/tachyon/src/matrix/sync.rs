@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashSet, VecDeque};
+use std::time::Duration;
 use log::debug;
 use matrix_sdk::{Client, LoopCtrl, Room};
 use matrix_sdk::config::SyncSettings;
@@ -37,11 +38,12 @@ pub async fn start_sync_task(client: Client, notif_sender: Sender<NotificationSe
 
     let mut sync_token = client.sync_token().await;
 
-    let mut settings = SyncSettings::new().set_presence(PresenceState::Offline);
+    let mut settings = SyncSettings::new().set_presence(PresenceState::Offline).timeout(Duration::from_secs(240));
 
     if let Some(sync_token) = sync_token.as_ref() {
         settings = settings.token(sync_token);
     }
+
 
 
     client.add_event_handler_context(TachyonContext { notif_sender: notif_sender.clone(), client_data: client_data.clone() });
@@ -88,9 +90,9 @@ pub async fn start_sync_task(client: Client, notif_sender: Sender<NotificationSe
         let client_data_cloned = client_data.clone();
         let notif_sender_cloned = notif_sender.clone();
 
-        tokio::spawn(async move {
-            handle_memberships(client_cloned, response_cloned, client_data_cloned, notif_sender_cloned).await
-        });
+        handle_memberships(client_cloned, response_cloned, client_data_cloned, notif_sender_cloned).await;
+
+
 
 
             sync_token = Some(response.next_batch.clone());
