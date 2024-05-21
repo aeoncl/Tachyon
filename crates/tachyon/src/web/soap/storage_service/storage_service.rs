@@ -4,6 +4,8 @@ use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use axum_macros::debug_handler;
+use base64::Engine;
+use base64::engine::general_purpose;
 use log::error;
 use matrix_sdk::Client;
 use msnp::shared::models::email_address::EmailAddress;
@@ -19,7 +21,6 @@ use crate::shared::traits::ToUuid;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 use crate::web::web_endpoints::DEFAULT_CACHE_KEY;
-
 pub async fn storage_service(headers: HeaderMap, State(state): State<ClientStoreFacade>, body: String) -> Result<Response, ABError> {
 
     let soap_action = headers.get("SOAPAction").ok_or(ABError::MissingHeader("SOAPAction".into()))?.to_str()?.trim_start_matches("\"").trim_end_matches("\"");
@@ -56,8 +57,9 @@ async fn get_profile(request: GetProfileMessageSoapEnvelope, token: TicketToken,
 
     let display_name = matrix_client.account().get_display_name().await?.unwrap_or(msn_addr.to_string());
 
-    //TODO fetch image
-    let soap_body = GetProfileResponseMessageSoapEnvelope::new(uuid, DEFAULT_CACHE_KEY.to_string(), display_name, String::new(), None);
+    let avatar_mxid = matrix_client.account().get_avatar_url().await?.map(|a| general_purpose::STANDARD.encode(a.as_str()));
+
+    let soap_body = GetProfileResponseMessageSoapEnvelope::new(uuid, DEFAULT_CACHE_KEY.to_string(), display_name, String::new(), avatar_mxid);
     Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
 
 }

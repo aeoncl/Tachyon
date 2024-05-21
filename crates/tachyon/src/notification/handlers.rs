@@ -310,7 +310,11 @@ pub(crate) async fn handle_command(raw_command: NotificationClientCommand, notif
                 });
             }
 
+
             notif_sender.send(NotificationServerCommand::CHG(command.clone())).await?;
+
+            //notif_sender.send(NotificationServerCommand::SDG())
+
 
             Ok(())
         }

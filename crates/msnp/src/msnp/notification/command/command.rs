@@ -11,7 +11,7 @@ use crate::msnp::notification::command::nfy::NfyServer;
 use crate::msnp::notification::command::nln::NlnServer;
 use crate::msnp::notification::command::not::NotServer;
 use crate::msnp::notification::command::put::{PutClient, PutServer};
-use crate::msnp::notification::command::sdg::SdgClient;
+use crate::msnp::notification::command::sdg::{SdgClient, SdgServer};
 use crate::msnp::notification::command::ubx::UbxServer;
 use crate::msnp::notification::command::usr::UsrServer;
 use crate::msnp::notification::command::uum::UumClient;
@@ -96,6 +96,7 @@ pub enum NotificationServerCommand {
     ILN(IlnServer),
     NLN(NlnServer),
     PUT(PutServer),
+    SDG(SdgServer),
     OUT,
     RAW(RawCommand)
 }
@@ -126,6 +127,7 @@ impl MSNPCommand for NotificationServerCommand {
             NotificationServerCommand::NFY(content) => {content.into_bytes()}
             NotificationServerCommand::PUT(content) => {content.into_bytes()}
             NotificationServerCommand::NLN(content) => { content.into_bytes() }
+            NotificationServerCommand::SDG(content) => { content.into_bytes() }
         }
     }
 }

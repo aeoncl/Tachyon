@@ -21,7 +21,7 @@ use crate::web::soap::sharing_service::sharing_service::sharing_service;
 
 use crate::web::soap::rst2::rst2_handler;
 use crate::web::soap::storage_service::storage_service::storage_service;
-use crate::web::web_endpoints::{firewall_test, get_banner_ads, get_msgr_config, get_text_ad, ppcrlcheck, ppcrlconfigsrf, sha1auth, wlidsvcconfig};
+use crate::web::web_endpoints::{firewall_test, get_banner_ads, get_msgr_config, get_profile_pic, get_text_ad, ppcrlcheck, ppcrlconfigsrf, sha1auth, wlidsvcconfig};
 
 pub struct WebServer;
 
@@ -45,6 +45,7 @@ impl WebServer {
             .route("/wlidsvcconfig.xml", get(wlidsvcconfig))
             .route("/pcrlcheck.srf", get(ppcrlcheck))
             .route("/RST2.srf", post(rst2_handler))
+            .route("/storage/usertile/:image_mxid/:image_type", get(get_profile_pic))
             //SOAP
             .route("/abservice/abservice.asmx", post(address_book_service))
             .route("/abservice/SharingService.asmx", post(sharing_service))

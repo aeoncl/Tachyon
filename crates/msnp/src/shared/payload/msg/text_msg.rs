@@ -195,11 +195,7 @@ impl MSGPayload for TextMessageContent {
 
     fn into_bytes(self) -> Vec<u8> {
         let mut out = RawMsgPayload::new(TextPlain, false);
-
-        let font_family = urlencoding::encode(&self.font_family);
-        let right_left = if self.right_to_left { "1" } else { "0" };
-
-        out.add_header_owned("X-MMS-IM-Format".into(), format!("FN={}; EF={}; CO={}; PF={}; RL={}", font_family, self.font_styles, self.font_color, 0, right_left));
+        out.add_header_owned("X-MMS-IM-Format".into(), self.get_mms_format_header());
         out.set_body_string(self.body);
         out.into_bytes()
     }
@@ -241,6 +237,13 @@ impl TextMessageContent {
 
     pub fn is_default_font(&self) -> bool {
         &self.font_family == "Segoe UI"
+    }
+
+    pub fn get_mms_format_header(&self) -> String {
+        let font_family = urlencoding::encode(&self.font_family);
+        let right_left = if self.right_to_left { "1" } else { "0" };
+
+        format!("FN={}; EF={}; CO={}; PF={}; RL={}", font_family, self.font_styles, self.font_color, 0, right_left)
     }
 }
 

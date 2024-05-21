@@ -10,6 +10,8 @@ pub struct SdgClient {
     pub payload: RawNfyPayload
 }
 
+pub type SdgServer = SdgClient;
+
 impl MSNPCommand for SdgClient {
     type Err = CommandError;
 

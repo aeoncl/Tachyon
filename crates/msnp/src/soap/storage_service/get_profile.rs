@@ -247,7 +247,7 @@ pub mod response {
 
 
     impl GetProfileResponseMessageSoapEnvelope {
-        pub fn new(uuid: Uuid, cache_key: String, display_name: String, psm: String, image_mxid: Option<String>) -> GetProfileResponseMessageSoapEnvelope {
+        pub fn new(uuid: Uuid, cache_key: String, display_name: String, psm: String, image_name: Option<String>) -> GetProfileResponseMessageSoapEnvelope {
 
 
             let now = Local::now();
@@ -259,7 +259,7 @@ pub mod response {
 
 
             let mut static_user_tile_public_url = String::new();
-            if let Some(found_image_id) = image_mxid {
+            if let Some(found_image_id) = image_name {
                 let user_tile_static = DocumentStream{ document_stream_name: Some(String::from("UserTileStatic")), mime_type: Some(String::from("image/jpeg")), data: None, data_size: 0, pre_auth_url: Some(format!("http://127.0.0.1/storage/usertile/{}/static", &found_image_id)), pre_auth_url_partner: None, document_stream_type: String::from("UserTileStatic"), write_mode: Some(String::from("Overwrite")), stream_version: Some(0), sha1_hash: None, genie: Some(false), stream_data_status: Some(String::from("None")), stream_status: Some(String::from("None")), is_alias_for_default:Some(false), expiration_date_time: Some(String::from("0001-01-01T00:00:00")) };
                 document_stream_array.push(user_tile_static);
 

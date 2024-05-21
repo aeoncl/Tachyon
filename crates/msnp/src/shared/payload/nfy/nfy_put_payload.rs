@@ -12,6 +12,7 @@ use crate::msnp::error::PayloadError;
 use crate::msnp::switchboard::command::msg::MsgPayload;
 use crate::shared::models::network_id_email::NetworkIdEmail;
 use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
+use crate::shared::payload::msg::text_msg::TextMessageContent;
 use crate::shared::traits::MSNPPayload;
 
 #[cfg(test)]
@@ -126,6 +127,10 @@ mod tests {
 pub enum NfyContentType {
     #[strum(serialize = "application/circles+xml", ascii_case_insensitive)]
     Circle,
+    #[strum(serialize = "text/plain; charset=UTF-8", ascii_case_insensitive)]
+    PlainText,
+    #[strum(serialize = "text/x-msmsgscontrol", ascii_case_insensitive)]
+    Control,
     None,
 }
 
@@ -310,6 +315,26 @@ impl RawNfyPayload {
 
         out
 
+    }
+
+    pub fn new_text_message(from: NetworkIdEmail, to: NetworkIdEmail, payload: TextMessageContent) -> Self {
+        let envelope = NfyEnvelope{
+            routing: "1.0".to_string(),
+            from,
+            to,
+            reliability: "1.0".to_string(),
+            stream: 0,
+            segment: None,
+            flags: None,
+        };
+
+        let mut out = Self::new(envelope, NfyContentType::PlainText, false);
+        out.add_header("Messaging", "1.0");
+        out.add_header("Message-Type", "Text");
+        out.add_header_owned("X-MMS-IM-Format".into(), payload.get_mms_format_header());
+        out.set_body_string(payload.body);
+
+        out
     }
 
 

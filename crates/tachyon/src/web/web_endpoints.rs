@@ -1,9 +1,17 @@
 use std::str::from_utf8;
 use axum::body::Body;
+use axum::extract::Path;
 use axum::http::{HeaderMap, HeaderName, Response, StatusCode};
 use axum::http::header::{CONTENT_TYPE, LOCATION};
+use base64::Engine;
+use base64::engine::general_purpose;
 use lazy_static::lazy_static;
 use lazy_static_include::lazy_static_include_bytes;
+use matrix_sdk::Client;
+use matrix_sdk::media::{MediaFormat, MediaRequest, MediaThumbnailSize};
+use matrix_sdk::ruma::api::client::media::get_content_thumbnail::v3::Method;
+use matrix_sdk::ruma::events::room::MediaSource;
+use matrix_sdk::ruma::{mxc_uri, MxcUri, OwnedMxcUri, UInt};
 use regex::Regex;
 use crate::web::soap::shared::build_soap_response;
 
@@ -82,4 +90,20 @@ pub async fn ppcrlcheck() -> Response<Body> {
         .header(CONTENT_TYPE, "text/xml")
         .body(Body::from(data)).expect("wlid config to be valid")
 
+}
+
+pub async fn get_profile_pic(Path((image_mxid, _image_type)): Path<(String, String)>) -> Response<Body> {
+
+    //Todo handle errors
+    let image_mxid = String::from_utf8(general_purpose::STANDARD.decode(image_mxid.as_bytes()).unwrap()).unwrap();
+    let parsed_mxc = OwnedMxcUri::from(image_mxid);
+
+    let client= Client::builder().disable_ssl_verification().server_name(parsed_mxc.server_name().unwrap()).build().await.unwrap();
+
+    let media_request = MediaRequest{ source: MediaSource::Plain(parsed_mxc), format: MediaFormat::Thumbnail(MediaThumbnailSize{ method: Method::Scale, width: UInt::new(200).unwrap(), height: UInt::new(200).unwrap() })};
+    let image = client.media().get_media_content(&media_request, false).await.unwrap();
+
+    Response::builder()
+        .header(CONTENT_TYPE, "image/jpeg")
+        .body(Body::from(image)).expect("Image to be valid")
 }

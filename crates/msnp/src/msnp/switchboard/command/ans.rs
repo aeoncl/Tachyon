@@ -1,8 +1,8 @@
 use std::str::FromStr;
 use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
-use crate::msnp::switchboard::models::b64_string::Base64String;
 use crate::shared::command::ok::OkCommand;
+use crate::shared::models::b64_string::Base64String;
 use crate::shared::models::endpoint_id::EndpointId;
 use crate::shared::traits::MSNPCommand;
 
