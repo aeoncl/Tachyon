@@ -10,7 +10,7 @@ use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::passport::rst2::response::factory::RST2ResponseFactory;
 use msnp::soap::traits::xml::ToXml;
 use crate::notification::client_store::ClientStoreError;
-use crate::shared::error::MatrixConversionError;
+use crate::shared::error::{MatrixConversionError, TachyonError};
 use crate::web::soap::error::ABError::InternalServerError;
 use crate::web::soap::shared;
 use crate::web::soap::shared::build_soap_response;
@@ -117,6 +117,8 @@ pub enum RST2Error {
     SoapMarshallError(#[from] SoapMarshallError),
     #[error(transparent)]
     MatrixConversionError(#[from] MatrixConversionError),
+    #[error(transparent)]
+    TachyonError(#[from] TachyonError),
     #[error("An internal server error has occured")]
     InternalServerError{source: anyhow::Error}
 }
@@ -136,6 +138,9 @@ impl IntoResponse for RST2Error {
             },
             RST2Error::MatrixConversionError(_) => {
                 shared::build_soap_response(RST2ResponseFactory::get_bad_request(), StatusCode::OK)
+            },
+            RST2Error::TachyonError(_) => {
+                shared::build_soap_response(RST2ResponseFactory::get_bad_request(), StatusCode::INTERNAL_SERVER_ERROR)
             },
             RST2Error::InternalServerError { .. } => {
                 shared::build_soap_response(RST2ResponseFactory::get_bad_request(), StatusCode::INTERNAL_SERVER_ERROR)

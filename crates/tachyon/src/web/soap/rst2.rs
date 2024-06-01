@@ -17,7 +17,7 @@ use msnp::soap::passport::rst2::request::RST2RequestMessageSoapEnvelope;
 use msnp::soap::passport::rst2::response::factory::RST2ResponseFactory;
 use msnp::soap::traits::xml::{ToXml, TryFromXml};
 
-use crate::matrix::login::get_matrix_client_builder;
+use crate::matrix::login::{get_matrix_client_builder, login_with_password};
 use crate::shared::error::MatrixConversionError;
 use crate::shared::identifiers::{MatrixDeviceId, MatrixIdCompatible};
 use crate::shared::traits::{ToUuid};
@@ -34,20 +34,10 @@ pub async fn rst2_handler(body: String) -> Result<Response, RST2Error> {
 
     let matrix_id = email.to_owned_user_id();
 
-    let client = get_matrix_client_builder(matrix_id.server_name(), None, true).build().await.map_err(|e| RST2Error::InternalServerError {source: e.into()})?;
-
-    let device_id = format!("tachyon3-{}", MatrixDeviceId::from_hostname()?.to_string());
-
-    let result = client.matrix_auth()
-                .login_username(&matrix_id, &creds.password)
-                .device_id(&device_id)
-                .initial_device_display_name("Tachyon")
-                .send()
-                .await
-                .map_err(|e| RST2Error::AuthenticationFailed{ source: e.into() })?;
+    let (token, _client) = login_with_password(matrix_id, &creds.password, false).await?;
 
      let soap_body = RST2ResponseFactory::get_rst2_success_response(
-         TicketToken(result.access_token),
+         TicketToken(token),
          creds.username,
         email.to_uuid(),
      );

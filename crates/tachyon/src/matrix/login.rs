@@ -1,11 +1,27 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use anyhow::anyhow;
+use log::debug;
 
-use matrix_sdk::{AuthSession, Client, ClientBuilder, Error, ServerName};
+use matrix_sdk::{AuthSession, Client, ClientBuilder, ServerName};
 use matrix_sdk::matrix_auth::{MatrixSession, MatrixSessionTokens};
-use matrix_sdk::ruma::{device_id, OwnedUserId};
+use matrix_sdk::ruma::{device_id, OwnedUserId, UserId};
+
 use msnp::shared::models::ticket_token::TicketToken;
 
+use crate::shared::paths;
+use crate::shared::error::{MatrixConversionError, TachyonError};
 use crate::shared::identifiers::MatrixDeviceId;
+use crate::shared::paths::get_store_path;
+use crate::web::soap::error::RST2Error;
+
+fn get_device_id() -> Result<MatrixDeviceId, MatrixConversionError> {
+    MatrixDeviceId::from_hostname()
+}
+
+pub fn get_device_display_name(device_id: &MatrixDeviceId) -> String {
+    format!("Tachyon-{}", &device_id)
+}
+
 
 
 pub fn get_matrix_client_builder(server_name: &ServerName, homeserver_url: Option<String>, disable_ssl: bool) -> ClientBuilder {
@@ -27,14 +43,18 @@ pub fn get_matrix_client_builder(server_name: &ServerName, homeserver_url: Optio
     client_builder
 }
 
-pub async fn login(matrix_id: OwnedUserId, device_id: String, token: TicketToken, store_path: &Path, homeserver_url: Option<String>, disable_ssl: bool) -> Result<Client, Error> {
-    let device_id_str = device_id.to_string();
+pub async fn login_with_token(matrix_id: OwnedUserId, token: TicketToken, disable_ssl: bool) -> Result<Client, TachyonError> {
+    let device_id_str = get_device_id()?.to_string();
     let device_id = device_id!(device_id_str.as_str()).to_owned();
 
-    let client = get_matrix_client_builder(matrix_id.server_name(), homeserver_url, disable_ssl)
+
+    let store_path = get_store_path(&matrix_id).ok_or(anyhow!("Couldn't get store path"))?;
+    debug!("storepath: {:?}", &store_path);
+
+    let client = get_matrix_client_builder(matrix_id.server_name(), None, disable_ssl)
         .sqlite_store(store_path, None)
         .build()
-        .await.unwrap();
+        .await?;
 
     client.restore_session(AuthSession::Matrix(MatrixSession {
         meta: matrix_sdk::SessionMeta { user_id: matrix_id, device_id },
@@ -43,4 +63,20 @@ pub async fn login(matrix_id: OwnedUserId, device_id: String, token: TicketToken
 
     client.whoami().await?;
     Ok(client)
+}
+
+pub async fn login_with_password(matrix_id: OwnedUserId, password: &str, disable_ssl: bool) -> Result<(String, Client), TachyonError> {
+    let client = get_matrix_client_builder(matrix_id.server_name(), None, true).build().await?;
+
+    let device_id = get_device_id()?;
+    let device_id_as_str = device_id.to_string();
+
+    let result = client.matrix_auth()
+        .login_username(&matrix_id, password)
+        .device_id(&device_id_as_str)
+        .initial_device_display_name(get_device_display_name(&device_id).as_str())
+        .send()
+        .await?;
+
+    Ok((result.access_token, client))
 }
