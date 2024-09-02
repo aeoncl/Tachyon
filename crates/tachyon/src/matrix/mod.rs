@@ -4,3 +4,4 @@ pub mod directs;
 pub mod oim;
 pub mod memberships;
 pub mod msn_user_resolver;
+pub mod events;

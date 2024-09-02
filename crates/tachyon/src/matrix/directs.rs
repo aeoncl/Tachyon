@@ -7,18 +7,36 @@ use matrix_sdk::deserialized_responses::{AnySyncOrStrippedState, RawMemberEvent,
 use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
 use matrix_sdk::ruma::events::direct::DirectEventContent;
 use matrix_sdk::ruma::events::{AnySyncStateEvent, GlobalAccountDataEventType, OriginalSyncStateEvent, SyncStateEvent};
+use matrix_sdk::ruma::events::macros::EventContent;
 use matrix_sdk::ruma::events::room::member::{OriginalSyncRoomMemberEvent, RoomMemberEvent, RoomMemberEventContent, StrippedRoomMemberEvent};
 use matrix_sdk::ruma::events::StateEvent::Original;
 use matrix_sdk::ruma::events::StateEventType::RoomMember;
+use serde::{Deserialize, Serialize};
 
-pub enum RoomMappingInfo {
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum RoomMapping {
     Direct(OwnedUserId),
+    PendingDirect(OwnedUserId),
     Group
+}
+
+pub struct RoomMappingInfo {
+    id: OwnedRoomId,
+    mapping: RoomMapping
+}
+
+impl RoomMappingInfo {
+    pub fn new(id: OwnedRoomId, mapping: RoomMapping) -> Self {
+        Self {
+            id,
+            mapping
+        }
+    }
 }
 
 
 
-pub async fn get_invite_room_mapping_info(room_id: &RoomId, direct_target: &UserId, event: &StrippedRoomMemberEvent , client: &Client) -> Result<RoomMappingInfo,  matrix_sdk::Error> {
+pub async fn get_invite_room_mapping_info(room_id: &RoomId, direct_target: &UserId, event: &StrippedRoomMemberEvent , client: &Client) -> Result<RoomMapping,  matrix_sdk::Error> {
 
     let room = client.get_dm_room(direct_target);
 
@@ -44,7 +62,7 @@ pub async fn get_invite_room_mapping_info(room_id: &RoomId, direct_target: &User
 
 
     if !is_direct {
-        return Ok(RoomMappingInfo::Group)
+        return Ok(RoomMapping::Group)
     }
 
     let is_main_dm_room = {
@@ -70,13 +88,13 @@ pub async fn get_invite_room_mapping_info(room_id: &RoomId, direct_target: &User
     };
 
     if is_main_dm_room && is_one_on_one {
-        Ok(RoomMappingInfo::Direct(direct_target.to_owned()))
+        Ok(RoomMapping::Direct(direct_target.to_owned()))
     } else {
-        Ok(RoomMappingInfo::Group)
+        Ok(RoomMapping::Group)
     }
 }
 
-pub async fn get_joined_room_mapping_info(room: &Room, me: &UserId, event: &OriginalSyncStateEvent<RoomMemberEventContent>, client: &Client ) -> Result<RoomMappingInfo,  matrix_sdk::Error> {
+pub async fn get_joined_room_mapping_info(room: &Room, me: &UserId, event: &OriginalSyncStateEvent<RoomMemberEventContent>, client: &Client ) -> Result<RoomMapping,  matrix_sdk::Error> {
 
     let is_direct = {
         match event.content.is_direct {
@@ -120,7 +138,7 @@ pub async fn get_joined_room_mapping_info(room: &Room, me: &UserId, event: &Orig
     debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING: Room: {} is is direct ? {}", room.room_id(), is_direct);
 
     if !is_direct {
-        return Ok(RoomMappingInfo::Group)
+        return Ok(RoomMapping::Group)
     }
 
     let joined_members_count = {
@@ -137,7 +155,7 @@ pub async fn get_joined_room_mapping_info(room: &Room, me: &UserId, event: &Orig
 
     debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING: Room: {} is_one_on_one? {} ({} joined people)?", room.room_id(), is_one_on_one, joined_members_count);
     if !is_one_on_one {
-        return Ok(RoomMappingInfo::Group)
+        return Ok(RoomMapping::Group)
     }
 
     let direct_target = resolve_direct_target(&room.direct_targets(), room, me, client).await?;
@@ -160,14 +178,14 @@ pub async fn get_joined_room_mapping_info(room: &Room, me: &UserId, event: &Orig
     };
 
     if is_main_dm_room {
-        Ok(RoomMappingInfo::Direct(direct_target.expect("to be here")))
+        Ok(RoomMapping::Direct(direct_target.expect("to be here")))
     } else {
-        Ok(RoomMappingInfo::Group)
+        Ok(RoomMapping::Group)
     }
 
 }
 
-pub async fn get_left_room_mapping_info(room: &Room, me: &UserId, client: &Client ) -> Result<RoomMappingInfo,  matrix_sdk::Error> {
+pub async fn get_left_room_mapping_info(room: &Room, me: &UserId, client: &Client ) -> Result<RoomMapping,  matrix_sdk::Error> {
 
     //TODO check from ClientData contact list of room was a Group or not.
 

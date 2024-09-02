@@ -26,7 +26,7 @@ use msnp::shared::models::uuid::Uuid;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::CircleData;
 use msnp::soap::abch::msnab_datatypes::{Annotation, ArrayOfAnnotation, BaseMember, ContactType, ContactTypeEnum, MemberState, MemberType, CircleRelationshipRole, RelationshipState, RoleId, NetworkInfoType, CircleInverseInfoType};
-use crate::matrix::directs::{force_update_rooms_with_fresh_m_direct, get_invite_room_mapping_info, get_joined_room_mapping_info, get_left_room_mapping_info, RoomMappingInfo};
+use crate::matrix::directs::{force_update_rooms_with_fresh_m_direct, get_invite_room_mapping_info, get_joined_room_mapping_info, get_left_room_mapping_info, RoomMapping};
 use crate::notification::client_store::{ClientData, Contact};
 use crate::shared::identifiers::MatrixIdCompatible;
 
@@ -34,6 +34,7 @@ use crate::shared::identifiers::MatrixIdCompatible;
 pub async fn handle_memberships(client: Client, response: SyncResponse) -> Result<(Vec<Contact>, VecDeque<BaseMember>, HashMap<String, Vec<ContactType>>), anyhow::Error> {
     debug!("---Handle Memberships---");
     let me = client.user_id().expect("UserID to be here");
+
 
     let mut contacts = Vec::new();
     let mut memberships = VecDeque::new();
@@ -187,7 +188,7 @@ pub async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: 
                     let mapping = get_joined_room_mapping_info(&room, me, &og_rm_event, &client).await?;
 
                     match mapping {
-                        RoomMappingInfo::Direct(direct_target) => {
+                        RoomMapping::Direct(direct_target) => {
                             debug!("SYNC|MEMBERSHIPS|JOIN: Mapping is Direct({})", &direct_target);
 
                             let target_msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(&direct_target));
@@ -256,7 +257,7 @@ pub async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: 
                                 warn!("SYNC|MEMBERSHIPS|JOIN: 1o1 dm room event state_key was unexpected: state_key: {}, event_id: {}, room_id: {}", &og_rm_event.state_key, &og_rm_event.state_key, &room.room_id() );
                             }
                         }
-                        RoomMappingInfo::Group => {
+                        RoomMapping::Group => {
                             debug!("SYNC|MEMBERSHIPS|JOIN: Mapping is Group");
                             let room_id = room.room_id();
                             let circle_uuid = Uuid::from_seed(room_id.as_str());
@@ -362,6 +363,7 @@ pub async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: 
                                 }
 
                         }
+                        RoomMapping::PendingDirect(_) => {}
                     }
                 }
                 _ => {
@@ -385,7 +387,7 @@ async fn handle_invite_room_member_event(event: &StrippedRoomMemberEvent, room_i
                 let mapping = get_invite_room_mapping_info(&room_id, target_user, &event, &client).await?;
 
                 match mapping {
-                    RoomMappingInfo::Direct(direct_target) => {
+                    RoomMapping::Direct(direct_target) => {
                         debug!("SYNC|MEMBERSHIPS|INVITE: Mapping is Direct({})", &direct_target);
 
                         //I've been invited ! ADD TO PENDING LIST WITH INVITE MSG, ADD TO REVERSE LIST
@@ -406,7 +408,7 @@ async fn handle_invite_room_member_event(event: &StrippedRoomMemberEvent, room_i
                         memberships.push_back(current_reverse_member);
 
                     }
-                    RoomMappingInfo::Group => {
+                    RoomMapping::Group => {
                         debug!("SYNC|MEMBERSHIPS|INVITE: Mapping is Group");
                         log::info!("SYNC|MEMBERSHIPS|INVITE: I received a Group invite from: {}", &target_user);
                         let room = client.get_room(room_id).unwrap();
@@ -427,6 +429,7 @@ async fn handle_invite_room_member_event(event: &StrippedRoomMemberEvent, room_i
                             inverse_info,
                         }));
                     }
+                    RoomMapping::PendingDirect(_) => {}
                 }
 
             }
