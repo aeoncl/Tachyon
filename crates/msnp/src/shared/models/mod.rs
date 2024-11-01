@@ -1,0 +1,13 @@
+pub mod uuid;
+pub mod capabilities;
+pub mod msn_object;
+pub mod msn_user;
+pub mod presence_status;
+pub mod role_list;
+pub mod ticket_token;
+pub mod oim;
+pub mod endpoint_id;
+pub mod email_address;
+pub mod network_id;
+pub mod network_id_email;
+pub mod b64_string;
