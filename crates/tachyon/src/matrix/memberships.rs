@@ -90,7 +90,7 @@ pub async fn handle_memberships(client: Client, response: SyncResponse) -> Resul
         let mut dedup: HashSet<String> = HashSet::new();
 
         for event in update.timeline.events.iter().rev() {
-            match event.event.deserialize() {
+            match event.raw().deserialize() {
                 Ok(AnySyncTimelineEvent::State(AnySyncStateEvent::RoomMember(room_member_event))) => {
                     if dedup.get(room_member_event.event_id().as_str()).is_none() {
                         dedup.insert(room_member_event.event_id().to_string());

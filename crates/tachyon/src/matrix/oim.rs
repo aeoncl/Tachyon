@@ -57,20 +57,20 @@ pub async fn handle_oims(client: Client, response: SyncResponse, mut client_data
 
                     for event in messages.chunk {
 
-                        if let Ok(AnyTimelineEvent::MessageLike(e)) = event.event.deserialize() {
+                        if let Ok(AnySyncTimelineEvent::MessageLike(e)) = event.raw().deserialize() {
                          //   debug!("Loopty_LOOP: {:?}", e);
 
                             match e {
-                                AnyMessageLikeEvent::RoomMessage(ref room_message) => {
+                                AnySyncMessageLikeEvent::RoomMessage(ref room_message) => {
                                     let oim = match room_message {
-                                        MessageLikeEvent::Original(ref original_event) => {
+                                        SyncMessageLikeEvent::Original(ref original_event) => {
 
                                             let member = room.get_member(e.sender()).await?.expect("to be here");
                                             let display_name = member.display_name().map(|e| e.to_string());
 
                                             handle_original_message(&original_event.content.msgtype, &room_id, room_uuid.clone(),e.event_id(), original_event.origin_server_ts.0.into(), e.sender(), display_name, seq_num, me_email_addr.clone())?
                                         },
-                                        RoomMessageEvent::Redacted(ref redacted) => {
+                                        SyncMessageLikeEvent::Redacted(ref redacted) => {
                                             None
                                         }
                                     };
@@ -98,7 +98,7 @@ pub async fn handle_oims(client: Client, response: SyncResponse, mut client_data
 
         for event in &room.timeline.events {
 
-            if let Ok(AnySyncTimelineEvent::MessageLike(e)) = event.event.deserialize() {
+            if let Ok(AnySyncTimelineEvent::MessageLike(e)) = event.raw().deserialize() {
                 debug!("{:?}", e);
 
                 match e {

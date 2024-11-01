@@ -36,7 +36,7 @@ regex.workspace = true
 
 [dependencies.matrix-sdk]
 path = "../../lib/matrix-rust-sdk/crates/matrix-sdk"
-features = ["e2e-encryption", "bundled-sqlite", "image-proc"]
+features = ["e2e-encryption", "automatic-room-key-forwarding", "bundled-sqlite", "native-tls"]
 
 [dependencies.msnp]
 path = "../msnp"
