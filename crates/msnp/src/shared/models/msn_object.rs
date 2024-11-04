@@ -535,6 +535,7 @@ mod tests {
 
     use lazy_static_include::lazy_static_include_bytes;
     use crate::{p2p::v2::slp_context::SlpContext, shared::models::msn_object::{compute_sha1, MsnObject, MsnObjectContentType, MSNObjectFactory, MsnObjectType}};
+    use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::msn_object::FriendlyName;
 
 
@@ -556,7 +557,7 @@ mod tests {
     #[test]
     fn get_display_picture() {
 
-        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), FriendlyName::new("Flare"));
+        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, &EmailAddress::from_str("aeoncl1@shlasouf.local").expect("email to be valid"), String::from("0"), FriendlyName::new("Flare"));
         let friendly_b64 = obj.friendly.to_string();
         
         let obj_serialized = obj.to_string();
@@ -568,7 +569,7 @@ mod tests {
     #[test]
     fn friendly_not_empty() {
 
-        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), FriendlyName::new("Flare"));
+        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, &EmailAddress::from_str("aeoncl1@shlasouf.local").expect("email to be valid"), String::from("0"), FriendlyName::new("Flare"));
         let friendly_b64 = obj.friendly.to_string();
         
         assert_eq!(&friendly_b64, "RgBsAGEAcgBlAAAA");
@@ -578,7 +579,7 @@ mod tests {
 
     #[test]
     fn friendly_empty() {
-        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), FriendlyName::default());
+        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, &EmailAddress::from_str("aeoncl1@shlasouf.local").expect("email to be valid"), String::from("0"), FriendlyName::default());
         let friendly_b64 = obj.friendly.to_string();
         
         assert_eq!(&friendly_b64, "AAA=");
@@ -587,7 +588,7 @@ mod tests {
     #[test]
     fn friendly_none() {
 
-        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, String::from("aeoncl1@shlasouf.local"), String::from("0"), FriendlyName::default());
+        let obj = MSNObjectFactory::get_display_picture(&AVATAR_BYTES, &EmailAddress::from_str("aeoncl1@shlasouf.local").expect("email to be valid"), String::from("0"), FriendlyName::default());
         let friendly_b64 = obj.friendly.to_string();
         
         assert_eq!(&friendly_b64, "AAA=");

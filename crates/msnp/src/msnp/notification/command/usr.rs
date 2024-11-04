@@ -14,7 +14,7 @@ use crate::shared::traits::{MSNPCommand, MSNPCommandPart};
 mod tests {
     use std::str::FromStr;
 
-    use crate::msnp::{error::CommandError, notification::command::usr::{OperationTypeClient, SsoPhaseClient}};
+    use crate::msnp::{error::CommandError, notification::command::usr::{AuthOperationTypeClient, SsoPhaseClient}};
     use crate::msnp::raw_command_parser::RawCommand;
     use crate::shared::models::email_address::EmailAddress;
     use crate::shared::traits::MSNPCommand;
@@ -26,9 +26,9 @@ mod tests {
         let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 3 SSO I login@test.com").unwrap()).unwrap();
         assert_eq!(3, usr1.tr_id);
 
-        assert!(matches!(&usr1.auth_type, OperationTypeClient::Sso(_)));
+        assert!(matches!(&usr1.auth_type, AuthOperationTypeClient::Sso(_)));
 
-        if let OperationTypeClient::Sso(content) = &usr1.auth_type {
+        if let AuthOperationTypeClient::Sso(content) = &usr1.auth_type {
             assert!(matches!(content, SsoPhaseClient::I { .. }));
 
             if let SsoPhaseClient::I { email_addr } = content {
@@ -75,9 +75,9 @@ mod tests {
         assert_eq!(4, usr1.tr_id);
 
 
-        assert!(matches!(&usr1.auth_type, OperationTypeClient::Sso(_)));
+        assert!(matches!(&usr1.auth_type, AuthOperationTypeClient::Sso(_)));
 
-        if let OperationTypeClient::Sso(content) = &usr1.auth_type {
+        if let AuthOperationTypeClient::Sso(content) = &usr1.auth_type {
             assert!(matches!(content, SsoPhaseClient::S { .. }));
 
             if let SsoPhaseClient::S { ticket_token, challenge, endpoint_guid } = content {
@@ -97,7 +97,7 @@ mod tests {
     fn client_sha_des_success() {
         let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SHA A circleticket").unwrap()).unwrap();
         assert_eq!(4, usr1.tr_id);
-        assert!(matches!(&usr1.auth_type, OperationTypeClient::Sha(_)));
+        assert!(matches!(&usr1.auth_type, AuthOperationTypeClient::Sha(_)));
     }
 
     #[test]
@@ -123,7 +123,7 @@ static OPERAND: &str = "USR";
 
 pub struct UsrClient {
     pub tr_id: u128,
-    pub auth_type: OperationTypeClient,
+    pub auth_type: AuthOperationTypeClient,
 }
 
 
@@ -137,7 +137,7 @@ impl MSNPCommand for UsrClient {
         let raw_tr_id = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "tr_id".into(), 1))?;
         let tr_id = u128::from_str(&raw_tr_id)?;
 
-        let auth_type = OperationTypeClient::try_from_split(split, &raw.command)?;
+        let auth_type = AuthOperationTypeClient::try_from_split(split, &raw.command)?;
 
         Ok(Self {
             tr_id,
@@ -152,22 +152,22 @@ impl MSNPCommand for UsrClient {
 }
 
 #[derive(Display)]
-pub enum OperationTypeClient {
+pub enum AuthOperationTypeClient {
     #[strum(serialize = "SSO")]
     Sso(SsoPhaseClient),
     #[strum(serialize = "SHA")]
     Sha(ShaPhaseClient),
 }
 
-impl MSNPCommandPart for OperationTypeClient {
+impl MSNPCommandPart for AuthOperationTypeClient {
     type Err = CommandError;
 
     fn try_from_split(mut split: VecDeque<String>, command: &str) -> Result<Self, Self::Err> {
         let raw_op_type = split.pop_front().ok_or(CommandError::MissingArgument(command.to_string(), "operation_type".into(), 2))?;
 
         match raw_op_type.as_str() {
-            "SSO" => Ok(OperationTypeClient::Sso(SsoPhaseClient::try_from_split(split, command)?)),
-            "SHA" => Ok(OperationTypeClient::Sha(ShaPhaseClient::try_from_split(split, command)?)),
+            "SSO" => Ok(AuthOperationTypeClient::Sso(SsoPhaseClient::try_from_split(split, command)?)),
+            "SHA" => Ok(AuthOperationTypeClient::Sha(ShaPhaseClient::try_from_split(split, command)?)),
             _ => {
                 Err(CommandError::ArgumentParseError { argument: raw_op_type.to_string(), command: command.to_string(), source: anyhow!("Unknown operation type") })
             }

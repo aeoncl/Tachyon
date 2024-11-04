@@ -11,7 +11,7 @@ use msnp::msnp::{notification::command::command::NotificationServerCommand, raw_
 use msnp::msnp::notification::command::command::NotificationClientCommand;
 use msnp::msnp::notification::command::cvr::CvrServer;
 use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
-use msnp::msnp::notification::command::usr::{AuthPolicy, OperationTypeClient, OperationTypeServer, SsoPhaseClient, SsoPhaseServer, UsrServer};
+use msnp::msnp::notification::command::usr::{AuthPolicy, AuthOperationTypeClient, OperationTypeServer, SsoPhaseClient, SsoPhaseServer, UsrServer};
 use msnp::msnp::notification::models::msnp_version::MsnpVersion::MSNP18;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
@@ -28,7 +28,9 @@ use msnp::shared::payload::msg::text_msg::FontStyle;
 use crate::matrix;
 
 use crate::notification::client_store::{ClientData, ClientStoreFacade};
-use crate::notification::handlers::{handle_auth, handle_command, handle_negotiation};
+use crate::notification::handlers::command_handler::handle_command;
+use crate::notification::models::connection_phase::ConnectionPhase;
+use crate::notification::models::local_client_data::LocalClientData;
 use crate::shared::identifiers::{MatrixDeviceId, MatrixIdCompatible};
 
 pub struct NotificationServer;
@@ -67,50 +69,16 @@ impl NotificationServer {
     
 }
 
-pub(crate) enum Phase {
-    Negotiating,
-    Authenticating,
-    Ready
-}
 
-impl Default for Phase {
-    fn default() -> Self {
-        Phase::Negotiating
-    }
-}
-
-pub(crate) struct LocalStore {
-    pub(crate) phase: Phase,
-    pub(crate) email_addr: EmailAddress,
-    pub(crate) token: TicketToken,
-    pub(crate) client_data: Option<ClientData>,
-    pub(crate) private_endpoint_data: PrivateEndpointData,
-    pub(crate) needs_initial_presence: bool
-}
-
-impl Default for LocalStore {
-    fn default() -> Self {
-        Self {
-            phase: Phase::default(),
-            email_addr: EmailAddress::default(),
-            token: TicketToken(String::new()),
-            client_data: None,
-            private_endpoint_data: Default::default(),
-            needs_initial_presence: true,
-        }
-    }
-}
 
 async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Receiver<()>, client_store_facade: ClientStoreFacade) -> Result<(), anyhow::Error> {
     debug!("Client connected...");
 
     let (read, write) = socket.into_split();
-    
     let (client_kill_snd, client_kill_recv) = broadcast::channel::<()>(1);
-
     let command_sender = start_write_task(write, client_kill_recv.resubscribe());
 
-    let mut local_store = LocalStore::default();
+    let mut local_client_data = LocalClientData::default();
 
     let mut parser = RawCommandParser::new();
     let mut reader = BufReader::new(read);
@@ -136,7 +104,7 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
                         let commands = parser.parse_message(data);
 
                         match commands {
-                            Err(e) => error!("MSNP|NOT: Unable to parse commands: {}", e),
+                            Err(e) => error!("MSNP|NOT: Unable to parse message into commands: {}", e),
                             Ok(commands) => {
 
                                 for command in commands {
@@ -149,18 +117,7 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
                                             debug!("{:?}", e);
                                         },
                                         Ok(notification_command) => {
-                                            let command_result = match &local_store.phase {
-                                                Phase::Negotiating => {
-                                                    handle_negotiation(notification_command, command_sender.clone(), &mut local_store).await
-                                                },
-                                                Phase::Authenticating  => {
-                                                    handle_auth(notification_command, command_sender.clone(), &client_store_facade, &mut local_store, &client_kill_recv).await
-                                                },
-                                                Phase::Ready => {
-                                                    let client_data = local_store.client_data.as_ref().ok_or(anyhow!("Client Data should be here by now"))?.clone();
-                                                    handle_command(notification_command, command_sender.clone(), client_data, &mut local_store, &client_kill_recv).await
-                                                }
-                                            };
+                                            let command_result = handle_command(notification_command, command_sender.clone(), &client_store_facade, &mut local_client_data).await;
 
                                             if let Err(error) = command_result {
                                                 error!("MSNP|NS: An error has occured handling a notification command: {}", &error);
@@ -189,7 +146,7 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
     }
 
     client_kill_snd.send(())?;
-    client_store_facade.remove_client_data(local_store.token.0.as_str());
+    client_store_facade.remove_client_data(local_client_data.token.0.as_str());
 
     info!("Client gracefully shutdown...");
     Ok(())
