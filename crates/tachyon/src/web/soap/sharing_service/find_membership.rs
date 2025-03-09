@@ -4,6 +4,8 @@ use axum::response::Response;
 use log::info;
 use matrix_sdk::Client;
 use matrix_sdk::ruma::events::room::member::MembershipState;
+use matrix_sdk_ui::Timeline;
+use matrix_sdk_ui::timeline::{RoomExt, TimelineBuilder};
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::role_list::RoleList;

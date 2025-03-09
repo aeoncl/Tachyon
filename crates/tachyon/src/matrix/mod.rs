@@ -5,4 +5,4 @@ pub mod oim;
 pub mod memberships;
 pub mod msn_user_resolver;
 pub mod events;
-mod sync2;
+pub mod sync2;

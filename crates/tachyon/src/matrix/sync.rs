@@ -20,6 +20,8 @@ use matrix_sdk::ruma::events::room::member::{RoomMemberEvent, SyncRoomMemberEven
 use matrix_sdk::ruma::presence::PresenceState;
 use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::sync::SyncResponse;
+use matrix_sdk_ui::sync_service::{SyncService, SyncServiceBuilder};
+use matrix_sdk_ui::Timeline;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::Sender;
 
@@ -51,6 +53,10 @@ pub async fn initial_sync(tr_id: u128, client_data: &ClientData) -> Result<(Vec<
 
     let me_msn_user = client_data.get_user_clone()?;
     let client = client_data.get_matrix_client();
+
+
+    
+
 
     let mut sync_token = client.sync_token().await;
 
