@@ -4,7 +4,7 @@ use std::mem;
 use dashmap::mapref::one::RefMut;
 use log::{debug, error, warn};
 use matrix_sdk::{Client, Room, RoomMemberships};
-use matrix_sdk::deserialized_responses::SyncTimelineEvent;
+use matrix_sdk::deserialized_responses;
 use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::events::{AnyGlobalAccountDataEvent, AnyStrippedStateEvent, AnySyncStateEvent, AnySyncTimelineEvent, OriginalSyncStateEvent};
 use matrix_sdk::ruma::events::room::member::{MembershipChange, MembershipDetails, MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent};
@@ -267,8 +267,8 @@ pub async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: 
                                 match og_rm_event.membership_change() {
                                     MembershipChange::Left => {
                                         //I Left the Circle
-                                        let mut circle = ContactType::new_circle(room_id.as_str(), &room.compute_display_name().await.unwrap().to_string(), true, RelationshipState::Accepted, CircleRelationshipRole::None);
-                                        let inverse_info = CircleInverseInfoType::new(circle.contact_id.clone().expect("to be here"), room.compute_display_name().await.expect("").to_string(), true, CircleRelationshipRole::Member, RelationshipState::Accepted);
+                                        let mut circle = ContactType::new_circle(room_id.as_str(), &room.display_name().await.unwrap().to_string(), true, RelationshipState::Accepted, CircleRelationshipRole::None);
+                                        let inverse_info = CircleInverseInfoType::new(circle.contact_id.clone().expect("to be here"), room.display_name().await.expect("").to_string(), true, CircleRelationshipRole::Member, RelationshipState::Accepted);
                                         contacts.push(Contact::Circle(CircleData {
                                             contact: circle,
                                             inverse_info,
@@ -278,8 +278,8 @@ pub async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: 
                                     MembershipChange::InvitationAccepted | MembershipChange::Joined => {
                                         //I accepted an invite to a circle
 
-                                        let mut circle = ContactType::new_circle(room_id.as_str(), &room.compute_display_name().await.unwrap().to_string(), false, RelationshipState::Accepted, CircleRelationshipRole::None);
-                                        let inverse_info = CircleInverseInfoType::new(circle.contact_id.clone().expect("to be here"), room.compute_display_name().await.expect("").to_string(), false, CircleRelationshipRole::Member, RelationshipState::Accepted);
+                                        let mut circle = ContactType::new_circle(room_id.as_str(), &room.display_name().await.unwrap().to_string(), false, RelationshipState::Accepted, CircleRelationshipRole::None);
+                                        let inverse_info = CircleInverseInfoType::new(circle.contact_id.clone().expect("to be here"), room.display_name().await.expect("").to_string(), false, CircleRelationshipRole::Member, RelationshipState::Accepted);
 
                                         contacts.push(Contact::Circle(CircleData {
                                             contact: circle,
@@ -412,7 +412,7 @@ async fn handle_invite_room_member_event(event: &StrippedRoomMemberEvent, room_i
                         debug!("SYNC|MEMBERSHIPS|INVITE: Mapping is Group");
                         log::info!("SYNC|MEMBERSHIPS|INVITE: I received a Group invite from: {}", &target_user);
                         let room = client.get_room(room_id).unwrap();
-                        let mut circle = ContactType::new_circle(room_id.as_str(), &room.compute_display_name().await.unwrap().to_string(), false, RelationshipState::WaitingResponse, CircleRelationshipRole::StatePendingOutbound);
+                        let mut circle = ContactType::new_circle(room_id.as_str(), &room.display_name().await.unwrap().to_string(), false, RelationshipState::WaitingResponse, CircleRelationshipRole::StatePendingOutbound);
                         let contact_info = circle.contact_info.as_mut().unwrap();
                         let network_info = contact_info.network_info_list.as_mut().unwrap();
                         let network_info_first = network_info.network_info.get_mut(0).unwrap();
@@ -423,7 +423,7 @@ async fn handle_invite_room_member_event(event: &StrippedRoomMemberEvent, room_i
                         network_info_first.inviter_name = Some(target_msn_user.get_email_address().to_string());
                         //network_info_first.inviter_name = Some(room.get_member(&target_user).await?.unwrap().display_name().unwrap_or(target_msn_user.get_email_address().as_str()).to_string());
 
-                        let inverse_info = CircleInverseInfoType::new(circle.contact_id.clone().expect("to be here"), room.compute_display_name().await.expect("").to_string(), false, CircleRelationshipRole::StatePendingOutbound, RelationshipState::WaitingResponse);
+                        let inverse_info = CircleInverseInfoType::new(circle.contact_id.clone().expect("to be here"), room.display_name().await.expect("").to_string(), false, CircleRelationshipRole::StatePendingOutbound, RelationshipState::WaitingResponse);
                         contacts.push(Contact::Circle(CircleData {
                             contact: circle,
                             inverse_info,

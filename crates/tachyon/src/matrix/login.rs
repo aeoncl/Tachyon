@@ -3,7 +3,7 @@ use anyhow::anyhow;
 use log::debug;
 
 use matrix_sdk::{AuthSession, Client, ClientBuilder, ServerName};
-use matrix_sdk::matrix_auth::{MatrixSession, MatrixSessionTokens};
+use matrix_sdk::authentication::matrix::{MatrixSession, MatrixSessionTokens};
 use matrix_sdk::ruma::{device_id, OwnedUserId, UserId};
 
 use msnp::shared::models::ticket_token::TicketToken;

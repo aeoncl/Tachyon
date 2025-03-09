@@ -5,7 +5,7 @@ use matrix_sdk::{Client, Error, Room, RoomMemberships, StateStoreExt};
 use matrix_sdk::deserialized_responses::AnySyncOrStrippedState::Sync;
 use matrix_sdk::deserialized_responses::{AnySyncOrStrippedState, RawMemberEvent, SyncOrStrippedState};
 use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
-use matrix_sdk::ruma::events::direct::DirectEventContent;
+use matrix_sdk::ruma::events::direct::{DirectEventContent, OwnedDirectUserIdentifier};
 use matrix_sdk::ruma::events::{AnySyncStateEvent, GlobalAccountDataEventType, OriginalSyncStateEvent, SyncStateEvent};
 use matrix_sdk::ruma::events::macros::EventContent;
 use matrix_sdk::ruma::events::room::member::{OriginalSyncRoomMemberEvent, RoomMemberEvent, RoomMemberEventContent, StrippedRoomMemberEvent};
@@ -196,7 +196,7 @@ todo!()
 
 
 
-pub async fn resolve_direct_target(direct_targets: &HashSet<OwnedUserId>, room: &Room, me: &UserId, client: &Client) -> Result<Option<OwnedUserId>, matrix_sdk::Error> {
+pub async fn resolve_direct_target(direct_targets: &HashSet<OwnedDirectUserIdentifier>, room: &Room, me: &UserId, client: &Client) -> Result<Option<OwnedUserId>, matrix_sdk::Error> {
     let maybe_found_direct_target = try_fetch_in_direct_targets(direct_targets, me);
     if maybe_found_direct_target.is_some() {
         debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING|DIRECT_TARGET: Room: {} Direct Target found in direct_targets: {}", room.room_id(), maybe_found_direct_target.as_ref().expect("to be here"));
@@ -215,15 +215,15 @@ pub async fn resolve_direct_target(direct_targets: &HashSet<OwnedUserId>, room: 
 }
 
 
-fn try_fetch_in_direct_targets(direct_targets: &HashSet<OwnedUserId>, me: &UserId) -> Option<OwnedUserId> {
+fn try_fetch_in_direct_targets(direct_targets: &HashSet<OwnedDirectUserIdentifier>, me: &UserId) -> Option<OwnedUserId> {
     if direct_targets.len() > 2 {
         debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING|DIRECT_TARGET: Direct Target was more than size 2");
         return None;
     }
 
     for direct_target in direct_targets {
-        if direct_target != me {
-            return Some(direct_target.clone());
+        if direct_target.as_user_id().unwrap() != me {
+            return Some(direct_target.clone().into_user_id().unwrap());
         }
     }
 

@@ -2,7 +2,7 @@ use anyhow::{anyhow, Error};
 use log::warn;
 use matrix_sdk::{Client, Room};
 use matrix_sdk::crypto::vodozemac::base64_encode;
-use matrix_sdk::media::{MediaFormat, MediaRequest, MediaThumbnailSettings, MediaThumbnailSize};
+use matrix_sdk::media::{MediaFormat, MediaRequestParameters, MediaThumbnailSettings};
 use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::{MxcUri, OwnedMxcUri, UInt, UserId};
 use matrix_sdk::ruma::api::client::media::get_content_thumbnail::v3::Method;
@@ -173,9 +173,9 @@ pub async fn avatar_mxid_to_msn_object(client: &Client, email_address: &EmailAdd
 
 pub async fn get_avatar_bytes(client: &Client, avatar_mxc: &MxcUri) -> Result<Vec<u8>, anyhow::Error> {
 
-    let thumbnail_settings = MediaThumbnailSettings::new(Method::Scale, UInt::new(200).unwrap(), UInt::new(200).unwrap() );
+    let thumbnail_settings = MediaThumbnailSettings::new(UInt::new(200).unwrap(), UInt::new(200).unwrap() );
 
-    let media_request = MediaRequest{ source: MediaSource::Plain(avatar_mxc.to_owned()), format:MediaFormat::Thumbnail(thumbnail_settings) };
+    let media_request = MediaRequestParameters{ source: MediaSource::Plain(avatar_mxc.to_owned()), format:MediaFormat::Thumbnail(thumbnail_settings) };
     client.media().get_media_content(&media_request, true).await.map_err(|e| anyhow!(e))
 }
 

@@ -8,7 +8,7 @@ use base64::engine::general_purpose;
 use lazy_static::lazy_static;
 use lazy_static_include::lazy_static_include_bytes;
 use matrix_sdk::Client;
-use matrix_sdk::media::{MediaFormat, MediaRequest, MediaThumbnailSettings, MediaThumbnailSize};
+use matrix_sdk::media::{MediaFormat, MediaRequestParameters, MediaThumbnailSettings};
 use matrix_sdk::ruma::api::client::media::get_content_thumbnail::v3::Method;
 use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::{mxc_uri, MxcUri, OwnedMxcUri, UInt};
@@ -101,9 +101,9 @@ pub async fn get_profile_pic(Path((image_mxid, _image_type)): Path<(String, Stri
     let client= Client::builder().disable_ssl_verification().server_name(parsed_mxc.server_name().unwrap()).build().await.unwrap();
 
 
-    let thumbnail_settings = MediaThumbnailSettings::new(Method::Scale, UInt::new(200).unwrap(), UInt::new(200).unwrap() );
+    let thumbnail_settings = MediaThumbnailSettings::new(UInt::new(200).unwrap(), UInt::new(200).unwrap() );
 
-    let media_request = MediaRequest{ source: MediaSource::Plain(parsed_mxc), format: MediaFormat::Thumbnail(thumbnail_settings)};
+    let media_request = MediaRequestParameters{ source: MediaSource::Plain(parsed_mxc), format: MediaFormat::Thumbnail(thumbnail_settings)};
     let image = client.media().get_media_content(&media_request, false).await.unwrap();
 
     Response::builder()
