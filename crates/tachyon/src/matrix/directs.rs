@@ -1,265 +1,117 @@
-use std::collections::HashSet;
+use matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState;
+use matrix_sdk::ruma::events::direct::DirectEventContent;
+use matrix_sdk::ruma::events::{AnySyncStateEvent, GlobalAccountDataEventType, StateEventType};
+use matrix_sdk::ruma::{MilliSecondsSinceUnixEpoch, OwnedRoomId, OwnedUserId, UserId};
+use matrix_sdk::{Client, Error, Room, RoomMemberships};
 
-use log::{debug, error, info, warn};
-use matrix_sdk::{Client, Error, Room, RoomMemberships, StateStoreExt};
-use matrix_sdk::deserialized_responses::AnySyncOrStrippedState::Sync;
-use matrix_sdk::deserialized_responses::{AnySyncOrStrippedState, RawMemberEvent, SyncOrStrippedState};
-use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
-use matrix_sdk::ruma::events::direct::{DirectEventContent, OwnedDirectUserIdentifier};
-use matrix_sdk::ruma::events::{AnySyncStateEvent, GlobalAccountDataEventType, OriginalSyncStateEvent, SyncStateEvent};
-use matrix_sdk::ruma::events::macros::EventContent;
-use matrix_sdk::ruma::events::room::member::{OriginalSyncRoomMemberEvent, RoomMemberEvent, RoomMemberEventContent, StrippedRoomMemberEvent};
-use matrix_sdk::ruma::events::StateEvent::Original;
-use matrix_sdk::ruma::events::StateEventType::RoomMember;
-use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum RoomMapping {
-    Direct(OwnedUserId),
-    PendingDirect(OwnedUserId),
-    Group
+struct RoomWithTimestamp {
+    room: Room,
+    timestamp: MilliSecondsSinceUnixEpoch
 }
 
-pub struct RoomMappingInfo {
-    id: OwnedRoomId,
-    mapping: RoomMapping
+pub trait OneOnOneDmClient {
+    async fn get_canonical_dm_room(&self, user_id: &UserId) -> Result<Option<OwnedRoomId>, matrix_sdk::Error>;
+
+    async fn force_update_rooms_with_fresh_m_direct(&self) -> Result<(), matrix_sdk::Error>;
 }
 
-impl RoomMappingInfo {
-    pub fn new(id: OwnedRoomId, mapping: RoomMapping) -> Self {
-        Self {
-            id,
-            mapping
-        }
-    }
-}
+impl OneOnOneDmClient for Client {
+    async fn get_canonical_dm_room(&self, user_id: &UserId) -> Result<Option<OwnedRoomId>, Error> {
+        let mut rooms = self.joined_rooms();
+        let mut dm_rooms = Vec::new();
 
+        for room in rooms.drain(..) {
 
+            if let Some(direct_target) =  room.get_1o1_direct_target().await? {
+                if &direct_target == user_id {
+                    let timestamp = room.creation_timestamp().await?;
 
-pub async fn get_invite_room_mapping_info(room_id: &RoomId, direct_target: &UserId, event: &StrippedRoomMemberEvent , client: &Client) -> Result<RoomMapping,  matrix_sdk::Error> {
-
-    let room = client.get_dm_room(direct_target);
-
-    let is_direct = {
-        match event.content.is_direct{
-            None => {
-                match room.as_ref() {
-                    None => {
-                        false
-                    }
-                    Some(room) => {
-                        room.is_direct().await?
-                    }
-                }
-            },
-            Some(is_direct) => {
-                is_direct
-            }
-        }
-    };
-
-    debug!("SYNC|MEMBERSHIPS|INVITE|MAPPING: Room: {} is is direct ? {}", room_id, is_direct);
-
-
-    if !is_direct {
-        return Ok(RoomMapping::Group)
-    }
-
-    let is_main_dm_room = {
-       match room {
-           None => {
-               true
-           }
-           Some(dm_room) => {
-               dm_room.room_id() == room_id
-           }
-       }
-    };
-
-    let is_one_on_one = match client.get_room(room_id) {
-        None => {
-            debug!("WESH: INVITE ROOM NOT FOUND: {}", room_id);
-            false
-        }
-        Some(room) => {
-
-            room.joined_members_count() <= 2
-        }
-    };
-
-    if is_main_dm_room && is_one_on_one {
-        Ok(RoomMapping::Direct(direct_target.to_owned()))
-    } else {
-        Ok(RoomMapping::Group)
-    }
-}
-
-pub async fn get_joined_room_mapping_info(room: &Room, me: &UserId, event: &OriginalSyncStateEvent<RoomMemberEventContent>, client: &Client ) -> Result<RoomMapping,  matrix_sdk::Error> {
-
-    let is_direct = {
-        match event.content.is_direct {
-            None => {
-                if room.is_direct().await? {
-                    true
-                } else {
-                    //Room may lack m.direct account data,
-                    //Look in our member event, if we got invited, but the room is not fully synced, the is_direct flag will be set on the invite event.
-                    if event.state_key == me {
-                        if let Some(prev) = event.prev_content() {
-                            prev.is_direct.unwrap_or(false)
-                        } else {
-                            false
+                    dm_rooms.push(
+                        RoomWithTimestamp {
+                            room,
+                            timestamp,
                         }
-                    } else {
-                        room.get_state_events(RoomMember).await?.iter().find_map(|e| {
-                            if let Ok(AnySyncOrStrippedState::Sync(AnySyncStateEvent::RoomMember(mut event))) = e.deserialize() {
-                                if let Some(og) = event.as_original() {
-                                    if let Some(prev) = og.prev_content() {
-                                        prev.is_direct
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
-                            } else {
-                             None
-                            }
-                        }).unwrap_or(false)
+                    );
+                }
+            }
+        }
+
+        dm_rooms.sort_by( |a, b|  {
+            a.timestamp.cmp(&b.timestamp)
+        });
+
+        Ok(dm_rooms.first().map( |room| room.room.room_id().to_owned() ))
+    }
+
+    async fn force_update_rooms_with_fresh_m_direct(&self) -> Result<(), Error> {
+        if let Some(raw_content) = self.account().fetch_account_data(GlobalAccountDataEventType::Direct).await? {
+            let mut e = raw_content.deserialize_as::<DirectEventContent>()?;
+            for (mut user_id, rooms) in e.0 {
+                for room_id in rooms {
+                    let room = self.get_room(&room_id);
+                    if let Some(room) = room {
+                        room.direct_targets().insert(user_id.clone());
+                        room.set_is_direct(true).await?
                     }
                 }
-            },
-            Some(is_direct) => {
-                is_direct
-            }
-        }
-    };
-
-    debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING: Room: {} is is direct ? {}", room.room_id(), is_direct);
-
-    if !is_direct {
-        return Ok(RoomMapping::Group)
-    }
-
-    let joined_members_count = {
-
-        if room.joined_members_count() == 0 {
-            let join_members = room.members_no_sync(RoomMemberships::JOIN).await?;
-            join_members.len() as u64
-        } else {
-            room.joined_members_count()
-        }
-    };
-
-    let is_one_on_one= joined_members_count <= 2;
-
-    debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING: Room: {} is_one_on_one? {} ({} joined people)?", room.room_id(), is_one_on_one, joined_members_count);
-    if !is_one_on_one {
-        return Ok(RoomMapping::Group)
-    }
-
-    let direct_target = resolve_direct_target(&room.direct_targets(), room, me, client).await?;
-
-    let is_main_dm_room = match direct_target.as_ref() {
-        None => {
-            warn!("SYNC|MEMBERSHIPS|JOIN|MAPPING: Room: {} No direct target found.", &room.room_id());
-            false
-        }
-        Some(direct_target) => {
-            match client.get_dm_room(&direct_target) {
-                None => {
-                    true
-                }
-                Some(dm_room) => {
-                    dm_room.room_id() == room.room_id()
-                }
-            }
-        }
-    };
-
-    if is_main_dm_room {
-        Ok(RoomMapping::Direct(direct_target.expect("to be here")))
-    } else {
-        Ok(RoomMapping::Group)
-    }
-
-}
-
-pub async fn get_left_room_mapping_info(room: &Room, me: &UserId, client: &Client ) -> Result<RoomMapping,  matrix_sdk::Error> {
-
-    //TODO check from ClientData contact list of room was a Group or not.
-
-
-todo!()
-
-}
-
-
-
-pub async fn resolve_direct_target(direct_targets: &HashSet<OwnedDirectUserIdentifier>, room: &Room, me: &UserId, client: &Client) -> Result<Option<OwnedUserId>, matrix_sdk::Error> {
-    let maybe_found_direct_target = try_fetch_in_direct_targets(direct_targets, me);
-    if maybe_found_direct_target.is_some() {
-        debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING|DIRECT_TARGET: Room: {} Direct Target found in direct_targets: {}", room.room_id(), maybe_found_direct_target.as_ref().expect("to be here"));
-        return Ok(maybe_found_direct_target);
-    }
-
-    for member in room.members_no_sync(RoomMemberships::JOIN).await? {
-        if member.user_id() != me {
-            return Ok(Some(member.user_id().to_owned()));
-        }
-    }
-
-
-    debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING|DIRECT_TARGET: Room: {} Direct Target not found", room.room_id());
-    return Ok(None);
-}
-
-
-fn try_fetch_in_direct_targets(direct_targets: &HashSet<OwnedDirectUserIdentifier>, me: &UserId) -> Option<OwnedUserId> {
-    if direct_targets.len() > 2 {
-        debug!("SYNC|MEMBERSHIPS|JOIN|MAPPING|DIRECT_TARGET: Direct Target was more than size 2");
-        return None;
-    }
-
-    for direct_target in direct_targets {
-        if direct_target.as_user_id().unwrap() != me {
-            return Some(direct_target.clone().into_user_id().unwrap());
-        }
-    }
-
-    return None;
-}
-
-
-pub async fn force_update_rooms_with_fresh_m_direct(client: &Client) -> Result<(), matrix_sdk::Error> {
-    if let Some(raw_content) = client.account().fetch_account_data(GlobalAccountDataEventType::Direct).await? {
-        let mut e = raw_content.deserialize_as::<DirectEventContent>()?;
-        for (mut user_id, rooms) in e.0 {
-            for room_id in rooms {
-                let room = client.get_room(&room_id);
-                if let Some(room) = room {
-                    room.direct_targets().insert(user_id.clone());
-                    room.set_is_direct(true).await?
-                }
-            }
             }
         }
 
-    return Ok(())
-
+        return Ok(())
+    }
 }
 
+pub trait OneOnOneDmRoom {
 
-async fn fetch_m_direct_account_data(client: &Client) -> Result<Option<DirectEventContent>, matrix_sdk::Error> {
+    async fn is_room_1o1_direct(&self) -> Result<bool, matrix_sdk::Error>;
 
-    error!("SYNC|MEMBERSHIPS|JOIN|MAPPING|DIRECT_TARGET: Fetching m.direct from the server...");
+    async fn get_1o1_direct_target(&self) -> Result<Option<OwnedUserId>, matrix_sdk::Error>;
 
-    if let Some(raw_content) = client.account().fetch_account_data(GlobalAccountDataEventType::Direct).await? {
-        error!("SYNC|MEMBERSHIPS|JOIN|MAPPING|DIRECT_TARGET: Received m.direct");
-        return Ok(Some(raw_content.deserialize_as::<DirectEventContent>()?));
+    async fn creation_timestamp(&self) -> Result<MilliSecondsSinceUnixEpoch, matrix_sdk::Error>;
+}
+
+impl OneOnOneDmRoom for Room {
+    async fn is_room_1o1_direct(&self) -> Result<bool, Error> {
+        Ok(self.get_1o1_direct_target().await?.is_some())
     }
 
-    error!("SYNC|MEMBERSHIPS|JOIN|MAPPING|DIRECT_TARGET: Could not fetch m.direct from the server");
-    return Ok(None)
+    async fn get_1o1_direct_target(&self) -> Result<Option<OwnedUserId>, Error> {
 
+        let me_user_id = self.client().user_id().ok_or(Error::AuthenticationRequired)?;
+
+        if !self.is_direct().await? {
+            return Ok(None);
+        }
+
+        let members = self.members(RoomMemberships::ACTIVE).await?;
+
+        if members.len() > 2 {
+            return Ok(None);
+        }
+
+        let not_me_direct_targets = self.direct_targets().iter().filter(|target| target.as_user_id().unwrap() != me_user_id).collect::<Vec<_>>();
+        if not_me_direct_targets.is_empty() || not_me_direct_targets.len() > 1 {
+            return Ok(None);
+        }
+
+        let direct_target = not_me_direct_targets.first().unwrap().as_user_id().unwrap();
+
+        let target = members.iter().find(|member| { member.user_id() != me_user_id && member.user_id() == direct_target }).map(|member| member.user_id().to_owned());
+
+        Ok(target)
+    }
+
+    async fn creation_timestamp(&self) -> Result<MilliSecondsSinceUnixEpoch, Error> {
+        let room_create_event = self.get_state_event(StateEventType::RoomCreate, "").await?.expect("RoomCreateEvent to be present");
+
+        if let RawAnySyncOrStrippedState::Sync(raw) = room_create_event {
+            if let Ok(AnySyncStateEvent::RoomCreate(room_create_event)) = raw.deserialize_as() {
+                return Ok(room_create_event.origin_server_ts());
+            }
+        }
+
+        return Err(Error::InsufficientData);
+
+    }
 }

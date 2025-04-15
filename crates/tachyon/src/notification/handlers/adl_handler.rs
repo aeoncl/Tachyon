@@ -9,8 +9,12 @@ pub async fn handle_adl(command: AdlClient, client_data: ClientData, command_sen
 
     let contacts = command.payload.get_contacts()?;
 
-    client_data.inner.contact_list.lock().unwrap().add_contacts(contacts, command.payload.is_initial());
-
+    {
+    let mut contact_list = client_data.get_contact_list().lock().unwrap();
+        contact_list.add_contacts(contacts, command.payload.is_initial());
+    }
+    
+    
     command_sender.send(NotificationServerCommand::OK(command.get_ok_response("ADL"))).await?;
 
     Ok(())

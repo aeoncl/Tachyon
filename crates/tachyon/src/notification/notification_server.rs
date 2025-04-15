@@ -51,7 +51,9 @@ impl NotificationServer {
                 tokio::select! {
                     accepted = listener.accept() => {
                         let (socket, _addr)  = accepted.map_err(|e| anyhow!(e))?;
-                        let _result = tokio::spawn(async move {handle_client(socket, global_kill_recv.resubscribe(), client_store_facade).await}).await;
+                        let _result = tokio::spawn(async move {
+                            handle_client(socket, global_kill_recv.resubscribe(), client_store_facade).await
+                        }).await;
                     }
                     global_kill = global_kill_recv.recv() => {
                         if let Err(err) = global_kill {
@@ -62,7 +64,7 @@ impl NotificationServer {
                 }               
             }
 
-            info!("TCP Server gracefull shtudown...");
+            info!("TCP Server gracefull shutdown...");
             Ok(())
     }
 
@@ -124,8 +126,6 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
                                                 debug!("MSNP|NS: {:?}", &error);
                                                 //TODO SEND ERROR BACK TO Client
                                             }
-
-
                                         }
                                     }
                                 }

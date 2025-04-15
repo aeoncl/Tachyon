@@ -8,8 +8,10 @@ use matrix_sdk::ruma::OwnedRoomId;
 use thiserror::__private::AsDynError;
 use thiserror::Error;
 use tokio::sync::mpsc;
-
+use tokio::sync::mpsc::error::SendError;
 use msnp::msnp::models::contact_list::ContactList;
+use msnp::msnp::notification::command::command::NotificationServerCommand;
+use msnp::msnp::notification::command::not::{NotServer, NotificationPayload};
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::oim::OIM;
@@ -25,15 +27,6 @@ pub struct SwitchboardHandle {
     p2p_sender: mpsc::Sender<String>
 }
 
-pub struct ClientDataInner {
-    pub user: RwLock<MsnUser>,
-    pub ticket_token: TicketToken,
-    pub matrix_client: Client,
-    pub contact_list: Mutex<ContactList>,
-    pub soap_holder: SoapHolder,
-    pub switchboards: DashMap<OwnedRoomId, SwitchboardHandle>,
-    pub circle_store: CircleStore
-}
 
 pub enum Contact {
     Contact(ContactType),
@@ -47,6 +40,17 @@ pub struct SoapHolder {
     pub circle_contacts: DashMap<String, Vec<ContactType>>,
     pub memberships: Mutex<VecDeque<BaseMember>>
 }
+
+pub struct ClientDataInner {
+    pub user: RwLock<MsnUser>,
+    pub ticket_token: TicketToken,
+    pub matrix_client: Client,
+    pub contact_list: Mutex<ContactList>,
+    pub soap_holder: SoapHolder,
+    pub switchboards: DashMap<OwnedRoomId, SwitchboardHandle>,
+    pub circle_store: CircleStore
+}
+
 
 #[derive(Clone)]
 pub struct ClientData {
@@ -113,6 +117,10 @@ impl ClientData {
         &self.inner.soap_holder.oims
     }
 
+    pub fn get_contact_list(&self) -> &Mutex<ContactList> {
+        &self.inner.contact_list
+    }
+
     pub fn get_contact_holder_mut(&mut self) -> LockResult<MutexGuard<'_, Vec<Contact>>> {
        self.inner.soap_holder.contacts.lock()
     }
@@ -133,8 +141,32 @@ impl ClientData {
     pub fn get_matrix_client(&self) -> Client {
         self.inner.matrix_client.clone()
     }
+
+    //pub fn get_msn_client_handle(&self) -> MSNClientHandle {
+    //    MSNClientHandle::new(self.clone())
+    //}
 }
 
+
+// pub struct MSNClientHandle {
+//     client_data: ClientData,
+// }
+//
+// impl MSNClientHandle {
+//     pub fn new(client_data: ClientData) -> MSNClientHandle {
+//         MSNClientHandle { client_data }
+//     }
+//
+//     pub async fn send_notification(&self, payload: NotificationPayload) -> Result<(), SendError<NotificationServerCommand>> {
+//         self.client_data.inner.notification_sender.clone().send(
+//             NotificationServerCommand::NOT(
+//                 NotServer {
+//                     payload,
+//                 }
+//             )
+//         )?
+//     }
+// }
 
 #[derive(Clone, Default)]
 pub struct ClientStoreFacade {

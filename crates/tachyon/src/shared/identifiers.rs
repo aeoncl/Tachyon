@@ -4,6 +4,7 @@ use anyhow::anyhow;
 use log::error;
 use matrix_sdk::ruma::{OwnedUserId, UserId};
 use msnp::shared::models::email_address::EmailAddress;
+use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::uuid::Uuid;
 use crate::shared::error::MatrixConversionError;
 
@@ -38,6 +39,20 @@ pub trait MatrixIdCompatible {
     fn to_owned_user_id(&self) -> OwnedUserId;
 }
 
+
+impl MatrixIdCompatible for MsnUser {
+    fn from_owned_user_id(value: OwnedUserId) -> Self {
+        MsnUser::with_email_addr(EmailAddress::from_user_id(&value))
+    }
+
+    fn from_user_id(value: &UserId) -> Self {
+        MsnUser::with_email_addr(EmailAddress::from_user_id(value))
+    }
+
+    fn to_owned_user_id(&self) -> OwnedUserId {
+        self.get_email_address().to_owned_user_id()
+    }
+}
 
 impl MatrixIdCompatible for EmailAddress {
      fn from_owned_user_id(value: OwnedUserId) -> Self {

@@ -26,12 +26,12 @@ use msnp::shared::models::uuid::Uuid;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::CircleData;
 use msnp::soap::abch::msnab_datatypes::{Annotation, ArrayOfAnnotation, BaseMember, ContactType, ContactTypeEnum, MemberState, MemberType, CircleRelationshipRole, RelationshipState, RoleId, NetworkInfoType, CircleInverseInfoType};
-use crate::matrix::directs::{force_update_rooms_with_fresh_m_direct, get_invite_room_mapping_info, get_joined_room_mapping_info, get_left_room_mapping_info, RoomMapping};
+use crate::matrix::directs::{force_update_rooms_with_fresh_m_direct, get_invite_room_mapping_info, get_joined_room_mapping_info, get_left_room_mapping_info, super_algo_magique_de_room_mapping, RoomMapping};
 use crate::notification::client_store::{ClientData, Contact};
 use crate::shared::identifiers::MatrixIdCompatible;
 
 
-pub async fn handle_memberships(client: Client, response: SyncResponse) -> Result<(Vec<Contact>, VecDeque<BaseMember>, HashMap<String, Vec<ContactType>>), anyhow::Error> {
+pub async fn handle_memberships(client: Client, response: &SyncResponse) -> Result<(Vec<Contact>, VecDeque<BaseMember>, HashMap<String, Vec<ContactType>>), anyhow::Error> {
     debug!("---Handle Memberships---");
     let me = client.user_id().expect("UserID to be here");
 
@@ -40,50 +40,7 @@ pub async fn handle_memberships(client: Client, response: SyncResponse) -> Resul
     let mut memberships = VecDeque::new();
     let mut circle_members: HashMap<String, Vec<ContactType>> = HashMap::new();
 
-    // for account_data_event in response.account_data {
-    //     match account_data_event.deserialize() {
-    //         Ok(AnyGlobalAccountDataEvent::Direct(direct_event)) => {
-    //
-    //             debug!("NEW ACCOUNT DATA EVENT");
-    //
-    //             let fw : HashSet<OwnedUserId> = client_data.inner.contact_list.lock().unwrap().get_forward_list().iter().map(|u| u.get_email_address().to_owned_user_id()).collect();
-    //
-    //             let ignore_list = client.store().get_account_data_event(IgnoredUserList).await.map(|e| {
-    //                 match e {
-    //                     None => { BTreeMap::new() }
-    //                     Some(raw_ev) => {
-    //                         let ev = raw_ev.deserialize_as::<IgnoredUserListEvent>().expect("to be a valid event");
-    //                         ev.content.ignored_users
-    //                     }
-    //                 }
-    //             }).unwrap_or(BTreeMap::new());
-    //
-    //             for (user_id, dm_rooms) in direct_event.content.0 {
-    //                 if !fw.contains(&user_id) && !ignore_list.contains_key(&user_id) {
-    //                     //new contact to add hehe
-    //
-    //                     let target_msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(&user_id));
-    //                     let target_msn_addr = target_msn_user.get_email_address().as_str();
-    //
-    //                     debug!("NEW CONTACT: {}", target_msn_addr);
-    //                     let inviter_contact = ContactType::new(&target_msn_user.uuid, target_msn_addr, target_msn_addr, ContactTypeEnum::Live, false);
-    //                     let inviter_allow_member = BaseMember::new_passport_member(&target_msn_user.uuid, target_msn_addr, MemberState::Accepted, RoleList::Allow, false);
-    //                     let inviter_pending_member = BaseMember::new_passport_member(&target_msn_user.uuid, target_msn_addr, MemberState::Accepted, RoleList::Pending, true);
-    //                     contacts.push(inviter_contact);
-    //                     memberships.push_back(inviter_allow_member);
-    //                     memberships.push_back(inviter_pending_member);
-    //                 }
-    //             }
-    //
-    //         }
-    //         Err(_) => {}
-    //         _ => {}
-    //     }
-    //
-    //
-    // }
-
-    for (room_id, update) in response.rooms.join {
+    for (room_id, update) in &response.rooms.join {
         debug!("SYNC|MEMBERSHIPS|JOIN: Handling room: {}: state count: {}", &room_id, update.state.len());
 
         let room = client.get_room(&room_id).expect("Room to be here");
@@ -114,8 +71,8 @@ pub async fn handle_memberships(client: Client, response: SyncResponse) -> Resul
                     Ok(AnySyncStateEvent::RoomMember(room_member_event)) => {
                         if dedup.get(room_member_event.event_id().as_str()).is_none() {
                             dedup.insert(room_member_event.event_id().to_string());
+                            handle_joined_room_member_event(&room_member_event, &room, me, &client, &mut contacts, &mut memberships, &mut circle_members).await?;
                         }
-                        handle_joined_room_member_event(&room_member_event, &room, me, &client, &mut contacts, &mut memberships, &mut circle_members).await?;
                     },
                     Ok(other) => {
                         error!("SYNC|MEMBERSHIPS|JOIN: Received non member event : {:?}", other);
@@ -129,10 +86,10 @@ pub async fn handle_memberships(client: Client, response: SyncResponse) -> Resul
         }
     }
 
-    for (room_id, update) in response.rooms.invite {
+    for (room_id, update) in &response.rooms.invite {
         debug!("SYNC|MEMBERSHIPS|INVITE: Handling room: {}: state count: {}", &room_id, update.invite_state.events.len());
 
-        for state_event in update.invite_state.events {
+        for state_event in &update.invite_state.events {
 
             match state_event.deserialize() {
                 Ok(AnyStrippedStateEvent::RoomMember(stripped_rm_event)) => {
@@ -151,14 +108,14 @@ pub async fn handle_memberships(client: Client, response: SyncResponse) -> Resul
         }
     }
 
-    for (room_id, update) in response.rooms.leave {
+    for (room_id, update) in &response.rooms.leave {
 
         let room = client.get_room(&room_id).expect("Room to be here");
 
 
         debug!("SYNC|MEMBERSHIPS|LEAVE: Handling room: {}: state count: {}", &room_id, update.state.len());
 
-        for state_event in update.state {
+        for state_event in &update.state {
 
             match state_event.deserialize() {
                 Ok(AnySyncStateEvent::RoomMember(room_member_event)) => {
@@ -189,9 +146,14 @@ pub async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: 
 
                     match mapping {
                         RoomMapping::Direct(direct_target) => {
+                            let wsh = super_algo_magique_de_room_mapping(&direct_target, &client).await;
+                            if let Ok(Some(found)) = wsh {
+                                debug!("WSHHH LALGO DE FOU: LA ROOM DIRECTE POUR {} C: {}",&direct_target, found);
+                            }
+
                             debug!("SYNC|MEMBERSHIPS|JOIN: Mapping is Direct({})", &direct_target);
 
-                            let target_msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(&direct_target));
+                            let target_msn_user = MsnUser::from_user_id(&direct_target);
                             let target_msn_addr = target_msn_user.get_email_address().as_str();
 
                             if &og_rm_event.state_key == &direct_target {
@@ -322,7 +284,7 @@ pub async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: 
                                 }
 
                             } else {
-                                // Some circle member action
+                                // Other Member of circle
 
                                 let display_name = room.get_member_no_sync(&og_rm_event.state_key).await?.map(|rm| rm.display_name().map(|name| name.to_string())).unwrap_or(None);
                                 let target_user = MsnUser::with_email_addr(EmailAddress::from_user_id(&og_rm_event.state_key));
@@ -391,7 +353,7 @@ async fn handle_invite_room_member_event(event: &StrippedRoomMemberEvent, room_i
                         debug!("SYNC|MEMBERSHIPS|INVITE: Mapping is Direct({})", &direct_target);
 
                         //I've been invited ! ADD TO PENDING LIST WITH INVITE MSG, ADD TO REVERSE LIST
-                        let target_msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(&direct_target));
+                        let target_msn_user = MsnUser::from_user_id(&direct_target);
                         let target_msn_addr = target_msn_user.get_email_address().as_str();
 
                         log::info!("SYNC|MEMBERSHIPS|INVITE: I received Direct invite from: {}", &target_msn_addr);

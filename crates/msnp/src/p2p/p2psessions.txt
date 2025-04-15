@@ -1,0 +1,268 @@
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+use tokio::sync::mpsc::{self, UnboundedSender};
+use tokio::time;
+
+// Session state to track retransmissions and timeouts
+#[derive(Debug, Clone, PartialEq)]
+pub enum SessionState {
+    Initializing,
+    Established,
+    Transferring,
+    Error(String),
+    Closed,
+}
+
+pub struct P2PSession {
+    pub id: u32,
+    pub call_id: Option<Uuid>,
+    pub sender: MsnUser,
+    pub receiver: MsnUser,
+    pub sequence_number: u32,
+    pub package_number: u16,
+    pub state: SessionState,
+    pub last_activity: Instant,
+    pub pending_chunks: HashMap<u16, PendingPacket>,
+    pub pending_acks: HashMap<u32, (P2PTransportPacket, u8)>, // (packet, retry_count)
+    pub file: Option<File>,
+    pub msn_object: Option<MSNObject>,
+    pub events_tx: UnboundedSender<P2PEvent>,
+}
+
+impl P2PSession {
+    pub fn new(id: u32, sender: MsnUser, receiver: MsnUser, events_tx: UnboundedSender<P2PEvent>) -> Self {
+        Self {
+            id,
+            call_id: None,
+            sender,
+            receiver,
+            sequence_number: 0,
+            package_number: 0,
+            state: SessionState::Initializing,
+            last_activity: Instant::now(),
+            pending_chunks: HashMap::new(),
+            pending_acks: HashMap::new(),
+            file: None,
+            msn_object: None,
+            events_tx,
+        }
+    }
+    
+    // Process incoming messages for this session
+    pub fn on_message(&mut self, packet: PendingPacket) -> Result<(), P2PError> {
+        self.last_activity = Instant::now();
+        
+        // Handle chunked packets
+        if self.handle_chunks(&packet) {
+            return Ok(());
+        }
+        
+        // Handle ACK for pending packets
+        if let Some(p2p_packet) = packet.packet.get_payload() {
+            if packet.packet.is_ack() {
+                self.handle_ack(packet.packet.get_sequence_number());
+            }
+        }
+        
+        // Process normal packets
+        self.process_packet(packet)
+    }
+    
+    // Methods for handling chunks, ACKs, timeouts, etc.
+    fn handle_chunks(&mut self, packet: &PendingPacket) -> bool {
+        // Implementation similar to current P2PClient::handle_chunks
+        false // Return true if we're still waiting for chunks
+    }
+    
+    fn handle_ack(&mut self, ack_seq: u32) {
+        self.pending_acks.remove(&ack_seq);
+    }
+    
+    fn process_packet(&mut self, packet: PendingPacket) -> Result<(), P2PError> {
+        // Process packet based on session state
+        match self.state {
+            SessionState::Initializing => self.handle_initialization(packet),
+            SessionState::Established => self.handle_established(packet),
+            SessionState::Transferring => self.handle_transfer(packet),
+            SessionState::Error(_) => Ok(()), // Ignore packets in error state
+            SessionState::Closed => Ok(()),   // Ignore packets in closed state
+        }
+    }
+    
+    // Methods to handle different session states
+    fn handle_initialization(&mut self, packet: PendingPacket) -> Result<(), P2PError> {
+        // Implementation here
+        Ok(())
+    }
+    
+    fn handle_established(&mut self, packet: PendingPacket) -> Result<(), P2PError> {
+        // Implementation here
+        Ok(())
+    }
+    
+    fn handle_transfer(&mut self, packet: PendingPacket) -> Result<(), P2PError> {
+        // Implementation here
+        Ok(())
+    }
+    
+    // Send a packet with automatic retransmission
+    fn send_with_retransmission(&mut self, packet: P2PTransportPacket) {
+        let seq = packet.get_sequence_number();
+        
+        // Store for potential retransmission
+        if packet.is_rak() {
+            self.pending_acks.insert(seq, (packet.clone(), 0));
+        }
+        
+        // Send the actual packet
+        self.send(packet);
+    }
+    
+    fn send(&self, packet: P2PTransportPacket) {
+        let pending = PendingPacket::new(packet, self.sender.clone(), self.receiver.clone());
+        let _ = self.events_tx.send(P2PEvent::Message(pending));
+    }
+}
+
+pub struct SessionManager {
+    sessions: Arc<Mutex<HashMap<u32, Arc<Mutex<P2PSession>>>>>,
+    events_tx: UnboundedSender<P2PEvent>,
+}
+
+impl SessionManager {
+    pub fn new(events_tx: UnboundedSender<P2PEvent>) -> Self {
+        let manager = Self {
+            sessions: Arc::new(Mutex::new(HashMap::new())),
+            events_tx,
+        };
+        
+        // Start session monitoring task for retransmission and timeout
+        manager.start_monitor();
+        
+        manager
+    }
+    
+    pub fn create_session(&self, sender: MsnUser, receiver: MsnUser) -> u32 {
+        let id = self.generate_session_id();
+        let session = P2PSession::new(id, sender, receiver, self.events_tx.clone());
+        
+        let mut sessions = self.sessions.lock().unwrap();
+        sessions.insert(id, Arc::new(Mutex::new(session)));
+        
+        id
+    }
+    
+    pub fn handle_packet(&self, packet: PendingPacket) -> Result<(), P2PError> {
+        // Extract session ID from packet
+        let session_id = if let Some(payload) = packet.packet.get_payload() {
+            payload.session_id
+        } else {
+            0 // Use default session ID for handshakes
+        };
+        
+        // Get or create session
+        let session_arc = {
+            let mut sessions = self.sessions.lock().unwrap();
+            if !sessions.contains_key(&session_id) && session_id != 0 {
+                // Create new session for this ID
+                let session = P2PSession::new(
+                    session_id, 
+                    packet.sender.clone(), 
+                    packet.receiver.clone(),
+                    self.events_tx.clone()
+                );
+                sessions.insert(session_id, Arc::new(Mutex::new(session)));
+            }
+            
+            sessions.get(&session_id).cloned()
+        };
+        
+        // Process packet in appropriate session
+        if let Some(session_arc) = session_arc {
+            let mut session = session_arc.lock().unwrap();
+            session.on_message(packet)
+        } else {
+            // Handle packets with no session (like initial handshakes)
+            self.handle_sessionless_packet(packet)
+        }
+    }
+    
+    fn handle_sessionless_packet(&self, packet: PendingPacket) -> Result<(), P2PError> {
+        // Handle initial handshakes and session creation
+        Ok(())
+    }
+    
+    fn generate_session_id(&self) -> u32 {
+        // Generate unique session ID
+        let mut rng = rand::thread_rng();
+        rng.gen()
+    }
+    
+    fn start_monitor(&self) {
+        let sessions = self.sessions.clone();
+        let events_tx = self.events_tx.clone();
+        
+        tokio::spawn(async move {
+            let mut interval = time::interval(Duration::from_secs(1));
+            
+            loop {
+                interval.tick().await;
+                
+                // Check all sessions for retransmissions and timeouts
+                let mut to_remove = Vec::new();
+                
+                {
+                    let sessions_guard = sessions.lock().unwrap();
+                    for (id, session_arc) in sessions_guard.iter() {
+                        let mut session = session_arc.lock().unwrap();
+                        
+                        // Retransmit packets that need it
+                        let mut retrys = Vec::new();
+                        for (seq, (packet, retry_count)) in &mut session.pending_acks {
+                            if session.last_activity.elapsed() > Duration::from_secs(2) {
+                                if *retry_count < 3 {
+                                    // Retransmit
+                                    *retry_count += 1;
+                                    retrys.push(packet.clone());
+                                } else {
+                                    // Too many retries, consider session failed
+                                    session.state = SessionState::Error("Too many retransmissions".into());
+                                }
+                            }
+                        }
+                        
+                        // Send retransmissions
+                        for packet in retrys {
+                            session.send(packet);
+                        }
+                        
+                        // Check for session timeout
+                        if session.last_activity.elapsed() > Duration::from_secs(30) {
+                            to_remove.push(*id);
+                        }
+                    }
+                }
+                
+                // Remove timed-out sessions
+                if !to_remove.is_empty() {
+                    let mut sessions_guard = sessions.lock().unwrap();
+                    for id in to_remove {
+                        sessions_guard.remove(&id);
+                    }
+                }
+            }
+        });
+    }
+}
+
+This design provides:
+
+
+Session management: Each P2P connection has its own P2PSession object with state tracking
+Retransmission: Automatic retransmission for packets that require acknowledgment
+Error handling: State transitions based on protocol events or errors
+Concurrent sessions: Multiple independent sessions run simultaneously
+Timeouts: Dead sessions are eventually cleaned up
+Thread safety: Using Arc/Mutex for safe concurrent access
+The session manager routes incoming packets to the appropriate session based on session ID and handles creation of new sessions when needed. Each session manages its own state machine for the protocol flow.

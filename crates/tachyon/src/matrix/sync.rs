@@ -4,14 +4,18 @@ use std::mem;
 use std::time::Duration;
 
 use anyhow::{anyhow, Error};
+use futures_core::Stream;
+use lazy_static_include::syn::__private::quote::__private::ext::RepToTokensExt;
 use log::{debug, info};
 use matrix_sdk::{Client, LoopCtrl, Room};
 use matrix_sdk::config::SyncSettings;
+use matrix_sdk::deserialized_responses::{TimelineEvent, TimelineEventKind};
 use matrix_sdk::event_handler::Ctx;
-use matrix_sdk::ruma::{OwnedMxcUri, OwnedUserId};
+use matrix_sdk::room::MessagesOptions;
+use matrix_sdk::ruma::{OwnedMxcUri, OwnedRoomId, OwnedUserId};
 use matrix_sdk::ruma::api::client::filter::FilterDefinition;
 use matrix_sdk::ruma::api::client::sync::sync_events::v3::Filter;
-use matrix_sdk::ruma::events::AnyGlobalAccountDataEvent;
+use matrix_sdk::ruma::events::{AnyGlobalAccountDataEvent, AnyMessageLikeEvent};
 use matrix_sdk::ruma::events::direct::DirectEvent;
 use matrix_sdk::ruma::events::GlobalAccountDataEventType::IgnoredUserList;
 use matrix_sdk::ruma::events::ignored_user_list::IgnoredUserListEvent;
@@ -19,9 +23,8 @@ use matrix_sdk::ruma::events::presence::PresenceEvent;
 use matrix_sdk::ruma::events::room::member::{RoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::ruma::presence::PresenceState;
 use matrix_sdk::ruma::serde::Raw;
-use matrix_sdk::sync::SyncResponse;
+use matrix_sdk::sync::{JoinedRoomUpdate, SyncResponse, Timeline};
 use matrix_sdk_ui::sync_service::{SyncService, SyncServiceBuilder};
-use matrix_sdk_ui::Timeline;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::Sender;
 
@@ -49,20 +52,63 @@ struct TachyonContext {
     client_data: ClientData
 }
 
+
+/*pub async fn sync(client_data: &ClientData) -> Result<(), anyhow::Error> {
+
+    let matrix_client = client_data.get_matrix_client();
+    let initial_sync = matrix_client.sync_once(SyncSettings::default()).await?;
+
+
+
+
+    let mut sync_stream = Box::pin(matrix_client.sync_stream(SyncSettings::default().token(initial_sync.next_batch)).await);
+
+    while let Some(Ok(mut sync_response)) = sync_stream.next().await {
+
+        while let Some((room_id, roomUpdate)) = sync_response.rooms.join.pop_first() {
+            let room = matrix_client.get_room(&room_id).expect("Room to be present when receiving an update for it.");
+            handle_joined_room_update(room_id, roomUpdate, room, sync_response.next_batch.clone(), false).await.unwrap();
+        }
+    }
+
+    ()
+}
+
+
+
+pub async fn handle_joined_room_update(room_id: OwnedRoomId, update: JoinedRoomUpdate, room: Room, next_batch: String, initial: bool) -> Result<(), anyhow::Error> {
+
+
+    let mut next_start_token = update.timeline.prev_batch.clone();
+
+    while next_start_token.is_some() && next_start_token.unwrap() != next_batch {
+        //Fetch missed messages
+
+        let message_options = MessagesOptions::forward().from(next_start_token.as_ref().unwrap()).to(&next_batch);
+        let messages_response = room.messages(message_options).await.unwrap();
+
+
+            //TODO Do stuff with the messages
+        next_start_token = messages_response.end
+    }
+
+
+
+
+
+    todo!()
+}
+*/
+
 pub async fn initial_sync(tr_id: u128, client_data: &ClientData) -> Result<(Vec<IlnServer>, Vec<NotServer>), anyhow::Error> {
 
     let me_msn_user = client_data.get_user_clone()?;
     let client = client_data.get_matrix_client();
 
 
-    
-
 
     let mut sync_token = client.sync_token().await;
-
-
-
-
+    
     let mut settings = SyncSettings::new().set_presence(PresenceState::Offline).timeout(Duration::from_secs(240));
     if let Some(sync_token) = sync_token.as_ref() {
         settings = settings.token(sync_token);
@@ -73,7 +119,7 @@ pub async fn initial_sync(tr_id: u128, client_data: &ClientData) -> Result<(Vec<
 
     let response = client.sync_once(settings.clone()).await?;
 
-    let (mut contacts, mut memberships, mut circle_members) = handle_memberships(client, response.clone()).await?;
+    let (mut contacts, mut memberships, mut circle_members) = handle_memberships(client, &response).await?;
 
     let mut notifications = Vec::new();
 
@@ -114,6 +160,7 @@ pub async fn initial_sync(tr_id: u128, client_data: &ClientData) -> Result<(Vec<
 
     Ok((iln, notifications))
 }
+
 
 pub async fn handle_initial_presence(tr_id: u128, presence: Vec<Raw<PresenceEvent>>, client_data: &ClientData) -> Result<Vec<IlnServer>, anyhow::Error> {
     let mut out = Vec::with_capacity(presence.len());
@@ -200,7 +247,6 @@ pub async fn start_sync_task(client: Client, notif_sender: Sender<NotificationSe
     //
     // }});
 
-    //TODO handle contact list & address book -> Keep syncing
     let mut is_first_iteration = true;
 
     loop {

@@ -16,7 +16,7 @@ pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, c
         let client_data = client_data.clone();
 
         tokio::spawn(async move {
-            let initial_sync_result = sliding_sync(command.tr_id, &client_data).await;
+            let initial_sync_result = initial_sync(command.tr_id, &client_data).await;
             if let Err(err) = initial_sync_result.as_ref() {
                 error!("An error occured during initial sync: {}", err);
                 //TODO return a real error instead of outing the client
