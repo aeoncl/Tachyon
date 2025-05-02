@@ -150,10 +150,6 @@ impl PartialEq for Uuid {
     fn eq(&self, other: &Self) -> bool {
        self.uuid == other.uuid
     }
-
-    fn ne(&self, other: &Self) -> bool {
-        self.uuid != other.uuid
-    }
 }
 
 

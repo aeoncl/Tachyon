@@ -4,7 +4,6 @@ use msnp::msnp::notification::command::chg::ChgClient;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::uux::UuxClient;
 use crate::matrix::sync2::sliding_sync;
-use crate::matrix::sync::initial_sync;
 use crate::notification::client_store::ClientData;
 use crate::notification::models::local_client_data::LocalClientData;
 
@@ -16,22 +15,22 @@ pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, c
         let client_data = client_data.clone();
 
         tokio::spawn(async move {
-            let initial_sync_result = initial_sync(command.tr_id, &client_data).await;
-            if let Err(err) = initial_sync_result.as_ref() {
-                error!("An error occured during initial sync: {}", err);
+           // let initial_sync_result = initial_sync(command.tr_id, &client_data).await;
+            //if let Err(err) = initial_sync_result.as_ref() {
+           //     error!("An error occured during initial sync: {}", err);
                 //TODO return a real error instead of outing the client
-                let _result = notif_sender.send(NotificationServerCommand::OUT).await;
-            }
+           //     let _result = notif_sender.send(NotificationServerCommand::OUT).await;
+           // }
 
-            let (mut iln, mut notifications) = initial_sync_result.expect("to be here");
+          //  let (mut iln, mut notifications) = initial_sync_result.expect("to be here");
 
-            for current in iln.drain(..) {
-                let _result = notif_sender.send(NotificationServerCommand::ILN(current)).await;
-            }
+          //  for current in iln.drain(..) {
+          //      let _result = notif_sender.send(NotificationServerCommand::ILN(current)).await;
+          //  }
 
-            for current in notifications.drain(..) {
-                let _result = notif_sender.send(NotificationServerCommand::NOT(current)).await;
-            }
+          //  for current in notifications.drain(..) {
+          //      let _result = notif_sender.send(NotificationServerCommand::NOT(current)).await;
+          //  }
         });
     }
 

@@ -19,7 +19,6 @@ use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContac
 use msnp::soap::abch::msnab_datatypes::{AbHandleType, AddressBookType, CircleRelationshipRole, ContactType, ContactTypeEnum, RelationshipState};
 use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::traits::xml::ToXml;
-use crate::matrix::directs::resolve_direct_target;
 use crate::notification::client_store::{ClientData, Contact};
 use crate::shared::identifiers::MatrixIdCompatible;
 use crate::shared::traits::ToUuid;
@@ -160,49 +159,49 @@ fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<Contact>, 
 async fn get_fullsync_contact_list(matrix_client: &Client, me: &UserId) -> Result<Vec<ContactType>, ABError> {
     let mut out = Vec::new();
 
-    for joined_room in matrix_client.joined_rooms() {
-        if joined_room.is_direct().await? {
-            let direct_target = resolve_direct_target(&joined_room.direct_targets(), &joined_room, me, matrix_client).await?;
-            match direct_target {
-                None => {
-                    warn!("SOAP|ABCH|ABFindContactsPaged: Could not resolve direct target for direct joined room: {}", joined_room.room_id());
-                    continue;
-                }
-                Some(direct_target) => {
+    // for joined_room in matrix_client.joined_rooms() {
+    //     if joined_room.is_direct().await? {
+    //         let direct_target = resolve_direct_target(&joined_room.direct_targets(), &joined_room, me, matrix_client).await?;
+    //         match direct_target {
+    //             None => {
+    //                 warn!("SOAP|ABCH|ABFindContactsPaged: Could not resolve direct target for direct joined room: {}", joined_room.room_id());
+    //                 continue;
+    //             }
+    //             Some(direct_target) => {
 
-                    let target_usr = MsnUser::with_email_addr(EmailAddress::from_user_id(&direct_target));
-                    let target_uuid = target_usr.uuid;
-                    let target_msn_addr = target_usr.endpoint_id.email_addr.to_string();
+    //                 let target_usr = MsnUser::with_email_addr(EmailAddress::from_user_id(&direct_target));
+    //                 let target_uuid = target_usr.uuid;
+    //                 let target_msn_addr = target_usr.endpoint_id.email_addr.to_string();
 
-                    match joined_room.get_member(&direct_target).await? {
+    //                 match joined_room.get_member(&direct_target).await? {
 
-                        None => {
-                            //If member is not here, still consider him a contact, if we want to click on him and create a dm room with him.
-                            let contact = ContactType::new(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, false);
-                            out.push(contact);
-                            debug!("SOAP|ABCH|ABFindContactsPaged: + Live(None) - {}", &target_msn_addr);
-                        }
+    //                     None => {
+    //                         //If member is not here, still consider him a contact, if we want to click on him and create a dm room with him.
+    //                         let contact = ContactType::new(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, false);
+    //                         out.push(contact);
+    //                         debug!("SOAP|ABCH|ABFindContactsPaged: + Live(None) - {}", &target_msn_addr);
+    //                     }
 
-                        Some(member) => {
-                            match member.membership() {
-                                //If member is here, handle memberships
-                                MembershipState::Invite => {
-                                    let contact = ContactType::new(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::LivePending, false);
-                                    out.push(contact);
-                                    debug!("SOAP|ABCH|ABFindContactsPaged: + LivePending(Invite) - {}", &target_msn_addr);
-                                }
-                                _ => {
-                                    let contact = ContactType::new(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, false);
-                                    out.push(contact);
-                                    debug!("SOAP|ABCH|ABFindContactsPaged: + Live({}) - {}", member.membership() ,&target_msn_addr);
-                                }
-                            }
-                        }
+    //                     Some(member) => {
+    //                         match member.membership() {
+    //                             //If member is here, handle memberships
+    //                             MembershipState::Invite => {
+    //                                 let contact = ContactType::new(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::LivePending, false);
+    //                                 out.push(contact);
+    //                                 debug!("SOAP|ABCH|ABFindContactsPaged: + LivePending(Invite) - {}", &target_msn_addr);
+    //                             }
+    //                             _ => {
+    //                                 let contact = ContactType::new(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, false);
+    //                                 out.push(contact);
+    //                                 debug!("SOAP|ABCH|ABFindContactsPaged: + Live({}) - {}", member.membership() ,&target_msn_addr);
+    //                             }
+    //                         }
+    //                     }
 
-                    }
-                }
-            }
-        }
-    }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
     Ok(out)
 }

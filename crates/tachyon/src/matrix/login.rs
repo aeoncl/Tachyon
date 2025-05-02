@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 use anyhow::anyhow;
 use log::debug;
 
-use matrix_sdk::{AuthSession, Client, ClientBuilder, ServerName};
-use matrix_sdk::authentication::matrix::{MatrixSession, MatrixSessionTokens};
+use matrix_sdk::{AuthSession, Client, ClientBuilder, ServerName, SessionTokens};
+use matrix_sdk::authentication::matrix::MatrixSession;
 use matrix_sdk::ruma::{device_id, OwnedUserId, UserId};
 
 use msnp::shared::models::ticket_token::TicketToken;
@@ -58,7 +58,7 @@ pub async fn login_with_token(matrix_id: OwnedUserId, token: TicketToken, disabl
 
     client.restore_session(AuthSession::Matrix(MatrixSession {
         meta: matrix_sdk::SessionMeta { user_id: matrix_id, device_id },
-        tokens: MatrixSessionTokens { access_token: token.0, refresh_token: None },
+        tokens: SessionTokens { access_token: token.0, refresh_token: None },
     })).await?;
 
     client.whoami().await?;

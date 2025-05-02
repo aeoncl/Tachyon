@@ -3,13 +3,17 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use dashmap::mapref::multiple::RefMulti;
 use log::{debug, error, info};
-use matrix_sdk::{Client, Room, RoomMemberships};
+use matrix_sdk::{Client, Room, RoomMemberships, SlidingSyncBuilder, SlidingSyncListBuilder};
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::events::direct::DirectEvent;
-use matrix_sdk::ruma::events::room::member::SyncRoomMemberEvent;
+use matrix_sdk::ruma::events::room::member::{RoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId};
+use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::ListFilters;
+use matrix_sdk::ruma::directory::RoomTypeFilter;
 use matrix_sdk::ruma::events::{AnyGlobalAccountDataEvent, GlobalAccountDataEventType, StaticEventContent};
 use matrix_sdk::ruma::events::macros::EventContent;
+use matrix_sdk::ruma::events::room::create::RoomCreateEvent;
+use matrix_sdk_ui::RoomListService;
 use serde::{Deserialize, Serialize};
 use msnp::soap::abch::sharing_service::find_membership::response::Memberships;
 use crate::matrix::directs::{OneOnOneDmClient, OneOnOneDmRoom};
@@ -40,6 +44,22 @@ impl DirectService {
 
         self.matrix_client.force_update_rooms_with_fresh_m_direct().await?;
 
+
+        let room_list = RoomListService::new(self.matrix_client.clone()).await.unwrap();
+        
+
+        let mut test= self.matrix_client.rooms_filtered()
+
+        
+        //let mut list = SlidingSyncListBuilder::new("directs").filters()
+
+        //set is_direct as flag when it'exists
+        //let test2= SlidingSyncListBuilder::filters(test, Some(ListFilters { is_invite: Some(true), not_room_types: vec![RoomTypeFilter::Space] }))
+        //    .required_state(vec![(RoomMemberEvent::event_type(), "*".to_owned()), (RoomCreateEvent::event_type(), "*".to_owned())])
+        //    .timeline_limit(20);
+
+
+
         self.load_mappings_from_account_data().await?;
 
         self.register_event_handlers();
@@ -52,7 +72,7 @@ impl DirectService {
 
         let directs = self.directs.clone();
 
-        self.matrix_client.add_event_handler({ move |event: SyncRoomMemberEvent, room: Room, client: Client| async move {
+        self.matrix_client.add_event_handler({|event: SyncRoomMemberEvent, room: Room, client: Client| async move {
 
 
             let mut save_mappings = false;
@@ -93,14 +113,14 @@ impl DirectService {
 
                 }
 
-                if save_mappings {
-                    // Save the mappings to account data
-                    if let Err(e) = self.save_mappings_to_account_data().await {
-                        error!("Failed to save direct mappings to account data: {}", e);
-                    } else {
-                        debug!("Saved direct mappings to account data");
-                    }
-                }
+                // if save_mappings {
+                //     // Save the mappings to account data
+                //     if let Err(e) = self.save_mappings_to_account_data().await {
+                //         error!("Failed to save direct mappings to account data: {}", e);
+                //     } else {
+                //         debug!("Saved direct mappings to account data");
+                //     }
+                // }
 
         }
         }

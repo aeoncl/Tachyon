@@ -78,7 +78,9 @@ impl OneOnOneDmRoom for Room {
 
     async fn get_1o1_direct_target(&self) -> Result<Option<OwnedUserId>, Error> {
 
-        let me_user_id = self.client().user_id().ok_or(Error::AuthenticationRequired)?;
+        let client = self.client();
+
+        let me_user_id = client.user_id().ok_or(Error::AuthenticationRequired)?;
 
         if !self.is_direct().await? {
             return Ok(None);
@@ -90,7 +92,9 @@ impl OneOnOneDmRoom for Room {
             return Ok(None);
         }
 
-        let not_me_direct_targets = self.direct_targets().iter().filter(|target| target.as_user_id().unwrap() != me_user_id).collect::<Vec<_>>();
+        let direct_targets = self.direct_targets();
+
+        let not_me_direct_targets = direct_targets.iter().filter(|target| target.as_user_id().unwrap() != me_user_id).collect::<Vec<_>>();
         if not_me_direct_targets.is_empty() || not_me_direct_targets.len() > 1 {
             return Ok(None);
         }

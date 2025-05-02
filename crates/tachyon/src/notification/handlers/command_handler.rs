@@ -1,5 +1,4 @@
 use crate::matrix;
-use crate::matrix::sync::initial_sync;
 use crate::notification::client_store::{ClientData, ClientStoreFacade};
 use crate::notification::handlers::adl_handler::handle_adl;
 use crate::notification::handlers::chg_handler::handle_chg;

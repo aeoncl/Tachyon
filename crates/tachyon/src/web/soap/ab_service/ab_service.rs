@@ -23,7 +23,6 @@ use msnp::soap::abch::msnab_datatypes::{ContactType, ContactTypeEnum};
 use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::abch::request_header::AuthHeaderSoapEnvelope;
 use msnp::soap::traits::xml::{ToXml, TryFromXml};
-use crate::matrix::directs::resolve_direct_target;
 use crate::notification::client_store::ClientStoreFacade;
 use crate::shared::identifiers::MatrixIdCompatible;
 use crate::web::soap::ab_service::ab_find_contacts_paged::ab_find_contacts_paged;

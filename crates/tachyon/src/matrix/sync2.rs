@@ -1,7 +1,11 @@
+use core::sync;
+
+use futures::StreamExt;
 use crate::notification::client_store::ClientData;
-use matrix_sdk::Client;
+use matrix_sdk::{Client, SlidingSyncListBuilder};
+use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::ListFilters;
 use matrix_sdk::ruma::events::GlobalAccountDataEventType;
-use matrix_sdk_ui::sync_service::SyncService;
+use matrix_sdk_ui::sync_service::{self, SyncService};
 use matrix_sdk_ui::timeline::RoomExt;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use tokio::sync::mpsc::Sender;
@@ -20,15 +24,39 @@ pub async fn sliding_sync(tr_id: u128, client_data: &ClientData) -> Result<(Vec<
 
     let client = client_data.get_matrix_client();
 
-    //let event = client.account().fetch_account_data(GlobalAccountDataEventType::from("com.tachyon.room.mappings")).await.unwrap().unwrap().deserialize_as::<RoomMappingsEventContent>().unwrap();
+    let event = client.account()
+    .fetch_account_data(GlobalAccountDataEventType::from("com.tachyon.room.mappings")).await
+    .unwrap()
+    .unwrap()
+    .deserialize_as::<RoomMappingsEventContent>()
+    .unwrap();
+
+
+    //client.encryption().verification_state()
     
     
     let sync_service = SyncService::builder(client.clone()).build().await?;
 
-    
-    start_room_update_handlers_task(client.clone());
+
+    let room_list_service = sync_service.room_list_service();
+
+    //sync_service.room_list_service().all_rooms()
+
+    sync_service.room_list_service();
 
     sync_service.start().await;
+
+
+
+
+
+    
+
+
+
+
+   // start_room_update_handlers_task(client.clone());
+
 
     Ok((Vec::new(), Vec::new()))
 
@@ -37,24 +65,24 @@ pub async fn sliding_sync(tr_id: u128, client_data: &ClientData) -> Result<(Vec<
 
 
 
-pub fn start_room_update_handlers_task(matrix_client: Client) {
-    tokio::spawn(async move {
-        loop {
-            let updates = matrix_client.subscribe_to_all_room_updates().recv().await;
-            match updates {
-                Ok(room_update) => {
+// pub fn start_room_update_handlers_task(matrix_client: Client) {
+//     tokio::spawn(async move {
+//         loop {
+//             let updates = matrix_client.subscribe_to_all_room_updates().recv().await;
+//             match updates {
+//                 Ok(room_update) => {
 
-                   let (id, room) = room_update.join.first_key_value().unwrap();
-                    matrix_client.get_room(id).unwrap();
+//                    let (id, room) = room_update.join().first_key_value().unwrap();
+//                     matrix_client.get_room(id).unwrap();
 
 
-                }
-                Err(_) => {
-                    todo!("handle room updates recv error")
-                }
-            }
+//                 }
+//                 Err(_) => {
+//                     todo!("handle room updates recv error")
+//                 }
+//             }
 
-        }
+//         }
 
-    });
-}
+//     });
+// }

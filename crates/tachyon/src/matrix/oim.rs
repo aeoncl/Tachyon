@@ -42,7 +42,7 @@ pub enum OIMError {
 pub async fn handle_oims(client: Client, response: SyncResponse, mut client_data: ClientData, notif_sender: Sender<NotificationServerCommand>, first_sync_token: Option<String>) -> Result<(), OIMError>{
     let me_email_addr = client_data.get_user()?.endpoint_id.email_addr.clone();
 
-    for (room_id, room) in &response.rooms.join {
+    for (room_id, room) in &response.rooms.joined {
         let room_uuid = Uuid::from_seed(room_id.to_string().as_str());
         let mut seq_num = 1;
 

@@ -26,7 +26,6 @@ use msnp::shared::models::uuid::Uuid;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::CircleData;
 use msnp::soap::abch::msnab_datatypes::{Annotation, ArrayOfAnnotation, BaseMember, ContactType, ContactTypeEnum, MemberState, MemberType, CircleRelationshipRole, RelationshipState, RoleId, NetworkInfoType, CircleInverseInfoType};
-use crate::matrix::directs::{force_update_rooms_with_fresh_m_direct, get_invite_room_mapping_info, get_joined_room_mapping_info, get_left_room_mapping_info, super_algo_magique_de_room_mapping, RoomMapping};
 use crate::notification::client_store::{ClientData, Contact};
 use crate::shared::identifiers::MatrixIdCompatible;
 
@@ -40,7 +39,7 @@ pub async fn handle_memberships(client: Client, response: &SyncResponse) -> Resu
     let mut memberships = VecDeque::new();
     let mut circle_members: HashMap<String, Vec<ContactType>> = HashMap::new();
 
-    for (room_id, update) in &response.rooms.join {
+    for (room_id, update) in &response.rooms.joined {
         debug!("SYNC|MEMBERSHIPS|JOIN: Handling room: {}: state count: {}", &room_id, update.state.len());
 
         let room = client.get_room(&room_id).expect("Room to be here");
@@ -86,7 +85,7 @@ pub async fn handle_memberships(client: Client, response: &SyncResponse) -> Resu
         }
     }
 
-    for (room_id, update) in &response.rooms.invite {
+    for (room_id, update) in &response.rooms.invited {
         debug!("SYNC|MEMBERSHIPS|INVITE: Handling room: {}: state count: {}", &room_id, update.invite_state.events.len());
 
         for state_event in &update.invite_state.events {
@@ -108,7 +107,7 @@ pub async fn handle_memberships(client: Client, response: &SyncResponse) -> Resu
         }
     }
 
-    for (room_id, update) in &response.rooms.leave {
+    for (room_id, update) in &response.rooms.left {
 
         let room = client.get_room(&room_id).expect("Room to be here");
 

@@ -81,7 +81,7 @@ async fn resolve_msn_user_from_rm_internal(mut out: MsnUser, room_member: &RoomM
     }
 
     if presence {
-        let presence_event = client.store().get_presence_event(room_member.user_id()).await?;
+        let presence_event = client.state_store().get_presence_event(room_member.user_id()).await?;
         if let Some(presence_ev) = presence_event {
             let presence_ev = presence_ev.deserialize()?;
             out.status = PresenceStatus::from_presence_state(presence_ev.content.presence);
@@ -126,7 +126,7 @@ pub async fn resolve_msn_user(user_id: &UserId, room: Option<Room>, client_data:
     }
 
     if presence {
-            let presence_event = client.store().get_presence_event(&user_id).await?;
+            let presence_event = client.state_store().get_presence_event(&user_id).await?;
             if let Some(presence_ev) = presence_event {
                 let presence_ev = presence_ev.deserialize()?;
                 out.status = PresenceStatus::from_presence_state(presence_ev.content.presence);
