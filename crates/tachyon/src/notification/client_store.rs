@@ -1,24 +1,24 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, LockResult, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
+use crate::notification::circle_store::CircleStore;
 use anyhow::anyhow;
 use dashmap::DashMap;
-use matrix_sdk::Client;
 use matrix_sdk::ruma::OwnedRoomId;
-use thiserror::__private::AsDynError;
-use thiserror::Error;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::error::SendError;
+use matrix_sdk::Client;
+use matrix_sdk::config::SyncSettings;
+use matrix_sdk_ui::sync_service::{SyncService, SyncServiceBuilder};
 use msnp::msnp::models::contact_list::ContactList;
-use msnp::msnp::notification::command::command::NotificationServerCommand;
-use msnp::msnp::notification::command::not::{NotServer, NotificationPayload};
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::oim::OIM;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::CircleData;
 use msnp::soap::abch::msnab_datatypes::{BaseMember, ContactType};
-use crate::notification::circle_store::CircleStore;
+use thiserror::Error;
+use thiserror::__private::AsDynError;
+use tokio::sync::mpsc;
+use crate::matrix::direct_service::DirectService;
 
 #[derive(Clone)]
 pub struct SwitchboardHandle {
@@ -45,6 +45,8 @@ pub struct ClientDataInner {
     pub user: RwLock<MsnUser>,
     pub ticket_token: TicketToken,
     pub matrix_client: Client,
+    pub sync_service: SyncService,
+    pub direct_service: DirectService,
     pub contact_list: Mutex<ContactList>,
     pub soap_holder: SoapHolder,
     pub switchboards: DashMap<OwnedRoomId, SwitchboardHandle>,
@@ -64,11 +66,14 @@ pub enum ClientStoreError {
 }
 
 impl ClientData {
-    pub fn new(user: MsnUser, token: TicketToken, matrix_client: Client) -> ClientData {
+    pub fn new(user: MsnUser, token: TicketToken, matrix_client: Client, sync_service: SyncService, direct_service: DirectService) -> ClientData {
+        
         ClientData{ inner: Arc::new(ClientDataInner {
             user: RwLock::new(user),
             ticket_token: token,
             matrix_client,
+            sync_service,
+            direct_service,
             contact_list: Default::default(),
             soap_holder: Default::default(),
             switchboards: Default::default(),
@@ -142,6 +147,11 @@ impl ClientData {
         self.inner.matrix_client.clone()
     }
 
+    
+    pub fn get_sync_service(&self) -> &SyncService {
+        &self.inner.sync_service
+    }
+    
     //pub fn get_msn_client_handle(&self) -> MSNClientHandle {
     //    MSNClientHandle::new(self.clone())
     //}

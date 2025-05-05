@@ -1,5 +1,6 @@
 use std::mem;
 use std::str::FromStr;
+use std::time::Duration;
 use anyhow::anyhow;
 use axum::http::StatusCode;
 use axum::response::Response;
@@ -10,6 +11,7 @@ use matrix_sdk::{Client, RoomMemberships};
 use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::events::room::member::MembershipState;
 use matrix_sdk::ruma::{OwnedUserId, UserId};
+use matrix_sdk::sleep::sleep;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
@@ -39,8 +41,6 @@ pub async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnve
             }
         }
     };
-
-
 
 
     if &ab_id == "00000000-0000-0000-0000-000000000000" {

@@ -4,3 +4,4 @@ pub mod oim;
 pub mod msn_user_resolver;
 pub mod events;
 pub mod sync2;
+pub mod direct_service;

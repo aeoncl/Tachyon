@@ -7,12 +7,13 @@ use matrix_sdk::{Client, Room, RoomMemberships, SlidingSyncBuilder, SlidingSyncL
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::events::direct::DirectEvent;
 use matrix_sdk::ruma::events::room::member::{RoomMemberEvent, SyncRoomMemberEvent};
-use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId};
+use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, RoomId};
 use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::ListFilters;
 use matrix_sdk::ruma::directory::RoomTypeFilter;
 use matrix_sdk::ruma::events::{AnyGlobalAccountDataEvent, GlobalAccountDataEventType, StaticEventContent};
 use matrix_sdk::ruma::events::macros::EventContent;
 use matrix_sdk::ruma::events::room::create::RoomCreateEvent;
+use matrix_sdk::sync::RoomUpdates;
 use matrix_sdk_ui::RoomListService;
 use serde::{Deserialize, Serialize};
 use msnp::soap::abch::sharing_service::find_membership::response::Memberships;
@@ -32,8 +33,7 @@ pub struct DirectService {
 
 impl DirectService {
 
-
-    fn new(matrix_client: Client) -> Self {
+    pub fn new(matrix_client: Client) -> Self {
         Self {
             matrix_client,
             directs: Arc::new(Default::default()),
@@ -42,15 +42,9 @@ impl DirectService {
 
     pub async fn init(&self) -> Result<(), matrix_sdk::Error> {
 
-        self.matrix_client.force_update_rooms_with_fresh_m_direct().await?;
+        //self.matrix_client.force_update_rooms_with_fresh_m_direct().await?;
 
 
-        let room_list = RoomListService::new(self.matrix_client.clone()).await.unwrap();
-        
-
-        let mut test= self.matrix_client.rooms_filtered()
-
-        
         //let mut list = SlidingSyncListBuilder::new("directs").filters()
 
         //set is_direct as flag when it'exists
@@ -60,18 +54,30 @@ impl DirectService {
 
 
 
-        self.load_mappings_from_account_data().await?;
+        //self.load_mappings_from_account_data().await?;
 
         self.register_event_handlers();
 
-        todo!()
-
+        Ok(())
     }
 
     fn register_event_handlers(&self) {
 
         let directs = self.directs.clone();
+        let client = self.matrix_client.clone();
 
+        self.matrix_client.add_updates_handler({ |room_updates: RoomUpdates, client: Client| async move {
+
+            info!("DEBUGG: Received room updates with {} joined rooms", room_updates.joined.len());
+
+            for (id, room) in room_updates.joined {
+              //  let found : Vec<&RoomId> = directs.iter().filter(|entry| entry.value() == &id).map(|elem|  elem.value()).collect();
+                //TODO handle this
+            //    assert!(found.len() <= 1);
+            }
+
+        }});
+        
         self.matrix_client.add_event_handler({|event: SyncRoomMemberEvent, room: Room, client: Client| async move {
 
 
@@ -148,24 +154,6 @@ impl DirectService {
 
     }
 
-    async fn load_mappings_from_account_data(&self) -> Result<(), matrix_sdk::Error> {
-        let account = self.matrix_client.account();
-
-        if let Some(raw_content) = account.fetch_account_data(GlobalAccountDataEventType::from(DirectMappingsEventContent::TYPE)).await? {
-            let content = raw_content.deserialize_as::<DirectMappingsEventContent>()?;
-
-            for (user_id, room_id) in content.mappings {
-                self.directs.insert(user_id, room_id);
-            }
-
-            debug!("Loaded {} direct mappings from account data", self.directs.len());
-        } else {
-            debug!("No direct mappings found in account data");
-        }
-
-        Ok(())
-    }
-
     async fn save_mappings_to_account_data(&self) -> Result<(), matrix_sdk::Error> {
         let mut content = DirectMappingsEventContent::default();
 
@@ -174,6 +162,7 @@ impl DirectService {
                 content.mappings.insert(entry.key().clone(), entry.value().clone());
         }
 
+        let mappings_count = content.mappings.len();
         // Save to account data
         self.matrix_client.account()
             .set_account_data(
@@ -181,7 +170,7 @@ impl DirectService {
             )
             .await?;
 
-        debug!("Saved {} direct mappings to account data", content.mappings.len());
+        debug!("Saved {} direct mappings to account data", mappings_count);
 
         Ok(())
     }

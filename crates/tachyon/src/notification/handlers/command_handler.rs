@@ -1,3 +1,4 @@
+use std::time::Duration;
 use crate::matrix;
 use crate::notification::client_store::{ClientData, ClientStoreFacade};
 use crate::notification::handlers::adl_handler::handle_adl;
@@ -14,6 +15,8 @@ use crate::shared::identifiers::MatrixIdCompatible;
 use anyhow::anyhow;
 use log::{debug, error, warn};
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
+use matrix_sdk::sleep::sleep;
+use matrix_sdk_ui::sync_service::SyncService;
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
 use msnp::msnp::notification::command::cvr::CvrServer;
 use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
@@ -29,6 +32,9 @@ use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory
 use msnp::shared::payload::msg::text_msg::FontStyle;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::Sender;
+use tokio::task;
+use crate::matrix::direct_service::DirectService;
+use crate::matrix::sync2::sliding_sync;
 
 pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, client_store: &ClientStoreFacade, local_client_data: &mut LocalClientData) -> Result<(), anyhow::Error> {
 
@@ -95,11 +101,15 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             let user_id = local_store.email_addr.to_owned_user_id();
 
                             let matrix_client = matrix::login::login_with_token(user_id, ticket_token.clone(), true).await?;
+                            let sync_service = SyncService::builder(matrix_client.clone()).build().await?;
+                            let direct_service = DirectService::new(matrix_client.clone());
+                            direct_service.init().await.unwrap();
+
 
                             let endpoint_id = EndpointId::new(local_store.email_addr.clone(), Some(endpoint_guid));
                             let msn_user = MsnUser::new(endpoint_id);
 
-                            let client_data = ClientData::new(msn_user.clone(), ticket_token.clone(), matrix_client.clone());
+                            let client_data = ClientData::new(msn_user.clone(), ticket_token.clone(), matrix_client.clone(), sync_service, direct_service);
                             client_store.insert_client_data(ticket_token.as_str().to_owned(), client_data.clone());
 
                             local_store.token = ticket_token.clone();
@@ -113,7 +123,11 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             });
 
                             notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
+
+
+
                             notif_sender.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await?;
+
 
                             let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
                                 sender: "Hotmail".to_string(),
@@ -121,16 +135,35 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                                 payload: MsgPayload::Raw(RawMsgPayloadFactory::get_msmsgs_profile(&msn_user.uuid.get_puid(), &local_store.email_addr, &ticket_token))
                             });
 
-                            notif_sender.send(initial_profile_msg).await?;
 
-                            let notif_sender_ed = notif_sender.clone();
-                            let email_addr = msn_user.get_email_address().clone();
 
-                            tokio::spawn(async move {
+
+                            task::spawn(async move {
+
+                                sliding_sync(0, &client_data).await.unwrap();
+
+                                notif_sender.send(initial_profile_msg).await.unwrap();
+
+                                let notif_sender_ed = notif_sender.clone();
+                                let email_addr = msn_user.get_email_address().clone();
+
                                 //Todo fetch endpoint data
                                 let endpoint_data = b"<Data></Data>";
                                 notif_sender_ed.send(NotificationServerCommand::RAW(RawCommand::with_payload(&format!("UBX 1:{}", &email_addr.as_str()), endpoint_data.to_vec()))).await;
+
+
+
+
                             });
+
+
+
+
+
+
+
+
+
 
                         }
 
