@@ -137,8 +137,10 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
 
 
-
                             task::spawn(async move {
+
+
+
 
                                 sliding_sync(0, &client_data).await.unwrap();
 

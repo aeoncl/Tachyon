@@ -2,7 +2,7 @@ use matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState;
 use matrix_sdk::ruma::events::direct::DirectEventContent;
 use matrix_sdk::ruma::events::{AnySyncStateEvent, GlobalAccountDataEventType, StateEventType};
 use matrix_sdk::ruma::{MilliSecondsSinceUnixEpoch, OwnedRoomId, OwnedUserId, UserId};
-use matrix_sdk::{Client, Error, Room, RoomMemberships};
+use matrix_sdk::{Client, Error, Room, RoomMemberships, RoomState};
 
 
 struct RoomWithTimestamp {
@@ -19,8 +19,9 @@ pub trait OneOnOneDmClient {
 impl OneOnOneDmClient for Client {
     async fn get_canonical_dm_room(&self, user_id: &UserId) -> Result<Option<OwnedRoomId>, Error> {
         let mut rooms = self.joined_rooms();
+        rooms.extend(self.invited_rooms().into_iter());
         let mut dm_rooms = Vec::new();
-
+        
         for room in rooms.drain(..) {
 
             if let Some(direct_target) =  room.get_1o1_direct_target().await? {
@@ -118,4 +119,5 @@ impl OneOnOneDmRoom for Room {
         return Err(Error::InsufficientData);
 
     }
+
 }

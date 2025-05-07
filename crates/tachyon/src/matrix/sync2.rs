@@ -16,7 +16,7 @@ use msnp::msnp::notification::command::not::NotServer;
 use crate::matrix::events::room_mappings::{RoomMappingsEvent, RoomMappingsEventContent};
 
 #[derive(Clone)]
-struct TachyonContext {
+pub struct TachyonContext {
     notif_sender: Sender<NotificationServerCommand>,
     client_data: ClientData
 }
