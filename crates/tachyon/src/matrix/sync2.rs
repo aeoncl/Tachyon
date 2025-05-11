@@ -1,25 +1,52 @@
 use core::sync;
-
+use std::time::Duration;
 use futures::StreamExt;
+use log::{error, info, warn};
 use crate::notification::client_store::ClientData;
-use matrix_sdk::{Client, Error, SlidingSyncListBuilder};
-use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{ListFilters, RoomSubscription};
+use matrix_sdk::{Client, Error, Room, SlidingSync, SlidingSyncListBuilder, SlidingSyncMode};
+use matrix_sdk::deserialized_responses::TimelineEventKind;
+use matrix_sdk::event_handler::Ctx;
+use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{AccountData, ListFilters, RoomSubscription, ToDevice, Typing, E2EE};
 use matrix_sdk::ruma::events::direct::DirectEventContent;
-use matrix_sdk::ruma::events::{GlobalAccountDataEventType, StateEventType};
+use matrix_sdk::ruma::events::{AnyMessageLikeEvent, AnySyncMessageLikeEvent, AnySyncStateEvent, AnySyncTimelineEvent, GlobalAccountDataEventType, StateEventType};
 use matrix_sdk::ruma::{assign, OwnedRoomId, RoomId, UInt};
+use matrix_sdk::ruma::directory::RoomTypeFilter;
+use matrix_sdk::ruma::events::room::member::SyncRoomMemberEvent;
+use matrix_sdk::sleep::sleep;
+use matrix_sdk::sync::RoomUpdates;
 use matrix_sdk_ui::sync_service::{self, SyncService};
 use matrix_sdk_ui::timeline::RoomExt;
+use tokio::sync::broadcast::Receiver;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use tokio::sync::mpsc::Sender;
 use msnp::msnp::notification::command::iln::IlnServer;
+use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::notification::command::not::NotServer;
-use crate::matrix::events::room_mappings::{RoomMappingsEvent, RoomMappingsEventContent};
+use msnp::msnp::raw_command_parser::RawCommand;
+use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
+use crate::matrix::direct_service::DirectMappingsEventContent;
 
 #[derive(Clone)]
 pub struct TachyonContext {
-    notif_sender: Sender<NotificationServerCommand>,
     client_data: ClientData
 }
+
+const REQUIRED_STATE: &[(StateEventType, &str)] = &[
+    (StateEventType::RoomName, ""),
+    (StateEventType::RoomEncryption, ""),
+    (StateEventType::RoomMember, "$LAZY"),
+    (StateEventType::RoomMember, "$ME"),
+    (StateEventType::RoomTopic, ""),
+    (StateEventType::RoomCanonicalAlias, ""),
+    (StateEventType::RoomPowerLevels, ""),
+    (StateEventType::CallMember, "*"),
+    (StateEventType::RoomJoinRules, ""),
+    // Those two events are required to properly compute room previews.
+    (StateEventType::RoomCreate, ""),
+    (StateEventType::RoomHistoryVisibility, ""),
+    // Required to correctly calculate the room display name.
+    (StateEventType::MemberHints, ""),
+];
 
 const DM_REQUIRED_STATE: &[(StateEventType, &str)] = &[
     (StateEventType::RoomName, ""),
@@ -37,7 +64,7 @@ const DM_REQUIRED_STATE: &[(StateEventType, &str)] = &[
     (StateEventType::MemberHints, ""),
 ];
 
-async fn get_mandatory_rooms_for_initial_sync<'a>(room_mappings: &'a Option<Result<RoomMappingsEventContent, serde_json::Error>>, directs: &'a Option<Result<DirectEventContent, serde_json::Error>>) -> Result<Vec<&'a RoomId>, Error> {
+async fn get_mandatory_rooms_for_initial_sync<'a>(room_mappings: &'a Option<Result<DirectMappingsEventContent, serde_json::Error>>, directs: &'a Option<Result<DirectEventContent, serde_json::Error>>) -> Result<Vec<&'a RoomId>, Error> {
 
     if let Some(room_mappings) = room_mappings {
         match room_mappings {
@@ -64,19 +91,51 @@ async fn get_mandatory_rooms_for_initial_sync<'a>(room_mappings: &'a Option<Resu
     Ok(Vec::new())
 }
 
-pub async fn sliding_sync(tr_id: u128, client_data: &ClientData) -> Result<(Vec<IlnServer>, Vec<NotServer>), anyhow::Error>{
+fn create_room_list() -> SlidingSyncListBuilder {
+    SlidingSyncListBuilder::new("all_rooms")
+        .timeline_limit(1)
+        .required_state(REQUIRED_STATE.iter().map(|(key, val)| (key.to_owned(), val.to_string())).collect())
+        .sync_mode(SlidingSyncMode::new_growing(20))
+        .filters(Some(assign!(ListFilters::default(), {
+            is_invite: None,
+            not_room_types: vec![RoomTypeFilter::Space],
+        })))
+
+}
+
+pub async fn build_sliding_sync(matrix_client: &Client) -> Result<SlidingSync, anyhow::Error> {
+
+    let sliding_sync_builder = matrix_client.sliding_sync("everything_list")?
+        .add_list(
+            create_room_list()
+        )
+        .with_to_device_extension(
+            assign!(ToDevice::default(), { enabled: Some(true)}),
+        )
+        .with_e2ee_extension(assign!(E2EE::default(), { enabled: Some(true)}))
+        .with_account_data_extension(assign!(AccountData::default(), { enabled: Some(true)}))
+        .with_typing_extension(assign!(Typing::default(), { enabled: Some(true)}))
+        .share_pos();
+
+    Ok(sliding_sync_builder.build().await?)
+}
+
+pub async fn perform_sliding_sync(client_data: ClientData, mut kill_signal: Receiver<()>) -> Result<(), anyhow::Error>{
 
     let client = client_data.get_matrix_client();
 
-    let sync_service = client_data.get_sync_service();
 
-    let test1 = client.account()
-        .fetch_account_data(GlobalAccountDataEventType::from("com.tachyon.room.mappings")).await?
-        .map(|raw| raw.deserialize_as::<RoomMappingsEventContent>());
+    let sliding_sync = client_data.get_sliding_sync();
 
-    let test = client.account().fetch_account_data(GlobalAccountDataEventType::Direct).await?.map(|raw| raw.deserialize_as::<DirectEventContent>());
 
-    let rooms_to_watch = get_mandatory_rooms_for_initial_sync(&test1, &test).await?;
+
+    let maybe_direct_mappings = client.account()
+        .fetch_account_data(GlobalAccountDataEventType::from("org.tachyon.direct_mappings")).await?
+        .map(|raw| raw.deserialize_as::<DirectMappingsEventContent>());
+
+    let maybe_direct_event = client.account().fetch_account_data(GlobalAccountDataEventType::Direct).await?.map(|raw| raw.deserialize_as::<DirectEventContent>());
+
+    let rooms_to_watch = get_mandatory_rooms_for_initial_sync(&maybe_direct_mappings, &maybe_direct_event).await?;
 
     let subscription = assign!(RoomSubscription::default(), {
         required_state: DM_REQUIRED_STATE.iter().map(|(key, val)| (key.to_owned(), val.to_string())).collect(),
@@ -85,13 +144,237 @@ pub async fn sliding_sync(tr_id: u128, client_data: &ClientData) -> Result<(Vec<
             });
 
     let room_refs: Vec<&RoomId> = rooms_to_watch.iter().map(|r| r.as_ref()).collect();
+    sliding_sync.subscribe_to_rooms(&room_refs, Some(subscription), false);
 
-    sync_service.room_list_service().sliding_sync().subscribe_to_rooms(&room_refs, Some(subscription), false);
+    let mut updates_recv = client.subscribe_to_all_room_updates();
 
-    sync_service.start().await;
-    
-    Ok((Vec::new(), Vec::new()))
 
+    tokio::spawn(async move {
+
+        let mut sync_stream = Box::pin(sliding_sync.sync());
+        let mut initial_sync = true;
+        loop {
+            tokio::select! {
+                _ = kill_signal.recv() => {
+                    info!("Gracefully exit sync loop...");
+                    if let Err(err) = sliding_sync.stop_sync() {
+                        error!("Error stopping sync loop: {:?}", err);
+                    }
+                    break;
+                }
+                sync_response = sync_stream.next() => {
+                    match sync_response {
+                        Some(Ok(update_summary)) => {
+                            info!("Received Sliding Sync stream response : {:?}", &update_summary);
+                            match updates_recv.recv().await {
+                                Ok(room_updates) => {
+                                    if(initial_sync) {
+                                        initial_sync = false;
+                                        handle_initial_sync(&client_data).await.unwrap();
+                                    }
+
+                                    handle_room_updates(&client_data, room_updates).await.unwrap();
+                                }
+                                Err(err) => {
+                                    error!("Error receiving RoomUpdates: {:?}", err);
+                                }
+                            }
+
+                        }
+                        Some(Err(err)) => {
+                            error!("Error in sync stream: {:?}", err);
+                        }
+                        _ => {
+                            error!("Unexpected sync stream response");
+                        }
+                    }
+                }
+
+            }
+
+
+        }
+
+    });
+
+    Ok(())
+}
+
+
+async fn handle_room_updates(client_data: &ClientData, room_updates: RoomUpdates) -> Result<(), anyhow::Error> {
+    let direct_service = client_data.get_direct_service();
+    let client = client_data.get_matrix_client();
+
+
+
+        for (room_id, update) in room_updates.joined {
+        let room = client.get_room(&room_id).unwrap();
+
+        for event in update.timeline.events {
+            match event.kind {
+                TimelineEventKind::Decrypted(decrypted) => {
+                    match decrypted.event.deserialize().unwrap() {
+                        AnyMessageLikeEvent::CallAnswer(event) => {}
+                        AnyMessageLikeEvent::CallInvite(event) => {}
+                        AnyMessageLikeEvent::CallHangup(event) => {}
+                        AnyMessageLikeEvent::CallCandidates(event) => {}
+                        AnyMessageLikeEvent::CallNegotiate(event) => {}
+                        AnyMessageLikeEvent::CallReject(event) => {}
+                        AnyMessageLikeEvent::CallSdpStreamMetadataChanged(event) => {}
+                        AnyMessageLikeEvent::CallSelectAnswer(event) => {}
+                        AnyMessageLikeEvent::KeyVerificationReady(event) => {}
+                        AnyMessageLikeEvent::KeyVerificationStart(event) => {}
+                        AnyMessageLikeEvent::KeyVerificationCancel(event) => {}
+                        AnyMessageLikeEvent::KeyVerificationAccept(event) => {}
+                        AnyMessageLikeEvent::KeyVerificationKey(event) => {}
+                        AnyMessageLikeEvent::KeyVerificationMac(event) => {}
+                        AnyMessageLikeEvent::KeyVerificationDone(event) => {}
+                        AnyMessageLikeEvent::Location(event) => {}
+                        AnyMessageLikeEvent::Message(event) => {}
+                        AnyMessageLikeEvent::PollStart(event) => {}
+                        AnyMessageLikeEvent::UnstablePollStart(event) => {}
+                        AnyMessageLikeEvent::PollResponse(event) => {}
+                        AnyMessageLikeEvent::UnstablePollResponse(event) => {}
+                        AnyMessageLikeEvent::PollEnd(event) => {}
+                        AnyMessageLikeEvent::UnstablePollEnd(event) => {}
+                        AnyMessageLikeEvent::Beacon(event) => {}
+                        AnyMessageLikeEvent::Reaction(event) => {}
+                        AnyMessageLikeEvent::RoomEncrypted(event) => {}
+                        AnyMessageLikeEvent::RoomMessage(event) => {}
+                        AnyMessageLikeEvent::RoomRedaction(event) => {}
+                        AnyMessageLikeEvent::Sticker(event) => {}
+                        AnyMessageLikeEvent::CallNotify(event) => {}
+                        AnyMessageLikeEvent::_Custom(_) => {}
+                        _ => {}
+                    }
+                }
+                TimelineEventKind::UnableToDecrypt { event, utd_info } => {
+                    warn!("Unable to decrypt event: {:?}, cause: {:?}", event, utd_info);
+                }
+                TimelineEventKind::PlainText { event } => {
+                    match event.deserialize().unwrap() {
+                        AnySyncTimelineEvent::MessageLike(event) => {
+                            match event {
+                                AnySyncMessageLikeEvent::CallAnswer(_) => {}
+                                AnySyncMessageLikeEvent::CallInvite(_) => {}
+                                AnySyncMessageLikeEvent::CallHangup(_) => {}
+                                AnySyncMessageLikeEvent::CallCandidates(_) => {}
+                                AnySyncMessageLikeEvent::CallNegotiate(_) => {}
+                                AnySyncMessageLikeEvent::CallReject(_) => {}
+                                AnySyncMessageLikeEvent::CallSdpStreamMetadataChanged(_) => {}
+                                AnySyncMessageLikeEvent::CallSelectAnswer(_) => {}
+                                AnySyncMessageLikeEvent::KeyVerificationReady(_) => {}
+                                AnySyncMessageLikeEvent::KeyVerificationStart(_) => {}
+                                AnySyncMessageLikeEvent::KeyVerificationCancel(_) => {}
+                                AnySyncMessageLikeEvent::KeyVerificationAccept(_) => {}
+                                AnySyncMessageLikeEvent::KeyVerificationKey(_) => {}
+                                AnySyncMessageLikeEvent::KeyVerificationMac(_) => {}
+                                AnySyncMessageLikeEvent::KeyVerificationDone(_) => {}
+                                AnySyncMessageLikeEvent::Location(_) => {}
+                                AnySyncMessageLikeEvent::Message(_) => {}
+                                AnySyncMessageLikeEvent::PollStart(_) => {}
+                                AnySyncMessageLikeEvent::UnstablePollStart(_) => {}
+                                AnySyncMessageLikeEvent::PollResponse(_) => {}
+                                AnySyncMessageLikeEvent::UnstablePollResponse(_) => {}
+                                AnySyncMessageLikeEvent::PollEnd(_) => {}
+                                AnySyncMessageLikeEvent::UnstablePollEnd(_) => {}
+                                AnySyncMessageLikeEvent::Beacon(_) => {}
+                                AnySyncMessageLikeEvent::Reaction(_) => {}
+                                AnySyncMessageLikeEvent::RoomEncrypted(_) => {}
+                                AnySyncMessageLikeEvent::RoomMessage(_) => {}
+                                AnySyncMessageLikeEvent::RoomRedaction(_) => {}
+                                AnySyncMessageLikeEvent::Sticker(_) => {}
+                                AnySyncMessageLikeEvent::CallNotify(_) => {}
+                                AnySyncMessageLikeEvent::_Custom(_) => {}
+                                _ => {}
+                            }
+
+
+                        }
+                        AnySyncTimelineEvent::State(state_event) => {
+                            match state_event {
+                                AnySyncStateEvent::PolicyRuleRoom(_) => {}
+                                AnySyncStateEvent::PolicyRuleServer(_) => {}
+                                AnySyncStateEvent::PolicyRuleUser(_) => {}
+                                AnySyncStateEvent::RoomAliases(_) => {}
+                                AnySyncStateEvent::RoomAvatar(_) => {}
+                                AnySyncStateEvent::RoomCanonicalAlias(_) => {}
+                                AnySyncStateEvent::RoomCreate(_) => {}
+                                AnySyncStateEvent::RoomEncryption(_) => {}
+                                AnySyncStateEvent::RoomGuestAccess(_) => {}
+                                AnySyncStateEvent::RoomHistoryVisibility(_) => {}
+                                AnySyncStateEvent::RoomJoinRules(_) => {}
+                                AnySyncStateEvent::RoomMember(room_member_event) => {
+                                    let mapping = direct_service.handle_member_event(&room_member_event, &room).await;
+                                    info!("Canonical mapping compute for event : {:?}", &room_member_event);
+
+                                    match mapping {
+                                        None => {
+                                            info!("No new canonical mapping found");
+
+                                        }
+                                        Some(mapping) => {
+                                            info!("New Canonical mapping diff: {:?}", mapping);
+                                        }
+                                    }
+
+
+
+                                }
+                                AnySyncStateEvent::RoomName(_) => {}
+                                AnySyncStateEvent::RoomPinnedEvents(_) => {}
+                                AnySyncStateEvent::RoomPowerLevels(_) => {}
+                                AnySyncStateEvent::RoomServerAcl(_) => {}
+                                AnySyncStateEvent::RoomThirdPartyInvite(_) => {}
+                                AnySyncStateEvent::RoomTombstone(_) => {}
+                                AnySyncStateEvent::RoomTopic(_) => {}
+                                AnySyncStateEvent::SpaceChild(_) => {}
+                                AnySyncStateEvent::SpaceParent(_) => {}
+                                AnySyncStateEvent::BeaconInfo(_) => {}
+                                AnySyncStateEvent::CallMember(_) => {}
+                                AnySyncStateEvent::MemberHints(_) => {}
+                                AnySyncStateEvent::_Custom(_) => {}
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+
+
+    }
+
+
+
+
+
+    Ok(())
+
+
+}
+
+async fn handle_initial_sync(client_data: &ClientData) -> Result<(), anyhow::Error> {
+
+    let me = client_data.get_user_clone()?;
+    let ticket_token = client_data.get_ticket_token();
+    let notification_handle = client_data.get_notification_handle();
+
+    let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
+        sender: "Hotmail".to_string(),
+        display_name: "Hotmail".to_string(),
+        payload: MsgPayload::Raw(RawMsgPayloadFactory::get_msmsgs_profile(&me.uuid.get_puid(), me.get_email_address(), &ticket_token))
+    });
+
+    notification_handle.send(initial_profile_msg).await?;
+
+
+    //Todo fetch endpoint data
+    let endpoint_data = b"<Data></Data>";
+    notification_handle.send(NotificationServerCommand::RAW(RawCommand::with_payload(&format!("UBX 1:{}", &me.get_email_address().as_str()), endpoint_data.to_vec()))).await?;
+
+    Ok(())
 }
 
 

@@ -53,7 +53,7 @@ impl MsnUser {
             &self.endpoint_id.email_addr.0
         }
     }
-
+    
     pub fn get_email_address(&self) -> &EmailAddress {
         &self.endpoint_id.email_addr
     }

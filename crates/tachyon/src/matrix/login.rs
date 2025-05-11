@@ -56,6 +56,8 @@ pub async fn login_with_token(matrix_id: OwnedUserId, token: TicketToken, disabl
         .build()
         .await?;
 
+    client.event_cache().enable_storage()?;
+    
     client.restore_session(AuthSession::Matrix(MatrixSession {
         meta: matrix_sdk::SessionMeta { user_id: matrix_id, device_id },
         tokens: SessionTokens { access_token: token.0, refresh_token: None },

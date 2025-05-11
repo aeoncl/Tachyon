@@ -1,3 +1,4 @@
+use tokio::sync::broadcast::Receiver;
 use msnp::msnp::notification::models::endpoint_data::PrivateEndpointData;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
@@ -10,11 +11,12 @@ pub(crate) struct LocalClientData {
     pub(crate) token: TicketToken,
     pub(crate) client_data: Option<ClientData>,
     pub(crate) private_endpoint_data: PrivateEndpointData,
-    pub(crate) needs_initial_presence: bool
+    pub(crate) needs_initial_presence: bool,
+    pub(crate) client_kill_recv: Receiver<()>
 }
 
-impl Default for LocalClientData {
-    fn default() -> Self {
+impl LocalClientData {
+    pub(crate) fn new(client_kill_recv: Receiver<()>) -> Self {
         Self {
             phase: ConnectionPhase::default(),
             email_addr: EmailAddress::default(),
@@ -22,6 +24,7 @@ impl Default for LocalClientData {
             client_data: None,
             private_endpoint_data: Default::default(),
             needs_initial_presence: true,
+            client_kill_recv
         }
     }
 }

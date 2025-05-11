@@ -1,5 +1,6 @@
-use std::time::Duration;
 use crate::matrix;
+use crate::matrix::direct_service::DirectService;
+use crate::matrix::sync2::{build_sliding_sync, perform_sliding_sync};
 use crate::notification::client_store::{ClientData, ClientStoreFacade};
 use crate::notification::handlers::adl_handler::handle_adl;
 use crate::notification::handlers::chg_handler::handle_chg;
@@ -30,11 +31,10 @@ use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use msnp::shared::payload::msg::text_msg::FontStyle;
+use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::Sender;
 use tokio::task;
-use crate::matrix::direct_service::DirectService;
-use crate::matrix::sync2::sliding_sync;
 
 pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, client_store: &ClientStoreFacade, local_client_data: &mut LocalClientData) -> Result<(), anyhow::Error> {
 
@@ -102,6 +102,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
                             let matrix_client = matrix::login::login_with_token(user_id, ticket_token.clone(), true).await?;
                             let sync_service = SyncService::builder(matrix_client.clone()).build().await?;
+                            let sliding_sync = build_sliding_sync(&matrix_client).await?;
                             let direct_service = DirectService::new(matrix_client.clone());
                             direct_service.init().await.unwrap();
 
@@ -109,7 +110,8 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             let endpoint_id = EndpointId::new(local_store.email_addr.clone(), Some(endpoint_guid));
                             let msn_user = MsnUser::new(endpoint_id);
 
-                            let client_data = ClientData::new(msn_user.clone(), ticket_token.clone(), matrix_client.clone(), sync_service, direct_service);
+
+                            let client_data = ClientData::new(msn_user.clone(), ticket_token.clone(), notif_sender.clone(), matrix_client.clone(), sliding_sync, sync_service, direct_service);
                             client_store.insert_client_data(ticket_token.as_str().to_owned(), client_data.clone());
 
                             local_store.token = ticket_token.clone();
@@ -128,47 +130,8 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
                             notif_sender.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await?;
 
-
-                            let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
-                                sender: "Hotmail".to_string(),
-                                display_name: "Hotmail".to_string(),
-                                payload: MsgPayload::Raw(RawMsgPayloadFactory::get_msmsgs_profile(&msn_user.uuid.get_puid(), &local_store.email_addr, &ticket_token))
-                            });
-
-
-
-                            task::spawn(async move {
-
-
-
-
-                                sliding_sync(0, &client_data).await.unwrap();
-
-                                notif_sender.send(initial_profile_msg).await.unwrap();
-
-                                let notif_sender_ed = notif_sender.clone();
-                                let email_addr = msn_user.get_email_address().clone();
-
-                                //Todo fetch endpoint data
-                                let endpoint_data = b"<Data></Data>";
-                                notif_sender_ed.send(NotificationServerCommand::RAW(RawCommand::with_payload(&format!("UBX 1:{}", &email_addr.as_str()), endpoint_data.to_vec()))).await;
-
-
-
-
-                            });
-
-
-
-
-
-
-
-
-
-
+                            perform_sliding_sync(client_data, local_store.client_kill_recv.resubscribe()).await.unwrap();
                         }
-
                     }
                 },
                 _ => {

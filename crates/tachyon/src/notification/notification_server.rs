@@ -80,7 +80,7 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
     let (client_kill_snd, client_kill_recv) = broadcast::channel::<()>(1);
     let command_sender = start_write_task(write, client_kill_recv.resubscribe());
 
-    let mut local_client_data = LocalClientData::default();
+    let mut local_client_data = LocalClientData::new(client_kill_recv);
 
     let mut parser = RawCommandParser::new();
     let mut reader = BufReader::new(read);
