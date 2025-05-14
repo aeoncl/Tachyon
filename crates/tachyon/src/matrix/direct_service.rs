@@ -244,7 +244,7 @@ impl DirectService {
         // });
     }
 
-    pub async fn handle_member_event(&self, room_member_event: &SyncRoomMemberEvent, room: &Room) -> Option<MappingDiff>{
+    pub async fn handle_member_event(&self, room_member_event: &SyncRoomMemberEvent, room: &Room) -> Option<MappingDiff> {
 
         let maybe = self.direct_mappings.iter().find(|e| e.value() == room.room_id());
 
@@ -258,9 +258,12 @@ impl DirectService {
                         match self.matrix_client.get_canonical_dm_room(found.key()).await.unwrap() {
                             None => {
                                 out = Some(MappingDiff::RemovedMapping(found.key().clone()));
+                                self.direct_mappings.remove(found.key());
                             }
                             Some(new_mapping) => {
-                                out = Some(MappingDiff::UpdatedMapping(found.key().clone(), new_mapping));
+                                out = Some(MappingDiff::UpdatedMapping(found.key().clone(), new_mapping.clone()));
+                                self.direct_mappings.insert(found.key().clone(), new_mapping);
+
                             }
                         };
                     }
@@ -280,7 +283,8 @@ impl DirectService {
                         if let Some(direct_target) = direct_target {
                             if room_member_event.state_key() == &direct_target {
                                 if let Some(new_mapping) = self.matrix_client.get_canonical_dm_room(direct_target.as_ref()).await.unwrap() {
-                                    out = Some(MappingDiff::NewMapping(direct_target, new_mapping));
+                                    out = Some(MappingDiff::NewMapping(direct_target.clone(), new_mapping.clone()));
+                                    self.direct_mappings.insert(direct_target, new_mapping);
                                 }
                             }
                         }
@@ -292,13 +296,7 @@ impl DirectService {
             }
 
         }
-
-
-
-        if let Some(mapping) = out.as_ref() {
-            self.current_diffs.lock().unwrap().push(mapping.clone())
-        }
-
+        
         return out;
     }
 
