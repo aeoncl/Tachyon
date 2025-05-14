@@ -1,15 +1,18 @@
 use core::sync;
+use std::collections::HashSet;
 use std::time::Duration;
 use futures::StreamExt;
 use log::{error, info, warn};
 use crate::notification::client_store::ClientData;
 use matrix_sdk::{Client, Error, Room, SlidingSync, SlidingSyncListBuilder, SlidingSyncMode};
-use matrix_sdk::deserialized_responses::TimelineEventKind;
+use matrix_sdk::crypto::types::events::olm_v1::AnyDecryptedOlmEvent;
+use matrix_sdk::deserialized_responses::{DecryptedRoomEvent, TimelineEventKind};
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{AccountData, ListFilters, RoomSubscription, ToDevice, Typing, E2EE};
 use matrix_sdk::ruma::events::direct::DirectEventContent;
-use matrix_sdk::ruma::events::{AnyMessageLikeEvent, AnySyncMessageLikeEvent, AnySyncStateEvent, AnySyncTimelineEvent, GlobalAccountDataEventType, StateEventType};
+use matrix_sdk::ruma::events::{AnyMessageLikeEvent, AnySyncMessageLikeEvent, AnySyncStateEvent, AnySyncTimelineEvent, GlobalAccountDataEventType, StateEventType, SyncMessageLikeEvent};
 use matrix_sdk::ruma::{assign, OwnedRoomId, RoomId, UInt};
+use matrix_sdk::ruma::api::client::error::ErrorKind;
 use matrix_sdk::ruma::directory::RoomTypeFilter;
 use matrix_sdk::ruma::events::room::member::SyncRoomMemberEvent;
 use matrix_sdk::sleep::sleep;
@@ -24,7 +27,7 @@ use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::notification::command::not::NotServer;
 use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
-use crate::matrix::direct_service::DirectMappingsEventContent;
+use crate::matrix::direct_service::{DirectMappingsEventContent, DirectService};
 
 #[derive(Clone)]
 pub struct TachyonContext {
@@ -66,11 +69,14 @@ const DM_REQUIRED_STATE: &[(StateEventType, &str)] = &[
 
 async fn get_mandatory_rooms_for_initial_sync<'a>(room_mappings: &'a Option<Result<DirectMappingsEventContent, serde_json::Error>>, directs: &'a Option<Result<DirectEventContent, serde_json::Error>>) -> Result<Vec<&'a RoomId>, Error> {
 
+    let mut out : HashSet<&RoomId> = HashSet::new();
+
     if let Some(room_mappings) = room_mappings {
         match room_mappings {
             Ok(room_mappings) => {
-                let room_ids = room_mappings.get_room_ids();
-                return Ok(room_ids);
+                for current in room_mappings.get_room_ids().drain(..) {
+                    out.insert(current);
+                }
             }
             Err(e) => {
                 log::error!("Malformed room mappings received, ignoring. {}", e);
@@ -81,14 +87,18 @@ async fn get_mandatory_rooms_for_initial_sync<'a>(room_mappings: &'a Option<Resu
     if let Some(directs) = directs {
         match directs {
             Ok(directs) => {
-                return Ok(directs.values().flatten().map(|room_id| room_id.as_ref()).collect());            }
+                let mut directs: Vec<&RoomId> = directs.values().flatten().map(|room_id| room_id.as_ref()).collect();
+                for current in directs.drain(..) {
+                    out.insert(current);
+                }
+            }
             Err(e) => {
                 log::error!("Malformed directs received, ignoring. {}", e);
             }
         }
     }
 
-    Ok(Vec::new())
+    Ok(Vec::from_iter(out.drain()))
 }
 
 fn create_room_list() -> SlidingSyncListBuilder {
@@ -120,14 +130,17 @@ pub async fn build_sliding_sync(matrix_client: &Client) -> Result<SlidingSync, a
     Ok(sliding_sync_builder.build().await?)
 }
 
-pub async fn perform_sliding_sync(client_data: ClientData, mut kill_signal: Receiver<()>) -> Result<(), anyhow::Error>{
+pub fn sync(client_data: ClientData, kill_signal: Receiver<()>){
 
     let client = client_data.get_matrix_client();
-
-
     let sliding_sync = client_data.get_sliding_sync();
+    let updates_recv = client.subscribe_to_all_room_updates();
 
+    spawn_sync_task(client_data, sliding_sync, updates_recv, kill_signal, true);
 
+}
+
+async fn setup_sliding_sync_room_subscriptions(sliding_sync: &SlidingSync, client: &Client) -> Result<(), anyhow::Error> {
 
     let maybe_direct_mappings = client.account()
         .fetch_account_data(GlobalAccountDataEventType::from("org.tachyon.direct_mappings")).await?
@@ -146,13 +159,25 @@ pub async fn perform_sliding_sync(client_data: ClientData, mut kill_signal: Rece
     let room_refs: Vec<&RoomId> = rooms_to_watch.iter().map(|r| r.as_ref()).collect();
     sliding_sync.subscribe_to_rooms(&room_refs, Some(subscription), false);
 
-    let mut updates_recv = client.subscribe_to_all_room_updates();
+    Ok(())
 
+}
 
+fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updates_recv: Receiver<RoomUpdates>, mut kill_signal: Receiver<()>, mut first_sync_of_session: bool) {
     tokio::spawn(async move {
+        info!("Initializing Sliding Sync...");
+        let matrix_client = client_data.get_matrix_client();
 
+        info!("Fetching room subscriptions...");
+        if let Err(err) = setup_sliding_sync_room_subscriptions(&sliding_sync, &matrix_client).await {
+            error!("Error setting up sliding sync room subscriptions: {:?}", err);
+            return;
+        }
+
+        let mut pos = sliding_sync.get_pos().await;
+
+        info!("Starting Sliding Sync...");
         let mut sync_stream = Box::pin(sliding_sync.sync());
-        let mut initial_sync = true;
         loop {
             tokio::select! {
                 _ = kill_signal.recv() => {
@@ -165,13 +190,19 @@ pub async fn perform_sliding_sync(client_data: ClientData, mut kill_signal: Rece
                 sync_response = sync_stream.next() => {
                     match sync_response {
                         Some(Ok(update_summary)) => {
-                            info!("Received Sliding Sync stream response : {:?}", &update_summary);
+                            let is_initial_sync = pos.is_none();
+                            if is_initial_sync {
+                                // Tell the FindContacts & FindMemberships to require full sync
+                            }
+
+                            info!("Received Sliding Sync stream response with pos: {} : {:?}", &pos.unwrap_or("none".to_string()), &update_summary);
                             match updates_recv.recv().await {
                                 Ok(room_updates) => {
-                                    if(initial_sync) {
-                                        initial_sync = false;
-                                        handle_initial_sync(&client_data).await.unwrap();
+                                    if(first_sync_of_session) {
+                                        first_sync_of_session = false;
+                                        handle_first_sync(&client_data).await.unwrap();
                                     }
+
 
                                     handle_room_updates(&client_data, room_updates).await.unwrap();
                                 }
@@ -180,9 +211,16 @@ pub async fn perform_sliding_sync(client_data: ClientData, mut kill_signal: Rece
                                 }
                             }
 
+                            pos = sliding_sync.get_pos().await;
                         }
                         Some(Err(err)) => {
-                            error!("Error in sync stream: {:?}", err);
+                            if err.client_api_error_kind() == Some(&ErrorKind::UnknownPos) {
+                                info!("Unknown pos, re-syncing...");
+                                spawn_sync_task(client_data, sliding_sync.clone(), updates_recv, kill_signal, first_sync_of_session);
+                                break;
+                            } else {
+                                error!("Error in sync stream: {:?}", err);
+                            }
                         }
                         _ => {
                             error!("Unexpected sync stream response");
@@ -196,57 +234,162 @@ pub async fn perform_sliding_sync(client_data: ClientData, mut kill_signal: Rece
         }
 
     });
+}
+
+
+async fn handle_state_event(event: AnySyncStateEvent, room: &Room, direct_service: &DirectService) -> Result<(), anyhow::Error> {
+    match event {
+        AnySyncStateEvent::PolicyRuleRoom(_) => {}
+        AnySyncStateEvent::PolicyRuleServer(_) => {}
+        AnySyncStateEvent::PolicyRuleUser(_) => {}
+        AnySyncStateEvent::RoomAliases(_) => {}
+        AnySyncStateEvent::RoomAvatar(_) => {}
+        AnySyncStateEvent::RoomCanonicalAlias(_) => {}
+        AnySyncStateEvent::RoomCreate(_) => {}
+        AnySyncStateEvent::RoomEncryption(_) => {}
+        AnySyncStateEvent::RoomGuestAccess(_) => {}
+        AnySyncStateEvent::RoomHistoryVisibility(_) => {}
+        AnySyncStateEvent::RoomJoinRules(_) => {}
+        AnySyncStateEvent::RoomMember(room_member_event) => {
+            let mapping = direct_service.handle_member_event(&room_member_event, &room).await;
+            info!("Canonical mapping compute for event : {:?}", &room_member_event);
+
+            match mapping {
+                None => {
+                    info!("No new canonical mapping found");
+
+                }
+                Some(mapping) => {
+                    info!("New Canonical mapping diff: {:?}", mapping);
+                }
+            }
+        }
+        AnySyncStateEvent::RoomName(_) => {}
+        AnySyncStateEvent::RoomPinnedEvents(_) => {}
+        AnySyncStateEvent::RoomPowerLevels(_) => {}
+        AnySyncStateEvent::RoomServerAcl(_) => {}
+        AnySyncStateEvent::RoomThirdPartyInvite(_) => {}
+        AnySyncStateEvent::RoomTombstone(_) => {}
+        AnySyncStateEvent::RoomTopic(_) => {}
+        AnySyncStateEvent::SpaceChild(_) => {}
+        AnySyncStateEvent::SpaceParent(_) => {}
+        AnySyncStateEvent::BeaconInfo(_) => {}
+        AnySyncStateEvent::CallMember(_) => {}
+        AnySyncStateEvent::MemberHints(_) => {}
+        AnySyncStateEvent::_Custom(_) => {}
+        _ => {}
+    };
+
+    Ok(())
+
+}
+
+async fn handle_messagelike_event(event: AnySyncMessageLikeEvent, room: &Room, direct_service: &DirectService) -> Result<(), anyhow::Error> {
+    match event {
+        AnySyncMessageLikeEvent::CallAnswer(_) => {}
+        AnySyncMessageLikeEvent::CallInvite(_) => {}
+        AnySyncMessageLikeEvent::CallHangup(_) => {}
+        AnySyncMessageLikeEvent::CallCandidates(_) => {}
+        AnySyncMessageLikeEvent::CallNegotiate(_) => {}
+        AnySyncMessageLikeEvent::CallReject(_) => {}
+        AnySyncMessageLikeEvent::CallSdpStreamMetadataChanged(_) => {}
+        AnySyncMessageLikeEvent::CallSelectAnswer(_) => {}
+        AnySyncMessageLikeEvent::KeyVerificationReady(_) => {}
+        AnySyncMessageLikeEvent::KeyVerificationStart(_) => {}
+        AnySyncMessageLikeEvent::KeyVerificationCancel(_) => {}
+        AnySyncMessageLikeEvent::KeyVerificationAccept(_) => {}
+        AnySyncMessageLikeEvent::KeyVerificationKey(_) => {}
+        AnySyncMessageLikeEvent::KeyVerificationMac(_) => {}
+        AnySyncMessageLikeEvent::KeyVerificationDone(_) => {}
+        AnySyncMessageLikeEvent::Location(_) => {}
+        AnySyncMessageLikeEvent::Message(_) => {}
+        AnySyncMessageLikeEvent::PollStart(_) => {}
+        AnySyncMessageLikeEvent::UnstablePollStart(_) => {}
+        AnySyncMessageLikeEvent::PollResponse(_) => {}
+        AnySyncMessageLikeEvent::UnstablePollResponse(_) => {}
+        AnySyncMessageLikeEvent::PollEnd(_) => {}
+        AnySyncMessageLikeEvent::UnstablePollEnd(_) => {}
+        AnySyncMessageLikeEvent::Beacon(_) => {}
+        AnySyncMessageLikeEvent::Reaction(_) => {}
+        AnySyncMessageLikeEvent::RoomEncrypted(_) => {}
+        AnySyncMessageLikeEvent::RoomMessage(_) => {}
+        AnySyncMessageLikeEvent::RoomRedaction(_) => {}
+        AnySyncMessageLikeEvent::Sticker(_) => {}
+        AnySyncMessageLikeEvent::CallNotify(_) => {}
+        AnySyncMessageLikeEvent::_Custom(_) => {}
+        _ => {}
+    };
 
     Ok(())
 }
 
+async fn handle_any_messagelike_event(event: AnyMessageLikeEvent, room: &Room, direct_service: &DirectService) {
+    match event {
+        AnyMessageLikeEvent::CallAnswer(event) => {}
+        AnyMessageLikeEvent::CallInvite(event) => {}
+        AnyMessageLikeEvent::CallHangup(event) => {}
+        AnyMessageLikeEvent::CallCandidates(event) => {}
+        AnyMessageLikeEvent::CallNegotiate(event) => {}
+        AnyMessageLikeEvent::CallReject(event) => {}
+        AnyMessageLikeEvent::CallSdpStreamMetadataChanged(event) => {}
+        AnyMessageLikeEvent::CallSelectAnswer(event) => {}
+        AnyMessageLikeEvent::KeyVerificationReady(event) => {}
+        AnyMessageLikeEvent::KeyVerificationStart(event) => {}
+        AnyMessageLikeEvent::KeyVerificationCancel(event) => {}
+        AnyMessageLikeEvent::KeyVerificationAccept(event) => {}
+        AnyMessageLikeEvent::KeyVerificationKey(event) => {}
+        AnyMessageLikeEvent::KeyVerificationMac(event) => {}
+        AnyMessageLikeEvent::KeyVerificationDone(event) => {}
+        AnyMessageLikeEvent::Location(event) => {}
+        AnyMessageLikeEvent::Message(event) => {}
+        AnyMessageLikeEvent::PollStart(event) => {}
+        AnyMessageLikeEvent::UnstablePollStart(event) => {}
+        AnyMessageLikeEvent::PollResponse(event) => {}
+        AnyMessageLikeEvent::UnstablePollResponse(event) => {}
+        AnyMessageLikeEvent::PollEnd(event) => {}
+        AnyMessageLikeEvent::UnstablePollEnd(event) => {}
+        AnyMessageLikeEvent::Beacon(event) => {}
+        AnyMessageLikeEvent::Reaction(event) => {}
+        AnyMessageLikeEvent::RoomEncrypted(event) => {}
+        AnyMessageLikeEvent::RoomMessage(event) => {}
+        AnyMessageLikeEvent::RoomRedaction(event) => {}
+        AnyMessageLikeEvent::Sticker(event) => {}
+        AnyMessageLikeEvent::CallNotify(event) => {}
+        AnyMessageLikeEvent::_Custom(_) => {}
+        _ => {}
+    }
+}
 
-async fn handle_room_updates(client_data: &ClientData, room_updates: RoomUpdates) -> Result<(), anyhow::Error> {
+//separate in feature blocks and duplicate the RoomUpdates for each.
+//We will be able to do some concurrent stuff
+
+async fn handle_room_updates(client_data: &ClientData, room_updates: RoomUpdates, is_initial: bool) -> Result<(), anyhow::Error> {
     let direct_service = client_data.get_direct_service();
     let client = client_data.get_matrix_client();
+
 
 
 
         for (room_id, update) in room_updates.joined {
         let room = client.get_room(&room_id).unwrap();
 
+
+
+        // for state in update.state {
+        //     state.deserialize().unwrap()
+        // }
+
+
+            room.messages()
+
+            //sort events between state & messagelike
+            //state does not need to backfill bcz we have the complete state or the diff in the state.
+            //messages do need to backfill for OIMs & to send messages in order in switchboards
+
         for event in update.timeline.events {
             match event.kind {
                 TimelineEventKind::Decrypted(decrypted) => {
-                    match decrypted.event.deserialize().unwrap() {
-                        AnyMessageLikeEvent::CallAnswer(event) => {}
-                        AnyMessageLikeEvent::CallInvite(event) => {}
-                        AnyMessageLikeEvent::CallHangup(event) => {}
-                        AnyMessageLikeEvent::CallCandidates(event) => {}
-                        AnyMessageLikeEvent::CallNegotiate(event) => {}
-                        AnyMessageLikeEvent::CallReject(event) => {}
-                        AnyMessageLikeEvent::CallSdpStreamMetadataChanged(event) => {}
-                        AnyMessageLikeEvent::CallSelectAnswer(event) => {}
-                        AnyMessageLikeEvent::KeyVerificationReady(event) => {}
-                        AnyMessageLikeEvent::KeyVerificationStart(event) => {}
-                        AnyMessageLikeEvent::KeyVerificationCancel(event) => {}
-                        AnyMessageLikeEvent::KeyVerificationAccept(event) => {}
-                        AnyMessageLikeEvent::KeyVerificationKey(event) => {}
-                        AnyMessageLikeEvent::KeyVerificationMac(event) => {}
-                        AnyMessageLikeEvent::KeyVerificationDone(event) => {}
-                        AnyMessageLikeEvent::Location(event) => {}
-                        AnyMessageLikeEvent::Message(event) => {}
-                        AnyMessageLikeEvent::PollStart(event) => {}
-                        AnyMessageLikeEvent::UnstablePollStart(event) => {}
-                        AnyMessageLikeEvent::PollResponse(event) => {}
-                        AnyMessageLikeEvent::UnstablePollResponse(event) => {}
-                        AnyMessageLikeEvent::PollEnd(event) => {}
-                        AnyMessageLikeEvent::UnstablePollEnd(event) => {}
-                        AnyMessageLikeEvent::Beacon(event) => {}
-                        AnyMessageLikeEvent::Reaction(event) => {}
-                        AnyMessageLikeEvent::RoomEncrypted(event) => {}
-                        AnyMessageLikeEvent::RoomMessage(event) => {}
-                        AnyMessageLikeEvent::RoomRedaction(event) => {}
-                        AnyMessageLikeEvent::Sticker(event) => {}
-                        AnyMessageLikeEvent::CallNotify(event) => {}
-                        AnyMessageLikeEvent::_Custom(_) => {}
-                        _ => {}
-                    }
+                    handle_any_messagelike_event(decrypted.event.deserialize().unwrap(), &room, direct_service).await;
                 }
                 TimelineEventKind::UnableToDecrypt { event, utd_info } => {
                     warn!("Unable to decrypt event: {:?}, cause: {:?}", event, utd_info);
@@ -254,88 +397,11 @@ async fn handle_room_updates(client_data: &ClientData, room_updates: RoomUpdates
                 TimelineEventKind::PlainText { event } => {
                     match event.deserialize().unwrap() {
                         AnySyncTimelineEvent::MessageLike(event) => {
-                            match event {
-                                AnySyncMessageLikeEvent::CallAnswer(_) => {}
-                                AnySyncMessageLikeEvent::CallInvite(_) => {}
-                                AnySyncMessageLikeEvent::CallHangup(_) => {}
-                                AnySyncMessageLikeEvent::CallCandidates(_) => {}
-                                AnySyncMessageLikeEvent::CallNegotiate(_) => {}
-                                AnySyncMessageLikeEvent::CallReject(_) => {}
-                                AnySyncMessageLikeEvent::CallSdpStreamMetadataChanged(_) => {}
-                                AnySyncMessageLikeEvent::CallSelectAnswer(_) => {}
-                                AnySyncMessageLikeEvent::KeyVerificationReady(_) => {}
-                                AnySyncMessageLikeEvent::KeyVerificationStart(_) => {}
-                                AnySyncMessageLikeEvent::KeyVerificationCancel(_) => {}
-                                AnySyncMessageLikeEvent::KeyVerificationAccept(_) => {}
-                                AnySyncMessageLikeEvent::KeyVerificationKey(_) => {}
-                                AnySyncMessageLikeEvent::KeyVerificationMac(_) => {}
-                                AnySyncMessageLikeEvent::KeyVerificationDone(_) => {}
-                                AnySyncMessageLikeEvent::Location(_) => {}
-                                AnySyncMessageLikeEvent::Message(_) => {}
-                                AnySyncMessageLikeEvent::PollStart(_) => {}
-                                AnySyncMessageLikeEvent::UnstablePollStart(_) => {}
-                                AnySyncMessageLikeEvent::PollResponse(_) => {}
-                                AnySyncMessageLikeEvent::UnstablePollResponse(_) => {}
-                                AnySyncMessageLikeEvent::PollEnd(_) => {}
-                                AnySyncMessageLikeEvent::UnstablePollEnd(_) => {}
-                                AnySyncMessageLikeEvent::Beacon(_) => {}
-                                AnySyncMessageLikeEvent::Reaction(_) => {}
-                                AnySyncMessageLikeEvent::RoomEncrypted(_) => {}
-                                AnySyncMessageLikeEvent::RoomMessage(_) => {}
-                                AnySyncMessageLikeEvent::RoomRedaction(_) => {}
-                                AnySyncMessageLikeEvent::Sticker(_) => {}
-                                AnySyncMessageLikeEvent::CallNotify(_) => {}
-                                AnySyncMessageLikeEvent::_Custom(_) => {}
-                                _ => {}
-                            }
-
+                            handle_messagelike_event(event, &room, direct_service).await;
 
                         }
                         AnySyncTimelineEvent::State(state_event) => {
-                            match state_event {
-                                AnySyncStateEvent::PolicyRuleRoom(_) => {}
-                                AnySyncStateEvent::PolicyRuleServer(_) => {}
-                                AnySyncStateEvent::PolicyRuleUser(_) => {}
-                                AnySyncStateEvent::RoomAliases(_) => {}
-                                AnySyncStateEvent::RoomAvatar(_) => {}
-                                AnySyncStateEvent::RoomCanonicalAlias(_) => {}
-                                AnySyncStateEvent::RoomCreate(_) => {}
-                                AnySyncStateEvent::RoomEncryption(_) => {}
-                                AnySyncStateEvent::RoomGuestAccess(_) => {}
-                                AnySyncStateEvent::RoomHistoryVisibility(_) => {}
-                                AnySyncStateEvent::RoomJoinRules(_) => {}
-                                AnySyncStateEvent::RoomMember(room_member_event) => {
-                                    let mapping = direct_service.handle_member_event(&room_member_event, &room).await;
-                                    info!("Canonical mapping compute for event : {:?}", &room_member_event);
-
-                                    match mapping {
-                                        None => {
-                                            info!("No new canonical mapping found");
-
-                                        }
-                                        Some(mapping) => {
-                                            info!("New Canonical mapping diff: {:?}", mapping);
-                                        }
-                                    }
-
-
-
-                                }
-                                AnySyncStateEvent::RoomName(_) => {}
-                                AnySyncStateEvent::RoomPinnedEvents(_) => {}
-                                AnySyncStateEvent::RoomPowerLevels(_) => {}
-                                AnySyncStateEvent::RoomServerAcl(_) => {}
-                                AnySyncStateEvent::RoomThirdPartyInvite(_) => {}
-                                AnySyncStateEvent::RoomTombstone(_) => {}
-                                AnySyncStateEvent::RoomTopic(_) => {}
-                                AnySyncStateEvent::SpaceChild(_) => {}
-                                AnySyncStateEvent::SpaceParent(_) => {}
-                                AnySyncStateEvent::BeaconInfo(_) => {}
-                                AnySyncStateEvent::CallMember(_) => {}
-                                AnySyncStateEvent::MemberHints(_) => {}
-                                AnySyncStateEvent::_Custom(_) => {}
-                                _ => {}
-                            }
+                            handle_state_event(state_event, &room, direct_service).await;
                         }
                     }
                 }
@@ -355,7 +421,7 @@ async fn handle_room_updates(client_data: &ClientData, room_updates: RoomUpdates
 
 }
 
-async fn handle_initial_sync(client_data: &ClientData) -> Result<(), anyhow::Error> {
+async fn handle_first_sync(client_data: &ClientData) -> Result<(), anyhow::Error> {
 
     let me = client_data.get_user_clone()?;
     let ticket_token = client_data.get_ticket_token();

@@ -1,6 +1,6 @@
 use crate::matrix;
 use crate::matrix::direct_service::DirectService;
-use crate::matrix::sync2::{build_sliding_sync, perform_sliding_sync};
+use crate::matrix::sync2::{build_sliding_sync, sync};
 use crate::notification::client_store::{ClientData, ClientStoreFacade};
 use crate::notification::handlers::adl_handler::handle_adl;
 use crate::notification::handlers::chg_handler::handle_chg;
@@ -130,7 +130,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
                             notif_sender.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await?;
 
-                            perform_sliding_sync(client_data, local_store.client_kill_recv.resubscribe()).await.unwrap();
+                            sync(client_data, local_store.client_kill_recv.resubscribe());
                         }
                     }
                 },
