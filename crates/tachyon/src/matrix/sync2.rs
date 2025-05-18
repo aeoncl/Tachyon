@@ -1,5 +1,6 @@
 use core::sync;
 use std::collections::HashSet;
+use std::process::exit;
 use std::time::Duration;
 use futures::StreamExt;
 use log::{error, info, warn};
@@ -9,7 +10,7 @@ use matrix_sdk::crypto::types::events::olm_v1::AnyDecryptedOlmEvent;
 use matrix_sdk::deserialized_responses::{DecryptedRoomEvent, TimelineEventKind};
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{AccountData, ListFilters, RoomSubscription, ToDevice, Typing, E2EE};
-use matrix_sdk::ruma::events::direct::DirectEventContent;
+use matrix_sdk::ruma::events::direct::{DirectEvent, DirectEventContent};
 use matrix_sdk::ruma::events::{AnyMessageLikeEvent, AnySyncMessageLikeEvent, AnySyncStateEvent, AnySyncTimelineEvent, GlobalAccountDataEventType, StateEventType, SyncMessageLikeEvent};
 use matrix_sdk::ruma::{assign, OwnedRoomId, RoomId, UInt};
 use matrix_sdk::ruma::api::client::error::ErrorKind;
@@ -27,7 +28,9 @@ use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::notification::command::not::NotServer;
 use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
-use crate::matrix::direct_service::{DirectMappingsEventContent, DirectService};
+use crate::matrix::directs::direct_extensions::TachyonDirectAccountDataContent;
+use crate::matrix::directs::direct_handler;
+use crate::matrix::directs::direct_service::{DirectMappingsEvent, DirectMappingsEventContent, DirectService};
 
 #[derive(Clone)]
 pub struct TachyonContext {
@@ -168,6 +171,16 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
         info!("Initializing Sliding Sync...");
         let matrix_client = client_data.get_matrix_client();
 
+        matrix_client.add_event_handler_context(TachyonContext{ client_data: client_data.clone() });
+
+
+            matrix_client.add_event_handler(|event: DirectEvent, context: Ctx<TachyonContext> | async move {
+                let direct_service = context.client_data.get_direct_service();
+                direct_service.handle_directs_update(event.content).await.unwrap();
+            });
+
+
+
         info!("Fetching room subscriptions...");
         if let Err(err) = setup_sliding_sync_room_subscriptions(&sliding_sync, &matrix_client).await {
             error!("Error setting up sliding sync room subscriptions: {:?}", err);
@@ -196,15 +209,17 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
                             }
 
                             info!("Received Sliding Sync stream response with pos: {} : {:?}", &pos.unwrap_or("none".to_string()), &update_summary);
+
+
+
                             match updates_recv.recv().await {
                                 Ok(room_updates) => {
                                     if(first_sync_of_session) {
                                         first_sync_of_session = false;
                                         handle_first_sync(&client_data).await.unwrap();
                                     }
-
-
-                                    handle_room_updates(&client_data, room_updates).await.unwrap();
+                                    
+                                    handle_room_updates(&client_data, room_updates).await;
                                 }
                                 Err(err) => {
                                     error!("Error receiving RoomUpdates: {:?}", err);
@@ -236,189 +251,8 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
     });
 }
 
-
-async fn handle_state_event(event: AnySyncStateEvent, room: &Room, direct_service: &DirectService) -> Result<(), anyhow::Error> {
-    match event {
-        AnySyncStateEvent::PolicyRuleRoom(_) => {}
-        AnySyncStateEvent::PolicyRuleServer(_) => {}
-        AnySyncStateEvent::PolicyRuleUser(_) => {}
-        AnySyncStateEvent::RoomAliases(_) => {}
-        AnySyncStateEvent::RoomAvatar(_) => {}
-        AnySyncStateEvent::RoomCanonicalAlias(_) => {}
-        AnySyncStateEvent::RoomCreate(_) => {}
-        AnySyncStateEvent::RoomEncryption(_) => {}
-        AnySyncStateEvent::RoomGuestAccess(_) => {}
-        AnySyncStateEvent::RoomHistoryVisibility(_) => {}
-        AnySyncStateEvent::RoomJoinRules(_) => {}
-        AnySyncStateEvent::RoomMember(room_member_event) => {
-            let mapping = direct_service.handle_member_event(&room_member_event, &room).await;
-            info!("Canonical mapping compute for event : {:?}", &room_member_event);
-
-            match mapping {
-                None => {
-                    info!("No new canonical mapping found");
-
-                }
-                Some(mapping) => {
-                    info!("New Canonical mapping diff: {:?}", mapping);
-                }
-            }
-        }
-        AnySyncStateEvent::RoomName(_) => {}
-        AnySyncStateEvent::RoomPinnedEvents(_) => {}
-        AnySyncStateEvent::RoomPowerLevels(_) => {}
-        AnySyncStateEvent::RoomServerAcl(_) => {}
-        AnySyncStateEvent::RoomThirdPartyInvite(_) => {}
-        AnySyncStateEvent::RoomTombstone(_) => {}
-        AnySyncStateEvent::RoomTopic(_) => {}
-        AnySyncStateEvent::SpaceChild(_) => {}
-        AnySyncStateEvent::SpaceParent(_) => {}
-        AnySyncStateEvent::BeaconInfo(_) => {}
-        AnySyncStateEvent::CallMember(_) => {}
-        AnySyncStateEvent::MemberHints(_) => {}
-        AnySyncStateEvent::_Custom(_) => {}
-        _ => {}
-    };
-
-    Ok(())
-
-}
-
-async fn handle_messagelike_event(event: AnySyncMessageLikeEvent, room: &Room, direct_service: &DirectService) -> Result<(), anyhow::Error> {
-    match event {
-        AnySyncMessageLikeEvent::CallAnswer(_) => {}
-        AnySyncMessageLikeEvent::CallInvite(_) => {}
-        AnySyncMessageLikeEvent::CallHangup(_) => {}
-        AnySyncMessageLikeEvent::CallCandidates(_) => {}
-        AnySyncMessageLikeEvent::CallNegotiate(_) => {}
-        AnySyncMessageLikeEvent::CallReject(_) => {}
-        AnySyncMessageLikeEvent::CallSdpStreamMetadataChanged(_) => {}
-        AnySyncMessageLikeEvent::CallSelectAnswer(_) => {}
-        AnySyncMessageLikeEvent::KeyVerificationReady(_) => {}
-        AnySyncMessageLikeEvent::KeyVerificationStart(_) => {}
-        AnySyncMessageLikeEvent::KeyVerificationCancel(_) => {}
-        AnySyncMessageLikeEvent::KeyVerificationAccept(_) => {}
-        AnySyncMessageLikeEvent::KeyVerificationKey(_) => {}
-        AnySyncMessageLikeEvent::KeyVerificationMac(_) => {}
-        AnySyncMessageLikeEvent::KeyVerificationDone(_) => {}
-        AnySyncMessageLikeEvent::Location(_) => {}
-        AnySyncMessageLikeEvent::Message(_) => {}
-        AnySyncMessageLikeEvent::PollStart(_) => {}
-        AnySyncMessageLikeEvent::UnstablePollStart(_) => {}
-        AnySyncMessageLikeEvent::PollResponse(_) => {}
-        AnySyncMessageLikeEvent::UnstablePollResponse(_) => {}
-        AnySyncMessageLikeEvent::PollEnd(_) => {}
-        AnySyncMessageLikeEvent::UnstablePollEnd(_) => {}
-        AnySyncMessageLikeEvent::Beacon(_) => {}
-        AnySyncMessageLikeEvent::Reaction(_) => {}
-        AnySyncMessageLikeEvent::RoomEncrypted(_) => {}
-        AnySyncMessageLikeEvent::RoomMessage(_) => {}
-        AnySyncMessageLikeEvent::RoomRedaction(_) => {}
-        AnySyncMessageLikeEvent::Sticker(_) => {}
-        AnySyncMessageLikeEvent::CallNotify(_) => {}
-        AnySyncMessageLikeEvent::_Custom(_) => {}
-        _ => {}
-    };
-
-    Ok(())
-}
-
-async fn handle_any_messagelike_event(event: AnyMessageLikeEvent, room: &Room, direct_service: &DirectService) {
-    match event {
-        AnyMessageLikeEvent::CallAnswer(event) => {}
-        AnyMessageLikeEvent::CallInvite(event) => {}
-        AnyMessageLikeEvent::CallHangup(event) => {}
-        AnyMessageLikeEvent::CallCandidates(event) => {}
-        AnyMessageLikeEvent::CallNegotiate(event) => {}
-        AnyMessageLikeEvent::CallReject(event) => {}
-        AnyMessageLikeEvent::CallSdpStreamMetadataChanged(event) => {}
-        AnyMessageLikeEvent::CallSelectAnswer(event) => {}
-        AnyMessageLikeEvent::KeyVerificationReady(event) => {}
-        AnyMessageLikeEvent::KeyVerificationStart(event) => {}
-        AnyMessageLikeEvent::KeyVerificationCancel(event) => {}
-        AnyMessageLikeEvent::KeyVerificationAccept(event) => {}
-        AnyMessageLikeEvent::KeyVerificationKey(event) => {}
-        AnyMessageLikeEvent::KeyVerificationMac(event) => {}
-        AnyMessageLikeEvent::KeyVerificationDone(event) => {}
-        AnyMessageLikeEvent::Location(event) => {}
-        AnyMessageLikeEvent::Message(event) => {}
-        AnyMessageLikeEvent::PollStart(event) => {}
-        AnyMessageLikeEvent::UnstablePollStart(event) => {}
-        AnyMessageLikeEvent::PollResponse(event) => {}
-        AnyMessageLikeEvent::UnstablePollResponse(event) => {}
-        AnyMessageLikeEvent::PollEnd(event) => {}
-        AnyMessageLikeEvent::UnstablePollEnd(event) => {}
-        AnyMessageLikeEvent::Beacon(event) => {}
-        AnyMessageLikeEvent::Reaction(event) => {}
-        AnyMessageLikeEvent::RoomEncrypted(event) => {}
-        AnyMessageLikeEvent::RoomMessage(event) => {}
-        AnyMessageLikeEvent::RoomRedaction(event) => {}
-        AnyMessageLikeEvent::Sticker(event) => {}
-        AnyMessageLikeEvent::CallNotify(event) => {}
-        AnyMessageLikeEvent::_Custom(_) => {}
-        _ => {}
-    }
-}
-
-//separate in feature blocks and duplicate the RoomUpdates for each.
-//We will be able to do some concurrent stuff
-
-async fn handle_room_updates(client_data: &ClientData, room_updates: RoomUpdates, is_initial: bool) -> Result<(), anyhow::Error> {
-    let direct_service = client_data.get_direct_service();
-    let client = client_data.get_matrix_client();
-
-
-
-
-        for (room_id, update) in room_updates.joined {
-        let room = client.get_room(&room_id).unwrap();
-
-
-
-        // for state in update.state {
-        //     state.deserialize().unwrap()
-        // }
-
-
-            room.messages()
-
-            //sort events between state & messagelike
-            //state does not need to backfill bcz we have the complete state or the diff in the state.
-            //messages do need to backfill for OIMs & to send messages in order in switchboards
-
-        for event in update.timeline.events {
-            match event.kind {
-                TimelineEventKind::Decrypted(decrypted) => {
-                    handle_any_messagelike_event(decrypted.event.deserialize().unwrap(), &room, direct_service).await;
-                }
-                TimelineEventKind::UnableToDecrypt { event, utd_info } => {
-                    warn!("Unable to decrypt event: {:?}, cause: {:?}", event, utd_info);
-                }
-                TimelineEventKind::PlainText { event } => {
-                    match event.deserialize().unwrap() {
-                        AnySyncTimelineEvent::MessageLike(event) => {
-                            handle_messagelike_event(event, &room, direct_service).await;
-
-                        }
-                        AnySyncTimelineEvent::State(state_event) => {
-                            handle_state_event(state_event, &room, direct_service).await;
-                        }
-                    }
-                }
-            }
-        }
-
-
-
-    }
-
-
-
-
-
-    Ok(())
-
-
+async fn handle_room_updates(client_data: &ClientData, room_updates: RoomUpdates) {
+    direct_handler::handle_direct_mappings_room_updates(room_updates, client_data.clone()).await
 }
 
 async fn handle_first_sync(client_data: &ClientData) -> Result<(), anyhow::Error> {

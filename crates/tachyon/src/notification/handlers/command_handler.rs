@@ -1,5 +1,4 @@
 use crate::matrix;
-use crate::matrix::direct_service::DirectService;
 use crate::matrix::sync2::{build_sliding_sync, sync};
 use crate::notification::client_store::{ClientData, ClientStoreFacade};
 use crate::notification::handlers::adl_handler::handle_adl;
@@ -35,6 +34,7 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::Sender;
 use tokio::task;
+use crate::matrix::directs::direct_service::DirectService;
 
 pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, client_store: &ClientStoreFacade, local_client_data: &mut LocalClientData) -> Result<(), anyhow::Error> {
 
@@ -103,8 +103,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             let matrix_client = matrix::login::login_with_token(user_id, ticket_token.clone(), true).await?;
                             let sync_service = SyncService::builder(matrix_client.clone()).build().await?;
                             let sliding_sync = build_sliding_sync(&matrix_client).await?;
-                            let direct_service = DirectService::new(matrix_client.clone());
-                            direct_service.init().await.unwrap();
+                            let direct_service = DirectService::new_init_from_cache(matrix_client.clone()).await?;
 
 
                             let endpoint_id = EndpointId::new(local_store.email_addr.clone(), Some(endpoint_guid));

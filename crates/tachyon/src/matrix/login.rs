@@ -5,7 +5,7 @@ use log::debug;
 use matrix_sdk::{AuthSession, Client, ClientBuilder, ServerName, SessionTokens};
 use matrix_sdk::authentication::matrix::MatrixSession;
 use matrix_sdk::ruma::{device_id, OwnedUserId, UserId};
-
+use matrix_sdk_ui::sync_service::SyncService;
 use msnp::shared::models::ticket_token::TicketToken;
 
 use crate::shared::paths;
@@ -47,11 +47,13 @@ pub async fn login_with_token(matrix_id: OwnedUserId, token: TicketToken, disabl
     let device_id_str = get_device_id()?.to_string();
     let device_id = device_id!(device_id_str.as_str()).to_owned();
 
+    let test: SyncService;
 
     let store_path = get_store_path(&matrix_id).ok_or(anyhow!("Couldn't get store path"))?;
     debug!("storepath: {:?}", &store_path);
 
     let client = get_matrix_client_builder(matrix_id.server_name(), None, disable_ssl)
+        .proxy("http://localhost:8182")
         .sqlite_store(store_path, None)
         .build()
         .await?;

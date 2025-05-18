@@ -1,31 +1,26 @@
-use std::collections::VecDeque;
-use std::sync::{Arc, LockResult, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use std::time::Duration;
+use crate::matrix::directs::direct_service::DirectService;
 use crate::notification::circle_store::CircleStore;
 use anyhow::anyhow;
 use dashmap::DashMap;
 use log::error;
 use matrix_sdk::ruma::OwnedRoomId;
 use matrix_sdk::{Client, SlidingSync};
-use matrix_sdk::config::SyncSettings;
-use matrix_sdk::sleep::sleep;
-use matrix_sdk_ui::sync_service::{SyncService, SyncServiceBuilder};
+use matrix_sdk_ui::sync_service::SyncService;
 use msnp::msnp::models::contact_list::ContactList;
+use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::oim::OIM;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::CircleData;
 use msnp::soap::abch::msnab_datatypes::{BaseMember, ContactType};
+use std::collections::VecDeque;
+use std::sync::{Arc, LockResult, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::time::Duration;
 use thiserror::Error;
 use thiserror::__private::AsDynError;
-use tokio::sync::{broadcast, mpsc};
 use tokio::sync::mpsc::error::SendTimeoutError;
-use tokio_retry2::{Retry, RetryError};
-use tokio_retry2::strategy::{ExponentialBackoff, MaxInterval};
-use msnp::msnp::notification::command::command::NotificationServerCommand;
-use crate::matrix::direct_service::DirectService;
-use crate::shared::error::TachyonError;
+use tokio::sync::mpsc;
 
 #[derive(Clone)]
 pub struct SwitchboardHandle {
@@ -110,7 +105,6 @@ pub struct ClientDataInner {
     pub matrix_client: Client,
     pub sliding_sync: SlidingSync,
     pub sync_service: SyncService,
-    pub direct_service: DirectService,
     pub contact_list: Mutex<ContactList>,
     pub soap_holder: SoapHolder,
     pub switchboards: DashMap<OwnedRoomId, SwitchboardHandle>,
@@ -121,7 +115,8 @@ pub struct ClientDataInner {
 
 #[derive(Clone)]
 pub struct ClientData {
-    pub inner: Arc<ClientDataInner>
+    pub inner: Arc<ClientDataInner>,
+    direct_service: DirectService,
 }
 
 #[derive(Error, Debug)]
@@ -139,13 +134,14 @@ impl ClientData {
             matrix_client,
             sliding_sync,
             sync_service,
-            direct_service,
             contact_list: Default::default(),
             soap_holder: Default::default(),
             switchboards: Default::default(),
             circle_store: CircleStore::new(),
             notification_handle: NotificationHandle::new(notification_sender),
-        })
+        },
+        ),
+            direct_service,
         }
     }
 
@@ -222,8 +218,8 @@ impl ClientData {
         &self.inner.sync_service
     }
 
-    pub fn get_direct_service(&self) -> &DirectService {
-        &self.inner.direct_service
+    pub fn get_direct_service(&self) -> DirectService {
+        self.direct_service.clone()
     }
 
     pub fn get_notification_handle(&self) -> NotificationHandle {
