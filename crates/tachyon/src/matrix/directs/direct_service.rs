@@ -65,7 +65,7 @@ impl DirectMappingsEventContent {
 pub enum MappingDiff {
     NewMapping(OwnedUserId, OwnedRoomId),
     UpdatedMapping(OwnedUserId, OwnedRoomId),
-    RemovedMapping(OwnedUserId)
+    RemovedMapping(OwnedUserId, OwnedRoomId)
 }
 
 impl MappingDiff {
@@ -77,7 +77,7 @@ impl MappingDiff {
             MappingDiff::UpdatedMapping(user_id, room_id) => {
                 output.insert(user_id, room_id);
             }
-            MappingDiff::RemovedMapping(user_id) => {
+            MappingDiff::RemovedMapping(user_id, _) => {
                 output.remove(&user_id);
             }
         }
@@ -94,6 +94,9 @@ pub enum RoomMapping {
     Group
 }
 
+const LOG_LABEL: &str = "DirectService |";
+
+
 struct DirectServiceInner {
     direct_mappings: RwLock<DirectMappingsHashMap>,
     directs: Mutex<DirectEventContent>,
@@ -109,7 +112,6 @@ pub struct DirectService {
     inner: Arc<DirectServiceInner>,
     matrix_client: Client
 }
-
 
 impl DirectService {
 
@@ -217,7 +219,7 @@ impl DirectService {
         for (user_id, room_id) in old_mappings.iter() {
             if !new_mappings.contains_key(user_id) {
                 // Removed mapping
-                out.push(MappingDiff::RemovedMapping(user_id.clone()));
+                out.push(MappingDiff::RemovedMapping(user_id.clone(), room_id.clone()));
             }
         }
 
@@ -226,25 +228,32 @@ impl DirectService {
 
 
 
-    pub(crate) async fn handle_directs_update(&self, new_directs: DirectEventContent) -> Result<(), anyhow::Error> {
+    pub(crate) async fn handle_direct_mappings_update(&self, content: DirectMappingsEventContent) -> Result<(), anyhow::Error> {
+        let current_mappings = self.inner.direct_mappings.read();
+        let mut diffs = Self::compute_mappings_diff(&current_mappings, &content.mappings);
+        self.inner.current_diffs.lock().unwrap().append(&mut diffs);
+        Ok(())
+    }
+
+    pub(crate) async fn handle_directs_update(&self, new_directs: DirectEventContent) -> Result<Vec<DirectDiff>, anyhow::Error> {
         let diffs = {
             let mut old_directs = self.inner.directs.lock().unwrap();
              old_directs.compute_diff(&new_directs)
         };
 
-        for diff in diffs.into_iter() {
+        for diff in diffs.iter() {
             match diff {
                 DirectDiff::RoomRemoved(user_id, room_id) => {
 
                     let found_room = {
-                        self.inner.direct_mappings.read().get(&user_id).cloned()
+                        self.inner.direct_mappings.read().get(user_id).cloned()
                     };
 
                     if let Some(found_room) = found_room {
-                        if(found_room == room_id) {
+                        if(&found_room == room_id) {
                             match self.matrix_client.get_room(&found_room) {
                                 None => {
-                                    self.inner.current_diffs.lock().unwrap().push(MappingDiff::RemovedMapping(user_id));
+                                    self.inner.current_diffs.lock().unwrap().push(MappingDiff::RemovedMapping(user_id.clone(), room_id.clone()));
                                 }
                                 Some(room) => {
                                     self.evaluate_mapping(&room).await?;
@@ -256,7 +265,7 @@ impl DirectService {
                 }
                 DirectDiff::RoomAdded(user_id, room_id) => {
                     let found_room = {
-                        self.inner.direct_mappings.read().get(&user_id).cloned()
+                        self.inner.direct_mappings.read().get(user_id).cloned()
                     };
 
                     if found_room.is_none() {
@@ -278,7 +287,7 @@ impl DirectService {
         let mut old_directs = self.inner.directs.lock().unwrap();
         *old_directs = new_directs;
 
-        Ok(())
+        Ok(diffs)
     }
 
     pub async fn evaluate_mapping(&self, room: &Room) -> Result<(), anyhow::Error> {
@@ -291,6 +300,8 @@ impl DirectService {
 
     async fn evaluate_mapping_diff(&self, room: &Room) -> Result<Option<MappingDiff>, anyhow::Error> {
 
+        debug!("{} Evaluate mapping for room: {}", LOG_LABEL, room.room_id());
+
         let mapping_by_room_id = self.inner
             .direct_mappings
             .read()
@@ -298,20 +309,32 @@ impl DirectService {
             .find(|(user_id, room_id)| *room_id == room.room_id())
             .map(|(user_id, room_id)| (user_id.clone(), room_id.clone()));
 
+        debug!("{} Looking for mapping for room_id: {:?}", LOG_LABEL, &mapping_by_room_id);
+
+
         if let Some((mapped_user_id, mapped_room_id)) = mapping_by_room_id {
+
+            debug!("{} Mapping by room_id found: {} - {}", LOG_LABEL, &mapped_user_id, &mapped_room_id);
 
             let we_are_active_in_room = room.state() == RoomState::Joined || room.state() == RoomState::Invited;
             if !we_are_active_in_room || (room.is_state_fully_synced() && !room.is_direct().await?) {
                 //Room is no longer a direct
-                return Ok(Some(MappingDiff::RemovedMapping(mapped_user_id)));
+                debug!("{} Room no longer a direct, remove mapping: {} - {}", LOG_LABEL, &mapped_user_id, &mapped_room_id);
+
+                return Ok(Some(MappingDiff::RemovedMapping(mapped_user_id, mapped_room_id)));
             }
 
             return self.check_if_mapping_has_changed(&mapped_user_id, &mapped_room_id).await;
         }
 
+        debug!("{} Mapping by room_id not found.", LOG_LABEL);
+
         match room.get_1o1_direct_target().await? {
-            None => {},
+            None => {
+                debug!("{} Room is not o1o direct: {}, aborting...", LOG_LABEL, room.room_id());
+            },
             Some(direct_target) => {
+                debug!("{} Room is o1o direct: {}, target: {}", LOG_LABEL, room.room_id(), &direct_target);
 
                 let maybe_user_mapping = {
                     self.inner.direct_mappings.read().get(&direct_target).cloned()
@@ -319,12 +342,25 @@ impl DirectService {
 
                 match maybe_user_mapping {
                     None => {
+                        debug!("{} user mapping not found for target: {}, look for canonical dm_room", LOG_LABEL, &direct_target);
+
                         if let Some(found_mapping) = self.matrix_client.get_canonical_dm_room_id(&direct_target).await? {
-                            return Ok(Some(MappingDiff::NewMapping(direct_target, found_mapping)));
+
+                            debug!("{} found canonical dm_room: {} for target: {}", LOG_LABEL, &found_mapping, &direct_target);
+
+                            if found_mapping == room.room_id() {
+                                debug!("{} found canonical dm_room {} is equal to room that triggered update {}", LOG_LABEL, &found_mapping, &room.room_id());
+                                debug!("{} new mapping {} - {}", LOG_LABEL, &direct_target, &found_mapping);
+
+                                return Ok(Some(MappingDiff::NewMapping(direct_target, found_mapping)));
+                            }
                         }
                     }
                     Some(mapped_room) => {
+                        debug!("{} user mapping found for target: {} room: {}", LOG_LABEL, &direct_target, &mapped_room);
+
                         if mapped_room == room.room_id() {
+                            debug!("{} mapped room {}  is equal to room that triggered update: room: {}", LOG_LABEL, &mapped_room, &room.room_id());
                             return self.check_if_mapping_has_changed(&direct_target, &mapped_room).await
                         }
                     }
@@ -337,12 +373,18 @@ impl DirectService {
     }
 
     async fn check_if_mapping_has_changed(&self, user_id: &UserId, room_to_compare: &RoomId) -> Result<Option<MappingDiff>, anyhow::Error> {
+
+        debug!("{} Check if mapping has changed for user: {} - room: {}", LOG_LABEL, user_id, room_to_compare);
+
         match self.matrix_client.get_canonical_dm_room_id(&user_id).await? {
             None => {
-                return Ok(Some(MappingDiff::RemovedMapping(user_id.to_owned())));
+                debug!("{} Removed Mapping: {} - {}", LOG_LABEL, user_id, room_to_compare);
+                return Ok(Some(MappingDiff::RemovedMapping(user_id.to_owned(), room_to_compare.to_owned())));
             }
             Some(found) => {
+                debug!("{} Found new room: {} - {}", LOG_LABEL, user_id, &found);
                 if(&found != &room_to_compare) {
+                    debug!("{} Update Mapping: {} - {}", LOG_LABEL, user_id, &found);
                     return Ok(Some(MappingDiff::UpdatedMapping(user_id.to_owned(), found)));
                 }
             }

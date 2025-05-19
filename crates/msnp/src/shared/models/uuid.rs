@@ -25,6 +25,10 @@ impl Puid {
         let msb = &self.bytes[0..4];
         LittleEndian::read_u32(&msb)
     }
+
+    pub fn to_decimal(&self) -> i64 {
+        LittleEndian::read_u64(&self.bytes[..]) as i64
+    }
 }
 
 impl From<&Uuid> for Puid {

@@ -6,7 +6,7 @@ use matrix_sdk::ruma::events::direct::{DirectEventContent, DirectUserIdentifier,
 use matrix_sdk::ruma::events::{AnySyncStateEvent, GlobalAccountDataEventType, StateEventType};
 use matrix_sdk::ruma::{MilliSecondsSinceUnixEpoch, OwnedRoomId, OwnedUserId, UserId};
 use matrix_sdk::{Client, Error, Room, RoomMemberships, RoomState};
-
+use matrix_sdk::ruma::__private_macros::room_id;
 
 struct RoomWithTimestamp {
     room: Room,
@@ -19,8 +19,13 @@ pub trait OneOnOneDmClient {
     async fn force_update_rooms_with_fresh_m_direct(&self) -> Result<(), matrix_sdk::Error>;
 }
 
+
+
+
 async fn find_oldest_1o1_dm_room(matrix_client: &Client, user_id: &UserId) -> Result<Option<OwnedRoomId>, Error> {
-    debug!("Finding canonical_dm_room for {}", user_id);
+    const LOG_LABEL: &str = "FindCanonical |";
+
+    debug!("{} {}", LOG_LABEL, user_id);
 
     let mut rooms = matrix_client.joined_rooms();
     rooms.extend(matrix_client.invited_rooms().into_iter());
@@ -29,6 +34,7 @@ async fn find_oldest_1o1_dm_room(matrix_client: &Client, user_id: &UserId) -> Re
     let dm_rooms = {
         let mut dm_rooms = Vec::new();
         for room in rooms.drain(..) {
+            debug!("{} Checking room {}", LOG_LABEL, room.room_id());
 
             if let Some(direct_target) = extract_o1o_direct_target(&room, true).await? {
                 if &direct_target == user_id {
@@ -84,18 +90,26 @@ pub trait TachyonRoomExtensions {
     async fn get_1o1_direct_target(&self) -> Result<Option<OwnedUserId>, Error>;
 
     async fn creation_timestamp(&self) -> Result<MilliSecondsSinceUnixEpoch, matrix_sdk::Error>;
+
 }
 
 
 async fn extract_o1o_direct_target(room: &Room, check_if_active: bool) -> Result<Option<OwnedUserId>, Error> {
 
+    const LOG_LABEL: &str = "FindDirectTarget |";
+    debug!("{} {} - checkIfActive: {}", LOG_LABEL, room.room_id(), check_if_active);
+
     if !room.is_direct().await? {
+        debug!("{} Room {} not a direct, aborting...", LOG_LABEL, room.room_id());
         return Ok(None);
     }
 
 
     let active_members = room.members(RoomMemberships::ACTIVE).await?;
+    debug!("{} Room {} active members ({}): {:?}", LOG_LABEL, room.room_id(), active_members.len(), &active_members);
+
     if active_members.len() > 2 {
+        debug!("{} Room {} active members was more than 2, aborting...", LOG_LABEL, room.room_id());
         return Ok(None);
     }
 
@@ -114,16 +128,24 @@ async fn extract_o1o_direct_target(room: &Room, check_if_active: bool) -> Result
         }
     } ).collect::<Vec<_>>();
 
+    debug!("{} Room {} not me direct_targets({}): {:?}", LOG_LABEL, room.room_id(), not_me_direct_targets.len(), &not_me_direct_targets);
+
     if not_me_direct_targets.is_empty() || not_me_direct_targets.len() > 1 {
+        debug!("{} Room {} not me direct_targets is empty or more than one, aborting...", LOG_LABEL, room.room_id());
+
         return Ok(None);
     }
 
     let direct_target = not_me_direct_targets.remove(0);
 
+    debug!("{} Room {} Direct Target: {}", LOG_LABEL, room.room_id(), &direct_target);
+
     if check_if_active {
         let active_member_direct_target = active_members.iter().find(|member| { member.user_id() != me_user_id && member.user_id() == direct_target }).map(|member| member.user_id().to_owned());
+        debug!("{} Room {} Active Direct Target: {:?}", LOG_LABEL, room.room_id(), &active_member_direct_target);
         Ok(active_member_direct_target)
     } else {
+        debug!("{} Room {} Found Direct Target: {}", LOG_LABEL, room.room_id(), &direct_target);
         Ok(Some(direct_target))
     }
 
@@ -154,7 +176,6 @@ impl TachyonRoomExtensions for Room {
         return Err(Error::InsufficientData);
 
     }
-
 }
 
 pub type DirectsHashMap = HashMap<OwnedUserId, Vec<OwnedRoomId>>;

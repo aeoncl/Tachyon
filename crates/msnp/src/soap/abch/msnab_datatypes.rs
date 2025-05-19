@@ -19,6 +19,7 @@ use yaserde_derive::{YaDeserialize, YaSerialize};
     use yaserde::{YaDeserialize, YaSerialize};
     use yaserde::de::from_str;
     use yaserde::ser::to_string;
+use crate::shared::models::msn_user::MsnUser;
 use crate::shared::models::role_list::RoleList;
 use crate::shared::models::uuid::Uuid;
 use crate::soap::abch::sharing_service::find_membership::response::ServiceType;
@@ -798,6 +799,13 @@ impl ContactType {
 		let contact_info = ContactInfoType{ emails: None, phones: None, locations: None, web_sites: None, annotations: None, group_ids: None, group_ids_deleted: None, contact_type: Some(contact_type), quick_name: Some(display_name.to_string()), first_name: None, middle_name: None, last_name: None, suffix: None, name_title: None, passport_name: Some(msn_addr.to_string()), display_name: Some(display_name.to_string()), puid: Some(0), cid: Some(uuid.to_decimal_cid()), brand_id_list: None, comment: None, is_mobile_im_enabled: Some(false), is_messenger_user: Some(true), is_favorite: Some(false), is_smtp: Some(false), has_space: Some(true), spot_watch_state: Some(String::from("NoDevice")), birthdate: Some(String::from("0001-01-01T00:00:00")), primary_email_type: Some(ContactEmailTypeType{ body: String::from("Passport") }), primary_location: Some(ContactLocationTypeType{ body: String::from("ContactLocationPersonal") }), primary_phone: Some(String::from("ContactPhonePersonal")), is_private: Some(false), anniversary: None, gender: Some(String::from("Unspecified") ), time_zone: Some(String::from("None")), trust_level: None, network_info_list: Some(network_info_list), public_display_name: None, is_auto_update_disabled: None, is_hidden: None, is_passport_name_hidden: Some(false), is_not_mobile_visible: Some(false), is_shell_contact: None, messenger_member_info: None, properties_changed: None, client_error_data: None, link_info: None, source_handle: None, file_as: None, ur_ls: None };
 		return ContactType{ contact_id: Some(uuid.to_string()), contact_info: Some(contact_info), properties_changed: Some(String::new()), f_deleted: Some(deleted), last_change: Some(now.format("%Y-%m-%dT%H:%M:%SZ").to_string()), create_date: None, last_modified_by: None, created_by: None };
 
+	}
+
+
+	pub fn new_allow(msn_user: &MsnUser, deleted: bool) -> ContactType {
+		let now = Local::now();
+		let contact_info = ContactInfoType{ emails: None, phones: None, locations: None, web_sites: None, annotations: None, group_ids: None, group_ids_deleted: None, contact_type: Some(ContactTypeEnum::Live), quick_name: msn_user.display_name.clone(), first_name: None, middle_name: None, last_name: None, suffix: None, name_title: None, passport_name: Some(msn_user.get_email_address().to_string()), display_name: msn_user.display_name.clone(), puid: Some(msn_user.uuid.get_puid().to_decimal()), cid: Some(msn_user.uuid.to_decimal_cid()), brand_id_list: None, comment: None, is_mobile_im_enabled: Some(false), is_messenger_user: Some(true), is_favorite: Some(false), is_smtp: Some(false), has_space: Some(true), spot_watch_state: Some(String::from("NoDevice")), birthdate: Some(String::from("0001-01-01T00:00:00")), primary_email_type: Some(ContactEmailTypeType{ body: String::from("Passport") }), primary_location: Some(ContactLocationTypeType{ body: String::from("ContactLocationPersonal") }), primary_phone: Some(String::from("ContactPhonePersonal")), is_private: Some(false), anniversary: None, gender: Some(String::from("Unspecified") ), time_zone: Some(String::from("None")), trust_level: None, network_info_list: None, public_display_name: None, is_auto_update_disabled: None, is_hidden: None, is_passport_name_hidden: Some(false), is_not_mobile_visible: Some(false), is_shell_contact: None, messenger_member_info: None, properties_changed: None, client_error_data: None, link_info: None, source_handle: None, file_as: None, ur_ls: None };
+		return ContactType{ contact_id: Some(msn_user.uuid.to_string()), contact_info: Some(contact_info), properties_changed: Some(String::new()), f_deleted: Some(deleted), last_change: Some(now.format("%Y-%m-%dT%H:%M:%SZ").to_string()), create_date: None, last_modified_by: None, created_by: None };
 	}
 
 	pub fn new(uuid: &Uuid, msn_addr: &str, display_name: &str, contact_type: ContactTypeEnum, deleted: bool) -> ContactType {

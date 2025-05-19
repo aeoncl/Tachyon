@@ -86,7 +86,7 @@ impl NotificationHandle {
 // }
 
 
-pub enum Contact {
+pub enum AddressBookContact {
     Contact(ContactType),
     Circle(CircleData)
 }
@@ -94,7 +94,7 @@ pub enum Contact {
 #[derive(Default)]
 pub struct SoapHolder {
     pub oims: DashMap<String, OIM>,
-    pub contacts: Mutex<Vec<Contact>>,
+    pub contacts: Mutex<Vec<AddressBookContact>>,
     pub circle_contacts: DashMap<String, Vec<ContactType>>,
     pub memberships: Mutex<VecDeque<BaseMember>>
 }
@@ -189,7 +189,7 @@ impl ClientData {
         &self.inner.contact_list
     }
 
-    pub fn get_contact_holder_mut(&mut self) -> LockResult<MutexGuard<'_, Vec<Contact>>> {
+    pub fn get_contact_holder_mut(&mut self) -> LockResult<MutexGuard<'_, Vec<AddressBookContact>>> {
        self.inner.soap_holder.contacts.lock()
     }
 

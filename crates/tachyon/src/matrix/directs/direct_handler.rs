@@ -9,9 +9,14 @@ use matrix_sdk::ruma::events::{AnyStrippedStateEvent, AnySyncStateEvent, AnySync
 use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::sync::{RoomUpdates, Timeline};
 use matrix_sdk_ui::sync_service::SyncService;
-use crate::matrix::directs::direct_service::DirectService;
-use crate::notification::client_store::ClientData;
-
+use msnp::msnp::models::contact::Contact;
+use msnp::shared::models::capabilities::Capabilities::MSN8User;
+use msnp::shared::models::email_address::EmailAddress;
+use msnp::shared::models::msn_user::MsnUser;
+use msnp::soap::abch::msnab_datatypes::ContactType;
+use crate::matrix::directs::direct_service::{DirectService, MappingDiff};
+use crate::notification::client_store::{AddressBookContact, ClientData};
+use crate::shared::identifiers::MatrixIdCompatible;
 
 const LOG_LABEL: &str = "Handlers::DirectMappings |";
 
@@ -47,7 +52,7 @@ impl EventDeduplicator {
 }
 
 
-pub async fn handle_direct_mappings_room_updates(mut room_updates: RoomUpdates, client_data: ClientData) {
+pub async fn handle_direct_mappings_room_updates(mut room_updates: RoomUpdates, client_data: ClientData) -> Result<Vec<MappingDiff>, anyhow::Error> {
 
         let mut direct_service = client_data.get_direct_service();
         let matrix_client = client_data.get_matrix_client();
@@ -82,9 +87,12 @@ pub async fn handle_direct_mappings_room_updates(mut room_updates: RoomUpdates, 
             }
         }
 
-        let diffs = direct_service.apply_pending_mappings().await.unwrap();
 
-        info!("{} found direct mappings diff: {:?}", LOG_LABEL, diffs);
+    let diffs = direct_service.apply_pending_mappings().await.unwrap();
+
+    info!("{} found direct mappings diff: {:?}", LOG_LABEL, diffs);
+
+    Ok(diffs)
 }
 
 

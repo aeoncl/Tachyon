@@ -21,7 +21,7 @@ use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContac
 use msnp::soap::abch::msnab_datatypes::{AbHandleType, AddressBookType, CircleRelationshipRole, ContactType, ContactTypeEnum, RelationshipState};
 use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::traits::xml::ToXml;
-use crate::notification::client_store::{ClientData, Contact};
+use crate::notification::client_store::{ClientData, AddressBookContact};
 use crate::shared::identifiers::MatrixIdCompatible;
 use crate::shared::traits::ToUuid;
 use crate::web::soap::error::ABError;
@@ -124,10 +124,10 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
            let mut circles = Vec::new();
            for current in get_delta_contact_list(client_data)?.drain(..) {
                 match current {
-                    Contact::Contact(contact) => {
+                    AddressBookContact::Contact(contact) => {
                         contacts.push(contact);
                     }
-                    Contact::Circle(circle_data) => {
+                    AddressBookContact::Circle(circle_data) => {
                         circles.push(circle_data);
                     }
                 }
@@ -150,7 +150,7 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
 
 }
 
-fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<Contact>, ABError> {
+fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<AddressBookContact>, ABError> {
     let mut contacts = client_data.get_contact_holder_mut().unwrap();
 
     Ok(mem::replace(&mut *contacts, Vec::new()))

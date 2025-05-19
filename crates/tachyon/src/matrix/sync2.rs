@@ -3,11 +3,11 @@ use std::collections::HashSet;
 use std::process::exit;
 use std::time::Duration;
 use futures::StreamExt;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use crate::notification::client_store::ClientData;
 use matrix_sdk::{Client, Error, Room, SlidingSync, SlidingSyncListBuilder, SlidingSyncMode};
 use matrix_sdk::crypto::types::events::olm_v1::AnyDecryptedOlmEvent;
-use matrix_sdk::deserialized_responses::{DecryptedRoomEvent, TimelineEventKind};
+use matrix_sdk::deserialized_responses::{DecryptedRoomEvent, RawAnySyncOrStrippedState, TimelineEventKind};
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{AccountData, ListFilters, RoomSubscription, ToDevice, Typing, E2EE};
 use matrix_sdk::ruma::events::direct::{DirectEvent, DirectEventContent};
@@ -16,6 +16,7 @@ use matrix_sdk::ruma::{assign, OwnedRoomId, RoomId, UInt};
 use matrix_sdk::ruma::api::client::error::ErrorKind;
 use matrix_sdk::ruma::directory::RoomTypeFilter;
 use matrix_sdk::ruma::events::room::member::SyncRoomMemberEvent;
+use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::sleep::sleep;
 use matrix_sdk::sync::RoomUpdates;
 use matrix_sdk_ui::sync_service::{self, SyncService};
@@ -28,9 +29,9 @@ use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::notification::command::not::NotServer;
 use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
-use crate::matrix::directs::direct_extensions::TachyonDirectAccountDataContent;
+use crate::matrix::directs::direct_extensions::{DirectDiff, TachyonDirectAccountDataContent};
 use crate::matrix::directs::direct_handler;
-use crate::matrix::directs::direct_service::{DirectMappingsEvent, DirectMappingsEventContent, DirectService};
+use crate::matrix::directs::direct_service::{DirectMappingsEvent, DirectMappingsEventContent, DirectService, MappingDiff};
 
 #[derive(Clone)]
 pub struct TachyonContext {
@@ -174,11 +175,26 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
         matrix_client.add_event_handler_context(TachyonContext{ client_data: client_data.clone() });
 
 
-            matrix_client.add_event_handler(|event: DirectEvent, context: Ctx<TachyonContext> | async move {
+            matrix_client.add_event_handler(|event: DirectEvent, context: Ctx<TachyonContext>, client: Client | async move {
                 let direct_service = context.client_data.get_direct_service();
-                direct_service.handle_directs_update(event.content).await.unwrap();
+                let direct_diffs = direct_service.handle_directs_update(event.content).await.unwrap();
+
+                // TODO: ask wassup with this ?
+                // for direct_diff in direct_diffs {
+                //     if let DirectDiff::RoomAdded(user_id, room_id) = direct_diff {
+                //         if let Some(room) = client.get_room(&room_id) {
+                //             //Remark room as direct room (not supported for now i believe by the sdk
+                //         }
+                //     }
+                // }
+
+
             });
 
+            matrix_client.add_event_handler(|event: DirectMappingsEvent, context: Ctx<TachyonContext> | async move {
+                let direct_service = context.client_data.get_direct_service();
+                direct_service.handle_direct_mappings_update(event.content).await.unwrap();
+            });
 
 
         info!("Fetching room subscriptions...");
@@ -209,8 +225,6 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
                             }
 
                             info!("Received Sliding Sync stream response with pos: {} : {:?}", &pos.unwrap_or("none".to_string()), &update_summary);
-
-
 
                             match updates_recv.recv().await {
                                 Ok(room_updates) => {
@@ -252,7 +266,65 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
 }
 
 async fn handle_room_updates(client_data: &ClientData, room_updates: RoomUpdates) {
-    direct_handler::handle_direct_mappings_room_updates(room_updates, client_data.clone()).await
+    let diffs = direct_handler::handle_direct_mappings_room_updates(room_updates, client_data.clone()).await.unwrap();
+    let events_from_diffs = handle_mapping_diffs(client_data, diffs).await.unwrap();
+    debug!("events_from_diff to handle: {:?}", events_from_diffs);
+
+
+    //TODO handle contact & memberships 8D
+
+
+
+
+
+
+}
+
+async fn handle_mapping_diffs(client_data: &ClientData, diffs: Vec<MappingDiff>) -> Result<Vec<RawAnySyncOrStrippedState>, anyhow::Error> {
+    let mut events = Vec::new();
+
+    for diff in diffs.into_iter() {
+        match diff {
+            MappingDiff::NewMapping(_, _) => {
+                //Do nothing, new mappings means RoomMemberEvents are in the room_updates
+            }
+            MappingDiff::UpdatedMapping(user_id, room_id) => {
+                let matrix_client = client_data.get_matrix_client();
+                let room = matrix_client.get_room(&room_id).unwrap();
+                let event = room.get_state_event(StateEventType::RoomMember, user_id.as_str()).await.unwrap().unwrap();
+                events.push(event);
+            }
+            MappingDiff::RemovedMapping(user_id, room_id) => {
+                let user_id_ref = user_id.as_str();
+                let raw = Raw::<AnySyncStateEvent>::from_json_string(
+                    format!(r#"
+{{
+  "content": {{
+    "membership": "leave",
+    "reason": "chat.tachyon.removed_mapping"
+  }},
+  "event_id": "$143273582443PhrSn:tachyon.fake",
+  "origin_server_ts": 1432735824653,
+  "room_id": "{room_id}",
+  "sender": "{user_id_ref}",
+  "state_key": "{user_id_ref}",
+  "type": "m.room.member",
+  "unsigned": {{
+    "age": 1234,
+    "membership": "join"
+  }}
+}}
+"#).to_string()).unwrap();
+
+                events.push(RawAnySyncOrStrippedState::Sync(raw));
+
+            }
+        }
+
+
+    }
+
+    Ok(events)
 }
 
 async fn handle_first_sync(client_data: &ClientData) -> Result<(), anyhow::Error> {
