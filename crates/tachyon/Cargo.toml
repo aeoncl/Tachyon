@@ -40,6 +40,11 @@ futures-util = "0.3.31"
 
 [dev-dependencies]
 mockall = "0.13.1"
+wiremock = "0.6.3"
+
+[dev-dependencies.matrix-sdk]
+path = "../../lib/matrix-rust-sdk/crates/matrix-sdk"
+features = ["testing"]
 
 [dependencies.matrix-sdk]
 path = "../../lib/matrix-rust-sdk/crates/matrix-sdk"

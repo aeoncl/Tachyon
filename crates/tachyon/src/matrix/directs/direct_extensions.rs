@@ -3,9 +3,9 @@ use std::str::FromStr;
 use log::{debug, warn};
 use matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState;
 use matrix_sdk::ruma::events::direct::{DirectEventContent, DirectUserIdentifier, OwnedDirectUserIdentifier};
-use matrix_sdk::ruma::events::{AnySyncStateEvent, GlobalAccountDataEventType, StateEventType};
+use matrix_sdk::ruma::events::{AnyStrippedStateEvent, AnySyncStateEvent, GlobalAccountDataEventType, StateEventType};
 use matrix_sdk::ruma::{MilliSecondsSinceUnixEpoch, OwnedRoomId, OwnedUserId, UserId};
-use matrix_sdk::{Client, Error, Room, RoomMemberships, RoomState};
+use matrix_sdk::{Client, Error, Room, RoomCreateWithCreatorEventContent, RoomMemberships, RoomState};
 use matrix_sdk::ruma::__private_macros::room_id;
 
 struct RoomWithTimestamp {
@@ -27,25 +27,25 @@ async fn find_oldest_1o1_dm_room(matrix_client: &Client, user_id: &UserId) -> Re
 
     debug!("{} {}", LOG_LABEL, user_id);
 
-    let mut rooms = matrix_client.joined_rooms();
-    rooms.extend(matrix_client.invited_rooms().into_iter());
-
-
-    let dm_rooms = {
+    let joined_dm_rooms = {
+        let mut joined_rooms = matrix_client.joined_rooms();
         let mut dm_rooms = Vec::new();
-        for room in rooms.drain(..) {
+        for room in joined_rooms.drain(..) {
             debug!("{} Checking room {}", LOG_LABEL, room.room_id());
 
             if let Some(direct_target) = extract_o1o_direct_target(&room, true).await? {
                 if &direct_target == user_id {
-                    let timestamp = room.creation_timestamp().await?;
-
-                    dm_rooms.push(
-                        RoomWithTimestamp {
-                            room,
-                            timestamp,
+                    match room.creation_timestamp().await? {
+                        None => {
+                            warn!("Joined room didnt have creation timestamp, skipping: {}", room.room_id());
                         }
-                    );
+                        Some(timestamp) => {
+                            dm_rooms.push(RoomWithTimestamp {
+                                room,
+                                timestamp,
+                            })
+                        }
+                    };
                 }
             }
         }
@@ -55,7 +55,31 @@ async fn find_oldest_1o1_dm_room(matrix_client: &Client, user_id: &UserId) -> Re
         dm_rooms
     };
 
-    Ok(dm_rooms.first().map( |room| room.room.room_id().to_owned() ))
+    let oldest_joined_dm_room = joined_dm_rooms.first().map( |room| room.room.room_id().to_owned() );
+    if let Some(found) = oldest_joined_dm_room {
+        return Ok(Some(found));
+    }
+
+    //We did not have found any suitable room in joined rooms, look at invites.
+
+    let invited_dm_rooms = {
+        let mut invited_rooms = matrix_client.invited_rooms();
+        let mut invited_dm_rooms = Vec::new();
+        for room in invited_rooms.drain(..) {
+            if let Some(direct_target) = extract_o1o_direct_target(&room, true).await? {
+                if &direct_target == user_id {
+                    invited_dm_rooms.push(room);
+                }
+            }
+        }
+
+        invited_dm_rooms.sort_by( |a, b|  {a.room_id().cmp(&b.room_id())});
+        invited_dm_rooms
+    };
+
+    let first_invite_dm_room = invited_dm_rooms.first().map( |room| room.room_id().to_owned() );
+    Ok(first_invite_dm_room)
+
 }
 
 impl OneOnOneDmClient for Client {
@@ -89,8 +113,7 @@ pub trait TachyonRoomExtensions {
     async fn get_1o1_active_direct_target(&self) -> Result<Option<OwnedUserId>, matrix_sdk::Error>;
     async fn get_1o1_direct_target(&self) -> Result<Option<OwnedUserId>, Error>;
 
-    async fn creation_timestamp(&self) -> Result<MilliSecondsSinceUnixEpoch, matrix_sdk::Error>;
-
+    async fn creation_timestamp(&self) -> Result<Option<MilliSecondsSinceUnixEpoch>, matrix_sdk::Error>;
 }
 
 
@@ -103,9 +126,18 @@ async fn extract_o1o_direct_target(room: &Room, check_if_active: bool) -> Result
         debug!("{} Room {} not a direct, aborting...", LOG_LABEL, room.room_id());
         return Ok(None);
     }
-
-
-    let active_members = room.members(RoomMemberships::ACTIVE).await?;
+    
+    let active_members = match room.members(RoomMemberships::ACTIVE).await {
+        Ok(active_members) => Ok(active_members),
+        Err(err) => {
+            if RoomState::Joined != room.state() {
+                room.members_no_sync(RoomMemberships::ACTIVE).await
+            } else {
+                Err(err)
+            }
+        }
+    }?;
+    
     debug!("{} Room {} active members ({}): {:?}", LOG_LABEL, room.room_id(), active_members.len(), &active_members);
 
     if active_members.len() > 2 {
@@ -117,9 +149,9 @@ async fn extract_o1o_direct_target(room: &Room, check_if_active: bool) -> Result
     let direct_targets = room.direct_targets();
     let mut not_me_direct_targets = direct_targets.iter().filter_map(|target| {
 
-        if let Some(target_user_Id) = target.as_user_id() {
-            if target_user_Id != me_user_id {
-                Some(target_user_Id.to_owned())
+        if let Some(target_user_id) = target.as_user_id() {
+            if target_user_id != me_user_id {
+                Some(target_user_id.to_owned())
             } else {
                 None
             }
@@ -164,17 +196,24 @@ impl TachyonRoomExtensions for Room {
         Ok(extract_o1o_direct_target(self, false).await?)
     }
 
-    async fn creation_timestamp(&self) -> Result<MilliSecondsSinceUnixEpoch, Error> {
+    //TODO remove store access each time( store it in room.create_content)
+    async fn creation_timestamp(&self) -> Result<Option<MilliSecondsSinceUnixEpoch>, Error> {
         let room_create_event = self.get_state_event(StateEventType::RoomCreate, "").await?.expect("RoomCreateEvent to be present");
 
-        if let RawAnySyncOrStrippedState::Sync(raw) = room_create_event {
-            if let Ok(AnySyncStateEvent::RoomCreate(room_create_event)) = raw.deserialize_as() {
-                return Ok(room_create_event.origin_server_ts());
+        match room_create_event {
+            RawAnySyncOrStrippedState::Sync(raw_sync) => {
+                if let Ok(AnySyncStateEvent::RoomCreate(room_create_event)) = raw_sync.deserialize() {
+                    return Ok(Some(room_create_event.origin_server_ts()));
+                }
+            }
+            RawAnySyncOrStrippedState::Stripped(raw_stripped) => {
+                if let Ok(AnyStrippedStateEvent::RoomCreate(room_create_event)) = raw_stripped.deserialize() {
+                    return Ok(None);
+                }
             }
         }
 
         return Err(Error::InsufficientData);
-
     }
 }
 

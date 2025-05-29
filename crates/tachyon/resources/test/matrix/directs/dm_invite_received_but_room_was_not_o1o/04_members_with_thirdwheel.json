@@ -1,0 +1,38 @@
+{
+  "chunk": [
+    {
+      "type": "m.room.member",
+      "state_key": "@example:localhost",
+      "content": {
+        "membership": "join"
+      },
+      "sender": "@inviter:localhost",
+      "origin_server_ts": 4,
+      "event_id": "$4",
+      "room_id": "!r00m:localhost"
+    },
+    {
+      "type": "m.room.member",
+      "state_key": "@inviter:localhost",
+      "content": {
+        "membership": "join"
+      },
+      "sender": "@inviter:localhost",
+      "origin_server_ts": 3,
+      "event_id": "$3",
+      "room_id": "!r00m:localhost"
+    },
+    {
+      "type": "m.room.member",
+      "state_key": "@thirdwheel:localhost",
+      "content": {
+        "membership": "join"
+      },
+      "sender": "@thirdwheel:localhost",
+      "origin_server_ts": 5,
+      "event_id": "$5",
+      "room_id": "!r00m:localhost"
+    }
+  ]
+
+}

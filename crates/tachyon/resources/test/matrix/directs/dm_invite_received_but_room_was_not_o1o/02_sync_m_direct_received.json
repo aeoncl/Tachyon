@@ -1,0 +1,16 @@
+{
+  "next_batch": "s456",
+  "rooms": {},
+  "account_data": {
+    "events": [
+      {
+        "type": "m.direct",
+        "content": {
+          "@inviter:localhost": [
+            "!r00m:localhost"
+          ]
+        }
+      }
+    ]
+  }
+}

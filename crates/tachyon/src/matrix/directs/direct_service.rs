@@ -69,7 +69,7 @@ pub enum MappingDiff {
 }
 
 impl MappingDiff {
-   pub fn apply(mut self, output: &mut DirectMappingsHashMap) {
+   pub fn apply(self, output: &mut DirectMappingsHashMap) {
         match self {
             MappingDiff::NewMapping(user_id, room_id) => {
                 output.insert(user_id, room_id);
@@ -393,6 +393,13 @@ impl DirectService {
         Ok(None)
     }
 
+    pub(crate) fn diff(&self) -> Result<Vec<MappingDiff>, anyhow::Error> {
+        let mappings = self.inner.direct_mappings.read();
+        let pending_diff = self.inner.current_diffs.lock().unwrap();
+        let (_, effective_diff) =  Self::compute_effective_diff(mappings.clone(), pending_diff.clone());
+        Ok(effective_diff)
+    }
+
     fn compute_effective_diff(mappings: DirectMappingsHashMap, mut diffs: Vec<MappingDiff>)  -> (DirectMappingsHashMap, Vec<MappingDiff>){
         let old_state = mappings;
         let new_state = {
@@ -418,12 +425,14 @@ impl DirectService {
 
         let(old_state, effective_diff) = Self::compute_effective_diff(self.inner.direct_mappings.read().iter().map(|(key, value)| (key.clone(), value.clone())).collect(), current_diff);
 
-        Self::save_mappings_to_account_data(&self.matrix_client, &old_state, &effective_diff).await?;
+        {
+            let mut direct_mappings_write = self.inner.direct_mappings.write();
+            effective_diff.iter().for_each(|mapping| {
+                mapping.apply_as_ref(&mut direct_mappings_write)
+            });
+        }
 
-        let mut direct_mappings_write = self.inner.direct_mappings.write();
-        effective_diff.iter().for_each(|mapping| {
-            mapping.apply_as_ref(&mut direct_mappings_write)
-        });
+        Self::save_mappings_to_account_data(&self.matrix_client, &old_state, &effective_diff).await?;
 
         return Ok(effective_diff);
     }
@@ -475,27 +484,479 @@ impl DirectService {
 
 }
 
-
-
-struct FakeClient {
-}
-
-impl FakeClient {
-
-
-
-}
-
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
+    use std::str::FromStr;
+    use chrono::Local;
+    use env_logger::Builder;
+    use log::{debug, LevelFilter};
+    use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId};
+    use matrix_sdk::test_utils::logged_in_client_with_server;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, ResponseTemplate};
+    use crate::matrix::directs::direct_service::{DirectService, MappingDiff, RoomMapping};
+    use std::io::{BufReader, Write};
+    use std::path::{Path, PathBuf};
+    use anyhow::{anyhow, Error};
+    use matrix_sdk::config::SyncSettings;
+    /*
 
-    #[test]
-    fn test() {
+                    Test cases:
 
+                    When i get invited in a DM Room, and no mapping exists, the invited room should be considered as the mapping
+                    When i get invited in a DM Room, and a mapping exists, the mapping should be reevaluated
+                        - depending if the old mapping is still valid, the outcome will be different. if the new mapping is not the current invited room, we should not get a new mapping.
+                    When i invite someone in a DM room, and no mapping exists, the room should be considered as the mapping
+
+
+
+                 */
+    #[tokio::test]
+    async fn dm_invite_received() {
+
+        log_print_panics::init();
+        Builder::new()
+            .format(|buf, record| {
+                writeln!(
+                    buf,
+                    "{} [{}] - {} @ {}:{}",
+                    Local::now().format("%d-%m-%YT%H:%M:%S%.3f"),
+                    record.level(),
+                    record.args(),
+                    record.file().unwrap_or("unknown"),
+                    record.line().unwrap_or(0),
+                )
+            })
+            .target(env_logger::Target::Stdout)
+            .filter(Some("v2") , LevelFilter::Debug)
+            .filter(Some("tachyon") , LevelFilter::Debug)
+            .filter(Some("msnp") , LevelFilter::Debug)
+            .filter(Some("matrix-sdk"), LevelFilter::Warn)
+            .filter(Some("yaserde"), LevelFilter::Warn)
+            .filter(None, LevelFilter::Trace)
+            .init();
+
+
+        let json_resolver = JsonResourceResolver::new("dm_invite_received");
+        let (client, server) = logged_in_client_with_server().await;
+        let direct_service = DirectService::default(client.clone());
+
+        let user_id = client.user_id().unwrap();
+        let inviter_id = OwnedUserId::from_str("@inviter:localhost").unwrap();
+        let room_id = OwnedRoomId::from_str("!r00m:localhost").unwrap();
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("01_sync_invited.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("02_sync_m_direct_received.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+
+            client.sync_once(Default::default()).await.unwrap();
+            client.sync_once(Default::default()).await.unwrap();
+
+            direct_service.evaluate_mapping(&client.invited_rooms().get(0).unwrap()).await.unwrap();
+            let diff = direct_service.diff().unwrap().remove(0);
+
+            assert!(matches!(diff, MappingDiff::NewMapping(ref user, ref room) if
+user == &inviter_id && room == &room_id), "Expected NewMapping with inviter_id and room_id, got {:?}", diff);
 
 
 
     }
+
+    //Synapse doesnt put the is_direct flag when there is more that 2 people in the room, could be different for other implementations
+    #[tokio::test]
+    async fn invite_received() {
+
+        let json_resolver = JsonResourceResolver::new("invite_received");
+        let (client, server) = logged_in_client_with_server().await;
+        let direct_service = DirectService::default(client.clone());
+
+
+        let user_id = client.user_id().unwrap();
+        let inviter_id = OwnedUserId::from_str("@inviter:localhost").unwrap();
+        let room_id = OwnedRoomId::from_str("!r00m:localhost").unwrap();
+
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("01_sync_invited.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("02_empty_sync.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+
+        client.sync_once(Default::default()).await.unwrap();
+        client.sync_once(Default::default()).await.unwrap();
+
+        direct_service.evaluate_mapping(&client.invited_rooms().get(0).unwrap()).await.unwrap();
+
+        assert!(direct_service.inner.current_diffs.lock().unwrap().is_empty(), "Expected no direct mappings but got one.");
+
+    }
+
+    #[tokio::test]
+    async fn dm_invite_received_but_room_was_not_o1o() {
+        let json_resolver = JsonResourceResolver::new("dm_invite_received_but_room_was_not_o1o");
+        let (client, server) = logged_in_client_with_server().await;
+        let mut direct_service = DirectService::default(client.clone());
+
+        let own_user_id = client.user_id().unwrap();
+        let inviter_id = OwnedUserId::from_str("@inviter:localhost").unwrap();
+        let room_id = OwnedRoomId::from_str("!r00m:localhost").unwrap();
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("01_sync_invited.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("02_sync_m_direct_received.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        let thirdwheel = OwnedUserId::from_str("@thirdwheel:test").unwrap();
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("03_sync_joined.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(format!("/_matrix/client/r0/rooms/{}/members", &room_id)))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("04_members_with_thirdwheel.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        debug!("NIKSAMER 1");
+        //Got the invite, marked as direct
+        client.sync_once(Default::default()).await.unwrap();
+        client.sync_once(Default::default()).await.unwrap();
+
+        direct_service.evaluate_mapping(&client.invited_rooms().get(0).unwrap()).await.unwrap();
+        let diff = direct_service.diff().unwrap().remove(0);
+        let _ = direct_service.apply_pending_mappings().await;
+
+        assert!(matches!(diff, MappingDiff::NewMapping(ref user, ref room) if
+user == &inviter_id && room == &room_id), "Expected NewMapping, got {:?}", diff);
+
+        debug!("NIKSAMER 2");
+        client.sync_once(Default::default()).await.unwrap();
+        direct_service.evaluate_mapping(client.joined_rooms().get(0).unwrap()).await.unwrap();
+        let diff = direct_service.diff().unwrap().remove(0);
+
+        assert!(matches!(diff, MappingDiff::RemovedMapping(ref user, ref room) if
+user == &inviter_id && room == &room_id), "Expected RemovedMapping, got {:?}", diff);
+    }
+
+    #[tokio::test]
+    async fn dm_invite_sent() {
+
+        let json_resolver = JsonResourceResolver::new("dm_invite_sent");
+        let (client, server) = logged_in_client_with_server().await;
+        let mut direct_service = DirectService::default(client.clone());
+
+        let own_user_id = client.user_id().unwrap();
+        let invitee_id = OwnedUserId::from_str("@invitee:localhost").unwrap();
+        let room_id = OwnedRoomId::from_str("!r00m:localhost").unwrap();
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("01_sync_invitee.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("02_sync_m_direct_received.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(format!("/_matrix/client/r0/rooms/{}/members", &room_id)))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("03_members.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        client.sync_once(Default::default()).await.unwrap();
+        let _ = direct_service.evaluate_mapping(&client.joined_rooms().get(0).unwrap()).await;
+        let _ = direct_service.apply_pending_mappings().await;
+        let mapping = direct_service.get_mapping_for_room(&room_id);
+        assert!(matches!(mapping, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping);
+
+        client.sync_once(Default::default()).await.unwrap();
+        let _ = direct_service.evaluate_mapping(&client.joined_rooms().get(0).unwrap()).await;
+        let _ = direct_service.apply_pending_mappings().await;
+        let mapping = direct_service.get_mapping_for_room(&room_id);
+
+        assert!(matches!(mapping, RoomMapping::Canonical(ref user, ref room) if user == &invitee_id && room == &room_id), "Expected CanonicalMapping, got {:?}", mapping);
+    }
+
+    #[tokio::test]
+    async fn dm_room_both_joined() {
+        let json_resolver = JsonResourceResolver::new("dm_room_both_joined");
+        let (client, server) = logged_in_client_with_server().await;
+        let mut direct_service = DirectService::default(client.clone());
+
+        let own_user_id = client.user_id().unwrap();
+        let other_id = OwnedUserId::from_str("@other:localhost").unwrap();
+        let room_id = OwnedRoomId::from_str("!r00m:localhost").unwrap();
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("01_sync.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("02_sync_m_direct_received.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(format!("/_matrix/client/r0/rooms/{}/members", &room_id)))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("03_members.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        client.sync_once(Default::default()).await.unwrap();
+        let _ = direct_service.evaluate_mapping(&client.joined_rooms().get(0).unwrap()).await;
+        assert_eq!(direct_service.diff().unwrap().len(), 0, "Expected no direct mappings but got one.");
+        let _ = direct_service.apply_pending_mappings().await;
+
+
+        client.sync_once(Default::default()).await.unwrap();
+        let _ = direct_service.evaluate_mapping(&client.joined_rooms().get(0).unwrap()).await;
+        let diff = direct_service.diff().unwrap().remove(0);
+        let _ = direct_service.apply_pending_mappings().await;
+
+        assert!(matches!(diff, MappingDiff::NewMapping(ref user, ref room) if
+user == &other_id && room == &room_id), "Expected NewMapping, got {:?}", diff);
+
+
+
+    }
+
+    #[tokio::test]
+    async fn dm_room_other_leaves() {
+        let json_resolver = JsonResourceResolver::new("dm_room_other_leaves");
+        let (client, server) = logged_in_client_with_server().await;
+        let mut direct_service = DirectService::default(client.clone());
+
+        let own_user_id = client.user_id().unwrap();
+        let other_id = OwnedUserId::from_str("@other:localhost").unwrap();
+        let room_id = OwnedRoomId::from_str("!r00m:localhost").unwrap();
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("01_sync.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("02_sync_m_direct_received.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(format!("/_matrix/client/r0/rooms/{}/members", &room_id)))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("03_members.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("04_sync_other_leaves.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+
+        client.sync_once(Default::default()).await.unwrap();
+        let room = &client.joined_rooms().get(0).unwrap().clone();
+        let _ = direct_service.evaluate_mapping(room).await;
+        let _ = direct_service.apply_pending_mappings().await;
+
+        client.sync_once(Default::default()).await.unwrap();
+        let room = &client.joined_rooms().get(0).unwrap().clone();
+        let _ = direct_service.evaluate_mapping(room).await;
+        let _ = direct_service.apply_pending_mappings().await;
+
+        client.sync_once(Default::default()).await.unwrap();
+        let room = &client.joined_rooms().get(0).unwrap().clone();
+        let _ = direct_service.evaluate_mapping(room).await;
+        let _ = direct_service.apply_pending_mappings().await;
+
+        let mapping = direct_service.get_mapping_for_room(room.room_id());
+
+        assert!(matches!(mapping, RoomMapping::Canonical(ref user, ref room) if
+user == &other_id && room == &room_id), "Expected CanonicalMapping, got {:?}", mapping);
+    }
+
+    #[tokio::test]
+    async fn multiple_dm_rooms() {
+
+        let json_resolver = JsonResourceResolver::new("multiple_dm_rooms");
+        let (client, server) = logged_in_client_with_server().await;
+        let mut direct_service = DirectService::default(client.clone());
+
+        let own_user_id = client.user_id().unwrap();
+        let other_id = OwnedUserId::from_str("@other:localhost").unwrap();
+        let room1_id = OwnedRoomId::from_str("!r00m1:localhost").unwrap();
+        let room2_id = OwnedRoomId::from_str("!r00m2:localhost").unwrap();
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("01_sync.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("02_sync_m_direct_received.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(format!("/_matrix/client/r0/rooms/{}/members", &room1_id)))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("03_members_room1.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(format!("/_matrix/client/r0/rooms/{}/members", &room2_id)))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("04_members_room2.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        client.sync_once(Default::default()).await.unwrap();
+        let room1 = client.get_room(&room1_id).unwrap();
+        let room2 = client.get_room(&room2_id).unwrap();
+        let _ = direct_service.evaluate_mapping(&room1).await;
+        let _ = direct_service.evaluate_mapping(&room2).await;
+        let _ = direct_service.apply_pending_mappings().await;
+
+        let mapping1 = direct_service.get_mapping_for_room(&room1_id);
+        let mapping2 = direct_service.get_mapping_for_room(&room2_id);
+        assert!(matches!(mapping1, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping1);
+        assert!(matches!(mapping2, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping2);
+
+        client.sync_once(Default::default()).await.unwrap();
+        let room1 = client.get_room(&room1_id).unwrap();
+        let room2 = client.get_room(&room2_id).unwrap();
+        let _ = direct_service.evaluate_mapping(&room1).await;
+        let _ = direct_service.evaluate_mapping(&room2).await;
+        let _ = direct_service.apply_pending_mappings().await;
+
+        let mapping1 = direct_service.get_mapping_for_room(&room1_id);
+        let mapping2 = direct_service.get_mapping_for_room(&room2_id);
+        assert!(matches!(mapping1, RoomMapping::Canonical(ref user, ref room) if user == &other_id && room == &room1_id), "Expected CanonicalMapping, got {:?}", mapping1);
+        assert!(matches!(mapping2, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping2);
+
+    }
+    pub struct JsonResourceResolver {
+        test_name: String
+    }
+
+    impl JsonResourceResolver {
+        pub fn new(test_name: &str) -> Self {
+            Self {
+                test_name: test_name.to_string()
+            }
+        }
+
+        pub fn read_json(&self, file_name: &str) -> serde_json::Value {
+            let path: PathBuf = [env!("CARGO_MANIFEST_DIR"), "resources", "test", "matrix", "directs", &self.test_name, file_name].iter().collect();
+            let file = File::open(path).unwrap();
+            let reader = BufReader::new(file);
+            serde_json::from_reader(reader).unwrap()
+        }
+
+    }
+
 
 
 }
