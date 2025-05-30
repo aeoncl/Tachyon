@@ -33,7 +33,7 @@ async fn find_oldest_1o1_dm_room(matrix_client: &Client, user_id: &UserId) -> Re
         for room in joined_rooms.drain(..) {
             debug!("{} Checking room {}", LOG_LABEL, room.room_id());
 
-            if let Some(direct_target) = extract_o1o_direct_target(&room, true).await? {
+            if let Some(direct_target) = extract_o1o_direct_target(&room).await? {
                 if &direct_target == user_id {
                     match room.creation_timestamp().await? {
                         None => {
@@ -66,7 +66,7 @@ async fn find_oldest_1o1_dm_room(matrix_client: &Client, user_id: &UserId) -> Re
         let mut invited_rooms = matrix_client.invited_rooms();
         let mut invited_dm_rooms = Vec::new();
         for room in invited_rooms.drain(..) {
-            if let Some(direct_target) = extract_o1o_direct_target(&room, true).await? {
+            if let Some(direct_target) = extract_o1o_direct_target(&room).await? {
                 if &direct_target == user_id {
                     invited_dm_rooms.push(room);
                 }
@@ -110,17 +110,16 @@ pub trait TachyonRoomExtensions {
 
     async fn is_room_1o1_direct(&self) -> Result<bool, matrix_sdk::Error>;
 
-    async fn get_1o1_active_direct_target(&self) -> Result<Option<OwnedUserId>, matrix_sdk::Error>;
     async fn get_1o1_direct_target(&self) -> Result<Option<OwnedUserId>, Error>;
 
     async fn creation_timestamp(&self) -> Result<Option<MilliSecondsSinceUnixEpoch>, matrix_sdk::Error>;
 }
 
 
-async fn extract_o1o_direct_target(room: &Room, check_if_active: bool) -> Result<Option<OwnedUserId>, Error> {
+async fn extract_o1o_direct_target(room: &Room) -> Result<Option<OwnedUserId>, Error> {
 
     const LOG_LABEL: &str = "FindDirectTarget |";
-    debug!("{} {} - checkIfActive: {}", LOG_LABEL, room.room_id(), check_if_active);
+    debug!("{} {}", LOG_LABEL, room.room_id());
 
     if !room.is_direct().await? {
         debug!("{} Room {} not a direct, aborting...", LOG_LABEL, room.room_id());
@@ -171,29 +170,16 @@ async fn extract_o1o_direct_target(room: &Room, check_if_active: bool) -> Result
     let direct_target = not_me_direct_targets.remove(0);
 
     debug!("{} Room {} Direct Target: {}", LOG_LABEL, room.room_id(), &direct_target);
-
-    if check_if_active {
-        let active_member_direct_target = active_members.iter().find(|member| { member.user_id() != me_user_id && member.user_id() == direct_target }).map(|member| member.user_id().to_owned());
-        debug!("{} Room {} Active Direct Target: {:?}", LOG_LABEL, room.room_id(), &active_member_direct_target);
-        Ok(active_member_direct_target)
-    } else {
-        debug!("{} Room {} Found Direct Target: {}", LOG_LABEL, room.room_id(), &direct_target);
-        Ok(Some(direct_target))
-    }
-
+    Ok(Some(direct_target))
 }
 
 impl TachyonRoomExtensions for Room {
     async fn is_room_1o1_direct(&self) -> Result<bool, Error> {
-        Ok(self.get_1o1_active_direct_target().await?.is_some())
-    }
-
-    async fn get_1o1_active_direct_target(&self) -> Result<Option<OwnedUserId>, Error> {
-        Ok(extract_o1o_direct_target(self, true).await?)
+        Ok(self.get_1o1_direct_target().await?.is_some())
     }
 
     async fn get_1o1_direct_target(&self) -> Result<Option<OwnedUserId>, Error> {
-        Ok(extract_o1o_direct_target(self, false).await?)
+        Ok(extract_o1o_direct_target(self).await?)
     }
 
     //TODO remove store access each time( store it in room.create_content)
