@@ -85,7 +85,6 @@ async fn find_oldest_1o1_dm_room(matrix_client: &Client, user_id: &UserId) -> Re
 impl OneOnOneDmClient for Client {
     async fn get_canonical_dm_room_id(&self, user_id: &UserId) -> Result<Option<OwnedRoomId>, Error> {
         find_oldest_1o1_dm_room(&self, user_id).await
-
     }
 
     async fn force_update_rooms_with_fresh_m_direct(&self) -> Result<(), Error> {

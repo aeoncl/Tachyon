@@ -227,8 +227,6 @@ impl DirectService {
         out
     }
 
-
-
     pub(crate) async fn handle_direct_mappings_update(&self, content: DirectMappingsEventContent) -> Result<(), anyhow::Error> {
         let mut current_mappings = self.inner.direct_mappings_next_tick.write();
         let mut diffs = Self::compute_mappings_diff(&current_mappings, &content.mappings);
@@ -314,9 +312,7 @@ impl DirectService {
 
         debug!("{} Looking for mapping for room_id: {:?}", LOG_LABEL, &mapping_by_room_id);
 
-
         if let Some((mapped_user_id, mapped_room_id)) = mapping_by_room_id {
-
             debug!("{} Mapping by room_id found: {} - {}", LOG_LABEL, &mapped_user_id, &mapped_room_id);
             return self.check_if_mapping_has_changed(&mapped_user_id, &mapped_room_id).await;
         }
@@ -337,36 +333,21 @@ impl DirectService {
                 match maybe_user_mapping {
                     None => {
                         debug!("{} user mapping not found for target: {}, look for canonical dm_room", LOG_LABEL, &direct_target);
-
                         if let Some(found_mapping) = self.matrix_client.get_canonical_dm_room_id(&direct_target).await? {
-
                             debug!("{} found canonical dm_room: {} for target: {}", LOG_LABEL, &found_mapping, &direct_target);
-
-                            if found_mapping == room.room_id() {
-                                debug!("{} found canonical dm_room {} is equal to room that triggered update {}", LOG_LABEL, &found_mapping, &room.room_id());
-                                debug!("{} new mapping {} - {}", LOG_LABEL, &direct_target, &found_mapping);
-
-                                return Ok(Some(MappingDiff::NewMapping(direct_target, found_mapping)));
-                            }
+                            debug!("{} new mapping {} - {}", LOG_LABEL, &direct_target, &found_mapping);
+                            return Ok(Some(MappingDiff::NewMapping(direct_target, found_mapping)));
                         }
                     }
                     Some(mapped_room) => {
                         debug!("{} user mapping found for target: {} room: {}", LOG_LABEL, &direct_target, &mapped_room);
-
-                        if mapped_room == room.room_id() {
-                            debug!("{} mapped room {}  is equal to room that triggered update: room: {}", LOG_LABEL, &mapped_room, &room.room_id());
-                            return self.check_if_mapping_has_changed(&direct_target, &mapped_room).await
-                        }
+                        return self.check_if_mapping_has_changed(&direct_target, &mapped_room).await
                     }
                 }
             }
         }
-
-
         Ok(None)
     }
-
-
 
     async fn check_if_mapping_has_changed(&self, user_id: &UserId, room_to_compare: &RoomId) -> Result<Option<MappingDiff>, anyhow::Error> {
         debug!("{} Check if mapping has changed for user: {} - room: {}", LOG_LABEL, user_id, room_to_compare);
@@ -392,7 +373,6 @@ impl DirectService {
         Ok(diff)
     }
 
-    // First apply all the diffs in order, then compute the effective diff between the two snapshots.
     pub async fn apply_pending_mappings(&mut self) -> Result<Vec<MappingDiff>, matrix_sdk::Error> {
 
         let effective_diff = self.diff().unwrap();
@@ -1019,6 +999,9 @@ user == &other_id && room == &room_id), "Expected CanonicalMapping, got {:?}", m
         assert!(matches!(mapping1, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping1);
         assert!(matches!(mapping2, RoomMapping::Canonical(ref user, ref room) if user == &other_id && room == &room2_id), "Expected CanonicalMapping, got {:?}", mapping2);
     }
+
+    
+
     pub struct JsonResourceResolver {
         test_name: String
     }
