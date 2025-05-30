@@ -173,7 +173,11 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
         let matrix_client = client_data.get_matrix_client();
 
         matrix_client.add_event_handler_context(TachyonContext{ client_data: client_data.clone() });
-
+        
+            matrix_client.add_event_handler(|event: DirectMappingsEvent, context: Ctx<TachyonContext> | async move {
+                let direct_service = context.client_data.get_direct_service();
+                direct_service.handle_direct_mappings_update(event.content).await.unwrap();
+            });
 
             matrix_client.add_event_handler(|event: DirectEvent, context: Ctx<TachyonContext>, client: Client | async move {
                 let direct_service = context.client_data.get_direct_service();
@@ -191,10 +195,7 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
 
             });
 
-            matrix_client.add_event_handler(|event: DirectMappingsEvent, context: Ctx<TachyonContext> | async move {
-                let direct_service = context.client_data.get_direct_service();
-                direct_service.handle_direct_mappings_update(event.content).await.unwrap();
-            });
+
 
 
         info!("Fetching room subscriptions...");

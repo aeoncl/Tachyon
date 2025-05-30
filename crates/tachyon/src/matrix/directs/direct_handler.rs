@@ -60,35 +60,31 @@ pub async fn handle_direct_mappings_room_updates(mut room_updates: RoomUpdates, 
 
         for (room_id, room_update) in room_updates.joined.into_iter() {
             if state_can_affect_mappings(room_update.state) || timeline_can_affect_mappings(&room_update.timeline) {
-                let room = matrix_client.get_room(&room_id).unwrap();
-                direct_service.evaluate_mapping(&room).await.unwrap();
+                direct_service.compute_mapping(&room_id).await.unwrap();
             }
         }
 
         for (room_id, room_update) in room_updates.left.into_iter() {
             if state_can_affect_mappings(room_update.state) || timeline_can_affect_mappings(&room_update.timeline) {
-                let room = matrix_client.get_room(&room_id).unwrap();
-                direct_service.evaluate_mapping(&room).await.unwrap();
+                direct_service.compute_mapping(&room_id).await.unwrap();
             }
 
         }
 
         for (room_id, room_update) in room_updates.invited.into_iter() {
             if stripped_state_can_affect_mappings(room_update.invite_state.events) {
-                let room = matrix_client.get_room(&room_id).unwrap();
-                direct_service.evaluate_mapping(&room).await.unwrap();
+                direct_service.compute_mapping(&room_id).await.unwrap();
             }
         }
 
         for (room_id, room_update) in room_updates.knocked.into_iter() {
             if stripped_state_can_affect_mappings(room_update.knock_state.events) {
-                let room = matrix_client.get_room(&room_id).unwrap();
-                direct_service.evaluate_mapping(&room).await.unwrap();
+                direct_service.compute_mapping(&room_id).await.unwrap();
             }
         }
 
 
-    let diffs = direct_service.apply_pending_mappings().await.unwrap();
+    let diffs = direct_service.apply_pending_mappings().await;
 
     info!("{} found direct mappings diff: {:?}", LOG_LABEL, diffs);
 
