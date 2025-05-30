@@ -369,9 +369,7 @@ impl DirectService {
 
 
     async fn check_if_mapping_has_changed(&self, user_id: &UserId, room_to_compare: &RoomId) -> Result<Option<MappingDiff>, anyhow::Error> {
-
         debug!("{} Check if mapping has changed for user: {} - room: {}", LOG_LABEL, user_id, room_to_compare);
-
         match self.matrix_client.get_canonical_dm_room_id(&user_id).await? {
             None => {
                 debug!("{} Removed Mapping: {} - {}", LOG_LABEL, user_id, room_to_compare);
@@ -404,8 +402,14 @@ impl DirectService {
             mem::replace(&mut *old_state, self.inner.direct_mappings_next_tick.read().clone())
         };
 
-        Self::save_mappings_to_account_data(&self.matrix_client, &old_state, &effective_diff).await?;
+        if self.inner.mappings_sender.receiver_count() > 0 {
+            effective_diff.iter().for_each(|diff| {
+                let _ = self.inner.mappings_sender.send(diff.clone());
+            });
+        }
 
+
+        Self::save_mappings_to_account_data(&self.matrix_client, &old_state, &effective_diff).await?;
         return Ok(effective_diff);
     }
 
