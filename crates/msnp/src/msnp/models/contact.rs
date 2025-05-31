@@ -1,3 +1,4 @@
+use strum::IntoEnumIterator;
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::network_id::NetworkId;
 use crate::shared::models::network_id_email::NetworkIdEmail;
@@ -23,6 +24,10 @@ impl Contact {
     }
     pub fn has_role(&self, role: RoleList) -> bool {
         self.memberships & role as u8 != 0
+    }
+
+    pub fn get_roles(&self) -> Vec<RoleList> {
+        RoleList::iter().filter(|role| self.has_role(role.clone())).collect()
     }
 
     pub fn is_from_network(&self, network_id: NetworkId) -> bool {

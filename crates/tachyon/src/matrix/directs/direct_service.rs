@@ -104,7 +104,7 @@ struct DirectServiceInner {
     direct_mappings: RwLock<DirectMappingsHashMap>,
     direct_mappings_next_tick: RwLock<DirectMappingsHashMap>,
     directs: Mutex<DirectEventContent>,
-    save_mappings:  AtomicBool,
+    fully_initialized:  AtomicBool,
     mappings_sender : broadcast::Sender<MappingDiff>,
     mappings_receiver : broadcast::Receiver<MappingDiff>,
 }
@@ -132,7 +132,7 @@ impl DirectService {
                 direct_mappings: RwLock::new(mappings.clone()),
                 direct_mappings_next_tick: RwLock::new(mappings),
                 directs: Mutex::new(directs),
-                save_mappings: AtomicBool::new(false),
+                fully_initialized: AtomicBool::new(false),
                 mappings_sender,
                 mappings_receiver,
             }),
@@ -175,11 +175,21 @@ impl DirectService {
         return Ok(DirectMappingsHashMap::default());
     }
 
-    pub fn enable_save_mappings(&mut self) {
-        self.inner.save_mappings.store(true, Relaxed);
+    async fn verify_mappings(&mut self) ->  Result<(), matrix_sdk::Error> {
+        let mappings = self.inner.direct_mappings_next_tick.read().clone();
+
+        for mapped_room in mappings.values() {
+            self.compute_mapping(mapped_room).await.unwrap();
+        }
+
+        Ok(())
     }
-    pub fn disable_save_mappings(&mut self) {
-        self.inner.save_mappings.store(false, Relaxed);
+
+    pub async fn set_fully_initialized(&mut self, value: bool) {
+        self.inner.fully_initialized.store(value, Relaxed);
+        if value {
+            self.verify_mappings().await.unwrap();
+        }
     }
 
     pub fn get_mapping_for_user(&self, user_id: &UserId) -> RoomMapping {
@@ -379,7 +389,7 @@ impl DirectService {
         Self::compute_mappings_diff(&self.inner.direct_mappings.read(), &self.inner.direct_mappings_next_tick.read())
     }
 
-    pub async fn apply_pending_mappings(&mut self) -> Vec<MappingDiff> {
+    pub async fn commit_pending_mappings(&mut self) -> Vec<MappingDiff> {
 
         let effective_diff = self.diff();
 
@@ -394,7 +404,7 @@ impl DirectService {
             });
         }
 
-        if self.inner.save_mappings.load(Ordering::Relaxed) {
+        if self.inner.fully_initialized.load(Ordering::Relaxed) {
             if let Err(err) = Self::save_mappings_to_account_data(&self.matrix_client, &old_state, &effective_diff).await{
                 error!("{} Could not save Direct Mappings to Account Data: {}", LOG_LABEL, err);
             }
@@ -418,9 +428,7 @@ impl DirectService {
         let mut content = match room_mappings_from_server {
             None | Some(Err(_)) => {
                 let mut content = DirectMappingsEventContent::default();
-                for (key, value) in mappings.iter() {
-                    content.mappings.insert(key.clone(), value.clone());
-                }
+                content.mappings = mappings.clone();
                 content
             }
             Some(Ok(existing_mappings)) => {
@@ -452,6 +460,7 @@ impl DirectService {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::fs::File;
     use std::str::FromStr;
     use chrono::Local;
@@ -466,6 +475,7 @@ mod tests {
     use std::path::{Path, PathBuf};
     use anyhow::{anyhow, Error};
     use matrix_sdk::config::SyncSettings;
+    use matrix_sdk::ruma::events::direct::DirectEventContent;
 
     #[tokio::test]
     async fn dm_invite_received() {
@@ -521,13 +531,13 @@ mod tests {
 
             client.sync_once(Default::default()).await.unwrap();
             direct_service.compute_mapping(&room_id).await.unwrap();
-            let _ = direct_service.apply_pending_mappings().await;
+            let _ = direct_service.commit_pending_mappings().await;
             let mapping = direct_service.get_mapping_for_room(&room_id);
             assert!(matches!(mapping, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping);
 
             client.sync_once(Default::default()).await.unwrap();
             direct_service.compute_mapping(&room_id).await.unwrap();
-            let _ = direct_service.apply_pending_mappings().await;
+            let _ = direct_service.commit_pending_mappings().await;
             let mapping = direct_service.get_mapping_for_room(&room_id);
 
             assert!(matches!(mapping, RoomMapping::Canonical(ref user, ref room) if user == &inviter_id && room == &room_id), "Expected CanonicalMapping, got {:?}", mapping);
@@ -568,13 +578,13 @@ mod tests {
 
         client.sync_once(Default::default()).await.unwrap();
         direct_service.compute_mapping(&room_id).await.unwrap();
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
         let mapping = direct_service.get_mapping_for_room(&room_id);
         assert!(matches!(mapping, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping);
 
         client.sync_once(Default::default()).await.unwrap();
         direct_service.compute_mapping(&room_id).await.unwrap();
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
         let mapping = direct_service.get_mapping_for_room(&room_id);
         assert!(matches!(mapping, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping);
     }
@@ -632,7 +642,7 @@ mod tests {
         client.sync_once(Default::default()).await.unwrap();
 
         direct_service.compute_mapping(&room_id).await.unwrap();
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
         let mapping = direct_service.get_mapping_for_room(&room_id);
 
         assert!(matches!(mapping, RoomMapping::Canonical(ref user, ref room) if user == &inviter_id && room == &room_id), "Expected CanonicalMapping, got {:?}", mapping);
@@ -640,7 +650,7 @@ mod tests {
 
         client.sync_once(Default::default()).await.unwrap();
         direct_service.compute_mapping(&room_id).await.unwrap();
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
         let mapping = direct_service.get_mapping_for_room(&room_id);
 
         assert!(matches!(mapping, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping);
@@ -687,13 +697,13 @@ mod tests {
 
         client.sync_once(Default::default()).await.unwrap();
         let _ = direct_service.compute_mapping(&room_id).await;
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
         let mapping = direct_service.get_mapping_for_room(&room_id);
         assert!(matches!(mapping, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping);
 
         client.sync_once(Default::default()).await.unwrap();
         let _ = direct_service.compute_mapping(&room_id).await;
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
         let mapping = direct_service.get_mapping_for_room(&room_id);
 
         assert!(matches!(mapping, RoomMapping::Canonical(ref user, ref room) if user == &invitee_id && room == &room_id), "Expected CanonicalMapping, got {:?}", mapping);
@@ -738,13 +748,13 @@ mod tests {
 
         client.sync_once(Default::default()).await.unwrap();
         let _ = direct_service.compute_mapping(&room_id).await;
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
         let mapping = direct_service.get_mapping_for_room(&room_id);
         assert!(matches!(mapping, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping);
 
         client.sync_once(Default::default()).await.unwrap();
         let _ = direct_service.compute_mapping(&room_id).await;
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
         let mapping = direct_service.get_mapping_for_room(&room_id);
 
         assert!(matches!(mapping, RoomMapping::Canonical(ref user, ref room) if user == &other_id && room == &room_id), "Expected CanonicalMapping, got {:?}", mapping);
@@ -800,15 +810,15 @@ mod tests {
 
         client.sync_once(Default::default()).await.unwrap();
         let _ = direct_service.compute_mapping(&room_id).await;
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
 
         client.sync_once(Default::default()).await.unwrap();
         let _ = direct_service.compute_mapping(&room_id).await;
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
 
         client.sync_once(Default::default()).await.unwrap();
         let _ = direct_service.compute_mapping(&room_id).await;
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
 
         let mapping = direct_service.get_mapping_for_room(&room_id);
 
@@ -876,7 +886,7 @@ user == &other_id && room == &room_id), "Expected CanonicalMapping, got {:?}", m
         client.sync_once(Default::default()).await.unwrap();
         let _ = direct_service.compute_mapping(&room1_id).await;
         let _ = direct_service.compute_mapping(&room2_id).await;
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
 
         let mapping1 = direct_service.get_mapping_for_room(&room1_id);
         let mapping2 = direct_service.get_mapping_for_room(&room2_id);
@@ -886,7 +896,7 @@ user == &other_id && room == &room_id), "Expected CanonicalMapping, got {:?}", m
         client.sync_once(Default::default()).await.unwrap();
         let _ = direct_service.compute_mapping(&room1_id).await;
         let _ = direct_service.compute_mapping(&room2_id).await;
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
 
         let mapping1 = direct_service.get_mapping_for_room(&room1_id);
         let mapping2 = direct_service.get_mapping_for_room(&room2_id);
@@ -896,7 +906,7 @@ user == &other_id && room == &room_id), "Expected CanonicalMapping, got {:?}", m
         client.sync_once(Default::default()).await.unwrap();
         let _ = direct_service.compute_mapping(&room1_id).await;
         let _ = direct_service.compute_mapping(&room2_id).await;
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
 
         let mapping1 = direct_service.get_mapping_for_room(&room1_id);
         let mapping2 = direct_service.get_mapping_for_room(&room2_id);
@@ -964,7 +974,7 @@ user == &other_id && room == &room_id), "Expected CanonicalMapping, got {:?}", m
         client.sync_once(Default::default()).await.unwrap();
         let _ = direct_service.compute_mapping(&room2_id).await;
         let _ = direct_service.compute_mapping(&room1_id).await;
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
 
         let mapping1 = direct_service.get_mapping_for_room(&room1_id);
         let mapping2 = direct_service.get_mapping_for_room(&room2_id);
@@ -974,7 +984,7 @@ user == &other_id && room == &room_id), "Expected CanonicalMapping, got {:?}", m
         client.sync_once(Default::default()).await.unwrap();
         let _ = direct_service.compute_mapping(&room2_id).await;
         let _ = direct_service.compute_mapping(&room1_id).await;
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
 
         let mapping1 = direct_service.get_mapping_for_room(&room1_id);
         let mapping2 = direct_service.get_mapping_for_room(&room2_id);
@@ -984,12 +994,243 @@ user == &other_id && room == &room_id), "Expected CanonicalMapping, got {:?}", m
         client.sync_once(Default::default()).await.unwrap();
         let _ = direct_service.compute_mapping(&room2_id).await;
         let _ = direct_service.compute_mapping(&room1_id).await;
-        let _ = direct_service.apply_pending_mappings().await;
+        let _ = direct_service.commit_pending_mappings().await;
 
         let mapping1 = direct_service.get_mapping_for_room(&room1_id);
         let mapping2 = direct_service.get_mapping_for_room(&room2_id);
         assert!(matches!(mapping1, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping1);
         assert!(matches!(mapping2, RoomMapping::Canonical(ref user, ref room) if user == &other_id && room == &room2_id), "Expected CanonicalMapping, got {:?}", mapping2);
+    }
+
+    #[tokio::test]
+    async fn refresh_on_m_direct() {
+
+        log_print_panics::init();
+        Builder::new()
+            .format(|buf, record| {
+                writeln!(
+                    buf,
+                    "{} [{}] - {} @ {}:{}",
+                    Local::now().format("%d-%m-%YT%H:%M:%S%.3f"),
+                    record.level(),
+                    record.args(),
+                    record.file().unwrap_or("unknown"),
+                    record.line().unwrap_or(0),
+                )
+            })
+            .target(env_logger::Target::Stdout)
+            .filter(Some("v2") , LevelFilter::Debug)
+            .filter(Some("tachyon") , LevelFilter::Debug)
+            .filter(Some("msnp") , LevelFilter::Debug)
+            .filter(Some("matrix-sdk"), LevelFilter::Warn)
+            .filter(Some("yaserde"), LevelFilter::Warn)
+            .filter(None, LevelFilter::Trace)
+            .init();
+
+
+
+        let json_resolver = JsonResourceResolver::new("refresh_on_m_direct");
+        let (client, server) = logged_in_client_with_server().await;
+        let mut direct_service = DirectService::default(client.clone());
+
+        let own_user_id = client.user_id().unwrap();
+        let other_id = OwnedUserId::from_str("@other:localhost").unwrap();
+        let room1_id = OwnedRoomId::from_str("!r00m1:localhost").unwrap();
+        let room2_id = OwnedRoomId::from_str("!r00m2:localhost").unwrap();
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("01_sync.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("02_sync_m_direct_received.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(format!("/_matrix/client/r0/rooms/{}/members", &room1_id)))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("03_members_room1.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(format!("/_matrix/client/r0/rooms/{}/members", &room2_id)))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("04_members_room2.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        //Only rooms, no m.directs
+        client.sync_once(Default::default()).await.unwrap();
+        let _ = direct_service.compute_mapping(&room2_id).await;
+        let _ = direct_service.compute_mapping(&room1_id).await;
+        let _ = direct_service.commit_pending_mappings().await;
+
+        let mapping1 = direct_service.get_mapping_for_room(&room1_id);
+        let mapping2 = direct_service.get_mapping_for_room(&room2_id);
+        assert!(matches!(mapping1, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping2);
+        assert!(matches!(mapping2, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping2);
+
+        //Only m.direct global account data
+        client.sync_once(Default::default()).await.unwrap();
+        let direct_event_content = {
+            let mut map = BTreeMap::new();
+            map.insert(OwnedUserId::from_str("@other:localhost").unwrap().into(), vec!(OwnedRoomId::from_str("!r00m1:localhost").unwrap(), OwnedRoomId::from_str("!r00m2:localhost").unwrap()));
+            DirectEventContent{
+                0: map,
+            }
+        };
+        direct_service.handle_directs_update(direct_event_content).await.unwrap();
+        let _ = direct_service.commit_pending_mappings().await;
+
+        let mapping1 = direct_service.get_mapping_for_room(&room1_id);
+        let mapping2 = direct_service.get_mapping_for_room(&room2_id);
+        assert!(matches!(mapping1, RoomMapping::Canonical(ref user, ref room) if user == &other_id && room == &room1_id), "Expected CanonicalMapping, got {:?}", mapping1);
+        assert!(matches!(mapping2, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping2);
+    }
+
+    #[tokio::test]
+    async fn refresh_on_m_direct_removal() {
+
+        log_print_panics::init();
+        Builder::new()
+            .format(|buf, record| {
+                writeln!(
+                    buf,
+                    "{} [{}] - {} @ {}:{}",
+                    Local::now().format("%d-%m-%YT%H:%M:%S%.3f"),
+                    record.level(),
+                    record.args(),
+                    record.file().unwrap_or("unknown"),
+                    record.line().unwrap_or(0),
+                )
+            })
+            .target(env_logger::Target::Stdout)
+            .filter(Some("v2") , LevelFilter::Debug)
+            .filter(Some("tachyon") , LevelFilter::Debug)
+            .filter(Some("msnp") , LevelFilter::Debug)
+            .filter(Some("matrix-sdk"), LevelFilter::Warn)
+            .filter(Some("yaserde"), LevelFilter::Warn)
+            .filter(None, LevelFilter::Trace)
+            .init();
+
+
+
+        let json_resolver = JsonResourceResolver::new("refresh_on_m_direct_removal");
+        let (client, server) = logged_in_client_with_server().await;
+        let mut direct_service = DirectService::default(client.clone());
+
+        let own_user_id = client.user_id().unwrap();
+        let other_id = OwnedUserId::from_str("@other:localhost").unwrap();
+        let room1_id = OwnedRoomId::from_str("!r00m1:localhost").unwrap();
+        let room2_id = OwnedRoomId::from_str("!r00m2:localhost").unwrap();
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("01_sync.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("02_sync_m_direct_received.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(format!("/_matrix/client/r0/rooms/{}/members", &room1_id)))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("03_members_room1.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(format!("/_matrix/client/r0/rooms/{}/members", &room2_id)))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("04_members_room2.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/_matrix/client/r0/sync"))
+            .respond_with(ResponseTemplate::new(200)
+                .set_body_json(json_resolver.read_json("05_sync_m_direct_removal.json"))
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        //Only rooms, no m.directs
+        client.sync_once(Default::default()).await.unwrap();
+        let _ = direct_service.compute_mapping(&room2_id).await;
+        let _ = direct_service.compute_mapping(&room1_id).await;
+        let _ = direct_service.commit_pending_mappings().await;
+
+        let mapping1 = direct_service.get_mapping_for_room(&room1_id);
+        let mapping2 = direct_service.get_mapping_for_room(&room2_id);
+        assert!(matches!(mapping1, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping2);
+        assert!(matches!(mapping2, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping2);
+
+        //Only m.direct global account data
+        client.sync_once(Default::default()).await.unwrap();
+        let direct_event_content = {
+            let mut map = BTreeMap::new();
+            map.insert(OwnedUserId::from_str("@other:localhost").unwrap().into(), vec!(OwnedRoomId::from_str("!r00m1:localhost").unwrap(), OwnedRoomId::from_str("!r00m2:localhost").unwrap()));
+            DirectEventContent{
+                0: map,
+            }
+        };
+        direct_service.handle_directs_update(direct_event_content).await.unwrap();
+        let _ = direct_service.commit_pending_mappings().await;
+
+        let mapping1 = direct_service.get_mapping_for_room(&room1_id);
+        let mapping2 = direct_service.get_mapping_for_room(&room2_id);
+        assert!(matches!(mapping1, RoomMapping::Canonical(ref user, ref room) if user == &other_id && room == &room1_id), "Expected CanonicalMapping, got {:?}", mapping1);
+        assert!(matches!(mapping2, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping2);
+
+        //Removal of one account data
+        client.sync_once(Default::default()).await.unwrap();
+        let direct_event_content = {
+            let mut map = BTreeMap::new();
+            map.insert(OwnedUserId::from_str("@other:localhost").unwrap().into(), vec!(OwnedRoomId::from_str("!r00m2:localhost").unwrap()));
+            DirectEventContent{
+                0: map,
+            }
+        };
+        direct_service.handle_directs_update(direct_event_content).await.unwrap();
+        let _ = direct_service.commit_pending_mappings().await;
+
+        let mapping1 = direct_service.get_mapping_for_room(&room1_id);
+        let mapping2 = direct_service.get_mapping_for_room(&room2_id);
+        assert!(matches!(mapping1, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping1);
+        assert!(matches!(mapping2, RoomMapping::Canonical(ref user, ref room) if user == &other_id && room == &room2_id), "Expected CanonicalMapping, got {:?}", mapping2);
+
+
+
     }
 
 

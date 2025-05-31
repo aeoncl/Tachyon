@@ -21,6 +21,7 @@ use thiserror::Error;
 use thiserror::__private::AsDynError;
 use tokio::sync::mpsc::error::SendTimeoutError;
 use tokio::sync::mpsc;
+use crate::matrix::contacts::contact_service::ContactService;
 
 #[derive(Clone)]
 pub struct SwitchboardHandle {
@@ -117,6 +118,7 @@ pub struct ClientDataInner {
 pub struct ClientData {
     pub inner: Arc<ClientDataInner>,
     direct_service: DirectService,
+    contact_service: ContactService,
 }
 
 #[derive(Error, Debug)]
@@ -126,7 +128,7 @@ pub enum ClientStoreError {
 }
 
 impl ClientData {
-    pub fn new(user: MsnUser, token: TicketToken, notification_sender: mpsc::Sender<NotificationServerCommand>, matrix_client: Client, sliding_sync: SlidingSync, sync_service: SyncService, direct_service: DirectService) -> ClientData {
+    pub fn new(user: MsnUser, token: TicketToken, notification_sender: mpsc::Sender<NotificationServerCommand>, matrix_client: Client, sliding_sync: SlidingSync, sync_service: SyncService, direct_service: DirectService, contact_service: ContactService) -> ClientData {
         
         ClientData{ inner: Arc::new(ClientDataInner {
             user: RwLock::new(user),
@@ -142,6 +144,7 @@ impl ClientData {
         },
         ),
             direct_service,
+            contact_service,
         }
     }
 
@@ -187,6 +190,10 @@ impl ClientData {
 
     pub fn get_contact_list(&self) -> &Mutex<ContactList> {
         &self.inner.contact_list
+    }
+
+    pub fn get_contact_service(&self) -> ContactService {
+        self.contact_service.clone()
     }
 
     pub fn get_contact_holder_mut(&mut self) -> LockResult<MutexGuard<'_, Vec<AddressBookContact>>> {

@@ -1,0 +1,27 @@
+{
+  "chunk": [
+    {
+      "type": "m.room.member",
+      "state_key": "@example:localhost",
+      "content": {
+        "membership": "join"
+      },
+      "sender": "@example:localhost",
+      "origin_server_ts": 4,
+      "event_id": "$4",
+      "room_id": "!r00m1:localhost"
+    },
+    {
+      "type": "m.room.member",
+      "state_key": "@other:localhost",
+      "content": {
+        "membership": "join"
+      },
+      "sender": "@other:localhost",
+      "origin_server_ts": 3,
+      "event_id": "$3",
+      "room_id": "!r00m1:localhost"
+    }
+  ]
+
+}

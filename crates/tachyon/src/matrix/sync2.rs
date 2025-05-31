@@ -29,6 +29,7 @@ use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::notification::command::not::NotServer;
 use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
+use crate::matrix::contacts::contact_handler::handle_contacts_room_updates;
 use crate::matrix::directs::direct_extensions::{DirectDiff, TachyonDirectAccountDataContent};
 use crate::matrix::directs::direct_handler;
 use crate::matrix::directs::direct_service::{DirectMappingsEvent, DirectMappingsEventContent, DirectService, MappingDiff};
@@ -267,10 +268,11 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
 }
 
 async fn handle_room_updates(client_data: &ClientData, room_updates: RoomUpdates) {
-    let diffs = direct_handler::handle_direct_mappings_room_updates(room_updates, client_data.clone()).await.unwrap();
-    let events_from_diffs = handle_mapping_diffs(client_data, diffs).await.unwrap();
-    debug!("events_from_diff to handle: {:?}", events_from_diffs);
+    let diffs = direct_handler::handle_direct_mappings_room_updates(room_updates.clone(), client_data.clone()).await.unwrap();
+    //let events_from_diffs = handle_mapping_diffs(client_data, diffs).await.unwrap();
+    //debug!("events_from_diff to handle: {:?}", events_from_diffs);
 
+    handle_contacts_room_updates(room_updates, client_data.clone(), diffs).await;
 
     //TODO handle contact & memberships 8D
 
@@ -304,7 +306,7 @@ async fn handle_mapping_diffs(client_data: &ClientData, diffs: Vec<MappingDiff>)
     "membership": "leave",
     "reason": "chat.tachyon.removed_mapping"
   }},
-  "event_id": "$143273582443PhrSn:tachyon.fake",
+  "event_id": "$123456:tachyon.fake",
   "origin_server_ts": 1432735824653,
   "room_id": "{room_id}",
   "sender": "{user_id_ref}",

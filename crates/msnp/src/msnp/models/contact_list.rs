@@ -70,5 +70,9 @@ impl ContactList {
         self.contact_list.iter().filter(|(k, v )| v.memberships & (RoleList::Forward as u8) != 0 ).map(|(k, v)| v.clone()).collect()
     }
 
+    pub fn get_contact(&self, email_address: &EmailAddress) -> Option<&Contact> {
+        self.contact_list.get(email_address)
+    }
+
 }
 

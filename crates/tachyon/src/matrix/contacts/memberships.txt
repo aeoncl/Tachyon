@@ -14,6 +14,7 @@ use matrix_sdk::ruma::events::ignored_user_list::IgnoredUserListEvent;
 use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::sync::{Notification, RoomUpdate, RoomUpdates, SyncResponse};
 use tokio::sync::mpsc::Sender;
+use msnp::msnp::models::contact::Contact;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::msg::MsgServer;
 use msnp::msnp::notification::command::not::factories::NotificationFactory;
@@ -192,7 +193,7 @@ pub async fn handle_joined_room_member_event(event: &SyncRoomMemberEvent, room: 
                                 match og_rm_event.membership_change() {
                                     MembershipChange::Left => {
                                         log::info!("SYNC|MEMBERSHIPS|JOIN: I Left, delete: {}", &target_msn_user.get_email_address());
-                                        //I Left the room, remove member from PENDING_LIST, ALLOW_LIST, REVERSE_LIST. Remove Contact from Contact List
+                                        //I Left the room, remove member rom PENDING_LIST, ALLOW_LIST, REVERSE_LIST. Remove Contact from Contact List
                                         let current_contact = ContactType::new(&target_msn_user.uuid, target_msn_addr, target_msn_addr, ContactTypeEnum::Live, true);
                                         let current_allow_member = BaseMember::new_passport_member(&target_msn_user.uuid, target_msn_addr, MemberState::Accepted, RoleList::Allow, true);
                                         let current_reverse_member = BaseMember::new_passport_member(&target_msn_user.uuid, target_msn_addr, MemberState::Accepted, RoleList::Reverse, true);
