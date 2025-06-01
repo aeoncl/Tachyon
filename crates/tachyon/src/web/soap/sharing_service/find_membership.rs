@@ -172,3 +172,90 @@ async fn get_fullsync_members(matrix_client: &Client) -> Result<(Vec<BaseMember>
 
 
 }
+//
+//
+// for diff in address_book_diff {
+//         match diff {
+//             AddressBookDiff::SetContact { user_id, pending } => {
+//                 let msn_user = MsnUser::from_user_id(&user_id);
+//                 if let Some(contact) = contact_list.get_contact(&msn_user.get_email_address()) {
+//                     if pending && contact.has_role(RoleList::Pending) {
+//                         continue;
+//                     }
+//                     if !pending && contact.has_role(RoleList::Allow) {
+//                         continue;
+//                     }
+//
+//                     if contact.has_role(RoleList::Pending) {
+//                         current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::LivePending, true))
+//                     } else if contact.has_role(RoleList::Allow) {
+//                         current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::Live, true))
+//                     }
+//                 }
+//
+//                 if pending {
+//                     current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::LivePending, false))
+//                 } else {
+//                     current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::Live, false))
+//                 }
+//             }
+//             AddressBookDiff::RemoveContact { user_id } => {
+//                 let msn_user = MsnUser::from_user_id(&user_id);
+//                 if let Some(contact) = contact_list.get_contact(&msn_user.get_email_address()) {
+//                     if contact.has_role(RoleList::Pending) {
+//                         current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::LivePending, true))
+//                     }
+//
+//                     if contact.has_role(RoleList::Allow) {
+//                         current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::Live, true))
+//                     }
+//                 }
+//             }
+//             AddressBookDiff::AddMembership { user_id, list_type } => {
+//
+//                 let msn_user = MsnUser::from_user_id(&user_id);
+//
+//                 if let Some(contact) = contact_list.get_contact(&msn_user.get_email_address()) {
+//                     if contact.has_role(list_type.clone()) {
+//                         continue;
+//                     }
+//                 }
+//                 current_members.push(BaseMember::new_passport_member(&msn_user, MemberState::Accepted, list_type, false))
+//             },
+//             AddressBookDiff::AddInviteMembership { user_id, message } => {
+//                 let msn_user = MsnUser::from_user_id(&user_id);
+//
+//                 let current_pending_member = {
+//
+//                     current_pending_member
+//                 };
+//
+//                 current_members.push(current_pending_member);
+//             }
+//             AddressBookDiff::RemoveMembership { user_id, list_type } => {
+//
+//                 let msn_user = MsnUser::from_user_id(&user_id);
+//
+//                 if let Some(contact) = contact_list.get_contact(&msn_user.get_email_address()) {
+//                     if contact.has_role(list_type.clone()) {
+//                         current_members.push(BaseMember::new_passport_member(&msn_user, MemberState::Accepted, list_type, true))
+//                     }
+//                 }
+//
+//             }
+//             AddressBookDiff::ClearMemberships { user_id } => {
+//                 let msn_user = MsnUser::from_user_id(&user_id);
+//
+//                 for list_type in RoleList::iter() {
+//
+//                     if let Some(contact) = contact_list.get_contact(&msn_user.get_email_address()) {
+//                         if contact.has_role(list_type.clone()) {
+//                             current_members.push(BaseMember::new_passport_member(&msn_user, MemberState::Accepted, list_type, true))
+//                         }
+//                     }
+//
+//                 }
+//
+//             }
+//         }
+//     }

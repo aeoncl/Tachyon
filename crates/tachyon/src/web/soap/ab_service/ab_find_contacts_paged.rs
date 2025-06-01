@@ -14,6 +14,7 @@ use matrix_sdk::ruma::{OwnedUserId, UserId};
 use matrix_sdk::sleep::sleep;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_user::MsnUser;
+use msnp::shared::models::role_list::RoleList;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::request::AbfindContactsPagedMessageSoapEnvelope;
@@ -21,6 +22,7 @@ use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContac
 use msnp::soap::abch::msnab_datatypes::{AbHandleType, AddressBookType, CircleRelationshipRole, ContactType, ContactTypeEnum, RelationshipState};
 use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::traits::xml::ToXml;
+use crate::matrix::contacts::contact_service::ContactDiff;
 use crate::notification::client_store::{ClientData, AddressBookContact};
 use crate::shared::identifiers::MatrixIdCompatible;
 use crate::shared::traits::ToUuid;
@@ -118,24 +120,10 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
     let msn_addr = me_user.get_email_address();
 
     if body.filter_options.deltas_only {
-        let (contacts, circles) = {
 
-           let mut contacts = Vec::new();
-           let mut circles = Vec::new();
-           for current in get_delta_contact_list(client_data)?.drain(..) {
-                match current {
-                    AddressBookContact::Contact(contact) => {
-                        contacts.push(contact);
-                    }
-                    AddressBookContact::Circle(circle_data) => {
-                        circles.push(circle_data);
-                    }
-                }
-            }
-            (contacts, circles)
-        };
-
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(uuid.clone(), &cache_key, msn_addr.as_str(), msn_addr.as_str(), contacts, circles,false);
+        let contacts = get_delta_contact_list(client_data)?;
+        
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(uuid.clone(), &cache_key, msn_addr.as_str(), msn_addr.as_str(), contacts, vec![],false);
 
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
 
@@ -150,10 +138,70 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
 
 }
 
-fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<AddressBookContact>, ABError> {
-    let mut contacts = client_data.get_contact_holder_mut().unwrap();
+fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<ContactType>, ABError> {
+    let contact_service = client_data.get_contact_service();
+    let contact_list = client_data.get_contact_list().lock().unwrap();
+    let mut contacts = contact_service.inner.pending_contacts.lock().unwrap();
 
-    Ok(mem::replace(&mut *contacts, Vec::new()))
+    let mut current_contacts = Vec::new();
+
+    for contact in contacts.drain(..) {
+        match contact {
+            ContactDiff::AddContact { user_id, pending } => {
+                let msn_user = MsnUser::from_user_id(&user_id);
+
+                if let Some(contact) = contact_list.get_contact(&msn_user.get_email_address()) {
+                    if contact.has_role(RoleList::Pending) && pending {
+                        continue;
+                    }
+
+                    if contact.has_role(RoleList::Allow) && !pending {
+                        continue;
+                    }
+                }
+
+                if pending {
+                    current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::LivePending, false))
+
+                } else {
+                    current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::Live, false))
+                }
+
+            }
+            ContactDiff::RemoveContact { user_id, pending } => {
+                let msn_user = MsnUser::from_user_id(&user_id);
+
+                if let Some(contact) = contact_list.get_contact(&msn_user.get_email_address()) {
+                    if contact.has_role(RoleList::Pending) && pending {
+                        current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::LivePending, true))
+                    }
+
+                    if contact.has_role(RoleList::Allow) && !pending {
+                        current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::Live, true))
+                    }
+                }
+
+            }
+            ContactDiff::ClearContact { user_id } => {
+                let msn_user = MsnUser::from_user_id(&user_id);
+
+                if let Some(contact) = contact_list.get_contact(&msn_user.get_email_address()) {
+                    if contact.has_role(RoleList::Pending) {
+                        current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::LivePending, true))
+                    }
+
+                    if contact.has_role(RoleList::Allow) {
+                        current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::Live, true))
+                    }
+                }
+            }
+        }
+
+
+    }
+
+
+    Ok(current_contacts)
 }
 
 async fn get_fullsync_contact_list(matrix_client: &Client, me: &UserId) -> Result<Vec<ContactType>, ABError> {

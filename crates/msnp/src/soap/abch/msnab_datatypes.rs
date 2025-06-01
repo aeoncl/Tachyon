@@ -15,7 +15,7 @@ use yaserde_derive::{YaDeserialize, YaSerialize};
     use std::fmt::Display;
 	use chrono::{DateTime, Local};
 
-	use strum_macros::Display;
+	use strum_macros::{Display, EnumIter};
     use yaserde::{YaDeserialize, YaSerialize};
     use yaserde::de::from_str;
     use yaserde::ser::to_string;
@@ -1993,7 +1993,20 @@ pub struct ContactURLType {
 			let create_date = String::from("2014-10-31T00:00:00Z");
 			let no_date = String::from("0001-01-01T00:00:00");
 			let membership_id = format!("{}\\{}", role_id.to_string(), user.uuid.to_string());
-			return BaseMember{ membership_id: Some(membership_id), xsi_type: String::from("PassportMember"), rs_type: MemberType::Passport, location: None, display_name: None, state, passport_name: Some(user.get_email_address().to_string()), circle_id: None, is_passport_name_hidden: Some(false), passport_id: Some(0), cid: Some(user.uuid.to_decimal_cid()), passport_changes: Some(String::new()), lookedup_by_cid: Some(false), new_role: None, annotations: None, deleted: Some(deleted), last_changed: Some(now), joined_date: Some(create_date), expiration_date: Some(no_date), changes: Some(String::new()), role_list: role_id };
+			return BaseMember{ membership_id: Some(membership_id), xsi_type: String::from("PassportMember"), rs_type: MemberType::Passport, location: None, display_name: user.display_name.clone(), state, passport_name: Some(user.get_email_address().to_string()), circle_id: None, is_passport_name_hidden: Some(false), passport_id: Some(0), cid: Some(user.uuid.to_decimal_cid()), passport_changes: Some(String::new()), lookedup_by_cid: Some(false), new_role: None, annotations: None, deleted: Some(deleted), last_changed: Some(now), joined_date: Some(create_date), expiration_date: Some(no_date), changes: Some(String::new()), role_list: role_id };
+		}
+
+		pub fn new_invite_passsport_member(user: &MsnUser, message: Option<String>, deleted: bool) -> BaseMember {
+			let mut member = BaseMember::new_passport_member(&user, MemberState::Accepted, RoleList::Pending, deleted);
+
+			if let Some(message) = message {
+				let annotation = Annotation::new_invite(&message);
+				let mut annotations = Vec::new();
+				annotations.push(annotation);
+				member.annotations = Some(ArrayOfAnnotation { annotation: annotations });
+			}
+
+			member
 		}
 	}
 
@@ -2091,7 +2104,7 @@ pub struct ContactURLType {
 
 
 
-	#[derive(Debug, YaSerialize, YaDeserialize, Clone)]
+	#[derive(Debug, YaSerialize, YaDeserialize, Clone, EnumIter)]
 	#[yaserde(
 	rename = "MemberState", namespace = "nsi1: http://www.msn.com/webservices/AddressBook",
 	prefix = "nsi1",

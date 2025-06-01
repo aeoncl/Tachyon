@@ -155,8 +155,7 @@ impl ToXml for NotificationData {
 pub mod factories {
     use chrono::Local;
     use yaserde::ser::to_string;
-
-
+    use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::uuid::Uuid;
     use crate::soap::traits::xml::ToXml;
 
@@ -166,7 +165,7 @@ pub mod factories {
 
     impl NotificationFactory {
 
-        pub fn get_abch_updated(uuid: &Uuid, msn_addr: &str) -> NotificationPayload {
+        pub fn get_abch_updated(uuid: &Uuid, msn_addr: &EmailAddress) -> NotificationPayload {
             let recipient_pid = format!("0x{}:0x{}", uuid.get_least_significant_bytes_as_hex(), uuid.get_most_significant_bytes_as_hex());
             let recipient = Recipient{ pid: recipient_pid, name: msn_addr.to_string(), via: Via{ agent: String::from("messenger") } };
     
@@ -226,7 +225,7 @@ mod tests {
     #[test]
     fn ab_notification_test_2() {
         let msn_user = MsnUser::without_endpoint_guid(EmailAddress::from_str("aeon.shl@shl.local").unwrap());
-        let notif = NotificationFactory::get_abch_updated(&msn_user.uuid, &msn_user.endpoint_id.email_addr.0);
+        let notif = NotificationFactory::get_abch_updated(&msn_user.uuid, &msn_user.endpoint_id.email_addr);
 
         let notif_legacy = NotificationFactory::test(&msn_user.uuid, &msn_user.endpoint_id.email_addr.0);
         assert_eq!(notif.to_xml().unwrap().as_str(), notif_legacy.replace("\r\n", ""));
