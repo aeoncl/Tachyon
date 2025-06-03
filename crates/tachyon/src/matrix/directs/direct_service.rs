@@ -23,7 +23,6 @@ use matrix_sdk::ruma::events::room::tombstone::SyncRoomTombstoneEvent;
 use matrix_sdk::sync::RoomUpdates;
 use matrix_sdk_ui::{RoomListService, Timeline};
 use matrix_sdk_ui::timeline::RoomExt;
-use mockall::{automock, mock};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use msnp::soap::abch::sharing_service::find_membership::response::Memberships;
