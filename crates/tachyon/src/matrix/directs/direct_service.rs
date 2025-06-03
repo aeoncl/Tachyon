@@ -23,6 +23,7 @@ use matrix_sdk::ruma::events::room::tombstone::SyncRoomTombstoneEvent;
 use matrix_sdk::sync::RoomUpdates;
 use matrix_sdk_ui::{RoomListService, Timeline};
 use matrix_sdk_ui::timeline::RoomExt;
+use mockall::{automock, mock};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use msnp::soap::abch::sharing_service::find_membership::response::Memberships;
@@ -100,8 +101,8 @@ pub enum RoomMapping {
 const LOG_LABEL: &str = "DirectService |";
 
 
-struct DirectServiceInner {
-    direct_mappings: RwLock<DirectMappingsHashMap>,
+pub(in crate::matrix)  struct DirectServiceInner {
+    pub(in crate::matrix)  direct_mappings: RwLock<DirectMappingsHashMap>,
     direct_mappings_next_tick: RwLock<DirectMappingsHashMap>,
     directs: Mutex<DirectEventContent>,
     fully_initialized:  AtomicBool,
@@ -113,7 +114,8 @@ type DirectMappingsHashMap = HashMap<OwnedUserId, OwnedRoomId>;
 
 #[derive(Clone)]
 pub struct DirectService {
-    inner: Arc<DirectServiceInner>,
+    pub(in crate::matrix) inner: Arc<DirectServiceInner>,
+
     matrix_client: Client
 }
 

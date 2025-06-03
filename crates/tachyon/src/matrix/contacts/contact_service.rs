@@ -1,11 +1,15 @@
-use std::sync::{Arc, Mutex, RwLock};
-use log::error;
+use std::cmp::Ordering;
+use std::collections::HashMap;
+use crate::matrix::contacts::contact_service::ContactDiff::{AddContact, ClearContact, RemoveContact};
+use crate::matrix::contacts::contact_service::MembershipDiff::{AddInviteMembership, AddMembership, ClearMemberships, RemoveMembership};
 use crate::matrix::directs::direct_service::{DirectService, MappingDiff, RoomMapping};
 use crate::notification::client_store::ClientData;
+use crate::shared::identifiers::MatrixIdCompatible;
+use log::error;
 use matrix_sdk::ruma::events::room::member::{MembershipChange, MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent};
+use matrix_sdk::ruma::events::OriginalSyncStateEvent;
 use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, RoomId};
 use matrix_sdk::Client;
-use matrix_sdk::ruma::events::OriginalSyncStateEvent;
 use msnp::msnp::models::contact::Contact;
 use msnp::msnp::models::contact_list::ContactList;
 use msnp::msnp::notification::command::adl::ADLPayload;
@@ -13,13 +17,11 @@ use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::role_list::RoleList;
 use msnp::soap::abch::msnab_datatypes::{Annotation, ArrayOfAnnotation, BaseMember, CircleInverseInfoType, ContactType, ContactTypeEnum, MemberState};
-use crate::matrix::contacts::contact_service::ContactDiff::{AddContact, ClearContact, RemoveContact};
-use crate::matrix::contacts::contact_service::MembershipDiff::{AddInviteMembership, AddMembership, ClearMemberships, RemoveMembership};
-use crate::shared::identifiers::MatrixIdCompatible;
+use std::sync::{Arc, Mutex, RwLock};
 
 pub struct ContactServiceInner {
     contact_list: RwLock<ContactList>,
-    pub pending_contacts: Mutex<Vec<ContactDiff>>,
+    pub pending_contacts: Mutex<HashMap<String, ContactDiff>>,
     pub pending_members: Mutex<Vec<MembershipDiff>>,
     pub pending_circles: Mutex<Vec<CircleDiff>>,
 }
@@ -37,7 +39,7 @@ impl ContactService {
             inner: Arc::new(
                 ContactServiceInner {
                         contact_list: RwLock::new(ContactList::default()),
-                    pending_contacts: Mutex::new(vec![]),
+                    pending_contacts: Mutex::new(HashMap::new()),
                     pending_members: Mutex::new(vec![]),
                     pending_circles: Mutex::new(vec![]),
                 }
@@ -46,7 +48,6 @@ impl ContactService {
             own_user_id
         }
     }
-
 
     pub fn add_contacts(&self, payload: ADLPayload) {
 
@@ -157,7 +158,18 @@ impl ContactService {
         for diff in diffs {
             match diff {
                 AddressBookDiff::Contact(diff) => {
-                    pending_contacts.push(diff);
+
+                    match pending_contacts.get(&diff.get_key()) {
+                        None => {
+                            pending_contacts.insert(diff.get_key(), diff);
+                        },
+                        Some(found) => {
+                            if diff.get_weigth() > found.get_weigth() {
+                                pending_contacts.insert(diff.get_key(), diff);
+                            }
+                        }
+                    }
+
                 }
                 AddressBookDiff::Membership(diff) => {
                     pending_members.push(diff);
@@ -171,7 +183,7 @@ impl ContactService {
 
     fn handle_canonical_dm_room_member_event(&self, contact_id: OwnedUserId, room_id: OwnedRoomId, event: SyncRoomMemberEvent) -> Vec<AddressBookDiff> {
 
-        if event.sender() != &self.own_user_id || event.sender() != &contact_id {
+        if event.sender() != &self.own_user_id && event.sender() != &contact_id {
             return vec![]
         }
 
@@ -314,6 +326,93 @@ pub enum AddressBookDiff {
     Circle(CircleDiff)
 }
 
+trait GetKey {
+    fn get_key(&self) -> String;
+}
+
+impl GetKey for CircleDiff {
+    fn get_key(&self) -> String {
+        match self {
+            _=>{
+                "".to_string()
+            }
+        }
+    }
+}
+
+impl GetKey for MembershipDiff {
+    fn get_key(&self) -> String {
+        match self {
+            MembershipDiff::AddMembership { user_id, list_type } => {
+                user_id.to_string()
+            }
+            MembershipDiff::AddInviteMembership { user_id, message } => {
+                user_id.to_string()
+
+            }
+            MembershipDiff::RemoveMembership { user_id, list_type } => {
+                user_id.to_string()
+
+            }
+            MembershipDiff::ClearMemberships { user_id } => {
+                user_id.to_string()
+            }
+        }
+    }
+}
+
+impl GetKey for AddressBookDiff {
+    fn get_key(&self) -> String {
+        match self {
+            AddressBookDiff::Contact(diff) => {
+                diff.get_key()
+            }
+            AddressBookDiff::Membership(diff) => {
+                diff.get_key()
+            }
+            AddressBookDiff::Circle(diff) => {
+                diff.get_key()
+            }
+        }
+    }
+}
+
+impl GetKey for ContactDiff {
+    fn get_key(&self) -> String {
+        match self {
+            ContactDiff::AddContact { user_id, pending } => {
+                user_id.to_string()
+            }
+            ContactDiff::RemoveContact { user_id, pending } => {
+                user_id.to_string()
+            }
+            ContactDiff::ClearContact { user_id } => {
+                user_id.to_string()
+            }
+        }
+    }
+}
+
+impl ContactDiff {
+    pub fn get_weigth(&self) -> u8 {
+        match self {
+            ContactDiff::AddContact { user_id, pending } => {
+                let mut weigth = 3;
+                if !pending {
+                    weigth += 100;
+                }
+                weigth
+            }
+            ContactDiff::RemoveContact { user_id, pending } => {
+                1
+            }
+            ContactDiff::ClearContact { .. } => {
+                2
+            }
+        }
+    }
+}
+
 impl Into<AddressBookDiff> for ContactDiff {
     fn into(self) -> AddressBookDiff {
         AddressBookDiff::Contact(self)
@@ -376,4 +475,182 @@ enum CanonicalRoomEventTarget{
     Me(OwnedUserId),
     DirectTarget,
     Thirdwheel
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::matrix::contacts::contact_service::{ContactDiff, ContactService};
+    use crate::matrix::directs::direct_service::DirectService;
+    use matrix_sdk::ruma::events::direct::DirectEventContent;
+    use matrix_sdk::ruma::{owned_room_id, owned_user_id, room_id, OwnedRoomId, OwnedUserId};
+    use matrix_sdk::test_utils::logged_in_client_with_server;
+    use matrix_sdk::Client;
+    use std::collections::HashMap;
+    use std::str::FromStr;
+    use matrix_sdk::ruma::events::AnySyncStateEvent;
+    use matrix_sdk::ruma::events::room::member::{RoomMemberEvent, SyncRoomMemberEvent};
+    use matrix_sdk::ruma::serde::Raw;
+    use wiremock::MockServer;
+
+    async fn setup() -> (Client, MockServer, DirectService, ContactService, OwnedUserId) {
+        let (client, server) = logged_in_client_with_server().await;
+        let me_user_id = client.user_id().unwrap().to_owned();
+        let direct_service = DirectService::new(HashMap::new(), DirectEventContent::default(), client.clone());
+        let contact_service = ContactService::new(direct_service.clone(), me_user_id.clone());
+
+        (client, server, direct_service, contact_service, me_user_id)
+    }
+
+    #[tokio::test]
+    async fn when_i_join_a_canonical_dm_create_pending_contact() {
+
+        let (client, server, direct_service, contact_service, own_user_id) = setup().await;
+
+        let room_id = owned_room_id!("!room_id:example.org");
+        let contact_id = owned_user_id!("@contact:example.org");
+
+        direct_service.inner.direct_mappings.write().insert(contact_id.clone(), room_id.clone());
+
+        let event = Raw::<AnySyncStateEvent>::from_json_string(
+            format!(r#"
+                {{
+                  "content": {{
+                    "membership": "join"
+                  }},
+                  "event_id": "$123456:tachyon.fake",
+                  "origin_server_ts": 1432735824653,
+                  "room_id": "{}",
+                  "sender": "{}",
+                  "state_key": "{}",
+                  "type": "m.room.member",
+                  "unsigned": {{
+                    "age": 1234,
+                    "membership": "leave"
+                  }}
+                }}
+                "#, &room_id, &own_user_id, &own_user_id).to_string()).unwrap().deserialize_as::<SyncRoomMemberEvent>().unwrap();;
+
+
+        println!("{:?}", &event);
+
+        contact_service.handle_room_member_event(event, &room_id);
+
+        let mut contacts = contact_service.inner.pending_contacts.lock().unwrap();
+
+        assert_eq!(contacts.len(), 1);
+
+        let diff = contacts.get(&contact_id.to_string()).unwrap();
+        assert!(matches!(diff, ContactDiff::AddContact{
+            user_id: contact_id,
+            pending: true,
+        }));
+    }
+
+    #[tokio::test]
+    async fn when_i_join_a_canonical_dm_and_target_joins_create_contact() {
+
+        let (client, server, direct_service, contact_service, own_user_id) = setup().await;
+
+        let room_id = owned_room_id!("!room_id:example.org");
+        let contact_id = owned_user_id!("@contact:example.org");
+
+        direct_service.inner.direct_mappings.write().insert(contact_id.clone(), room_id.clone());
+
+        {
+            let mut contacts = contact_service.inner.pending_contacts.lock().unwrap();
+            contacts.insert(contact_id.to_string(), ContactDiff::AddContact { user_id: contact_id.clone(), pending: true });
+        }
+
+
+        let event = Raw::<AnySyncStateEvent>::from_json_string(
+            format!(r#"
+                {{
+                  "content": {{
+                    "membership": "join"
+                  }},
+                  "event_id": "$123456:tachyon.fake",
+                  "origin_server_ts": 1432735824653,
+                  "room_id": "{}",
+                  "sender": "{}",
+                  "state_key": "{}",
+                  "type": "m.room.member",
+                  "unsigned": {{
+                    "age": 1234,
+                    "membership": "leave"
+                  }}
+                }}
+                "#, &room_id, &contact_id, &contact_id).to_string()).unwrap().deserialize_as::<SyncRoomMemberEvent>().unwrap();;
+
+
+        println!("{:?}", &event);
+
+
+
+        contact_service.handle_room_member_event(event, &room_id);
+
+        let mut contacts = contact_service.inner.pending_contacts.lock().unwrap();
+
+        assert_eq!(contacts.len(), 1);
+
+        let diff = contacts.get(&contact_id.to_string()).unwrap();
+        assert!(matches!(diff, ContactDiff::AddContact{
+            user_id: contact_id,
+            pending: false,
+        }));
+    }
+
+    #[tokio::test]
+    async fn when_i_join_a_canonical_dm_and_target_joins_create_contact_reversed() {
+
+        let (client, server, direct_service, contact_service, own_user_id) = setup().await;
+
+        let room_id = owned_room_id!("!room_id:example.org");
+        let contact_id = owned_user_id!("@contact:example.org");
+
+        direct_service.inner.direct_mappings.write().insert(contact_id.clone(), room_id.clone());
+
+        {
+            let mut contacts = contact_service.inner.pending_contacts.lock().unwrap();
+            contacts.insert(contact_id.to_string(), ContactDiff::AddContact { user_id: contact_id.clone(), pending: false });
+        }
+
+
+        let event = Raw::<AnySyncStateEvent>::from_json_string(
+            format!(r#"
+                {{
+                  "content": {{
+                    "membership": "join"
+                  }},
+                  "event_id": "$123456:tachyon.fake",
+                  "origin_server_ts": 1432735824653,
+                  "room_id": "{}",
+                  "sender": "{}",
+                  "state_key": "{}",
+                  "type": "m.room.member",
+                  "unsigned": {{
+                    "age": 1234,
+                    "membership": "leave"
+                  }}
+                }}
+                "#, &room_id, &own_user_id, &own_user_id).to_string()).unwrap().deserialize_as::<SyncRoomMemberEvent>().unwrap();;
+
+
+        println!("{:?}", &event);
+
+
+
+        contact_service.handle_room_member_event(event, &room_id);
+
+        let mut contacts = contact_service.inner.pending_contacts.lock().unwrap();
+
+        assert_eq!(contacts.len(), 1);
+
+        let diff = contacts.get(&contact_id.to_string()).unwrap();
+        assert!(matches!(diff, ContactDiff::AddContact{
+            user_id: contact_id,
+            pending: false,
+        }));
+    }
+
+
 }

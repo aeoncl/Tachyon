@@ -145,7 +145,7 @@ fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<ContactTyp
 
     let mut current_contacts = Vec::new();
 
-    for contact in contacts.drain(..) {
+    for (string, contact) in contacts.drain() {
         match contact {
             ContactDiff::AddContact { user_id, pending } => {
                 let msn_user = MsnUser::from_user_id(&user_id);
