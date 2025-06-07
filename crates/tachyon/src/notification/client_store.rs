@@ -266,6 +266,14 @@ pub struct ClientStoreFacade {
 
 impl ClientStoreFacade {
 
+    pub fn get_single_client_data(&self) -> Option<ClientData> {
+        if self.data.len() > 1 {
+            return None;
+        }
+        
+        self.data.iter().next().map(|x| x.value().clone())
+    }
+
     pub fn get_client_data(&self, key: &str) -> Option<ClientData> {
         match self.data.get(key) {
             None => {
