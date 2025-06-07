@@ -1,4 +1,5 @@
 use yaserde_derive::{YaDeserialize, YaSerialize};
+use crate::shared::models::uuid::Uuid;
 
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(rename = "Header")]
@@ -11,7 +12,7 @@ pub struct ServiceHeaderContainer {
 
 impl ServiceHeaderContainer {
     pub fn new(cache_key: &str) -> ServiceHeaderContainer {
-        let service_header = ServiceHeader{ version: String::from("15.01.1408.0000"), cache_key: Some(cache_key.to_string()), cache_key_changed: Some(true), preferred_host_name: Some(String::from("localhost")), session_id: Some(String::from("17340b67-dcad-48ea-89fb-5e84fbc54cf8")) };
+        let service_header = ServiceHeader{ version: String::from("15.01.1408.0000"), cache_key: Some(cache_key.to_string()), cache_key_changed: Some(true), preferred_host_name: Some(String::from("localhost")), session_id: Some(Uuid::new().to_string()) };
         return ServiceHeaderContainer{ service_header };
     }
 }

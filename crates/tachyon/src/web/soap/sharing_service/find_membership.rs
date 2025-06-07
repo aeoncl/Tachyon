@@ -12,6 +12,7 @@ use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::role_list::RoleList;
 
 use msnp::shared::models::ticket_token::TicketToken;
+use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::msnab_datatypes::{Annotation, ArrayOfAnnotation, BaseMember, MemberState};
 use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::abch::sharing_service::find_membership::request::FindMembershipRequestSoapEnvelope;
@@ -27,7 +28,7 @@ use crate::web::soap::shared;
 
 pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, token: TicketToken, client: Client, mut client_data: ClientData) -> Result<Response, ABError> {
 
-    let cache_key = &request.header.ok_or(anyhow!("Header missing"))?.application_header.cache_key.unwrap_or_default();
+    let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or(Uuid::new().to_string());
 
 
     let deltas_only = request.body.request.deltas_only.unwrap_or(false);

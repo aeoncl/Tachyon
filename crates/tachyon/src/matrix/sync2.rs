@@ -303,7 +303,7 @@ async fn handle_room_updates(client_data: &ClientData, room_updates: RoomUpdates
         let user = client_data.get_user_clone().unwrap();
         let _ = client_data.get_notification_handle().send(NotificationServerCommand::NOT(NotServer {
             payload: NotificationFactory::get_abch_updated(&user.uuid, user.get_email_address()),
-        })).await;
+         })).await;
     }
 }
 
