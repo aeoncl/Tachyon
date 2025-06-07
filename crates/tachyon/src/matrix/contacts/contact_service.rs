@@ -5,7 +5,7 @@ use crate::matrix::contacts::contact_service::MembershipDiff::{AddInviteMembersh
 use crate::matrix::directs::direct_service::{DirectService, MappingDiff, RoomMapping};
 use crate::notification::client_store::ClientData;
 use crate::shared::identifiers::MatrixIdCompatible;
-use log::error;
+use log::{debug, error};
 use matrix_sdk::ruma::events::room::member::{MembershipChange, MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::ruma::events::OriginalSyncStateEvent;
 use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, RoomId};
@@ -32,6 +32,9 @@ pub struct ContactService {
     direct_service: DirectService,
     own_user_id: OwnedUserId
 }
+
+const LOG_PREFIX: &str = "ContactService |";
+
 impl ContactService {
 
     pub fn new(direct_service: DirectService, own_user_id: OwnedUserId) -> Self {
@@ -132,13 +135,16 @@ impl ContactService {
     }
 
     pub fn handle_room_member_event(&self, event: SyncRoomMemberEvent, room_id: &RoomId) {
+        debug!("{} Handle Room Member Event: {:?} for room id: {}", LOG_PREFIX, &event, &room_id);
         let address_book_diffs = {
             if let SyncRoomMemberEvent::Original(_event) = &event {
                 match self.direct_service.get_mapping_for_room(room_id) {
                     RoomMapping::Canonical(contact_id, room_id) => {
+                        debug!("{} Room was canonical", LOG_PREFIX);
                         self.handle_canonical_dm_room_member_event(contact_id, room_id, event)
                     }
                     RoomMapping::Group => {
+                        debug!("{} Room was group", LOG_PREFIX);
                         self.handle_group_room_member_event(event)
                     }
                 }
@@ -203,6 +209,8 @@ impl ContactService {
 
         match event_target {
             CanonicalRoomEventTarget::Me(own_user_id) => {
+                debug!("{} Event target was me", LOG_PREFIX);
+
 
                 match event.membership() {
                     MembershipState::Join => {
@@ -215,6 +223,9 @@ impl ContactService {
                 }
             }
             CanonicalRoomEventTarget::DirectTarget => {
+
+                debug!("{} Event target was direct target", LOG_PREFIX);
+
                 match event.membership() {
                     MembershipState::Join => {
                         vec![AddContact { user_id: contact_id.clone(), pending: false }.into(), AddMembership { user_id: contact_id.clone(), list_type: RoleList::Reverse}.into()]

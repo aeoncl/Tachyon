@@ -60,7 +60,7 @@ async fn find_oldest_1o1_dm_room(matrix_client: &Client, user_id: &UserId) -> Re
         return Ok(Some(found));
     }
 
-    //We did not have found any suitable room in joined rooms, look at invites.
+    //We did not find any suitable room in joined rooms, look at invites.
 
     let invited_dm_rooms = {
         let mut invited_rooms = matrix_client.invited_rooms();
