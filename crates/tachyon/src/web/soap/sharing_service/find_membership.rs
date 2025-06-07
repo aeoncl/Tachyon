@@ -6,6 +6,7 @@ use matrix_sdk::Client;
 use matrix_sdk::ruma::events::room::member::MembershipState;
 use matrix_sdk_ui::Timeline;
 use matrix_sdk_ui::timeline::{RoomExt, TimelineBuilder};
+use msnp::msnp::models::contact::Contact;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::role_list::RoleList;
@@ -16,6 +17,7 @@ use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::abch::sharing_service::find_membership::request::FindMembershipRequestSoapEnvelope;
 use msnp::soap::abch::sharing_service::find_membership::response::factory::FindMembershipResponseFactory;
 use msnp::soap::traits::xml::ToXml;
+use crate::matrix::contacts::contact_service::MembershipDiff;
 use crate::notification::client_store::{ClientData, ClientStoreFacade};
 use crate::shared::identifiers::MatrixIdCompatible;
 use crate::shared::traits::ToUuid;
@@ -33,9 +35,9 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, token:
     if deltas_only {
         // Fetch from store. TODO
         // Ok(shared::build_soap_response(SoapFaultResponseEnvelope::new_fullsync_required("http://www.msn.com/webservices/AddressBook/FindMembership").to_xml()?, StatusCode::OK))
-        let (allow, reverse, block, pending) = get_delta_sync(&mut client_data)?;
+        let members= get_delta_sync(&mut client_data)?;
 
-        let msg_service = FindMembershipResponseFactory::get_messenger_service(allow, block, reverse, pending, false);
+        let msg_service = FindMembershipResponseFactory::get_messenger_service(members, false);
         let user_id = client.user_id().ok_or(anyhow!("Expected matrix client to have a logged-in user"))?;
         let email_addr = EmailAddress::from_user_id(user_id);
         let uuid = email_addr.to_uuid();
@@ -48,8 +50,8 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, token:
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
 
     } else {
-        let (allow, reverse, block, pending) = get_fullsync_members(&client).await?;
-        let msg_service = FindMembershipResponseFactory::get_messenger_service(allow, block, reverse, pending, true);
+        let members = get_fullsync_members(&client).await?;
+        let msg_service = FindMembershipResponseFactory::get_messenger_service(members, true);
 
         let user_id = client.user_id().ok_or(anyhow!("Expected matrix client to have a logged-in user"))?;
         let email_addr = EmailAddress::from_user_id(user_id);
@@ -64,45 +66,50 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, token:
     }
 }
 
-fn get_delta_sync(client_data: &mut ClientData) -> Result<(Vec<BaseMember>, Vec<BaseMember>, Vec<BaseMember>, Vec<BaseMember>), ABError> {
-    let mut allow_list = Vec::new();
-    let mut reverse_list = Vec::new();
-    let mut block_list = Vec::new();
-    let mut pending_list = Vec::new();
-
-    let mut memberships = client_data.get_member_holder_mut().unwrap();
+fn get_delta_sync(client_data: &mut ClientData) -> Result<Vec<BaseMember>, ABError> {
+    let mut members = Vec::new();
+    let contact_service = client_data.get_contact_service();
+    let mut memberships = contact_service.inner.pending_members.lock().unwrap();
+    let contact_list = client_data.get_contact_list().lock().unwrap();
 
     for member in memberships.drain(..) {
-        match member.role_list {
-
-            RoleList::Allow => {
-                allow_list.push(member);
+        match member {
+            MembershipDiff::AddMembership { user_id, list_type } => {
+                let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(&user_id));
+                let member = BaseMember::new_passport_member(&msn_user, MemberState::Accepted, list_type, false);
+                 members.push(member);
             }
-            RoleList::Block => {
-                block_list.push(member);
+            MembershipDiff::AddInviteMembership { user_id, message } => {
+                let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(&user_id));
+                let inviter_member = BaseMember::new_invite_passsport_member(&msn_user, message,false);
+                members.push(inviter_member);
             }
-            RoleList::Reverse => {
-                reverse_list.push(member);
+            MembershipDiff::RemoveMembership { user_id, list_type } => {
+                let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(&user_id));
+                let member = BaseMember::new_passport_member(&msn_user, MemberState::Accepted, list_type, true);
+                members.push(member);
             }
-            RoleList::Pending => {
-                pending_list.push(member);
-            },
-            _ => {
-
-            },
+            MembershipDiff::ClearMemberships { user_id } => {
+                let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(&user_id));
+                match contact_list.get_contact(msn_user.get_email_address()) {
+                    None => {
+                    }
+                    Some(contact) => {
+                        contact.get_roles().drain(..).for_each(|role| {
+                            let member = BaseMember::new_passport_member(&msn_user, MemberState::Accepted, role, true);
+                            members.push(member);
+                        });
+                    }
+                }
+            }
         }
 
     }
 
-    Ok((allow_list, reverse_list, block_list, pending_list))
+    Ok(members)
 }
 
-async fn get_fullsync_members(matrix_client: &Client) -> Result<(Vec<BaseMember>, Vec<BaseMember>, Vec<BaseMember>, Vec<BaseMember>), ABError> {
-
-    let mut allow_list = Vec::new();
-    let mut reverse_list = Vec::new();
-    let mut block_list = Vec::new();
-    let mut pending_list = Vec::new();
+async fn get_fullsync_members(matrix_client: &Client) -> Result<Vec<BaseMember>, ABError> {
 
     let me = matrix_client.user_id().expect("A user to be logged in when fetching fullsync members");
 
@@ -168,7 +175,7 @@ async fn get_fullsync_members(matrix_client: &Client) -> Result<(Vec<BaseMember>
     // }
 
 
-    Ok((allow_list, reverse_list, block_list, pending_list))
+    Ok(Vec::new())
 
 
 }

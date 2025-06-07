@@ -143,6 +143,7 @@ pub mod response {
         use chrono::Local;
 
         use crate::shared::models::email_address::EmailAddress;
+        use crate::shared::models::role_list::RoleList;
         use crate::shared::models::uuid::Uuid;
         use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType, RoleId, ServiceName};
         use crate::soap::abch::service_header::ServiceHeaderContainer;
@@ -163,7 +164,7 @@ pub mod response {
                 let owner_namespace = OwnerNamespaceType{ info: owner_namespace_info, changes: String::new(), create_date: String::from("2014-10-31T00:00:00Z"), last_change: now.format("%Y-%m-%dT%H:%M:%SZ").to_string() };
 
                 let mut services = Vec::new();
-                services.push(FindMembershipResponseFactory::get_messenger_service(Vec::new(), Vec::new(), Vec::new(), Vec::new(), membership_is_complete));
+                services.push(FindMembershipResponseFactory::get_messenger_service(Vec::new(), membership_is_complete));
 
                 let array_of_services = ArrayOfServiceType{ service: services };
 
@@ -204,9 +205,33 @@ pub mod response {
                 return response;
             }
 
-            pub fn get_messenger_service(allow_list: Vec<BaseMember>, block_list: Vec<BaseMember>, reverse_list: Vec<BaseMember>, pending_list: Vec<BaseMember>, membership_is_complete: bool) -> ServiceType {
+            pub fn get_messenger_service(mut members: Vec<BaseMember>, membership_is_complete: bool) -> ServiceType {
 
                 let mut memberships = Vec::new();
+
+                let mut allow_list = Vec::new();
+                let mut block_list = Vec::new();
+                let mut pending_list = Vec::new();
+                let mut reverse_list = Vec::new();
+
+                for member in members.drain(..) {
+                    match member.role_list {
+                        RoleList::None => {}
+                        RoleList::Forward => {}
+                        RoleList::Allow => {
+                            allow_list.push(member);
+                        }
+                        RoleList::Block => {
+                            block_list.push(member);
+                        }
+                        RoleList::Reverse => {
+                            reverse_list.push(member);
+                        }
+                        RoleList::Pending => {
+                            pending_list.push(member);
+                        }
+                    }
+                }
 
                 memberships.push(FindMembershipResponseFactory::get_membership(RoleId::Allow, allow_list, membership_is_complete));
                 memberships.push(FindMembershipResponseFactory::get_membership(RoleId::Block, block_list, membership_is_complete));
