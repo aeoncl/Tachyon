@@ -31,6 +31,7 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, token:
 
 
     let deltas_only = request.body.request.deltas_only.unwrap_or(false);
+    let own_user = client_data.get_user_clone().unwrap();
 
     if deltas_only {
         // Fetch from store. TODO
@@ -38,30 +39,14 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, token:
         let members= get_delta_sync(&mut client_data)?;
 
         let msg_service = FindMembershipResponseFactory::get_messenger_service(members, false);
-        let user_id = client.user_id().ok_or(anyhow!("Expected matrix client to have a logged-in user"))?;
-        let email_addr = EmailAddress::from_user_id(user_id);
-        let uuid = email_addr.to_uuid();
-
-        let soap_body = FindMembershipResponseFactory::get_response(
-            uuid,
-            email_addr,
-            &cache_key, msg_service);
+        let soap_body = FindMembershipResponseFactory::get_response(&own_user, &cache_key, msg_service);
 
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
 
     } else {
         let members = get_fullsync_members(&client).await?;
         let msg_service = FindMembershipResponseFactory::get_messenger_service(members, true);
-
-        let user_id = client.user_id().ok_or(anyhow!("Expected matrix client to have a logged-in user"))?;
-        let email_addr = EmailAddress::from_user_id(user_id);
-        let uuid = email_addr.to_uuid();
-
-         let soap_body = FindMembershipResponseFactory::get_response(
-             uuid,
-             email_addr,
-             &cache_key, msg_service);
-
+        let soap_body = FindMembershipResponseFactory::get_response(&own_user, &cache_key, msg_service);
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
     }
 }

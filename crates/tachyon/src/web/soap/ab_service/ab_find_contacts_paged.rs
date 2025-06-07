@@ -114,7 +114,6 @@ async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, 
 async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelope, client: Client, client_data: &mut ClientData) -> Result<Response, ABError> {
     let body = request.body.body;
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or_default();
-    let user_id = client.user_id().expect("UserId to be present");
     let me_user = client_data.get_user_clone()?;
     let uuid = &me_user.uuid;
     let msn_addr = me_user.get_email_address();
@@ -123,7 +122,7 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
 
         let contacts = get_delta_contact_list(client_data)?;
         
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(uuid.clone(), &cache_key, msn_addr.as_str(), msn_addr.as_str(), contacts, vec![],false);
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(&me_user, &cache_key, contacts, vec![], false);
 
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
 
@@ -131,8 +130,8 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
     } else {
         // Full contact list demanded.
         //TODO Circle fullsync
-        let mut contacts = get_fullsync_contact_list(&client, user_id).await?;
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(uuid.clone(), &cache_key, msn_addr.as_str(), msn_addr.as_str(), contacts, Vec::new(),false );
+        let mut contacts = get_fullsync_contact_list(&client).await?;
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(&me_user, &cache_key, contacts, Vec::new(),false );
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
     }
 
@@ -204,7 +203,7 @@ fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<ContactTyp
     Ok(current_contacts)
 }
 
-async fn get_fullsync_contact_list(matrix_client: &Client, me: &UserId) -> Result<Vec<ContactType>, ABError> {
+async fn get_fullsync_contact_list(matrix_client: &Client) -> Result<Vec<ContactType>, ABError> {
     let mut out = Vec::new();
 
     // for joined_room in matrix_client.joined_rooms() {

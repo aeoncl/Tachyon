@@ -143,6 +143,7 @@ pub mod response {
         use chrono::Local;
 
         use crate::shared::models::email_address::EmailAddress;
+        use crate::shared::models::msn_user::MsnUser;
         use crate::shared::models::role_list::RoleList;
         use crate::shared::models::uuid::Uuid;
         use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType, RoleId, ServiceName};
@@ -153,11 +154,11 @@ pub mod response {
 
         impl FindMembershipResponseFactory {
 
-            pub fn get_empty_response(uuid: &Uuid, msn_addr: &str, cache_key: &str, membership_is_complete: bool) -> FindMembershipResponseMessageSoapEnvelope {
+            pub fn get_empty_response(msn_user: &MsnUser, cache_key: &str, membership_is_complete: bool) -> FindMembershipResponseMessageSoapEnvelope {
 
                 let circle_attributes = CircleAttributesType{ is_presence_enabled: false, is_event: None, domain: String::from("WindowsLive") };
                 let handle = Handle { id: Uuid::nil().to_string(), is_passport_name_hidden: false, cid: String::from("0") };
-                let owner_namespace_info = OwnerNamespaceInfoType{ handle, creator_puid: String::from("0"), creator_cid: uuid.to_decimal_cid(), creator_passport_name: msn_addr.to_string(), circle_attributes, messenger_application_service_created: Some(false) };
+                let owner_namespace_info = OwnerNamespaceInfoType{ handle, creator_puid: String::from("0"), creator_cid: msn_user.uuid.to_decimal_cid(), creator_passport_name: msn_user.get_email_address().to_string(), circle_attributes, messenger_application_service_created: Some(false) };
 
                 let now = Local::now();
 
@@ -179,11 +180,11 @@ pub mod response {
                 return response;
             }
 
-            pub fn get_response(uuid: Uuid, msn_addr: EmailAddress, cache_key: &str, messenger_service: ServiceType) -> FindMembershipResponseMessageSoapEnvelope {
+            pub fn get_response(msn_user: &MsnUser, cache_key: &str, messenger_service: ServiceType) -> FindMembershipResponseMessageSoapEnvelope {
 
                 let circle_attributes = CircleAttributesType{ is_presence_enabled: false, is_event: None, domain: String::from("WindowsLive") };
                 let handle = Handle { id: Uuid::nil().to_string(), is_passport_name_hidden: false, cid: String::from("0") };
-                let owner_namespace_info = OwnerNamespaceInfoType{ handle, creator_puid: String::from("0"), creator_cid: uuid.to_decimal_cid(), creator_passport_name: msn_addr.0,  circle_attributes, messenger_application_service_created: Some(false) };
+                let owner_namespace_info = OwnerNamespaceInfoType{ handle, creator_puid: String::from("0"), creator_cid: msn_user.uuid.to_decimal_cid(), creator_passport_name: msn_user.get_email_address().to_string(),  circle_attributes, messenger_application_service_created: Some(false) };
 
                 let now = Local::now();
 

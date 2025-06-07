@@ -161,6 +161,7 @@ pub mod response {
     use chrono::Local;
     use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
+    use crate::shared::models::msn_user::MsnUser;
     use crate::shared::models::role_list::RoleList;
     use crate::shared::models::uuid::Uuid;
     use crate::soap::abch::msnab_datatypes::{AbInfoType, ArrayOfContactType, CircleResultType, ContactType, GroupInfoType, GroupType, Annotation, ArrayOfAnnotation, AbType, AddressBookType, Circles, CircleInverseInfoType, ContentType, ContentHandleType, ContentInfoType, PersonalInfoType, MembershipInfoType, CirclePersonalMembershipType, RelationshipState, RoleId, CircleRelationshipRole};
@@ -284,15 +285,15 @@ pub mod response {
             Self{header: Some(ServiceHeaderContainer::new(cache_key)), body }
         }
 
-        pub fn new_individual(uuid: Uuid, cache_key: &str, msn_addr: &str, display_name: &str, mut contacts: Vec<ContactType>, mut circles: Vec<CircleData>, profile_update: bool) -> Self {
+        pub fn new_individual(msn_user: &MsnUser, cache_key: &str, mut contacts: Vec<ContactType>, mut circles: Vec<CircleData>, profile_update: bool) -> Self {
             let now = Local::now();
 
             let create_date = String::from("2014-10-31T00:00:00Z");
 
-            let ab_info_type = AbInfoType{ migrated_to: None, beta_status: None, name: None, owner_puid: 0, owner_cid: uuid.to_decimal_cid(), owner_email:Some(msn_addr.to_string()), f_default: true, joined_namespace: false, is_bot: false, is_parent_managed: false, account_tier: None, account_tier_last_changed: String::from("0001-01-01T00:00:00"), profile_version: 0, subscribe_external_partner: false, notify_external_partner: false, address_book_type: AddressBookType::Individual, messenger_application_service_created: None, is_beta_migrated: None, last_relevance_update: None };
+            let ab_info_type = AbInfoType{ migrated_to: None, beta_status: None, name: None, owner_puid: 0, owner_cid: msn_user.uuid.to_decimal_cid(), owner_email:Some(msn_user.get_email_address().to_string()), f_default: true, joined_namespace: false, is_bot: false, is_parent_managed: false, account_tier: None, account_tier_last_changed: String::from("0001-01-01T00:00:00"), profile_version: 0, subscribe_external_partner: false, notify_external_partner: false, address_book_type: AddressBookType::Individual, messenger_application_service_created: None, is_beta_migrated: None, last_relevance_update: None };
             let ab = Ab{ ab_id: Uuid::nil().to_string(), ab_info: ab_info_type, last_change: now.format("%Y-%m-%dT%H:%M:%SZ").to_string(), dynamic_item_last_changed: String::from("0001-01-01T00:00:00"), recent_activity_item_last_changed: None, create_date: create_date.clone(), properties_changed: String::new() };
 
-            contacts.push(ContactType::new_me(&uuid, &msn_addr, &display_name, profile_update));
+            contacts.push(ContactType::new_me(&msn_user, profile_update));
 
             let mut favorite_annotation_arary : Vec<Annotation> = Vec::new();
             favorite_annotation_arary.push(Annotation::new_display(Some(true)));
