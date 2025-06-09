@@ -481,29 +481,6 @@ mod tests {
     #[tokio::test]
     async fn dm_invite_received() {
 
-        log_print_panics::init();
-        Builder::new()
-            .format(|buf, record| {
-                writeln!(
-                    buf,
-                    "{} [{}] - {} @ {}:{}",
-                    Local::now().format("%d-%m-%YT%H:%M:%S%.3f"),
-                    record.level(),
-                    record.args(),
-                    record.file().unwrap_or("unknown"),
-                    record.line().unwrap_or(0),
-                )
-            })
-            .target(env_logger::Target::Stdout)
-            .filter(Some("v2") , LevelFilter::Debug)
-            .filter(Some("tachyon") , LevelFilter::Debug)
-            .filter(Some("msnp") , LevelFilter::Debug)
-            .filter(Some("matrix-sdk"), LevelFilter::Warn)
-            .filter(Some("yaserde"), LevelFilter::Warn)
-            .filter(None, LevelFilter::Trace)
-            .init();
-
-
         let json_resolver = JsonResourceResolver::new("dm_invite_received");
         let (client, server) = logged_in_client_with_server().await;
         let mut direct_service = DirectService::default(client.clone());
@@ -534,7 +511,7 @@ mod tests {
             direct_service.compute_mapping(&room_id).await.unwrap();
             let _ = direct_service.commit_pending_mappings().await;
             let mapping = direct_service.get_mapping_for_room(&room_id);
-            assert!(matches!(mapping, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping);
+            assert!(matches!(mapping, RoomMapping::Canonical(ref user, ref room) if user == &inviter_id && room == &room_id), "Expected CanonicalMapping, got {:?}", mapping);
 
             client.sync_once(Default::default()).await.unwrap();
             direct_service.compute_mapping(&room_id).await.unwrap();
@@ -696,11 +673,12 @@ mod tests {
             .mount(&server)
             .await;
 
+        //Because we use direct hints, we already know it's canonical even if it's not im the m.directs account data.
         client.sync_once(Default::default()).await.unwrap();
         let _ = direct_service.compute_mapping(&room_id).await;
         let _ = direct_service.commit_pending_mappings().await;
         let mapping = direct_service.get_mapping_for_room(&room_id);
-        assert!(matches!(mapping, RoomMapping::Group), "Expected Group Mapping, got {:?}", mapping);
+        assert!(matches!(mapping, RoomMapping::Canonical(ref user, ref room) if user == &invitee_id && room == &room_id), "Expected CanonicalMapping, got {:?}", mapping);
 
         client.sync_once(Default::default()).await.unwrap();
         let _ = direct_service.compute_mapping(&room_id).await;
@@ -1106,30 +1084,6 @@ user == &other_id && room == &room_id), "Expected CanonicalMapping, got {:?}", m
 
     #[tokio::test]
     async fn refresh_on_m_direct_removal() {
-
-        log_print_panics::init();
-        Builder::new()
-            .format(|buf, record| {
-                writeln!(
-                    buf,
-                    "{} [{}] - {} @ {}:{}",
-                    Local::now().format("%d-%m-%YT%H:%M:%S%.3f"),
-                    record.level(),
-                    record.args(),
-                    record.file().unwrap_or("unknown"),
-                    record.line().unwrap_or(0),
-                )
-            })
-            .target(env_logger::Target::Stdout)
-            .filter(Some("v2") , LevelFilter::Debug)
-            .filter(Some("tachyon") , LevelFilter::Debug)
-            .filter(Some("msnp") , LevelFilter::Debug)
-            .filter(Some("matrix-sdk"), LevelFilter::Warn)
-            .filter(Some("yaserde"), LevelFilter::Warn)
-            .filter(None, LevelFilter::Trace)
-            .init();
-
-
 
         let json_resolver = JsonResourceResolver::new("refresh_on_m_direct_removal");
         let (client, server) = logged_in_client_with_server().await;
