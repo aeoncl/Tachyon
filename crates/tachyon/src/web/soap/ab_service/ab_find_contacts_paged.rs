@@ -154,7 +154,7 @@ fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<ContactTyp
                         continue;
                     }
 
-                    if contact.has_role(RoleList::Allow) && !pending {
+                    if contact.has_role(RoleList::Forward) && !pending {
                         continue;
                     }
                 }
@@ -175,7 +175,7 @@ fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<ContactTyp
                         current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::LivePending, true))
                     }
 
-                    if contact.has_role(RoleList::Allow) && !pending {
+                    if contact.has_role(RoleList::Forward) && !pending {
                         current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::Live, true))
                     }
                 }
@@ -189,7 +189,7 @@ fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<ContactTyp
                         current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::LivePending, true))
                     }
 
-                    if contact.has_role(RoleList::Allow) {
+                    if contact.has_role(RoleList::Forward) {
                         current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::Live, true))
                     }
                 }

@@ -1,12 +1,13 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::str::FromStr;
 use log::{debug, warn};
-use matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState;
+use matrix_sdk::deserialized_responses::{AnySyncOrStrippedState, RawAnySyncOrStrippedState};
 use matrix_sdk::ruma::events::direct::{DirectEventContent, DirectUserIdentifier, OwnedDirectUserIdentifier};
 use matrix_sdk::ruma::events::{AnyStrippedStateEvent, AnySyncStateEvent, GlobalAccountDataEventType, StateEventType};
 use matrix_sdk::ruma::{MilliSecondsSinceUnixEpoch, OwnedRoomId, OwnedUserId, UserId};
 use matrix_sdk::{Client, Error, Room, RoomCreateWithCreatorEventContent, RoomMemberships, RoomState};
 use matrix_sdk::ruma::__private_macros::room_id;
+use matrix_sdk::ruma::events::room::member::MembershipState;
 
 struct RoomWithTimestamp {
     room: Room,
@@ -107,6 +108,8 @@ impl OneOnOneDmClient for Client {
 
 pub trait TachyonRoomExtensions {
 
+    async fn get_direct_hints(&self) -> Result<HashSet<OwnedDirectUserIdentifier>, Error>;
+
     async fn is_room_1o1_direct(&self) -> Result<bool, matrix_sdk::Error>;
 
     async fn get_1o1_direct_target(&self) -> Result<Option<OwnedUserId>, Error>;
@@ -120,7 +123,9 @@ async fn extract_o1o_direct_target(room: &Room) -> Result<Option<OwnedUserId>, E
     const LOG_LABEL: &str = "FindDirectTarget |";
     debug!("{} {}", LOG_LABEL, room.room_id());
 
-    if !room.is_direct().await? {
+    let direct_hints = room.get_direct_hints().await?;
+
+    if !room.is_direct().await? && direct_hints.is_empty() {
         debug!("{} Room {} not a direct, aborting...", LOG_LABEL, room.room_id());
         return Ok(None);
     }
@@ -144,7 +149,15 @@ async fn extract_o1o_direct_target(room: &Room) -> Result<Option<OwnedUserId>, E
     }
 
     let me_user_id = room.own_user_id();
-    let direct_targets = room.direct_targets();
+    let direct_targets = {
+        let direct_targets = room.direct_targets();
+        if !direct_targets.is_empty() {
+            direct_targets
+        } else {
+            direct_hints
+        }
+    };
+
     let mut not_me_direct_targets = direct_targets.iter().filter_map(|target| {
 
         if let Some(target_user_id) = target.as_user_id() {
@@ -173,6 +186,60 @@ async fn extract_o1o_direct_target(room: &Room) -> Result<Option<OwnedUserId>, E
 }
 
 impl TachyonRoomExtensions for Room {
+    async fn get_direct_hints(&self) -> Result<HashSet<OwnedDirectUserIdentifier>, Error> {
+        let room_member_events = self.get_state_events(StateEventType::RoomMember).await?;
+
+        if room_member_events.len() > 2 {
+            return Ok(HashSet::new());
+        }
+
+        let mut out: HashSet<OwnedDirectUserIdentifier> = HashSet::new();
+
+        for room_member_event in room_member_events {
+
+            match room_member_event {
+                RawAnySyncOrStrippedState::Sync(sync) => {
+                    match sync.deserialize()? {
+                        AnySyncStateEvent::RoomMember(room_member_event) => {
+                            if let Some(room_member_event) = room_member_event.as_original() {
+
+                                if room_member_event.content.membership == MembershipState::Invite && room_member_event.sender == self.own_user_id(){
+                                    if let Some(is_direct) = room_member_event.content.is_direct {
+                                        if is_direct {
+                                            out.insert(room_member_event.state_key.clone().into());
+                                            out.insert(room_member_event.sender.clone().into());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+
+                }
+                RawAnySyncOrStrippedState::Stripped(stripped) => {
+                    match stripped.deserialize()? {
+                        AnyStrippedStateEvent::RoomMember(room_member_event) => {
+                            if room_member_event.content.membership == MembershipState::Invite && room_member_event.state_key == self.own_user_id(){
+                                if let Some(is_direct) = room_member_event.content.is_direct {
+                                    if is_direct {
+                                        out.insert(room_member_event.state_key.clone().into());
+                                        out.insert(room_member_event.sender.clone().into());
+                                    }
+                                }
+                            }
+                        }
+                        AnyStrippedStateEvent::_Custom(_) => {}
+                        _ => {}
+                    }
+                }
+            }
+
+        }
+
+        Ok(out)
+    }
+
     async fn is_room_1o1_direct(&self) -> Result<bool, Error> {
         Ok(self.get_1o1_direct_target().await?.is_some())
     }
