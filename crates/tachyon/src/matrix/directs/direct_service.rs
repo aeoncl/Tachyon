@@ -103,6 +103,7 @@ const LOG_LABEL: &str = "DirectService |";
 pub(in crate::matrix)  struct DirectServiceInner {
     pub(in crate::matrix)  direct_mappings: RwLock<DirectMappingsHashMap>,
     direct_mappings_next_tick: RwLock<DirectMappingsHashMap>,
+    direct_mappings_cache: RwLock<HashMap<OwnedUserId, Option<OwnedRoomId>>>,
     directs: Mutex<DirectEventContent>,
     fully_initialized:  AtomicBool,
     mappings_sender : broadcast::Sender<MappingDiff>,
@@ -132,6 +133,7 @@ impl DirectService {
             inner: Arc::new(DirectServiceInner {
                 direct_mappings: RwLock::new(mappings.clone()),
                 direct_mappings_next_tick: RwLock::new(mappings),
+                direct_mappings_cache: Default::default(),
                 directs: Mutex::new(directs),
                 fully_initialized: AtomicBool::new(false),
                 mappings_sender,
@@ -351,7 +353,7 @@ impl DirectService {
                 match maybe_user_mapping {
                     None => {
                         debug!("{} user mapping not found for target: {}, look for canonical dm_room", LOG_LABEL, &direct_target);
-                        if let Some(found_mapping) = self.matrix_client.get_canonical_dm_room_id(&direct_target).await? {
+                        if let Some(found_mapping) = self.get_canonical_dm_room_id_cached(&direct_target).await? {
                             debug!("{} found canonical dm_room: {} for target: {}", LOG_LABEL, &found_mapping, &direct_target);
                             debug!("{} new mapping {} - {}", LOG_LABEL, &direct_target, &found_mapping);
                             return Ok(Some(MappingDiff::NewMapping(direct_target, found_mapping)));
@@ -366,10 +368,26 @@ impl DirectService {
         }
         Ok(None)
     }
+    async fn get_canonical_dm_room_id_cached(&self, user_id: &UserId) -> Result<Option<OwnedRoomId>, Error> {
 
+        if let Some(maybe_room_id) = self.inner.direct_mappings_cache.read().get(user_id) {
+            return Ok(maybe_room_id.clone());
+        }
+
+        match self.matrix_client.get_canonical_dm_room_id(&user_id).await? {
+            None => {
+                self.inner.direct_mappings_cache.write().insert(user_id.to_owned(), None);
+                Ok(None)
+            }
+            Some(found) => {
+                self.inner.direct_mappings_cache.write().insert(user_id.to_owned(), Some(found.clone()));
+                Ok(Some(found))
+            }
+        }
+    }
     async fn check_if_mapping_has_changed(&self, user_id: &UserId, room_to_compare: &RoomId) -> Result<Option<MappingDiff>, anyhow::Error> {
         debug!("{} Check if mapping has changed for user: {} - room: {}", LOG_LABEL, user_id, room_to_compare);
-        match self.matrix_client.get_canonical_dm_room_id(&user_id).await? {
+        match self.get_canonical_dm_room_id_cached(&user_id).await? {
             None => {
                 debug!("{} Removed Mapping: {} - {}", LOG_LABEL, user_id, room_to_compare);
                 return Ok(Some(MappingDiff::RemovedMapping(user_id.to_owned(), room_to_compare.to_owned())));
@@ -399,6 +417,8 @@ impl DirectService {
             mem::replace(&mut *old_state, self.inner.direct_mappings_next_tick.read().clone())
         };
 
+        self.inner.direct_mappings_cache.write().clear();
+
         if self.inner.mappings_sender.receiver_count() > 0 {
             effective_diff.iter().for_each(|diff| {
                 let _ = self.inner.mappings_sender.send(diff.clone());
@@ -424,7 +444,6 @@ impl DirectService {
         let room_mappings_from_server = client.account()
             .fetch_account_data(GlobalAccountDataEventType::from("org.tachyon.direct_mappings")).await?
             .map(|raw| raw.deserialize_as::<DirectMappingsEventContent>());
-
 
         let mut content = match room_mappings_from_server {
             None | Some(Err(_)) => {
