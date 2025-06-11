@@ -123,7 +123,7 @@ async fn extract_o1o_direct_target(room: &Room) -> Result<Option<OwnedUserId>, E
     const LOG_LABEL: &str = "FindDirectTarget |";
     debug!("{} {}", LOG_LABEL, room.room_id());
 
-    let direct_hints = room.get_direct_hints().await?;
+    let direct_hints = room.get_direct_hints().await.unwrap_or_default();
 
     if !room.is_direct().await? && direct_hints.is_empty() {
         debug!("{} Room {} not a direct, aborting...", LOG_LABEL, room.room_id());

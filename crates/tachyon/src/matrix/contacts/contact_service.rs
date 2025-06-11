@@ -74,50 +74,52 @@ impl ContactService {
         }
     }
 
-    pub fn handle_stripped_room_member_event(&self, event: StrippedRoomMemberEvent, room_id: &RoomId) -> Vec<AddressBookDiff> {
+    pub fn handle_stripped_room_member_event(&self, event: StrippedRoomMemberEvent, room_id: &RoomId) {
+        debug!("{} Handle Stripped Room Member Event: {:?} for room id: {}", LOG_PREFIX, &event, &room_id);
 
-
-        match self.direct_service.get_mapping_for_room(room_id) {
+        let address_book_diffs = match self.direct_service.get_mapping_for_room(room_id) {
 
             RoomMapping::Canonical(contact_id, room_id) => {
+                debug!("{} Room was canonical", LOG_PREFIX);
+                self.handle_canonical_dm_stripped_room_member_event(contact_id, room_id, event)
 
-                if &event.sender != &self.own_user_id || &event.sender != &contact_id {
-                    return vec![]
-                }
+            }
 
-                let event_target ={
-                    let own_user_id = self.own_user_id.clone();
+            RoomMapping::Group => {
+                debug!("{} Room was group", LOG_PREFIX);
+                vec![]
+            }
+        };
 
-                    if &event.state_key == &contact_id {
-                        CanonicalRoomEventTarget::DirectTarget
-                    } else if &event.state_key == &own_user_id {
-                        CanonicalRoomEventTarget::Me(own_user_id)
-                    } else {
-                        CanonicalRoomEventTarget::Thirdwheel
+        self.persist_diffs(address_book_diffs)
+    }
+
+    pub fn handle_canonical_dm_stripped_room_member_event(&self, contact_id: OwnedUserId, room_id: OwnedRoomId,  event: StrippedRoomMemberEvent) -> Vec<AddressBookDiff> {
+        if &event.sender != &self.own_user_id  && &event.sender != &contact_id {
+            return vec![]
+        }
+
+        let event_target ={
+            let own_user_id = self.own_user_id.clone();
+
+            if &event.state_key == &contact_id {
+                CanonicalRoomEventTarget::DirectTarget
+            } else if &event.state_key == &own_user_id {
+                CanonicalRoomEventTarget::Me(own_user_id)
+            } else {
+                CanonicalRoomEventTarget::Thirdwheel
+            }
+        };
+
+
+        match event_target {
+            CanonicalRoomEventTarget::Me(user_id) => {
+
+                match event.content.membership {
+                    MembershipState::Invite => {
+                        vec![AddInviteMembership { user_id: contact_id.clone(), message: event.content.reason }.into(), AddMembership { user_id: contact_id.clone(), list_type: RoleList::Reverse}.into()]
                     }
-                };
-
-
-                match event_target {
-                    CanonicalRoomEventTarget::Me(user_id) => {
-
-                        match event.content.membership {
-                            MembershipState::Invite => {
-                                vec![AddInviteMembership { user_id: contact_id.clone(), message: event.content.reason }.into(), AddMembership { user_id: contact_id.clone(), list_type: RoleList::Reverse}.into()]
-                            }
-                            _ => {
-                                vec![]
-                            }
-                        }
-
-
-
-                    }
-                    CanonicalRoomEventTarget::DirectTarget => {
-                        vec![]
-                    }
-                    CanonicalRoomEventTarget::Thirdwheel => {
-                        error!("Thirdwheel was found in canonical stripped dm room, it should not be possible.");
+                    _ => {
                         vec![]
                     }
                 }
@@ -125,8 +127,11 @@ impl ContactService {
 
 
             }
-
-            RoomMapping::Group => {
+            CanonicalRoomEventTarget::DirectTarget => {
+                vec![]
+            }
+            CanonicalRoomEventTarget::Thirdwheel => {
+                error!("Thirdwheel was found in canonical stripped dm room, it should not be possible.");
                 vec![]
             }
         }

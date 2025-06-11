@@ -8,12 +8,12 @@ use log::{debug, error, info, warn};
 use crate::notification::client_store::ClientData;
 use matrix_sdk::{Client, Error, Room, SlidingSync, SlidingSyncList, SlidingSyncListBuilder, SlidingSyncMode};
 use matrix_sdk::crypto::types::events::olm_v1::AnyDecryptedOlmEvent;
-use matrix_sdk::deserialized_responses::{DecryptedRoomEvent, RawAnySyncOrStrippedState, TimelineEventKind};
+use matrix_sdk::deserialized_responses::{DecryptedRoomEvent, MemberEvent, RawAnySyncOrStrippedState, TimelineEventKind};
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{AccountData, ListFilters, RoomSubscription, ToDevice, Typing, E2EE};
 use matrix_sdk::ruma::events::direct::{DirectEvent, DirectEventContent};
-use matrix_sdk::ruma::events::{AnyMessageLikeEvent, AnySyncMessageLikeEvent, AnySyncStateEvent, AnySyncTimelineEvent, GlobalAccountDataEventType, StateEventType, SyncMessageLikeEvent};
-use matrix_sdk::ruma::{assign, OwnedRoomId, RoomId, UInt};
+use matrix_sdk::ruma::events::{AnyMessageLikeEvent, AnyStrippedStateEvent, AnySyncMessageLikeEvent, AnySyncStateEvent, AnySyncTimelineEvent, GlobalAccountDataEventType, StateEventType, SyncMessageLikeEvent};
+use matrix_sdk::ruma::{assign, OwnedRoomId, OwnedUserId, RoomId, UInt, UserId};
 use matrix_sdk::ruma::api::client::error::ErrorKind;
 use matrix_sdk::ruma::directory::RoomTypeFilter;
 use matrix_sdk::ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMemberEvent};
@@ -267,93 +267,78 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
 }
 
 async fn handle_room_updates(client_data: &ClientData, room_updates: RoomUpdates) {
+
+    let own_user_id = client_data.get_matrix_client().user_id().unwrap().to_owned();
+
     let diffs = direct_handler::handle_direct_mappings_room_updates(room_updates.clone(), client_data.clone()).await.unwrap();
-    let events_from_diffs = handle_mapping_diffs(client_data, diffs).await.unwrap();
-    debug!("events_from_diff to handle: {:?}", events_from_diffs);
+
+    //TODO: This is not enough, custom behaviour needs to happen in the ContactService to remove old mapping before adding new ones.
+    let events_to_reevaluate = load_mapping_diff_events(client_data, diffs, &own_user_id).await.unwrap();
+    debug!("events_to_reevaluate: {:?}", events_to_reevaluate);
+    handle_contacts_room_updates(room_updates, client_data.clone(), events_to_reevaluate).await;
+
     let contact_service = client_data.get_contact_service();
-
-    for (room_id, event) in events_from_diffs {
-        match event {
-            RawAnySyncOrStrippedState::Sync(event) => {
-
-                if let Ok(event) = event.deserialize_as::<SyncRoomMemberEvent>() {
-                    contact_service.handle_room_member_event(event, &room_id);
-                }
-
-            }
-            RawAnySyncOrStrippedState::Stripped(event) => {
-
-                if let Ok(event) = event.deserialize_as::<StrippedRoomMemberEvent>() {
-                    contact_service.handle_stripped_room_member_event(event, &room_id);
-                }
-
-            }
-        }
-    }
-
-
-    //todo pass event_ids from diff to dedup vvvvv
-    handle_contacts_room_updates(room_updates, client_data.clone(), vec![]).await;
 
     let contact_len = {
         contact_service.inner.pending_contacts.lock().unwrap().len()
     };
 
-    if contact_len > 0 {
+    let member_len = {
+        contact_service.inner.pending_members.lock().unwrap().len()
+    };
+
+    let circle_len = {
+        contact_service.inner.pending_circles.lock().unwrap().len()
+    };
+
+    if contact_len > 0 || member_len > 0 || circle_len > 0{
         let user = client_data.get_user_clone().unwrap();
         let _ = client_data.get_notification_handle().send(NotificationServerCommand::NOT(NotServer {
             payload: NotificationFactory::get_abch_updated(&user.uuid, user.get_email_address()),
-         })).await;
+        })).await;
+    }
+
+
+    }
+
+#[derive(Debug)]
+pub struct MappingDiffEvents {
+    pub room_id: OwnedRoomId,
+    pub events: Vec<RawAnySyncOrStrippedState>
+}
+
+impl MappingDiffEvents {
+    fn new(room_id: OwnedRoomId) -> Self {
+        Self {
+            room_id,
+            events: Vec::new()
+        }
     }
 }
 
-async fn handle_mapping_diffs(client_data: &ClientData, diffs: Vec<MappingDiff>) -> Result<Vec<(OwnedRoomId, RawAnySyncOrStrippedState)>, anyhow::Error> {
-    let mut events = Vec::new();
+async fn load_mapping_diff_events(client_data: &ClientData, diffs: Vec<MappingDiff>, me: &UserId) -> Result<Vec<MappingDiffEvents>, anyhow::Error> {
+    let mut events_to_handle: Vec<MappingDiffEvents> = Vec::new();
 
     for diff in diffs.into_iter() {
-        match diff {
-            MappingDiff::NewMapping(user_id, room_id) => {
-                let matrix_client = client_data.get_matrix_client();
-                let room = matrix_client.get_room(&room_id).unwrap();
-                let event = room.get_state_event(StateEventType::RoomMember, user_id.as_str()).await.unwrap().unwrap();
-                events.push((room_id, event));
-            }
-            MappingDiff::UpdatedMapping(user_id, room_id) => {
-                let matrix_client = client_data.get_matrix_client();
-                let room = matrix_client.get_room(&room_id).unwrap();
-                let event = room.get_state_event(StateEventType::RoomMember, user_id.as_str()).await.unwrap().unwrap();
-                events.push((room_id, event));
-            }
-            MappingDiff::RemovedMapping(user_id, room_id) => {
-                let user_id_ref = user_id.as_str();
-                let raw = Raw::<AnySyncStateEvent>::from_json_string(
-                    format!(r#"
-{{
-  "content": {{
-    "membership": "leave",
-    "reason": "chat.tachyon.removed_mapping"
-  }},
-  "event_id": "$123456:tachyon.fake",
-  "origin_server_ts": 1432735824653,
-  "room_id": "{room_id}",
-  "sender": "{user_id_ref}",
-  "state_key": "{user_id_ref}",
-  "type": "m.room.member",
-  "unsigned": {{
-    "age": 1234,
-    "membership": "join"
-  }}
-}}
-"#).to_string()).unwrap();
+        let user_id = diff.user_id();
+        let room_id = diff.room_id();
 
-                events.push((room_id, RawAnySyncOrStrippedState::Sync(raw)));
-            }
+        let matrix_client = client_data.get_matrix_client();
+        let room = matrix_client.get_room(&room_id).unwrap();
+
+        let mut mapping_diff_events = MappingDiffEvents::new(room_id.to_owned());
+        if let Some(event) = room.get_state_event(StateEventType::RoomMember, &user_id.as_str()).await? {
+            mapping_diff_events.events.push(event);
         }
 
+        if let Some(event) = room.get_state_event(StateEventType::RoomMember, &me.as_str()).await? {
+            mapping_diff_events.events.push(event);
+        }
 
+        events_to_handle.push(mapping_diff_events);
     }
 
-    Ok(events)
+    Ok(events_to_handle)
 }
 
 async fn handle_first_sync(client_data: &ClientData) -> Result<(), anyhow::Error> {

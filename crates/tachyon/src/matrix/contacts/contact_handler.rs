@@ -1,20 +1,42 @@
 use log::{debug, error};
+use matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState;
 use matrix_sdk::ruma::events::{AnyStrippedStateEvent, AnySyncStateEvent, AnySyncTimelineEvent};
+use matrix_sdk::ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::sync::RoomUpdates;
 use crate::matrix::directs::direct_service::MappingDiff;
+use crate::matrix::sync2::MappingDiffEvents;
 use crate::matrix::utils::EventDeduplicator;
 use crate::notification::client_store::ClientData;
 
-pub async fn handle_contacts_room_updates(mut room_updates: RoomUpdates, client_data: ClientData, mapping_diffs: Vec<MappingDiff>) {
+pub async fn handle_contacts_room_updates(mut room_updates: RoomUpdates, client_data: ClientData, events_to_reevaluate: Vec<MappingDiffEvents>) {
     let contact_service = client_data.get_contact_service();
     let client = client_data.get_matrix_client();
 
-    mapping_diffs.into_iter().for_each(|diff| {
-        contact_service.handle_direct_mapping_diff(diff);
-    });
-
     let mut event_deduplicator = EventDeduplicator::default();
 
+
+    for diff_events in events_to_reevaluate {
+        for event in diff_events.events {
+            match event {
+                RawAnySyncOrStrippedState::Sync(event) => {
+
+                    if let Ok(event) = event.deserialize_as::<SyncRoomMemberEvent>() {
+                        if event_deduplicator.insert_once(event.event_id()) {
+                            contact_service.handle_room_member_event(event, &diff_events.room_id);
+                        }
+                    }
+
+                }
+                RawAnySyncOrStrippedState::Stripped(event) => {
+
+                    if let Ok(event) = event.deserialize_as::<StrippedRoomMemberEvent>() {
+                        contact_service.handle_stripped_room_member_event(event, &diff_events.room_id);
+                    }
+
+                }
+            }
+        }
+    }
 
     for (room_id, update) in &room_updates.joined {
         debug!("SYNC|MEMBERSHIPS|JOIN: Handling room: {}: state count: {}", &room_id, update.state.len());

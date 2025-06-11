@@ -71,6 +71,26 @@ pub enum MappingDiff {
     RemovedMapping(OwnedUserId, OwnedRoomId)
 }
 
+impl MappingDiff{
+
+    pub fn user_id(&self) -> &UserId {
+        match self {
+            MappingDiff::NewMapping(user_id, _) => user_id.as_ref(),
+            MappingDiff::UpdatedMapping(user_id, _) => user_id.as_ref(),
+            MappingDiff::RemovedMapping(user_id, _) => user_id.as_ref()
+        }
+    }
+
+    pub fn room_id(&self) -> &RoomId {
+        match self {
+            MappingDiff::NewMapping(_, room_id) => room_id.as_ref(),
+            MappingDiff::UpdatedMapping(_, room_id) =>  room_id.as_ref(),
+            MappingDiff::RemovedMapping(_, room_id) =>  room_id.as_ref()
+        }
+    }
+
+}
+
 impl MappingDiff {
    pub fn apply(self, output: &mut DirectMappingsHashMap) {
         match self {
