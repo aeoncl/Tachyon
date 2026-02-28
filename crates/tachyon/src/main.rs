@@ -37,7 +37,7 @@ async fn main() {
     let switchboard_server = SwitchboardServer::listen("127.0.0.1", 1864, kill_recv.resubscribe(), client_store_facade.clone());
     let web_server = WebServer::listen("127.0.0.1", 8080, kill_recv, client_store_facade);
 
-    join!(notification_server, switchboard_server, web_server, listen_for_stop_signal(master_kill_signal));
+    let _result = join!(notification_server, switchboard_server, web_server, listen_for_stop_signal(master_kill_signal));
 
     info!("Byebye, world!");
 }
@@ -110,7 +110,7 @@ async fn listen_for_stop_signal(master_kill_signal: Sender<()>) {
         },
     }
     info!("Sending kill signals");
-    master_kill_signal.send(());
+    let _result = master_kill_signal.send(());
 
 }
 

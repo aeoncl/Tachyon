@@ -223,27 +223,27 @@ pub enum EufGUID {
 
 impl Display for EufGUID {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut out = "{00000000-0000-0000-0000-000000000000}";
-        match self {
+        //let mut out = "{00000000-0000-0000-0000-000000000000}";
+        let out = match self {
             EufGUID::MSNObject => {
-                out = "{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}";
+                "{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}"
             },
             EufGUID::FileTransfer => {
-                out = "{5D3E02AB-6190-11D3-BBBB-00C04F795683}";
+                "{5D3E02AB-6190-11D3-BBBB-00C04F795683}"
             },
             EufGUID::MediaReceiveOnly => {
-                out = "{1C9AA97E-9C05-4583-A3BD-908A196F1E92}";
+                "{1C9AA97E-9C05-4583-A3BD-908A196F1E92}"
             },
             EufGUID::MediaSession => {
-                out = "{4BD96FC0-AB17-4425-A14A-439185962DC8}"
+                "{4BD96FC0-AB17-4425-A14A-439185962DC8}"
             },
             EufGUID::SharePhoto => {
-                out = "{41D3E74E-04A2-4B37-96F8-08ACDB610874}";
+                "{41D3E74E-04A2-4B37-96F8-08ACDB610874}"
             },
             EufGUID::Activity => {
-                out = "{6A13AF9C-5308-4F35-923A-67E8DDA40C2F}";
+                "{6A13AF9C-5308-4F35-923A-67E8DDA40C2F}"
             }
-        }
+        };
         return write!(f, "{}", &out);
     }
 }
