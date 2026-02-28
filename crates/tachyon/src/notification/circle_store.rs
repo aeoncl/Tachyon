@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::hash::Hash;
 
 use dashmap::DashMap;
 use matrix_sdk::ruma::OwnedUserId;

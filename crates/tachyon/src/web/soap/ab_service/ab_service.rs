@@ -1,35 +1,21 @@
 use std::str::FromStr;
-use std::sync::Arc;
 use anyhow::anyhow;
 use axum::extract::State;
-use axum::http::{HeaderMap, HeaderValue, StatusCode};
-use axum::response::{IntoResponse, Response};
+use axum::http::HeaderMap;
+use axum::response::Response;
 use axum_macros::debug_handler;
-use log::{error, info, warn};
-use matrix_sdk::{Client, Error};
-use matrix_sdk::ruma::events::room::member::MembershipState;
-use msnp::shared::models::email_address::EmailAddress;
-use msnp::shared::models::msn_user::MsnUser;
+use log::error;
 use msnp::shared::models::ticket_token::TicketToken;
-use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::ab_service::ab_contact_add::request::AbcontactAddMessageSoapEnvelope;
 use msnp::soap::abch::ab_service::ab_contact_delete::request::AbcontactDeleteMessageSoapEnvelope;
 use msnp::soap::abch::ab_service::ab_contact_update::request::AbcontactUpdateMessageSoapEnvelope;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::request::AbfindContactsPagedMessageSoapEnvelope;
-use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContactsPagedResponseMessageSoapEnvelope;
 use msnp::soap::abch::ab_service::ab_group_add::request::AbgroupAddMessageSoapEnvelope;
-use msnp::soap::abch::ab_service::ab_group_contact_add::request::AbgroupContactAddMessageSoapEnvelope;
-use msnp::soap::abch::msnab_datatypes::{ContactType, ContactTypeEnum};
-use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::abch::request_header::AuthHeaderSoapEnvelope;
-use msnp::soap::traits::xml::{ToXml, TryFromXml};
+use msnp::soap::traits::xml::TryFromXml;
 use crate::notification::client_store::ClientStoreFacade;
-use crate::shared::identifiers::MatrixIdCompatible;
 use crate::web::soap::ab_service::ab_find_contacts_paged::ab_find_contacts_paged;
 use crate::web::soap::error::ABError;
-use crate::web::soap::error::ABError::InternalServerError;
-use crate::web::soap::shared;
-use crate::web::soap::shared::build_soap_response;
 #[debug_handler]
 pub async fn address_book_service(headers: HeaderMap, State(state): State<ClientStoreFacade>, body: String) -> Result<Response, ABError> {
 
@@ -74,18 +60,18 @@ pub async fn address_book_service(headers: HeaderMap, State(state): State<Client
 
 
 
-async fn ab_contact_add(request : AbcontactAddMessageSoapEnvelope, token: TicketToken) -> Result<Response, ABError> {
+async fn ab_contact_add(_request : AbcontactAddMessageSoapEnvelope, _token: TicketToken) -> Result<Response, ABError> {
     todo!()
 }
 
-async fn ab_contact_delete(request : AbcontactDeleteMessageSoapEnvelope, token: TicketToken) -> Result<Response, ABError> {
+async fn ab_contact_delete(_request : AbcontactDeleteMessageSoapEnvelope, _token: TicketToken) -> Result<Response, ABError> {
     todo!()
 }
 
-async fn ab_contact_update(request : AbcontactUpdateMessageSoapEnvelope, token: TicketToken) -> Result<Response, ABError> {
+async fn ab_contact_update(_request : AbcontactUpdateMessageSoapEnvelope, _token: TicketToken) -> Result<Response, ABError> {
     todo!()
 }
 
-async fn ab_group_add(request : AbgroupAddMessageSoapEnvelope, token: TicketToken) -> Result<Response, ABError> {
+async fn ab_group_add(_request : AbgroupAddMessageSoapEnvelope, _token: TicketToken) -> Result<Response, ABError> {
     todo!()
 }

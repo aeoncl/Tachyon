@@ -1,11 +1,9 @@
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use anyhow::anyhow;
-use log::error;
 use matrix_sdk::ruma::{OwnedUserId, UserId};
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_user::MsnUser;
-use msnp::shared::models::uuid::Uuid;
 use crate::shared::error::MatrixConversionError;
 
 pub struct MatrixDeviceId(String);

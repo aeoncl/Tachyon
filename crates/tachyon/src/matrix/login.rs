@@ -1,18 +1,15 @@
-use std::path::{Path, PathBuf};
 use anyhow::anyhow;
 use log::debug;
 
 use matrix_sdk::{AuthSession, Client, ClientBuilder, ServerName, SessionTokens};
 use matrix_sdk::authentication::matrix::MatrixSession;
-use matrix_sdk::ruma::{device_id, OwnedUserId, UserId};
+use matrix_sdk::ruma::{device_id, OwnedUserId};
 use matrix_sdk_ui::sync_service::SyncService;
 use msnp::shared::models::ticket_token::TicketToken;
 
-use crate::shared::paths;
 use crate::shared::error::{MatrixConversionError, TachyonError};
 use crate::shared::identifiers::MatrixDeviceId;
 use crate::shared::paths::get_store_path;
-use crate::web::soap::error::RST2Error;
 
 fn get_device_id() -> Result<MatrixDeviceId, MatrixConversionError> {
     MatrixDeviceId::from_hostname()
@@ -47,7 +44,7 @@ pub async fn login_with_token(matrix_id: OwnedUserId, token: TicketToken, disabl
     let device_id_str = get_device_id()?.to_string();
     let device_id = device_id!(device_id_str.as_str()).to_owned();
 
-    let test: SyncService;
+    let _test: SyncService;
 
     let store_path = get_store_path(&matrix_id).ok_or(anyhow!("Couldn't get store path"))?;
     debug!("storepath: {:?}", &store_path);
@@ -67,7 +64,7 @@ pub async fn login_with_token(matrix_id: OwnedUserId, token: TicketToken, disabl
     Ok(client)
 }
 
-pub async fn login_with_password(matrix_id: OwnedUserId, password: &str, disable_ssl: bool) -> Result<(String, Client), TachyonError> {
+pub async fn login_with_password(matrix_id: OwnedUserId, password: &str, _disable_ssl: bool) -> Result<(String, Client), TachyonError> {
     let client = get_matrix_client_builder(matrix_id.server_name(), None, true).build().await?;
 
     let device_id = get_device_id()?;

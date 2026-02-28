@@ -8,8 +8,8 @@ pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, c
     if local_store.needs_initial_presence {
         local_store.needs_initial_presence = false;
 
-        let notif_sender = command_sender.clone();
-        let client_data = client_data.clone();
+        let _notif_sender = command_sender.clone();
+        let _client_data = client_data.clone();
         
         
         //tokio::spawn(async move {

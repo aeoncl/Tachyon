@@ -1,19 +1,18 @@
 use std::fs;
 use std::fs::File;
 use chrono::Local;
-use env_logger::{Builder, Target};
-use log::{error, info, LevelFilter, warn};
-use tokio::{join, select, signal, sync::broadcast::{self, Sender}};
+use env_logger::Builder;
+use log::{error, info, LevelFilter};
+use tokio::{join, signal, sync::broadcast::{self, Sender}};
 
 use crate::notification::notification_server::NotificationServer;
 use crate::switchboard::switchboard_server::SwitchboardServer;
 use crate::web::web_server::WebServer;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::str::FromStr;
 use anyhow::anyhow;
 use directories::ProjectDirs;
-use env_logger::Target::Stdout;
 use crate::notification::client_store::{ClientStoreFacade};
 use crate::shared::paths;
 use crate::shared::paths::create_dirs;

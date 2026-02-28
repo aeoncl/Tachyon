@@ -1,39 +1,27 @@
 use crate::matrix::contacts::contact_handler::handle_contacts_room_updates;
-use crate::matrix::directs::direct_extensions::{DirectDiff, TachyonDirectAccountDataContent};
 use crate::matrix::directs::direct_handler;
-use crate::matrix::directs::direct_service::{DirectMappingsEvent, DirectMappingsEventContent, DirectService, MappingDiff};
+use crate::matrix::directs::direct_service::{DirectMappingsEventContent, MappingDiff};
 use crate::notification::client_store::ClientData;
-use core::sync;
 use futures::StreamExt;
-use log::{debug, error, info, warn};
-use matrix_sdk::deserialized_responses::{DecryptedRoomEvent, MemberEvent, RawAnySyncOrStrippedState, TimelineEventKind};
+use log::{debug, error, info};
+use matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::api::client::error::ErrorKind;
 use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{AccountData, ListFilters, RoomSubscription, ToDevice, Typing, E2EE};
 use matrix_sdk::ruma::directory::RoomTypeFilter;
 use matrix_sdk::ruma::events::direct::{DirectEvent, DirectEventContent};
 use matrix_sdk::ruma::events::{GlobalAccountDataEventType, StateEventType};
-use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::ruma::{assign, OwnedRoomId, RoomId, UInt, UserId};
-use matrix_sdk::sleep::sleep;
-use matrix_sdk::sliding_sync::Bound;
 use matrix_sdk::sync::RoomUpdates;
-use matrix_sdk::{Client, Error, Room, SlidingSync, SlidingSyncList, SlidingSyncListBuilder, SlidingSyncMode};
-use matrix_sdk_ui::sync_service::{self, SyncService};
-use matrix_sdk_ui::timeline::RoomExt;
+use matrix_sdk::{Client, Error, SlidingSync, SlidingSyncList, SlidingSyncListBuilder, SlidingSyncMode};
 use msnp::msnp::notification::command::command::NotificationServerCommand;
-use msnp::msnp::notification::command::iln::IlnServer;
 use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::notification::command::not::factories::NotificationFactory;
 use msnp::msnp::notification::command::not::NotServer;
 use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use std::collections::HashSet;
-use std::process::exit;
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::broadcast::Receiver;
-use tokio::sync::mpsc::Sender;
 
 #[derive(Clone)]
 pub struct TachyonContext {
@@ -183,9 +171,9 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
             //     direct_service.handle_direct_mappings_update(event.content).await.unwrap();
             // });
 
-            matrix_client.add_event_handler(|event: DirectEvent, context: Ctx<TachyonContext>, client: Client | async move {
+            matrix_client.add_event_handler(|event: DirectEvent, context: Ctx<TachyonContext>, _client: Client | async move {
                 let direct_service = context.client_data.get_direct_service();
-                let direct_diffs = direct_service.handle_directs_update(event.content).await.unwrap();
+                let _direct_diffs = direct_service.handle_directs_update(event.content).await.unwrap();
 
                 // TODO: ask wassup with this ?
                 // for direct_diff in direct_diffs {
@@ -229,7 +217,7 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
 
                             match updates_recv.recv().await {
                                 Ok(room_updates) => {
-                                    if(first_sync_of_session) {
+                                    if first_sync_of_session  {
                                         first_sync_of_session = false;
                                         handle_first_sync(&client_data).await.unwrap();
                                     }

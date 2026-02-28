@@ -1,12 +1,10 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::str::FromStr;
 use log::{debug, warn};
-use matrix_sdk::deserialized_responses::{AnySyncOrStrippedState, RawAnySyncOrStrippedState};
-use matrix_sdk::ruma::events::direct::{DirectEventContent, DirectUserIdentifier, OwnedDirectUserIdentifier};
+use matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState;
+use matrix_sdk::ruma::events::direct::{DirectEventContent, OwnedDirectUserIdentifier};
 use matrix_sdk::ruma::events::{AnyStrippedStateEvent, AnySyncStateEvent, GlobalAccountDataEventType, StateEventType};
 use matrix_sdk::ruma::{MilliSecondsSinceUnixEpoch, OwnedRoomId, OwnedUserId, UserId};
-use matrix_sdk::{Client, Error, Room, RoomCreateWithCreatorEventContent, RoomMemberships, RoomState};
-use matrix_sdk::ruma::__private_macros::room_id;
+use matrix_sdk::{Client, Error, Room, RoomMemberships, RoomState};
 use matrix_sdk::ruma::events::room::member::MembershipState;
 
 struct RoomWithTimestamp {
@@ -90,8 +88,8 @@ impl OneOnOneDmClient for Client {
 
     async fn force_update_rooms_with_fresh_m_direct(&self) -> Result<(), Error> {
         if let Some(raw_content) = self.account().fetch_account_data(GlobalAccountDataEventType::Direct).await? {
-            let mut e = raw_content.deserialize_as_unchecked::<DirectEventContent>()?;
-            for (mut user_id, rooms) in e.0 {
+            let e = raw_content.deserialize_as_unchecked::<DirectEventContent>()?;
+            for (user_id, rooms) in e.0 {
                 for room_id in rooms {
                     let room = self.get_room(&room_id);
                     if let Some(room) = room {
@@ -259,7 +257,7 @@ impl TachyonRoomExtensions for Room {
                 }
             }
             RawAnySyncOrStrippedState::Stripped(raw_stripped) => {
-                if let Ok(AnyStrippedStateEvent::RoomCreate(room_create_event)) = raw_stripped.deserialize() {
+                if let Ok(AnyStrippedStateEvent::RoomCreate(_room_create_event)) = raw_stripped.deserialize() {
                     return Ok(None);
                 }
             }

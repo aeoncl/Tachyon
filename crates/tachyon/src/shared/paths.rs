@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use directories::ProjectDirs;
 use matrix_sdk::ruma::UserId;
 use msnp::shared::models::uuid::Uuid;
-use crate::shared::paths;
 
 pub fn get_tachyon_path() -> Option<ProjectDirs> {
     directories::ProjectDirs::from("", "","Tachyon")

@@ -8,7 +8,6 @@ use msnp::soap::error::SoapMarshallError;
 use msnp::soap::traits::xml::ToXml;
 use crate::notification::client_store::ClientStoreError;
 use crate::shared::error::MatrixConversionError;
-use crate::web::soap::error::ABError;
 use crate::web::soap::shared::build_soap_response;
 
 #[derive(Error, Debug)]
@@ -47,7 +46,7 @@ impl IntoResponse for RSIError {
         error!("SOAP|RSI: {:?}", &self);
 
         let soap_resp_body = match self {
-            RSIError::AuthenticationFailed { source, service_url} => {
+            RSIError::AuthenticationFailed { source: _, service_url} => {
                 SoapFaultResponseEnvelope::new_authentication_failed(&service_url, None, None)
             }
             RSIError::MissingHeader(_) | RSIError::HeaderParseError(_) | RSIError::MatrixConversionError(_) => {

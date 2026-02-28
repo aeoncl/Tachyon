@@ -5,7 +5,7 @@ pub struct SwitchboardServer;
 
 
 impl SwitchboardServer {
-    pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, client_store_facade: ClientStoreFacade) -> Result<(), anyhow::Error> {
+    pub async fn listen(_ip_addr: &str, _port: u32, _global_kill_recv: Receiver<()>, _client_store_facade: ClientStoreFacade) -> Result<(), anyhow::Error> {
         Ok(())
     }
 }

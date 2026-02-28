@@ -52,7 +52,7 @@ pub async fn handle_uum(command: UumClient, client_data: ClientData, command_sen
                         RoomMessageEventContent::text_html(content.body, message)
                     };
 
-                    let response = room.send(content).await?;
+                    let _response = room.send(content).await?;
                     //self.add_to_events_sent(response.event_id.to_string());
                     command_sender.send(NotificationServerCommand::OK(ok_response)).await?;
                 }

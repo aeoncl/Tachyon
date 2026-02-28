@@ -1,15 +1,14 @@
-use std::str::{from_utf8, Utf8Error};
-use std::sync::Arc;
+use std::str::from_utf8;
 
 use anyhow::anyhow;
 use axum::{middleware, Router};
 use axum::body::Body;
 use axum::extract::{FromRequest, Request};
-use axum::http::{StatusCode, Uri};
+use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::Response;
 use axum::routing::{get, post};
-use log::{debug, error, info, Level, log_enabled, warn};
+use log::{debug, info, Level, log_enabled, warn};
 use tokio::net::TcpListener;
 use tokio::sync::broadcast::Receiver;
 use http_body_util::BodyExt;

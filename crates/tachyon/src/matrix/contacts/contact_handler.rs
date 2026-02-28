@@ -1,4 +1,3 @@
-use crate::matrix::directs::direct_service::MappingDiff;
 use crate::matrix::sync2::MappingDiffEvents;
 use crate::matrix::utils::EventDeduplicator;
 use crate::notification::client_store::ClientData;
@@ -8,9 +7,9 @@ use matrix_sdk::ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMe
 use matrix_sdk::ruma::events::{AnyStrippedStateEvent, AnySyncStateEvent, AnySyncTimelineEvent};
 use matrix_sdk::sync::{RoomUpdates, State};
 
-pub async fn handle_contacts_room_updates(mut room_updates: RoomUpdates, client_data: ClientData, events_to_reevaluate: Vec<MappingDiffEvents>) {
+pub async fn handle_contacts_room_updates(room_updates: RoomUpdates, client_data: ClientData, events_to_reevaluate: Vec<MappingDiffEvents>) {
     let contact_service = client_data.get_contact_service();
-    let client = client_data.get_matrix_client();
+    let _client = client_data.get_matrix_client();
 
     let mut event_deduplicator = EventDeduplicator::default();
 
@@ -56,7 +55,7 @@ pub async fn handle_contacts_room_updates(mut room_updates: RoomUpdates, client_
             }
         }
 
-        if (update.timeline.limited) {
+        if update.timeline.limited  {
 
             if let State::Before(events) = &update.state {
                 for state_event in events {
@@ -89,7 +88,7 @@ pub async fn handle_contacts_room_updates(mut room_updates: RoomUpdates, client_
                     debug!("SYNC|MEMBERSHIPS|INVITE: Stripped RoomMemberEvent Received: {:?}", stripped_rm_event);
                     contact_service.handle_stripped_room_member_event(stripped_rm_event, &room_id);
                 },
-                Ok(other) => {}
+                Ok(_other) => {}
                 Err(e) => {
                     error!("SYNC|MEMBERSHIPS|INVITE: Couldnt deserialize invite room sync state event: {:?}", e);
                 },
@@ -117,7 +116,7 @@ pub async fn handle_contacts_room_updates(mut room_updates: RoomUpdates, client_
         }
 
 
-        if (update.timeline.limited) {
+        if update.timeline.limited  {
 
             if let State::After(events) = &update.state {
 

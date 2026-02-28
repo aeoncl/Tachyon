@@ -1,7 +1,5 @@
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use directories::ProjectDirs;
-use msnp::shared::models::presence_status::PresenceStatus;
 use serde::{Serialize, Deserialize};
 #[derive(Serialize, Deserialize)]
 pub struct TachyonConfig {

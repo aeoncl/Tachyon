@@ -13,33 +13,22 @@ use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::shared::identifiers::MatrixIdCompatible;
 use anyhow::anyhow;
-use log::{debug, error, warn};
-use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
-use matrix_sdk::sleep::sleep;
+use log::warn;
 use matrix_sdk_ui::sync_service::SyncService;
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
 use msnp::msnp::notification::command::cvr::CvrServer;
-use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
-use msnp::msnp::notification::command::nfy::{NfyOperation, NfyServer};
 use msnp::msnp::notification::command::usr::{AuthOperationTypeClient, AuthPolicy, OperationTypeServer, SsoPhaseClient, SsoPhaseServer, UsrServer};
-use msnp::msnp::notification::command::uum::UumPayload;
-use msnp::msnp::notification::command::uux::UuxPayload;
 use msnp::msnp::notification::models::msnp_version::MsnpVersion::MSNP18;
 use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
-use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
-use msnp::shared::payload::msg::text_msg::FontStyle;
-use std::time::Duration;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc::Sender;
-use tokio::task;
 use crate::matrix::contacts::contact_service::ContactService;
 use crate::matrix::directs::direct_service::DirectService;
 
 pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, client_store: &ClientStoreFacade, local_client_data: &mut LocalClientData) -> Result<(), anyhow::Error> {
 
-    let command_result = match &local_client_data.phase {
+    let _command_result = match &local_client_data.phase {
         ConnectionPhase::Negotiating => {
             handle_negotiation(command, command_sender, local_client_data).await
         },
@@ -97,7 +86,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             notif_sender.send(NotificationServerCommand::RAW(gcf_response)).await?;
                         },
 
-                        SsoPhaseClient::S { ticket_token, challenge, endpoint_guid } => {
+                        SsoPhaseClient::S { ticket_token, challenge: _, endpoint_guid } => {
 
                             let user_id = local_store.email_addr.to_owned_user_id();
 
@@ -162,8 +151,8 @@ async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Se
             Ok(())
         }
         NotificationClientCommand::CHG(command) => handle_chg(command, local_store, client_data, command_sender).await,
-        NotificationClientCommand::PRP(command) => {Ok(())}
-        NotificationClientCommand::UUN(command) => {Ok(())}
+        NotificationClientCommand::PRP(_command) => {Ok(())}
+        NotificationClientCommand::UUN(_command) => {Ok(())}
         NotificationClientCommand::XFR() => {Ok(())}
         NotificationClientCommand::RAW(command) => {
             warn!("Received RAW command: {:?}", command);

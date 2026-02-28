@@ -1,32 +1,23 @@
-use anyhow::anyhow;
 use axum::http::StatusCode;
 use axum::response::Response;
-use log::info;
 use matrix_sdk::Client;
-use matrix_sdk::ruma::events::room::member::MembershipState;
-use matrix_sdk_ui::Timeline;
-use matrix_sdk_ui::timeline::{RoomExt, TimelineBuilder};
-use msnp::msnp::models::contact::Contact;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_user::MsnUser;
-use msnp::shared::models::role_list::RoleList;
 
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
-use msnp::soap::abch::msnab_datatypes::{Annotation, ArrayOfAnnotation, BaseMember, MemberState};
-use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
+use msnp::soap::abch::msnab_datatypes::{BaseMember, MemberState};
 use msnp::soap::abch::sharing_service::find_membership::request::FindMembershipRequestSoapEnvelope;
 use msnp::soap::abch::sharing_service::find_membership::response::factory::FindMembershipResponseFactory;
 use msnp::soap::traits::xml::ToXml;
 use crate::matrix::contacts::contact_service::MembershipDiff;
-use crate::notification::client_store::{ClientData, ClientStoreFacade};
+use crate::notification::client_store::ClientData;
 use crate::shared::identifiers::MatrixIdCompatible;
-use crate::shared::traits::ToUuid;
 
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 
-pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, token: TicketToken, client: Client, mut client_data: ClientData) -> Result<Response, ABError> {
+pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token: TicketToken, client: Client, mut client_data: ClientData) -> Result<Response, ABError> {
 
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or(Uuid::new().to_string());
 
@@ -97,7 +88,7 @@ fn get_delta_sync(client_data: &mut ClientData) -> Result<Vec<BaseMember>, ABErr
 
 async fn get_fullsync_members(matrix_client: &Client) -> Result<Vec<BaseMember>, ABError> {
 
-    let me = matrix_client.user_id().expect("A user to be logged in when fetching fullsync members");
+    let _me = matrix_client.user_id().expect("A user to be logged in when fetching fullsync members");
 
     // for joined_room in matrix_client.joined_rooms() {
     //     if joined_room.is_direct().await? {

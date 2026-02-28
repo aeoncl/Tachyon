@@ -3,14 +3,12 @@ use anyhow::anyhow;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
-use axum_macros::debug_handler;
 use base64::Engine;
 use base64::engine::general_purpose;
 use log::error;
 use matrix_sdk::Client;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
-use msnp::soap::abch::request_header::AuthHeaderSoapEnvelope;
 use msnp::soap::storage_service::get_profile::request::GetProfileMessageSoapEnvelope;
 use msnp::soap::storage_service::get_profile::response::GetProfileResponseMessageSoapEnvelope;
 use msnp::soap::storage_service::headers::StorageServiceRequestSoapEnvelope;
@@ -50,7 +48,7 @@ pub async fn storage_service(headers: HeaderMap, State(state): State<ClientStore
 
 }
 
-async fn get_profile(request: GetProfileMessageSoapEnvelope, token: TicketToken, matrix_client: Client) -> Result<Response, ABError> {
+async fn get_profile(_request: GetProfileMessageSoapEnvelope, _token: TicketToken, matrix_client: Client) -> Result<Response, ABError> {
     let user_id = matrix_client.user_id().ok_or(anyhow!("Expected to have user_id in matrix client"))?;
     let msn_addr = EmailAddress::from_user_id(user_id);
     let uuid = msn_addr.to_uuid();

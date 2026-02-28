@@ -1,22 +1,16 @@
-use std::cmp::Ordering;
 use std::collections::HashMap;
-use crate::matrix::contacts::contact_service::ContactDiff::{AddContact, ClearContact, RemoveContact};
+use crate::matrix::contacts::contact_service::ContactDiff::{AddContact, ClearContact};
 use crate::matrix::contacts::contact_service::MembershipDiff::{AddInviteMembership, AddMembership, ClearMemberships, RemoveMembership};
 use crate::matrix::directs::direct_service::{DirectService, MappingDiff, RoomMapping};
-use crate::notification::client_store::ClientData;
 use crate::shared::identifiers::MatrixIdCompatible;
 use log::{debug, error};
-use matrix_sdk::ruma::events::room::member::{MembershipChange, MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent};
-use matrix_sdk::ruma::events::OriginalSyncStateEvent;
+use matrix_sdk::ruma::events::room::member::{MembershipState, StrippedRoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, RoomId};
-use matrix_sdk::Client;
-use msnp::msnp::models::contact::Contact;
 use msnp::msnp::models::contact_list::ContactList;
 use msnp::msnp::notification::command::adl::ADLPayload;
-use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::role_list::RoleList;
-use msnp::soap::abch::msnab_datatypes::{Annotation, ArrayOfAnnotation, BaseMember, CircleInverseInfoType, ContactType, ContactTypeEnum, MemberState};
+use msnp::soap::abch::msnab_datatypes::{BaseMember, CircleInverseInfoType, ContactType};
 use std::sync::{Arc, Mutex, RwLock};
 
 pub struct ContactServiceInner {
@@ -52,23 +46,23 @@ impl ContactService {
         }
     }
 
-    pub fn add_contacts(&self, payload: ADLPayload) {
+    pub fn add_contacts(&self, _payload: ADLPayload) {
 
     }
 
-    pub fn remove_contacts(&self, payload: ADLPayload) {
+    pub fn remove_contacts(&self, _payload: ADLPayload) {
 
     }
 
     pub fn handle_direct_mapping_diff(&self, diff: MappingDiff) {
         match diff {
-            MappingDiff::NewMapping(user_id, room_id) => {
+            MappingDiff::NewMapping(_user_id, _room_id) => {
 
             }
-            MappingDiff::UpdatedMapping(user_id, room_id) => {
+            MappingDiff::UpdatedMapping(_user_id, _room_id) => {
 
             }
-            MappingDiff::RemovedMapping(user_id, room_id) => {
+            MappingDiff::RemovedMapping(_user_id, _room_id) => {
 
             }
         }
@@ -94,7 +88,7 @@ impl ContactService {
         self.persist_diffs(address_book_diffs)
     }
 
-    pub fn handle_canonical_dm_stripped_room_member_event(&self, contact_id: OwnedUserId, room_id: OwnedRoomId,  event: StrippedRoomMemberEvent) -> Vec<AddressBookDiff> {
+    pub fn handle_canonical_dm_stripped_room_member_event(&self, contact_id: OwnedUserId, _room_id: OwnedRoomId,  event: StrippedRoomMemberEvent) -> Vec<AddressBookDiff> {
         if &event.sender != &self.own_user_id  && &event.sender != &contact_id {
             return vec![]
         }
@@ -113,7 +107,7 @@ impl ContactService {
 
 
         match event_target {
-            CanonicalRoomEventTarget::Me(user_id) => {
+            CanonicalRoomEventTarget::Me(_user_id) => {
 
                 match event.content.membership {
                     MembershipState::Invite => {
@@ -192,7 +186,7 @@ impl ContactService {
         }
     }
 
-    fn handle_canonical_dm_room_member_event(&self, contact_id: OwnedUserId, room_id: OwnedRoomId, event: SyncRoomMemberEvent) -> Vec<AddressBookDiff> {
+    fn handle_canonical_dm_room_member_event(&self, contact_id: OwnedUserId, _room_id: OwnedRoomId, event: SyncRoomMemberEvent) -> Vec<AddressBookDiff> {
 
         if event.sender() != &self.own_user_id && event.sender() != &contact_id {
             return vec![]
@@ -210,10 +204,10 @@ impl ContactService {
            }
        };
 
-        let contact_user = MsnUser::from_user_id(&contact_id);
+        let _contact_user = MsnUser::from_user_id(&contact_id);
 
         match event_target {
-            CanonicalRoomEventTarget::Me(own_user_id) => {
+            CanonicalRoomEventTarget::Me(_own_user_id) => {
                 debug!("{} Event target was me", LOG_PREFIX);
 
 
@@ -291,7 +285,7 @@ impl ContactService {
                 }
 
             }
-            GroupRoomEventTarget::Thirdwheel(user_id) => {
+            GroupRoomEventTarget::Thirdwheel(_user_id) => {
 
                 match event.membership() {
                     MembershipState::Ban => {
@@ -359,14 +353,14 @@ impl GetKey for CircleDiff {
 impl GetKey for MembershipDiff {
     fn get_key(&self) -> String {
         match self {
-            MembershipDiff::AddMembership { user_id, list_type } => {
+            MembershipDiff::AddMembership { user_id, list_type: _ } => {
                 user_id.to_string()
             }
-            MembershipDiff::AddInviteMembership { user_id, message } => {
+            MembershipDiff::AddInviteMembership { user_id, message: _ } => {
                 user_id.to_string()
 
             }
-            MembershipDiff::RemoveMembership { user_id, list_type } => {
+            MembershipDiff::RemoveMembership { user_id, list_type: _ } => {
                 user_id.to_string()
 
             }
@@ -396,10 +390,10 @@ impl GetKey for AddressBookDiff {
 impl GetKey for ContactDiff {
     fn get_key(&self) -> String {
         match self {
-            ContactDiff::AddContact { user_id, pending } => {
+            ContactDiff::AddContact { user_id, pending: _ } => {
                 user_id.to_string()
             }
-            ContactDiff::RemoveContact { user_id, pending } => {
+            ContactDiff::RemoveContact { user_id, pending: _ } => {
                 user_id.to_string()
             }
             ContactDiff::ClearContact { user_id } => {
@@ -412,14 +406,14 @@ impl GetKey for ContactDiff {
 impl ContactDiff {
     pub fn get_weigth(&self) -> u8 {
         match self {
-            ContactDiff::AddContact { user_id, pending } => {
+            ContactDiff::AddContact { user_id: _, pending } => {
                 let mut weigth = 3;
                 if !pending {
                     weigth += 100;
                 }
                 weigth
             }
-            ContactDiff::RemoveContact { user_id, pending } => {
+            ContactDiff::RemoveContact { user_id: _, pending: _ } => {
                 1
             }
             ContactDiff::ClearContact { .. } => {

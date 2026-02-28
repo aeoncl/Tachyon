@@ -12,7 +12,7 @@ use crate::notification::client_store::ClientData;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 
-pub async fn delete_member(request : DeleteMemberMessageSoapEnvelope, token: TicketToken, client: Client, mut client_data: ClientData) -> Result<Response, ABError> {
+pub async fn delete_member(request : DeleteMemberMessageSoapEnvelope, _token: TicketToken, _client: Client, _client_data: ClientData) -> Result<Response, ABError> {
     let cache_key = &request.header.ok_or(anyhow!("Header missing"))?.application_header.cache_key.unwrap_or_default();
 
     let soap_body = DeleteMemberResponseMessageSoapEnvelope::new(cache_key);

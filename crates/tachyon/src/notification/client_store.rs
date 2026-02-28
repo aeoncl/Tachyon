@@ -2,7 +2,6 @@ use crate::matrix::directs::direct_service::DirectService;
 use crate::notification::circle_store::CircleStore;
 use anyhow::anyhow;
 use dashmap::DashMap;
-use log::error;
 use matrix_sdk::ruma::OwnedRoomId;
 use matrix_sdk::{Client, SlidingSync};
 use matrix_sdk_ui::sync_service::SyncService;
@@ -167,7 +166,7 @@ impl ClientData {
         self.inner.switchboards.remove(id)
     }
 
-    pub fn get_user(&self) -> Result<RwLockReadGuard<MsnUser>, ClientStoreError> {
+    pub fn get_user(&self) -> Result<RwLockReadGuard<'_, MsnUser>, ClientStoreError> {
         let out = self.inner.user.read().map_err(|e| ClientStoreError::PoisonnedLockError {name: "User".into(), source: anyhow!(e.to_string())})?;
         Ok(out)
     }
@@ -176,7 +175,7 @@ impl ClientData {
         Ok(self.get_user()?.clone())
     }
 
-    pub fn get_user_mut(&mut self) -> Result<RwLockWriteGuard<MsnUser>, ClientStoreError> {
+    pub fn get_user_mut(&mut self) -> Result<RwLockWriteGuard<'_, MsnUser>, ClientStoreError> {
         Ok(self.inner.user.write().map_err(|e| ClientStoreError::PoisonnedLockError {name: "User".into(), source: anyhow!(e.to_string())})?)
     }
 

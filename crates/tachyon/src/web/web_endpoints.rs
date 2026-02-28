@@ -1,21 +1,17 @@
 use std::str::from_utf8;
-use anyhow::anyhow;
 use axum::body::Body;
 use axum::extract::{Path, State};
-use axum::http::{HeaderMap, HeaderName, Response, StatusCode};
+use axum::http::{HeaderMap, Response, StatusCode};
 use axum::http::header::{CONTENT_TYPE, LOCATION};
 use base64::Engine;
 use base64::engine::general_purpose;
 use lazy_static::lazy_static;
 use lazy_static_include::lazy_static_include_bytes;
-use matrix_sdk::Client;
 use matrix_sdk::media::{MediaFormat, MediaRequestParameters, MediaThumbnailSettings};
-use matrix_sdk::ruma::api::client::media::get_content_thumbnail::v3::Method;
 use matrix_sdk::ruma::events::room::MediaSource;
-use matrix_sdk::ruma::{mxc_uri, MxcUri, OwnedMxcUri, UInt};
+use matrix_sdk::ruma::{OwnedMxcUri, UInt};
 use regex::Regex;
 use crate::notification::client_store::ClientStoreFacade;
-use crate::web::soap::error::ABError;
 use crate::web::soap::shared::build_soap_response;
 
 lazy_static! {

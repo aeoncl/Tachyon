@@ -1,6 +1,6 @@
 use log::debug;
 use tokio::sync::mpsc::Sender;
-use msnp::msnp::notification::command::adl::{AdlClient, RmlClient};
+use msnp::msnp::notification::command::adl::RmlClient;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use crate::notification::client_store::ClientData;
 

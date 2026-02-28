@@ -12,7 +12,7 @@ use crate::notification::client_store::ClientData;
 use crate::web::soap::rsi::error::RSIError;
 use crate::web::soap::shared;
 
-pub async fn get_metadata(request : GetMetadataMessageSoapEnvelope, token: TicketToken, client: Client, client_data: &mut ClientData) -> Result<Response, RSIError> {
+pub async fn get_metadata(_request : GetMetadataMessageSoapEnvelope, _token: TicketToken, _client: Client, client_data: &mut ClientData) -> Result<Response, RSIError> {
 
     let mut md = MetaData {
         ..Default::default()

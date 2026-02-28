@@ -1,22 +1,20 @@
-use anyhow::{anyhow, Error};
+use anyhow::anyhow;
 use base64::engine::general_purpose;
 use base64::Engine;
 use log::warn;
 
 use matrix_sdk::media::{MediaFormat, MediaRequestParameters, MediaThumbnailSettings};
 use matrix_sdk::room::RoomMember;
-use matrix_sdk::ruma::api::client::media::get_content_thumbnail::v3::Method;
 use matrix_sdk::ruma::api::client::profile::DisplayName;
 use matrix_sdk::ruma::events::presence::PresenceEvent;
 use matrix_sdk::ruma::events::room::MediaSource;
-use matrix_sdk::ruma::{MxcUri, OwnedMxcUri, UInt, UserId};
+use matrix_sdk::ruma::{MxcUri, UInt, UserId};
 use matrix_sdk::{Client, Room};
 
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_object::{FriendlyName, MSNObjectFactory, MsnObject};
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::presence_status::PresenceStatus;
-use msnp::soap::storage_service::msnstorage_datatypes::Profile;
 
 use crate::notification::client_store::ClientData;
 use crate::shared::identifiers::MatrixIdCompatible;
@@ -154,7 +152,7 @@ async fn resolve_room(user_id: &UserId, room: Option<Room>, client: &Client) -> 
     for room in client.joined_rooms() {
         match room.get_member_no_sync(user_id).await? {
             None => {}
-            Some(found) => {
+            Some(_found) => {
                 return Ok(Some(room));
             }
         }

@@ -1,17 +1,9 @@
-use std::mem;
 use std::str::FromStr;
-use std::time::Duration;
 use anyhow::anyhow;
 use axum::http::StatusCode;
 use axum::response::Response;
-use axum::routing::any;
-use lazy_static_include::syn::ReturnType::Default;
-use log::{debug, warn};
 use matrix_sdk::{Client, RoomMemberships};
-use matrix_sdk::room::RoomMember;
 use matrix_sdk::ruma::events::room::member::MembershipState;
-use matrix_sdk::ruma::{OwnedUserId, UserId};
-use matrix_sdk::sleep::sleep;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::role_list::RoleList;
@@ -19,18 +11,15 @@ use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::request::AbfindContactsPagedMessageSoapEnvelope;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContactsPagedResponseMessageSoapEnvelope;
-use msnp::soap::abch::msnab_datatypes::{AbHandleType, AddressBookType, CircleRelationshipRole, ContactType, ContactTypeEnum, RelationshipState};
-use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
+use msnp::soap::abch::msnab_datatypes::{CircleRelationshipRole, ContactType, ContactTypeEnum, RelationshipState};
 use msnp::soap::traits::xml::ToXml;
 use crate::matrix::contacts::contact_service::ContactDiff;
-use crate::notification::client_store::{ClientData, AddressBookContact};
+use crate::notification::client_store::ClientData;
 use crate::shared::identifiers::MatrixIdCompatible;
-use crate::shared::traits::ToUuid;
 use crate::web::soap::error::ABError;
-use crate::web::soap::error::ABError::InternalServerError;
 use crate::web::soap::shared;
 
-pub async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, token: TicketToken, client: Client, mut client_data: ClientData) -> Result<Response, ABError> {
+pub async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, _token: TicketToken, client: Client, mut client_data: ClientData) -> Result<Response, ABError> {
     let body = &request.body.body;
 
     let ab_id = {
@@ -62,7 +51,7 @@ async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, 
 
     if body.filter_options.deltas_only {
 
-        let contacts = client_data.inner.soap_holder.circle_contacts.remove(ab_id).map(|(id, contacts)| contacts).unwrap_or(Vec::new());
+        let contacts = client_data.inner.soap_holder.circle_contacts.remove(ab_id).map(|(_id, contacts)| contacts).unwrap_or(Vec::new());
 
         let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_circle(ab_id, &cache_key, contacts);
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
@@ -83,7 +72,7 @@ async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, 
         };
 
         let found = found.unwrap();
-        let me = found.get_member_no_sync(me).await?.unwrap();
+        let _me = found.get_member_no_sync(me).await?.unwrap();
 
 
         let mut contacts = Vec::new();
@@ -115,8 +104,8 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
     let body = request.body.body;
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or(Uuid::new().to_string());
     let me_user = client_data.get_user_clone()?;
-    let uuid = &me_user.uuid;
-    let msn_addr = me_user.get_email_address();
+    let _uuid = &me_user.uuid;
+    let _msn_addr = me_user.get_email_address();
 
     if body.filter_options.deltas_only {
 
@@ -130,7 +119,7 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
     } else {
         // Full contact list demanded.
         //TODO Circle fullsync
-        let mut contacts = get_fullsync_contact_list(&client).await?;
+        let contacts = get_fullsync_contact_list(&client).await?;
         let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(&me_user, &cache_key, contacts, Vec::new(),false );
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
     }
@@ -144,7 +133,7 @@ fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<ContactTyp
 
     let mut current_contacts = Vec::new();
 
-    for (string, contact) in contacts.drain() {
+    for (_string, contact) in contacts.drain() {
         match contact {
             ContactDiff::AddContact { user_id, pending } => {
                 let msn_user = MsnUser::from_user_id(&user_id);
@@ -203,8 +192,8 @@ fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<ContactTyp
     Ok(current_contacts)
 }
 
-async fn get_fullsync_contact_list(matrix_client: &Client) -> Result<Vec<ContactType>, ABError> {
-    let mut out = Vec::new();
+async fn get_fullsync_contact_list(_matrix_client: &Client) -> Result<Vec<ContactType>, ABError> {
+    let out = Vec::new();
 
     // for joined_room in matrix_client.joined_rooms() {
     //     if joined_room.is_direct().await? {

@@ -1,24 +1,15 @@
-use crate::matrix::directs::direct_extensions::{DirectDiff, DirectsHashMap, OneOnOneDmClient, TachyonDirectAccountDataContent, TachyonRoomExtensions};
-use crate::matrix::sync2::TachyonContext;
-use dashmap::mapref::multiple::RefMulti;
-use dashmap::mapref::one::Ref;
-use dashmap::DashMap;
+use crate::matrix::directs::direct_extensions::{DirectDiff, OneOnOneDmClient, TachyonDirectAccountDataContent, TachyonRoomExtensions};
 use futures_util::StreamExt;
-use log::{debug, error, info, warn};
-use matrix_sdk::event_handler::Ctx;
+use log::{debug, error, info};
 use matrix_sdk::locks::RwLock;
 use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
-use matrix_sdk::sync::RoomUpdates;
-use matrix_sdk::{Client, Error, Room, RoomMemberships, RoomState, SlidingSyncBuilder, SlidingSyncListBuilder};
-use matrix_sdk_ui::timeline::RoomExt;
-use matrix_sdk_ui::{RoomListService, Timeline};
-use msnp::soap::abch::sharing_service::find_membership::response::Memberships;
+use matrix_sdk::{Client, Error};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::mem;
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, RwLockWriteGuard};
+use std::sync::{Arc, Mutex};
 use matrix_sdk::ruma::events::{False, GlobalAccountDataEventContent, GlobalAccountDataEventType, StaticEventContent};
 use matrix_sdk::ruma::events::direct::DirectEventContent;
 use ruma::events::macros::EventContent;
@@ -196,7 +187,7 @@ impl DirectService {
         debug!("Loading direct mappings from cache...");
 
         if let Ok(Some(raw_direct)) = matrix_client.account().account_data::<DirectMappingsEventContent>().await {
-            if let Ok(mut content) = raw_direct.deserialize() {
+            if let Ok(content) = raw_direct.deserialize() {
                 info!("Found {:?} direct mappings in cache.",  &content.mappings.len());
                 return Ok(content.mappings)
             }
@@ -235,7 +226,7 @@ impl DirectService {
     }
 
     pub fn get_mapping_for_room(&self, query_room: &RoomId) -> RoomMapping {
-        let maybe = self.inner.direct_mappings.read().iter().find(|(user_id, room_id)| room_id == &query_room).map(|(user_id, room_id)| (user_id.clone(), room_id.clone()));
+        let maybe = self.inner.direct_mappings.read().iter().find(|(_user_id, room_id)| room_id == &query_room).map(|(user_id, room_id)| (user_id.clone(), room_id.clone()));
 
         match maybe {
             None => {
@@ -281,7 +272,7 @@ impl DirectService {
         let mut current_mappings = self.inner.direct_mappings_next_tick.write();
         let mut diffs = Self::compute_mappings_diff(&current_mappings, &content.mappings);
 
-        diffs.drain(..).for_each(|mut diff| {
+        diffs.drain(..).for_each(|diff| {
             diff.apply(&mut current_mappings)
         });
 
@@ -290,7 +281,7 @@ impl DirectService {
 
     pub(crate) async fn handle_directs_update(&self, new_directs: DirectEventContent) -> Result<Vec<DirectDiff>, anyhow::Error> {
         let diffs = {
-            let mut old_directs = self.inner.directs.lock().unwrap();
+            let old_directs = self.inner.directs.lock().unwrap();
              old_directs.compute_diff(&new_directs)
         };
 
@@ -303,7 +294,7 @@ impl DirectService {
                     };
 
                     if let Some(found_room) = found_room {
-                        if(&found_room == room_id) {
+                        if &found_room == room_id  {
                             match self.matrix_client.get_room(&found_room) {
                                 None => {
                                     MappingDiff::RemovedMapping(user_id.clone(), room_id.clone()).apply(&mut self.inner.direct_mappings_next_tick.write());
@@ -335,7 +326,7 @@ impl DirectService {
     }
 
     pub async fn compute_mapping(&self, room: &RoomId) -> Result<(), anyhow::Error> {
-        if let Some(mut diff) = self.compute_mapping_diff(room).await? {
+        if let Some(diff) = self.compute_mapping_diff(room).await? {
             diff.apply_as_ref(&mut self.inner.direct_mappings_next_tick.write());
         }
         Ok(())
@@ -422,7 +413,7 @@ impl DirectService {
             }
             Some(found) => {
                 debug!("{} Found new room: {} - {}", LOG_LABEL, user_id, &found);
-                if(&found != &room_to_compare) {
+                if &found != &room_to_compare  {
                     debug!("{} Update Mapping: {} - {}", LOG_LABEL, user_id, &found);
                     return Ok(Some(MappingDiff::UpdatedMapping(user_id.to_owned(), found)));
                 }

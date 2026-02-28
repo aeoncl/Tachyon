@@ -1,15 +1,11 @@
-use anyhow::anyhow;
-use chrono::{DateTime, Local, LocalResult, MappedLocalTime, TimeZone};
-use chrono::LocalResult::{Ambiguous, Single};
-use log::{debug, warn};
-use matrix_sdk::{Client, Room};
+use chrono::DateTime;
+use log::debug;
+use matrix_sdk::Client;
 use matrix_sdk::room::MessagesOptions;
 use matrix_sdk::ruma::api::client::filter::RoomEventFilter;
-use matrix_sdk::ruma::events::{AnyMessageLikeEvent, AnySyncMessageLikeEvent, AnySyncTimelineEvent, AnyTimelineEvent, MessageLikeEvent, MessageLikeEventType, SyncMessageLikeEvent};
-use matrix_sdk::ruma::events::room::message::{FormattedBody, MessageType, RoomMessageEvent, SyncRoomMessageEvent};
-use matrix_sdk::ruma::{EventId, OwnedRoomId, OwnedUserId, uint, UserId};
-use matrix_sdk::ruma::events::room::member::MembershipState;
-use matrix_sdk::ruma::events::StateEvent::{Original, Redacted};
+use matrix_sdk::ruma::events::{AnySyncMessageLikeEvent, AnySyncTimelineEvent, SyncMessageLikeEvent};
+use matrix_sdk::ruma::events::room::message::{MessageType, SyncRoomMessageEvent};
+use matrix_sdk::ruma::{EventId, OwnedRoomId, uint, UserId};
 use matrix_sdk::sync::SyncResponse;
 
 use thiserror::Error;
@@ -70,7 +66,7 @@ pub async fn handle_oims(client: Client, response: SyncResponse, mut client_data
 
                                             handle_original_message(&original_event.content.msgtype, &room_id, room_uuid.clone(),e.event_id(), original_event.origin_server_ts.0.into(), e.sender(), display_name, seq_num, me_email_addr.clone())?
                                         },
-                                        SyncMessageLikeEvent::Redacted(ref redacted) => {
+                                        SyncMessageLikeEvent::Redacted(_redacted) => {
                                             None
                                         }
                                     };
@@ -119,7 +115,7 @@ pub async fn handle_oims(client: Client, response: SyncResponse, mut client_data
                                 };
                                 handle_original_message(&original_event.content.msgtype, &room_id, room_uuid.clone(),e.event_id(), original_event.origin_server_ts.0.into(), e.sender(), display_name, seq_num, me_email_addr.clone())?
                             },
-                            SyncRoomMessageEvent::Redacted(ref redacted) => {
+                            SyncRoomMessageEvent::Redacted(_redacted) => {
                                 None
                             }
                         };

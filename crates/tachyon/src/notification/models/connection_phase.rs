@@ -1,4 +1,3 @@
-use crate::notification::client_store::ClientData;
 
 pub(crate) enum ConnectionPhase {
     Negotiating,

@@ -10,7 +10,7 @@ pub async fn handle_usr(command: UsrClient, email_addr: EmailAddress, command_se
             todo!()
             //return error;
         },
-        AuthOperationTypeClient::Sha(phase) => {
+        AuthOperationTypeClient::Sha(_phase) => {
 
             let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
                 email_addr,
