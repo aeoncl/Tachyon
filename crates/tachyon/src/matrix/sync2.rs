@@ -1,39 +1,39 @@
+use crate::matrix::contacts::contact_handler::handle_contacts_room_updates;
+use crate::matrix::directs::direct_extensions::{DirectDiff, TachyonDirectAccountDataContent};
+use crate::matrix::directs::direct_handler;
+use crate::matrix::directs::direct_service::{DirectMappingsEvent, DirectMappingsEventContent, DirectService, MappingDiff};
+use crate::notification::client_store::ClientData;
 use core::sync;
-use std::collections::HashSet;
-use std::process::exit;
-use std::sync::Arc;
-use std::time::Duration;
 use futures::StreamExt;
 use log::{debug, error, info, warn};
-use crate::notification::client_store::ClientData;
-use matrix_sdk::{Client, Error, Room, SlidingSync, SlidingSyncList, SlidingSyncListBuilder, SlidingSyncMode};
-use matrix_sdk::crypto::types::events::olm_v1::AnyDecryptedOlmEvent;
 use matrix_sdk::deserialized_responses::{DecryptedRoomEvent, MemberEvent, RawAnySyncOrStrippedState, TimelineEventKind};
 use matrix_sdk::event_handler::Ctx;
-use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{AccountData, ListFilters, RoomSubscription, ToDevice, Typing, E2EE};
-use matrix_sdk::ruma::events::direct::{ DirectEventContent};
-use matrix_sdk::ruma::{assign, RoomId, UInt, UserId};
 use matrix_sdk::ruma::api::client::error::ErrorKind;
+use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{AccountData, ListFilters, RoomSubscription, ToDevice, Typing, E2EE};
 use matrix_sdk::ruma::directory::RoomTypeFilter;
+use matrix_sdk::ruma::events::direct::{DirectEvent, DirectEventContent};
+use matrix_sdk::ruma::events::{GlobalAccountDataEventType, StateEventType};
 use matrix_sdk::ruma::serde::Raw;
+use matrix_sdk::ruma::{assign, OwnedRoomId, RoomId, UInt, UserId};
 use matrix_sdk::sleep::sleep;
 use matrix_sdk::sliding_sync::Bound;
 use matrix_sdk::sync::RoomUpdates;
+use matrix_sdk::{Client, Error, Room, SlidingSync, SlidingSyncList, SlidingSyncListBuilder, SlidingSyncMode};
 use matrix_sdk_ui::sync_service::{self, SyncService};
 use matrix_sdk_ui::timeline::RoomExt;
-use tokio::sync::broadcast::Receiver;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
-use tokio::sync::mpsc::Sender;
 use msnp::msnp::notification::command::iln::IlnServer;
 use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::notification::command::not::factories::NotificationFactory;
 use msnp::msnp::notification::command::not::NotServer;
 use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
-use crate::matrix::contacts::contact_handler::handle_contacts_room_updates;
-use crate::matrix::directs::direct_extensions::{DirectDiff, TachyonDirectAccountDataContent};
-use crate::matrix::directs::direct_handler;
-use crate::matrix::directs::direct_service::{DirectMappingsEventContent, DirectService, MappingDiff};
+use std::collections::HashSet;
+use std::process::exit;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::broadcast::Receiver;
+use tokio::sync::mpsc::Sender;
 
 #[derive(Clone)]
 pub struct TachyonContext {
@@ -152,16 +152,15 @@ async fn setup_sliding_sync_room_subscriptions(sliding_sync: &SlidingSync, clien
 
     let maybe_direct_mappings = client.account()
         .fetch_account_data(GlobalAccountDataEventType::from("org.tachyon.direct_mappings")).await?
-        .map(|raw| raw.deserialize_as::<DirectMappingsEventContent>());
+        .map(|raw| raw.deserialize_as_unchecked::<DirectMappingsEventContent>());
 
-    let maybe_direct_event = client.account().fetch_account_data(GlobalAccountDataEventType::Direct).await?.map(|raw| raw.deserialize_as::<DirectEventContent>());
+    let maybe_direct_event = client.account().fetch_account_data(GlobalAccountDataEventType::Direct).await?.map(|raw| raw.deserialize_as_unchecked::<DirectEventContent>());
 
     let rooms_to_watch = get_mandatory_rooms_for_initial_sync(&maybe_direct_mappings, &maybe_direct_event).await?;
 
     let subscription = assign!(RoomSubscription::default(), {
         required_state: DM_REQUIRED_STATE.iter().map(|(key, val)| (key.to_owned(), val.to_string())).collect(),
-        timeline_limit: UInt::new_wrapping(10),
-        include_heroes: Some(true),
+        timeline_limit: UInt::new_wrapping(10)
             });
 
     let room_refs: Vec<&RoomId> = rooms_to_watch.iter().map(|r| r.as_ref()).collect();
@@ -308,7 +307,7 @@ pub struct MappingDiffEvents {
 }
 
 impl MappingDiffEvents {
-    fn new(room_id: RoomId) -> Self {
+    fn new(room_id: OwnedRoomId) -> Self {
         Self {
             room_id,
             events: Vec::new()

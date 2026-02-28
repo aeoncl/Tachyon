@@ -8,7 +8,7 @@ use matrix_sdk::deserialized_responses::TimelineEventKind;
 use matrix_sdk::ruma::events::{AnyStrippedStateEvent, AnySyncStateEvent, AnySyncTimelineEvent};
 use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::ruma::EventId;
-use matrix_sdk::sync::{RoomUpdates, Timeline};
+use matrix_sdk::sync::{RoomUpdates, State, Timeline};
 use matrix_sdk::Room;
 use matrix_sdk_ui::sync_service::SyncService;
 use msnp::msnp::models::contact::Contact;
@@ -29,15 +29,22 @@ pub async fn handle_direct_mappings_room_updates(mut room_updates: RoomUpdates, 
         let mut direct_service = client_data.get_direct_service();
         let matrix_client = client_data.get_matrix_client();
 
+
         for (room_id, room_update) in room_updates.joined.into_iter() {
-            if state_can_affect_mappings(room_update.state) || timeline_can_affect_mappings(&room_update.timeline) {
-                direct_service.compute_mapping(&room_id).await.unwrap();
+            if let State::Before(state_events) = room_update.state {
+
+                if state_can_affect_mappings(state_events) || timeline_can_affect_mappings(&room_update.timeline) {
+                    direct_service.compute_mapping(&room_id).await.unwrap();
+                }
             }
         }
 
         for (room_id, room_update) in room_updates.left.into_iter() {
-            if state_can_affect_mappings(room_update.state) || timeline_can_affect_mappings(&room_update.timeline) {
-                direct_service.compute_mapping(&room_id).await.unwrap();
+
+            if let State::Before(state_events) = room_update.state {
+                if state_can_affect_mappings(state_events) || timeline_can_affect_mappings(&room_update.timeline) {
+                    direct_service.compute_mapping(&room_id).await.unwrap();
+                }
             }
 
         }

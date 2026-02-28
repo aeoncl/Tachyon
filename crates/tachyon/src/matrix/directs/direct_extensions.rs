@@ -90,7 +90,7 @@ impl OneOnOneDmClient for Client {
 
     async fn force_update_rooms_with_fresh_m_direct(&self) -> Result<(), Error> {
         if let Some(raw_content) = self.account().fetch_account_data(GlobalAccountDataEventType::Direct).await? {
-            let mut e = raw_content.deserialize_as::<DirectEventContent>()?;
+            let mut e = raw_content.deserialize_as_unchecked::<DirectEventContent>()?;
             for (mut user_id, rooms) in e.0 {
                 for room_id in rooms {
                     let room = self.get_room(&room_id);

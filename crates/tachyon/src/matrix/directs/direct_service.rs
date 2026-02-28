@@ -463,7 +463,7 @@ impl DirectService {
 
         let room_mappings_from_server = client.account()
             .fetch_account_data(GlobalAccountDataEventType::from("org.tachyon.direct_mappings")).await?
-            .map(|raw| raw.deserialize_as::<DirectMappingsEventContent>());
+            .map(|raw| raw.deserialize_as_unchecked::<DirectMappingsEventContent>());
 
         let mut content = match room_mappings_from_server {
             None | Some(Err(_)) => {

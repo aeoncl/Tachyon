@@ -1,16 +1,19 @@
 use anyhow::{anyhow, Error};
+use base64::engine::general_purpose;
+use base64::Engine;
 use log::warn;
-use matrix_sdk::{Client, Room};
-use matrix_sdk::crypto::vodozemac::base64_encode;
+
 use matrix_sdk::media::{MediaFormat, MediaRequestParameters, MediaThumbnailSettings};
 use matrix_sdk::room::RoomMember;
-use matrix_sdk::ruma::{MxcUri, OwnedMxcUri, UInt, UserId};
 use matrix_sdk::ruma::api::client::media::get_content_thumbnail::v3::Method;
+use matrix_sdk::ruma::api::client::profile::DisplayName;
 use matrix_sdk::ruma::events::presence::PresenceEvent;
 use matrix_sdk::ruma::events::room::MediaSource;
+use matrix_sdk::ruma::{MxcUri, OwnedMxcUri, UInt, UserId};
+use matrix_sdk::{Client, Room};
 
 use msnp::shared::models::email_address::EmailAddress;
-use msnp::shared::models::msn_object::{FriendlyName, MsnObject, MSNObjectFactory};
+use msnp::shared::models::msn_object::{FriendlyName, MSNObjectFactory, MsnObject};
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::presence_status::PresenceStatus;
 use msnp::soap::storage_service::msnstorage_datatypes::Profile;
@@ -110,7 +113,7 @@ pub async fn resolve_msn_user(user_id: &UserId, room: Option<Room>, client_data:
             }
             None => {
                 let profile = client.account().fetch_user_profile_of(user_id).await?;
-                out.display_name = profile.displayname.clone().map(|s| s.to_string());
+                out.display_name = profile.get_static::<DisplayName>()?;
 
                 // match profile.avatar_url {
                 //     None => {}
@@ -180,6 +183,6 @@ pub async fn get_avatar_bytes(client: &Client, avatar_mxc: &MxcUri) -> Result<Ve
 }
 
 pub fn avatar_to_msn_obj(avatar_bytes: &Vec<u8>, msn_addr: &EmailAddress, avatar_mxc: &MxcUri) -> MsnObject {
-    let base64_mxc = base64_encode(avatar_mxc.to_string());
+    let base64_mxc =  general_purpose::STANDARD.encode(avatar_mxc.to_string());
     return MSNObjectFactory::get_display_picture(&avatar_bytes, msn_addr,format!("{}.tmp", base64_mxc), FriendlyName::default());
 }
