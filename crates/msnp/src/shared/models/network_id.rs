@@ -7,7 +7,6 @@ use xml::namespace::Namespace;
 use yaserde::de::Deserializer;
 use yaserde::{YaDeserialize, YaSerialize};
 use yaserde::ser::Serializer;
-use crate::shared::models::oim::OIM;
 
 #[derive(FromPrimitive, Eq, PartialEq, Debug, Clone)]
 pub enum NetworkId {
@@ -43,7 +42,7 @@ impl YaSerialize for NetworkId {
 
 impl YaDeserialize for NetworkId {
     fn deserialize<R: Read>(reader: &mut Deserializer<R>) -> Result<Self, String> {
-        if let xml::reader::XmlEvent::StartElement { name, attributes, namespace } = reader.peek()?.to_owned() {
+        if let xml::reader::XmlEvent::StartElement { name: _, attributes: _, namespace: _ } = reader.peek()?.to_owned() {
             let _next = reader.next_event();
         }
         if let xml::reader::XmlEvent::Characters(text) = reader.peek()?.to_owned() {

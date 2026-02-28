@@ -1,10 +1,7 @@
 use crate::msnp::error::CommandError;
-use crate::msnp::notification::command::uum::{UumClient, UumPayload};
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::models::capabilities::ClientCapabilities;
-use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::msn_object::MsnObject;
-use crate::shared::models::network_id::NetworkId;
 use crate::shared::models::network_id_email::NetworkIdEmail;
 use crate::shared::models::presence_status::PresenceStatus;
 use crate::shared::traits::MSNPCommand;
@@ -122,13 +119,13 @@ pub struct NlnServer {
 impl MSNPCommand for NlnServer {
     type Err = CommandError;
 
-    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
+    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
         todo!()
     }
 
     fn into_bytes(self) -> Vec<u8> {
 
-        let mut target_user = match self.via {
+        let target_user = match self.via {
             None => {
                 self.target_user.to_string()
             }

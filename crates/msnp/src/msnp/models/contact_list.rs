@@ -67,7 +67,7 @@ impl ContactList {
     }
 
     pub fn get_forward_list(&self) -> Vec<Contact> {
-        self.contact_list.iter().filter(|(k, v )| v.memberships & (RoleList::Forward as u8) != 0 ).map(|(k, v)| v.clone()).collect()
+        self.contact_list.iter().filter(|(_k, v )| v.memberships & (RoleList::Forward as u8) != 0 ).map(|(_k, v)| v.clone()).collect()
     }
 
     pub fn get_contact(&self, email_address: &EmailAddress) -> Option<&Contact> {

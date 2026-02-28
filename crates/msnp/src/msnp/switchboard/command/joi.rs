@@ -1,6 +1,6 @@
 use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
-use crate::shared::models::capabilities::{Capabilities, ClientCapabilities};
+use crate::shared::models::capabilities::ClientCapabilities;
 use crate::shared::models::endpoint_id::EndpointId;
 use crate::shared::traits::{MSNPCommand};
 
@@ -20,7 +20,7 @@ pub struct JoiServer {
 impl MSNPCommand for JoiServer {
     type Err = CommandError;
 
-    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
         todo!()
     }
 

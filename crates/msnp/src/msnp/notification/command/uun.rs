@@ -1,14 +1,13 @@
 use std::{fmt::Display, str::{from_utf8, FromStr}};
-use std::process::Command;
 
 use anyhow::anyhow;
 use num_derive::FromPrimitive;
 use yaserde::{de::from_str, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
-use crate::{msnp::{error::{CommandError, PayloadError}, notification::models::endpoint_guid::EndpointGuid, raw_command_parser::RawCommand}, shared::{command::ok::OkCommand, payload}};
+use crate::{msnp::{error::{CommandError, PayloadError}, raw_command_parser::RawCommand}, shared::command::ok::OkCommand};
 use crate::shared::models::endpoint_id::EndpointId;
-use crate::shared::traits::{MSNPCommand, MSNPCommandPart, MSNPPayload};
+use crate::shared::traits::{MSNPCommand, MSNPPayload};
 
 pub struct UunClient {
     tr_id: u128,
@@ -62,7 +61,7 @@ pub enum UunPayload {
 impl MSNPPayload for UunPayload {
     type Err = PayloadError;
 
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> {
+    fn try_from_bytes(_bytes: Vec<u8>) -> Result<Self, Self::Err> {
         todo!()
     }
 
@@ -70,7 +69,7 @@ impl MSNPPayload for UunPayload {
         match self {
             UunPayload::DisconnectClient => b"goawyplzthxbye".to_vec(),
             UunPayload::DisconnectAllClients => b"gtfo".to_vec(),
-            UunPayload::ConversationWindowClosed { email_addr } => todo!(),
+            UunPayload::ConversationWindowClosed { email_addr: _ } => todo!(),
             UunPayload::DismissUserInvite { email_addr, unknown } => format!("{} {}", email_addr, unknown).as_bytes().to_vec(),
             UunPayload::Resynchronize(payload) => payload.to_string().as_bytes().to_vec(),
             UunPayload::Unknown(payload) => payload.to_owned(),
@@ -135,8 +134,8 @@ impl From<&UunPayload> for UserNotificationType {
         match value {
             UunPayload::DisconnectClient => UserNotificationType::DisconnectClient,
             UunPayload::DisconnectAllClients => UserNotificationType::DisconnectAllClients,
-            UunPayload::ConversationWindowClosed { email_addr } => UserNotificationType::ClosedConversation,
-            UunPayload::DismissUserInvite { email_addr, unknown } => UserNotificationType::DismissUserInvite,
+            UunPayload::ConversationWindowClosed { email_addr: _ } => UserNotificationType::ClosedConversation,
+            UunPayload::DismissUserInvite { email_addr: _, unknown: _ } => UserNotificationType::DismissUserInvite,
             UunPayload::Resynchronize(_) => UserNotificationType::Resynchronize,
             UunPayload::Unknown(_) => todo!(),
         }
@@ -180,7 +179,7 @@ pub struct UbnServer {
 impl MSNPCommand for UbnServer {
     type Err = CommandError;
 
-    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
         todo!()
     }
 

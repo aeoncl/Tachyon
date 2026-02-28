@@ -22,7 +22,7 @@ pub enum NfyOperation {
 impl MSNPCommand for NfyServer {
     type Err = CommandError;
 
-    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
+    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
         todo!()
     }
 

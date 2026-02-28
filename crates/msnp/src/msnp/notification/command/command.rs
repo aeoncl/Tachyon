@@ -104,7 +104,7 @@ pub enum NotificationServerCommand {
 impl MSNPCommand for NotificationServerCommand {
     type Err = CommandError;
 
-    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
         todo!()
     }
 

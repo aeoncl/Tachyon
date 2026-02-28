@@ -4,7 +4,7 @@ pub mod request {
     use crate::soap::abch::ab_service::ab_contact_update::request::Options;
     use crate::soap::abch::msnab_datatypes::{ArrayOfRoleId, ServiceFilter};
     use crate::soap::abch::request_header::RequestHeaderContainer;
-    use crate::soap::abch::sharing_service::find_friends_in_common::request::FindFriendsInCommonMessageSoapEnvelope;
+    
     use crate::soap::error::SoapMarshallError;
     use crate::soap::traits::xml::TryFromXml;
 
@@ -72,9 +72,9 @@ pub mod response {
     use yaserde_derive::{YaDeserialize, YaSerialize};
 
     use crate::soap::abch::msnab_faults::SoapFault;
-    use crate::soap::abch::request_header::RequestHeaderContainer;
+    
     use crate::soap::abch::service_header::ServiceHeaderContainer;
-    use crate::soap::abch::sharing_service::find_membership::response::{FindMembershipResponseMessageSoapEnvelope, MembershipResult};
+    use crate::soap::abch::sharing_service::find_membership::response::MembershipResult;
     use crate::soap::error::SoapMarshallError;
     use crate::soap::traits::xml::ToXml;
 

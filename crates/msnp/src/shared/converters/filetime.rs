@@ -4,7 +4,6 @@ use std::num::TryFromIntError;
 use std::str::FromStr;
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use chrono::{Local, Utc};
-use crate::msnp::error::PayloadError;
 
 pub struct FileTime(i64);
 

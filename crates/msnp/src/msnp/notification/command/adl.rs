@@ -1,17 +1,15 @@
-use std::{fmt::Display, str::{from_utf8, FromStr}};
-use std::collections::HashMap;
+use std::{fmt::Display, str::FromStr};
 
 use anyhow::anyhow;
 use yaserde::{de::from_str, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
-use crate::{msnp::{error::{CommandError, PayloadError}, raw_command_parser::RawCommand}, shared::{command::ok::OkCommand, models::role_list::RoleList}};
+use crate::{msnp::{error::{CommandError, PayloadError}, raw_command_parser::RawCommand}, shared::command::ok::OkCommand};
 use crate::msnp::models::contact::Contact;
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::traits::{MSNPCommand, MSNPPayload};
 use crate::shared::errors::IdentifierError;
 use crate::shared::models::network_id::NetworkId;
-use crate::shared::models::network_id_email::NetworkIdEmail;
 
 
 #[derive(Debug)]

@@ -1,15 +1,10 @@
-use std::{collections::HashMap, str::FromStr};
-use std::collections::BTreeMap;
-use std::fmt::{Debug, Display, format, Formatter};
+use std::str::FromStr;
+use std::fmt::Debug;
 use std::str::{from_utf8, Utf8Error};
-use std::string::FromUtf8Error;
 
 use anyhow::anyhow;
-use lazy_static::lazy_static;
-use lazy_static_include::syn::Lit::Str;
 use linked_hash_map::LinkedHashMap;
 use log::warn;
-use new_mime_guess::Mime;
 use strum_macros::{Display, EnumString};
 
 use crate::msnp::error::PayloadError;
@@ -184,10 +179,10 @@ impl Default for RawMsgPayload {
 }
 
 pub mod factories {
-    use std::str::FromStr;
+    
     use base64::Engine;
     use chrono::{DateTime, Local, Utc};
-    use mime::Mime;
+    
 
     use crate::{p2p::v2::p2p_transport_packet::P2PTransportPacket, shared::models::{msn_object::MsnObject, msn_user::MsnUser, uuid::Puid}};
     use crate::shared::converters::filetime::FileTime;

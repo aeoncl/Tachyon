@@ -1,7 +1,6 @@
 use std::str::FromStr;
 use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
-use crate::shared::models::endpoint_id::EndpointId;
 use crate::shared::payload::nfy::nfy_put_payload::RawNfyPayload;
 use crate::shared::traits::{MSNPCommand, MSNPPayload};
 

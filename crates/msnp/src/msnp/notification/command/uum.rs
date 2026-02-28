@@ -1,8 +1,6 @@
-use std::fmt::Display;
 use std::str::FromStr;
 
 use anyhow::anyhow;
-use byteorder::ByteOrder;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 

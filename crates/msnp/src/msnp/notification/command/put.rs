@@ -1,7 +1,5 @@
 use std::str::FromStr;
 use crate::msnp::error::CommandError;
-use crate::msnp::notification::command::nfy::NfyOperation::Put;
-use crate::msnp::notification::command::sdg::SdgClient;
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::payload::nfy::nfy_put_payload::RawNfyPayload;
 use crate::shared::traits::{MSNPCommand, MSNPPayload};
@@ -57,7 +55,7 @@ pub struct PutServer {
 impl MSNPCommand for PutServer {
     type Err = CommandError;
 
-    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
+    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
         todo!()
     }
 

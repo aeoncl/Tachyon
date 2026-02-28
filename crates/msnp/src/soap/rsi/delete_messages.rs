@@ -2,7 +2,7 @@ pub mod request {
     use yaserde_derive::{YaDeserialize, YaSerialize};
 
     use crate::soap::error::SoapMarshallError;
-    use crate::soap::rsi::get_message::request::GetMessageMessageSoapEnvelope;
+    
     use crate::soap::rsi::service_header::ServiceHeader;
     use crate::soap::traits::xml::TryFromXml;
 
@@ -78,7 +78,7 @@ pub mod request {
     }
 
     impl DeleteMessagesSoapEnvelope {
-        pub fn new(body: SoapDeleteMessagesMessage, header: Option<ServiceHeader>) -> Self {
+        pub fn new(body: SoapDeleteMessagesMessage, _header: Option<ServiceHeader>) -> Self {
             DeleteMessagesSoapEnvelope {
                 body,
                 header: None,
@@ -94,7 +94,7 @@ pub mod response {
     use yaserde_derive::{YaDeserialize, YaSerialize};
 
     use crate::soap::error::SoapMarshallError;
-    use crate::soap::rsi::get_message::response::GetMessageResponseMessageSoapEnvelope;
+    
     use crate::soap::rsi::service_header::ServiceHeader;
     use crate::soap::traits::xml::ToXml;
 

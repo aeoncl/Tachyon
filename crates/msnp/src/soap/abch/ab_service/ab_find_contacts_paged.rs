@@ -162,9 +162,9 @@ pub mod response {
     use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
     use crate::shared::models::msn_user::MsnUser;
-    use crate::shared::models::role_list::RoleList;
+    
     use crate::shared::models::uuid::Uuid;
-    use crate::soap::abch::msnab_datatypes::{AbInfoType, ArrayOfContactType, CircleResultType, ContactType, GroupInfoType, GroupType, Annotation, ArrayOfAnnotation, AbType, AddressBookType, Circles, CircleInverseInfoType, ContentType, ContentHandleType, ContentInfoType, PersonalInfoType, MembershipInfoType, CirclePersonalMembershipType, RelationshipState, RoleId, CircleRelationshipRole};
+    use crate::soap::abch::msnab_datatypes::{AbInfoType, ArrayOfContactType, CircleResultType, ContactType, GroupInfoType, GroupType, Annotation, ArrayOfAnnotation, AddressBookType, Circles, CircleInverseInfoType};
     use crate::soap::abch::msnab_faults::SoapFault;
 
     use crate::soap::abch::service_header::ServiceHeaderContainer;

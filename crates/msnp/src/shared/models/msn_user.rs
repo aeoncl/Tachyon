@@ -1,7 +1,5 @@
-use anyhow::anyhow;
 
-use crate::{msnp::error::PayloadError, shared::models::uuid::{Puid, Uuid}};
-use crate::msnp::notification::models::endpoint_guid::EndpointGuid;
+use crate::shared::models::uuid::Uuid;
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::endpoint_id::EndpointId;
 use crate::shared::models::network_id::NetworkId;

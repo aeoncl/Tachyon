@@ -1,6 +1,5 @@
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use std::sync::Arc;
 use crate::shared::errors::IdentifierError;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Default)]

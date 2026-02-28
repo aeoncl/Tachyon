@@ -1,6 +1,6 @@
 pub mod request {
     use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::soap::space::headers::{AuthTokenHeader, SpaceHeaders};
+    use crate::soap::space::headers::SpaceHeaders;
     use crate::soap::space::space_ws_datatype_xsd::RefreshInformationType;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]

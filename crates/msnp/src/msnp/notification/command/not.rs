@@ -1,4 +1,3 @@
-use std::fmt::Display;
 
 use yaserde::ser::to_string_with_config;
 use yaserde_derive::{YaDeserialize, YaSerialize};
@@ -16,7 +15,7 @@ pub struct NotServer {
 impl MSNPCommand for NotServer {
     type Err = PayloadError;
 
-    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
+    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
         todo!()
     }
 
@@ -34,7 +33,7 @@ impl MSNPCommand for NotServer {
 impl MSNPPayload for NotificationPayload {
     type Err = PayloadError;
 
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> where Self: Sized {
+    fn try_from_bytes(_bytes: Vec<u8>) -> Result<Self, Self::Err> where Self: Sized {
         todo!()
     }
 
@@ -154,7 +153,7 @@ impl ToXml for NotificationData {
 
 pub mod factories {
     use chrono::Local;
-    use yaserde::ser::to_string;
+    
     use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::uuid::Uuid;
     use crate::soap::traits::xml::ToXml;

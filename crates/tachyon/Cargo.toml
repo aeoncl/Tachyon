@@ -37,7 +37,7 @@ chrono.workspace = true
 regex.workspace = true
 futures = "0.3.31"
 futures-util = "0.3.31"
-ruma = "0.13.0"
+ruma = { version = "0.14.1", features = ["api", "events"] }
 
 [dev-dependencies]
 mockall = "0.13.1"

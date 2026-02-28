@@ -1,6 +1,6 @@
 use std::{convert::Infallible, fmt::Display, io::Read, str::FromStr};
 
-use yaserde::{de::{self, from_str}, ser::{to_string, to_string_with_config}};
+use yaserde::{de::{self, from_str}, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
 use crate::{msnp::error::PayloadError, shared::models::{capabilities::ClientCapabilities, presence_status::PresenceStatus}};
@@ -32,7 +32,7 @@ impl FromStr for EndpointData {
     type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> { 
-        from_str::<EndpointData>(s).map_err(|e| PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!("Couldn't parse EndpointData Payload") })
+        from_str::<EndpointData>(s).map_err(|_e| PayloadError::StringPayloadParsingError { payload: s.to_string(), source: anyhow!("Couldn't parse EndpointData Payload") })
     }
 }
 

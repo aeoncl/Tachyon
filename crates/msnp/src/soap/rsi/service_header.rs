@@ -1,6 +1,5 @@
 use yaserde_derive::{YaDeserialize, YaSerialize};
 use crate::soap::error::SoapMarshallError;
-use crate::soap::rsi::get_message::request::{GetMessageMessageSoapEnvelope, SoapGetMessageMessage};
 use crate::soap::traits::xml::TryFromXml;
 
 #[cfg(test)]

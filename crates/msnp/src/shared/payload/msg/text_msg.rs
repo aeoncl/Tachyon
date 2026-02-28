@@ -8,8 +8,6 @@ use byteorder::{ByteOrder, LittleEndian};
 use log::warn;
 
 use crate::msnp::error::PayloadError;
-use crate::msnp::notification::command::uum::UumPayload;
-use crate::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
 use crate::shared::payload::msg::raw_msg_payload::MsgContentType::TextPlain;
 use crate::shared::traits::{MSGPayload, MSNPPayload};
@@ -334,13 +332,13 @@ impl FontColor{
 
         let mut hex_str = bgr.to_string();
 
-        if(hex_str.len() % 2 != 0){
+        if hex_str.len() % 2 != 0 {
             hex_str = format!("0{:0>5}", &hex_str);
         } else {
             hex_str = format!("{:0>6}", &hex_str);
         }
 
-        if(hex_str.len() > 6) {
+        if hex_str.len() > 6  {
             return Err(PayloadError::AnyError(anyhow!("Hex String Color Invalid size: length: {} str: {}", hex_str.len(), hex_str)));
         }
 
@@ -387,11 +385,11 @@ impl OvercomplicatedFontColor {
 
     fn parse_hex_str(hex_str: &str) -> Result<u32, PayloadError> {
         let mut hex_str = hex_str.to_string();
-        if(hex_str.len() % 2 != 0){
+        if hex_str.len() % 2 != 0 {
             hex_str = format!("0{}", &hex_str);
         }
 
-        if(hex_str.len() > 6) {
+        if hex_str.len() > 6  {
             return Err(PayloadError::AnyError(anyhow!("Hex String Color Invalid size: length: {} str: {}", hex_str.len(), hex_str)));
         }
 

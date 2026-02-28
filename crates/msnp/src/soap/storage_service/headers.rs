@@ -1,7 +1,5 @@
 use yaserde_derive::{YaDeserialize, YaSerialize};
-use crate::shared::models::ticket_token::TicketToken;
 use crate::soap::error::SoapMarshallError;
-use crate::soap::storage_service::get_profile::request::GetProfileMessageSoapEnvelope;
 use crate::soap::traits::xml::TryFromXml;
 
 #[derive(Debug, Default, YaSerialize, YaDeserialize)]

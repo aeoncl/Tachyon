@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::fmt::{Display, Formatter, write};
+use std::fmt::{Display, Formatter};
 use std::mem;
 use std::str::{from_utf8, FromStr, Utf8Error};
 
@@ -9,9 +8,7 @@ use log::warn;
 use strum_macros::{Display, EnumString};
 
 use crate::msnp::error::PayloadError;
-use crate::msnp::switchboard::command::msg::MsgPayload;
 use crate::shared::models::network_id_email::NetworkIdEmail;
-use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
 use crate::shared::payload::msg::text_msg::TextMessageContent;
 use crate::shared::traits::MSNPPayload;
 
@@ -265,7 +262,7 @@ pub struct RawNfyPayload {
 
 impl RawNfyPayload {
     pub fn new(envelope: NfyEnvelope, content_type: NfyContentType, enable_trailing_terminators: bool) -> Self {
-        let mut headers = LinkedHashMap::new();
+        let headers = LinkedHashMap::new();
 
         return RawNfyPayload {
             envelope,

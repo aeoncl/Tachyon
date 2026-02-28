@@ -83,12 +83,12 @@ impl SlpContext for PreviewData {
             let context_size = LittleEndian::read_u32(&bytes[0..4]) as usize;
 
             if context_size == 574 && bytes.len() >= context_size as usize {
-                let tf_type = LittleEndian::read_u32(&bytes[4..8]);
+                let _tf_type = LittleEndian::read_u32(&bytes[4..8]);
                 let file_size = LittleEndian::read_u32(&bytes[8..12]) as usize;
                 let zero_separator = LittleEndian::read_u32(&bytes[12..16]);
 
                 if zero_separator == 0 {
-                    let has_preview = LittleEndian::read_u32(&bytes[16..20]) == 0;
+                    let _has_preview = LittleEndian::read_u32(&bytes[16..20]) == 0;
                     //handle preview later
                     let filename_chunks: Vec<u16> = bytes[20..context_size].to_vec()
                     .chunks_exact(2)

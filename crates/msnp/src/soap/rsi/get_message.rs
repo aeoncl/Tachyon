@@ -2,7 +2,7 @@ pub mod request {
     use yaserde_derive::{YaDeserialize, YaSerialize};
 
     use crate::soap::error::SoapMarshallError;
-    use crate::soap::passport::rst2::request::RST2RequestMessageSoapEnvelope;
+    
     use crate::soap::rsi::service_header::ServiceHeader;
     use crate::soap::traits::xml::TryFromXml;
 
@@ -98,7 +98,7 @@ pub mod response {
     use yaserde_derive::{YaDeserialize, YaSerialize};
     use crate::shared::models::oim::OIM;
     use crate::soap::error::SoapMarshallError;
-    use crate::soap::rsi::get_metadata::response::GetMetadataResponseMessageSoapEnvelope;
+    
 
     use crate::soap::rsi::service_header::ServiceHeader;
     use crate::soap::traits::xml::ToXml;

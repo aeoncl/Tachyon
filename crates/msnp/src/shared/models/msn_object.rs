@@ -2,13 +2,11 @@ use std::{fmt::{self, Display}, str::FromStr};
 use std::fmt::Formatter;
 
 use anyhow::anyhow;
-use base64::{Engine, engine::general_purpose, write};
-use byteorder::ByteOrder;
-use log::{debug, warn};
+use base64::{Engine, engine::general_purpose};
+use log::warn;
 use sha1::{Digest, Sha1};
 use strum_macros::EnumString;
 use yaserde::{de::{self, from_str}, ser::to_string_with_config};
-use yaserde_derive::{YaDeserialize, YaSerialize};
 
 use crate::{msnp::error::PayloadError, p2p::v2::slp_context::SlpContext};
 use crate::msnp::error::CommandError;
@@ -97,7 +95,7 @@ impl yaserde::YaDeserialize for MsnObject {
 
     
     fn deserialize<R: std::io::Read>(reader: &mut de::Deserializer<R>) -> Result<Self, String> {
-        if let xml::reader::XmlEvent::StartElement { name, attributes, namespace } = reader.peek()?.to_owned() {
+        if let xml::reader::XmlEvent::StartElement { name, attributes, namespace: _ } = reader.peek()?.to_owned() {
             let expected_name = "msnobj";
             if name.local_name != expected_name {
                 return Err(format!(

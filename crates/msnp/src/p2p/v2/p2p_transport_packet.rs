@@ -78,7 +78,7 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
                 }
         
                 if !self.tlvs.is_empty() {
-                    let mut last = self.tlvs.last().unwrap().clone();
+                    let last = self.tlvs.last().unwrap().clone();
                     let mut padding : Vec<u8> = Vec::new();
                     let mut value = last.value;
         
@@ -90,8 +90,8 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
         
                     let necessary_padding = 4 - trailing_nul_bytes_count;
         
-                    if(necessary_padding>0) {
-                        for i in 0..necessary_padding {
+                    if necessary_padding>0  {
+                        for _i in 0..necessary_padding {
                             padding.push(0x0);
                         }
                     }
@@ -113,7 +113,7 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
                     out.insert(1, buffer[0]);
                     out.insert(2, buffer[1]);
                 } else {
-                    let mut buffer : [u8;2] = [0,0];
+                    let buffer : [u8;2] = [0,0];
                     out.insert(1, buffer[0]);
                     out.insert(2, buffer[1]);
                 }
@@ -292,8 +292,8 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
     impl Display for P2PTransportPacket {
         
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let mut out: Vec<u8> = self.to_vec();
-            let mut out_str = unsafe { from_utf8_unchecked(&out) }.to_string();
+            let out: Vec<u8> = self.to_vec();
+            let out_str = unsafe { from_utf8_unchecked(&out) }.to_string();
             return write!(f, "{}", out_str);
         }
     }

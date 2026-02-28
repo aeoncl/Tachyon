@@ -1,33 +1,28 @@
-use std::collections::HashMap;
-use std::mem;
-use std::sync::{Arc, Mutex, MutexGuard, RwLockWriteGuard};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::atomic::Ordering::Relaxed;
-use dashmap::DashMap;
-use dashmap::mapref::multiple::RefMulti;
-use dashmap::mapref::one::Ref;
-use futures_util::StreamExt;
-use log::{debug, error, info, warn};
-use matrix_sdk::{Client, Error, Room, RoomMemberships, RoomState, SlidingSyncBuilder, SlidingSyncListBuilder};
-use matrix_sdk::event_handler::Ctx;
-use matrix_sdk::locks::RwLock;
-use matrix_sdk::ruma::events::direct::{DirectEvent, DirectEventContent};
-use matrix_sdk::ruma::events::room::member::{MembershipState, RoomMemberEvent, StrippedRoomMemberEvent, SyncRoomMemberEvent};
-use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
-use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::ListFilters;
-use matrix_sdk::ruma::directory::RoomTypeFilter;
-use matrix_sdk::ruma::events::{AnyGlobalAccountDataEvent, GlobalAccountDataEventType, StaticEventContent};
-use matrix_sdk::ruma::events::macros::EventContent;
-use matrix_sdk::ruma::events::room::create::RoomCreateEvent;
-use matrix_sdk::ruma::events::room::tombstone::SyncRoomTombstoneEvent;
-use matrix_sdk::sync::RoomUpdates;
-use matrix_sdk_ui::{RoomListService, Timeline};
-use matrix_sdk_ui::timeline::RoomExt;
-use serde::{Deserialize, Serialize};
-use tokio::sync::broadcast;
-use msnp::soap::abch::sharing_service::find_membership::response::Memberships;
 use crate::matrix::directs::direct_extensions::{DirectDiff, DirectsHashMap, OneOnOneDmClient, TachyonDirectAccountDataContent, TachyonRoomExtensions};
 use crate::matrix::sync2::TachyonContext;
+use dashmap::mapref::multiple::RefMulti;
+use dashmap::mapref::one::Ref;
+use dashmap::DashMap;
+use futures_util::StreamExt;
+use log::{debug, error, info, warn};
+use matrix_sdk::event_handler::Ctx;
+use matrix_sdk::locks::RwLock;
+use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, RoomId, UserId};
+use matrix_sdk::sync::RoomUpdates;
+use matrix_sdk::{Client, Error, Room, RoomMemberships, RoomState, SlidingSyncBuilder, SlidingSyncListBuilder};
+use matrix_sdk_ui::timeline::RoomExt;
+use matrix_sdk_ui::{RoomListService, Timeline};
+use msnp::soap::abch::sharing_service::find_membership::response::Memberships;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::mem;
+use std::sync::atomic::Ordering::Relaxed;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, RwLockWriteGuard};
+use matrix_sdk::ruma::events::{False, GlobalAccountDataEventContent, GlobalAccountDataEventType, StaticEventContent};
+use matrix_sdk::ruma::events::direct::DirectEventContent;
+use ruma::events::macros::EventContent;
+use tokio::sync::broadcast;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, EventContent)]
 #[ruma_event(type = "org.tachyon.direct_mappings", kind = GlobalAccountData)]
@@ -36,6 +31,19 @@ pub struct DirectMappingsEventContent {
     pub mappings: HashMap<OwnedUserId, OwnedRoomId>,
 }
 
+
+// FIXME: Due to some weird behavior with runa Event macro not adding the right things
+impl StaticEventContent for DirectMappingsEventContent {
+    const TYPE: &'static str = "org.tachyon.direct_mappings";
+    type IsPrefix = False;
+}
+
+// FIXME: Due to some weird behavior with runa Event macro not adding the right things
+impl GlobalAccountDataEventContent for DirectMappingsEventContent {
+    fn event_type(&self) -> GlobalAccountDataEventType {
+        GlobalAccountDataEventType::from("org.tachyon.direct_mappings")
+    }
+}
 
 impl DirectMappingsEventContent {
 
@@ -500,22 +508,20 @@ impl DirectService {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-    use std::fs::File;
-    use std::str::FromStr;
+    use crate::matrix::directs::direct_service::{DirectService, RoomMapping};
     use chrono::Local;
     use env_logger::Builder;
-    use log::{debug, LevelFilter};
+    use log::LevelFilter;
+    use matrix_sdk::ruma::events::direct::DirectEventContent;
     use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId};
     use matrix_sdk::test_utils::logged_in_client_with_server;
+    use std::collections::BTreeMap;
+    use std::fs::File;
+    use std::io::{BufReader, Write};
+    use std::path::PathBuf;
+    use std::str::FromStr;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, ResponseTemplate};
-    use crate::matrix::directs::direct_service::{DirectService, MappingDiff, RoomMapping};
-    use std::io::{BufReader, Write};
-    use std::path::{Path, PathBuf};
-    use anyhow::{anyhow, Error};
-    use matrix_sdk::config::SyncSettings;
-    use matrix_sdk::ruma::events::direct::DirectEventContent;
 
     #[tokio::test]
     async fn dm_invite_received() {

@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use thiserror::Error;
 
 use crate::msnp::error::PayloadError;

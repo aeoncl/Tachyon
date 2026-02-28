@@ -75,7 +75,7 @@ pub fn extract_tlvs(tlvs_bytes: &[u8], tlvs_length: usize) -> Vec<TLV> {
               tlvs_treated_count += length+2;
           } else {
               //we are done
-              let padding_count = tlvs_length - tlvs_treated_count;
+              let _padding_count = tlvs_length - tlvs_treated_count;
           //    info!("padding_bytes_count: {}", &padding_count);
               break;
           }

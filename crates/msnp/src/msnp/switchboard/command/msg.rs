@@ -70,7 +70,7 @@ pub struct MsgServer {
 impl MSNPCommand for MsgServer {
     type Err = ();
 
-    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
         todo!()
     }
 
@@ -91,7 +91,7 @@ impl MSNPPayload for MsgPayload {
     type Err = PayloadError;
 
     fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> {
-        let rawMsgPayload = RawMsgPayload::try_from_bytes(bytes)?;
+        let _rawMsgPayload = RawMsgPayload::try_from_bytes(bytes)?;
 
 
         todo!()

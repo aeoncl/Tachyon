@@ -1,6 +1,5 @@
 use yaserde::ser::to_string;
 use yaserde_derive::{YaDeserialize, YaSerialize};
-use crate::soap::abch::msnab_faults::FaultErrorCode;
 use crate::soap::error::SoapMarshallError;
 use crate::soap::traits::xml::ToXml;
 

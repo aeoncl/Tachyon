@@ -2,14 +2,12 @@ use std::fmt::{Display, Formatter};
 use std::io::{Read, Write};
 use std::str::{from_utf8, FromStr};
 
-use chrono::{DateTime, Local, Utc};
-use log::Metadata;
-use mime::Mime;
+use chrono::{DateTime, Utc};
 use xml::attribute::OwnedAttribute;
 use xml::namespace::Namespace;
 use yaserde::{YaDeserialize, YaSerialize};
 use yaserde::de::Deserializer;
-use yaserde::ser::{Config, Serializer, to_string, to_string_with_config};
+use yaserde::ser::{Serializer, to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
 use crate::msnp::error::PayloadError;
@@ -74,7 +72,7 @@ impl MetadataMessage {
         //2005-11-15T22:24:27.000Z
         let ts = timestamp.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
 
-        let mut encoded = crate::shared::converters::rfc2047::encode(&sender_display_name);
+        let encoded = crate::shared::converters::rfc2047::encode(&sender_display_name);
 
         Self {
             message_type: 11,
@@ -184,7 +182,7 @@ pub struct OIM {
 impl FromStr for OIM {
     type Err = PayloadError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(_s: &str) -> Result<Self, Self::Err> {
        // let msg_payload : RawMsgPayload = RawMsgPayload::from_str(s)?;
         todo!("Deserializing an OIM is not yet implemented")
     }
@@ -222,7 +220,7 @@ impl YaSerialize for OIM {
 
 impl YaDeserialize for OIM {
     fn deserialize<R: Read>(reader: &mut Deserializer<R>) -> Result<Self, String> {
-        if let xml::reader::XmlEvent::StartElement { name, attributes, namespace } = reader.peek()?.to_owned() {
+        if let xml::reader::XmlEvent::StartElement { name: _, attributes: _, namespace: _ } = reader.peek()?.to_owned() {
             let _next = reader.next_event();
         }
         if let xml::reader::XmlEvent::Characters(text) = reader.peek()?.to_owned() {

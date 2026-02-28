@@ -58,7 +58,7 @@ impl P2PPayload {
             tlvs = extract_tlvs(tlvs_bytes, tlvs_length);
         }
 
-        let mut payload_length_to_take = payload_length;
+        let payload_length_to_take = payload_length;
         if payload_length > bytes.len() {
             return Err(PayloadError::BinaryPayloadParsingError {payload: bytes.to_owned(), source: anyhow!("P2PPayload was chunked, payload length is supposed to be: {} but packet length was: {}", &payload_length, &bytes.len() )});
         }
@@ -177,7 +177,7 @@ impl Display for P2PPayload {
         }
 
         if !self.tlvs.is_empty() {
-            let mut last = self.tlvs.last().unwrap().clone();
+            let last = self.tlvs.last().unwrap().clone();
             let mut padding : Vec<u8> = Vec::new();
             let mut value = last.value;
 
@@ -189,8 +189,8 @@ impl Display for P2PPayload {
 
             let necessary_padding = 4 - trailing_nul_bytes_count;
 
-            if(necessary_padding>0) {
-                for i in 0..necessary_padding {
+            if necessary_padding>0  {
+                for _i in 0..necessary_padding {
                     padding.push(0x0);
                 }
             }

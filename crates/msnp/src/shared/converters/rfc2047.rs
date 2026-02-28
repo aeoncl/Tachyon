@@ -1,4 +1,3 @@
-use std::fmt::format;
 use email_encoding::headers::writer::EmailWriter;
 
 const ENCODING_START_PREFIX: &str = "=?utf-8?b?";

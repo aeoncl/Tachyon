@@ -2,15 +2,9 @@ use std::fmt::Display;
 use yaserde::ser::to_string_with_config;
 use yaserde_derive::{YaDeserialize, YaSerialize};
 use crate::msnp::error::{CommandError, PayloadError};
-use crate::msnp::notification::command::uum::{UumClient, UumPayload};
-use crate::msnp::notification::command::uun::UunPayload;
-use crate::msnp::notification::models::endpoint_data::{ClientType, EndpointData, PrivateEndpointData};
+use crate::msnp::notification::models::endpoint_data::{EndpointData, PrivateEndpointData};
 use crate::msnp::raw_command_parser::RawCommand;
-use crate::shared::models::email_address::EmailAddress;
-use crate::shared::models::endpoint_id::EndpointId;
-use crate::shared::models::network_id::NetworkId;
 use crate::shared::models::network_id_email::NetworkIdEmail;
-use crate::shared::models::presence_status::PresenceStatus;
 use crate::shared::traits::{MSNPCommand, MSNPPayload};
 
 
@@ -62,7 +56,7 @@ pub struct UbxServer {
 impl MSNPCommand for UbxServer {
     type Err = CommandError;
 
-    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
+    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
         todo!()
     }
 
@@ -96,7 +90,7 @@ pub enum UbxPayload {
 impl MSNPPayload for UbxPayload {
     type Err = PayloadError;
 
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> where Self: Sized {
+    fn try_from_bytes(_bytes: Vec<u8>) -> Result<Self, Self::Err> where Self: Sized {
         todo!()
     }
 

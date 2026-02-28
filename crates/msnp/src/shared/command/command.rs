@@ -1,4 +1,3 @@
-use std::str::FromStr;
 
 use crate::msnp::error::CommandError;
 

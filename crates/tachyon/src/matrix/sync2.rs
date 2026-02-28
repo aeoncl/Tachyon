@@ -110,7 +110,7 @@ async fn get_mandatory_rooms_for_initial_sync<'a>(room_mappings: &'a Option<Resu
 fn create_room_list() -> SlidingSyncListBuilder {
 
 
-    SlidingSyncListBuilder::new("all_rooms")
+    SlidingSyncList::builder("all_rooms")
         .timeline_limit(1)
         .required_state(REQUIRED_STATE.iter().map(|(key, val)| (key.to_owned(), val.to_string())).collect())
         .sync_mode(SlidingSyncMode::new_growing(20))
@@ -176,11 +176,12 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
         let matrix_client = client_data.get_matrix_client();
 
         matrix_client.add_event_handler_context(TachyonContext{ client_data: client_data.clone() });
-        
-            matrix_client.add_event_handler(|event: DirectMappingsEvent, context: Ctx<TachyonContext> | async move {
-                let direct_service = context.client_data.get_direct_service();
-                direct_service.handle_direct_mappings_update(event.content).await.unwrap();
-            });
+
+            // FIXME: Due to some weird behavior with runa Event macro not adding the right things
+            // matrix_client.add_event_handler(|event: DirectMappingsEvent, context: Ctx<TachyonContext> | async move {
+            //     let direct_service = context.client_data.get_direct_service();
+            //     direct_service.handle_direct_mappings_update(event.content).await.unwrap();
+            // });
 
             matrix_client.add_event_handler(|event: DirectEvent, context: Ctx<TachyonContext>, client: Client | async move {
                 let direct_service = context.client_data.get_direct_service();

@@ -1,4 +1,3 @@
-use std::str::FromStr;
 
 use crate::msnp::error::{CommandError, PayloadError};
 use crate::msnp::raw_command_parser::RawCommand;
@@ -15,7 +14,7 @@ pub struct MsgServer {
 impl MSNPCommand for MsgServer {
     type Err = CommandError;
 
-    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
         todo!()
     }
 
@@ -34,7 +33,7 @@ pub enum MsgPayload {
 
 impl MSNPPayload for MsgPayload {
     type Err = PayloadError;
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> {
+    fn try_from_bytes(_bytes: Vec<u8>) -> Result<Self, Self::Err> {
         todo!()
     }
     fn into_bytes(self) -> Vec<u8> {

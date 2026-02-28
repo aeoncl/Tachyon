@@ -27,7 +27,7 @@ impl YaSerialize for EndpointGuid {
 }
 
 impl YaDeserialize for EndpointGuid {
-    fn deserialize<R: Read>(reader: &mut Deserializer<R>) -> Result<Self, String> {
+    fn deserialize<R: Read>(_reader: &mut Deserializer<R>) -> Result<Self, String> {
         todo!()
     }
 }
