@@ -11,12 +11,10 @@ use matrix_sdk::crypto::types::events::olm_v1::AnyDecryptedOlmEvent;
 use matrix_sdk::deserialized_responses::{DecryptedRoomEvent, MemberEvent, RawAnySyncOrStrippedState, TimelineEventKind};
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{AccountData, ListFilters, RoomSubscription, ToDevice, Typing, E2EE};
-use matrix_sdk::ruma::events::direct::{DirectEvent, DirectEventContent};
-use matrix_sdk::ruma::events::{AnyMessageLikeEvent, AnyStrippedStateEvent, AnySyncMessageLikeEvent, AnySyncStateEvent, AnySyncTimelineEvent, GlobalAccountDataEventType, StateEventType, SyncMessageLikeEvent};
-use matrix_sdk::ruma::{assign, OwnedRoomId, OwnedUserId, RoomId, UInt, UserId};
+use matrix_sdk::ruma::events::direct::{ DirectEventContent};
+use matrix_sdk::ruma::{assign, RoomId, UInt, UserId};
 use matrix_sdk::ruma::api::client::error::ErrorKind;
 use matrix_sdk::ruma::directory::RoomTypeFilter;
-use matrix_sdk::ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::sleep::sleep;
 use matrix_sdk::sliding_sync::Bound;
@@ -35,7 +33,7 @@ use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory
 use crate::matrix::contacts::contact_handler::handle_contacts_room_updates;
 use crate::matrix::directs::direct_extensions::{DirectDiff, TachyonDirectAccountDataContent};
 use crate::matrix::directs::direct_handler;
-use crate::matrix::directs::direct_service::{DirectMappingsEvent, DirectMappingsEventContent, DirectService, MappingDiff};
+use crate::matrix::directs::direct_service::{DirectMappingsEventContent, DirectService, MappingDiff};
 
 #[derive(Clone)]
 pub struct TachyonContext {
@@ -110,6 +108,8 @@ async fn get_mandatory_rooms_for_initial_sync<'a>(room_mappings: &'a Option<Resu
 }
 
 fn create_room_list() -> SlidingSyncListBuilder {
+
+
     SlidingSyncListBuilder::new("all_rooms")
         .timeline_limit(1)
         .required_state(REQUIRED_STATE.iter().map(|(key, val)| (key.to_owned(), val.to_string())).collect())
@@ -308,7 +308,7 @@ pub struct MappingDiffEvents {
 }
 
 impl MappingDiffEvents {
-    fn new(room_id: OwnedRoomId) -> Self {
+    fn new(room_id: RoomId) -> Self {
         Self {
             room_id,
             events: Vec::new()

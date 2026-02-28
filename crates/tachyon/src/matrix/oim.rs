@@ -5,7 +5,7 @@ use log::{debug, warn};
 use matrix_sdk::{Client, Room};
 use matrix_sdk::room::MessagesOptions;
 use matrix_sdk::ruma::api::client::filter::RoomEventFilter;
-use matrix_sdk::ruma::events::{AnyMessageLikeEvent, AnySyncMessageLikeEvent, AnySyncTimelineEvent, AnyTimelineEvent, EventContent, MessageLikeEvent, MessageLikeEventType, SyncMessageLikeEvent};
+use matrix_sdk::ruma::events::{AnyMessageLikeEvent, AnySyncMessageLikeEvent, AnySyncTimelineEvent, AnyTimelineEvent, MessageLikeEvent, MessageLikeEventType, SyncMessageLikeEvent};
 use matrix_sdk::ruma::events::room::message::{FormattedBody, MessageType, RoomMessageEvent, SyncRoomMessageEvent};
 use matrix_sdk::ruma::{EventId, OwnedRoomId, OwnedUserId, uint, UserId};
 use matrix_sdk::ruma::events::room::member::MembershipState;
