@@ -1,23 +1,21 @@
-use std::str::FromStr;
+use crate::notification::client_store::ClientData;
+use crate::shared::identifiers::MatrixIdCompatible;
+use crate::web::soap::error::ABError;
+use crate::web::soap::shared;
 use anyhow::anyhow;
 use axum::http::StatusCode;
 use axum::response::Response;
-use matrix_sdk::{Client, RoomMemberships};
 use matrix_sdk::ruma::events::room::member::MembershipState;
+use matrix_sdk::{Client, RoomMemberships};
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_user::MsnUser;
-use msnp::shared::models::role_list::RoleList;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::request::AbfindContactsPagedMessageSoapEnvelope;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContactsPagedResponseMessageSoapEnvelope;
 use msnp::soap::abch::msnab_datatypes::{CircleRelationshipRole, ContactType, ContactTypeEnum, RelationshipState};
 use msnp::soap::traits::xml::ToXml;
-use crate::matrix::contacts::contact_service::ContactDiff;
-use crate::notification::client_store::ClientData;
-use crate::shared::identifiers::MatrixIdCompatible;
-use crate::web::soap::error::ABError;
-use crate::web::soap::shared;
+use std::str::FromStr;
 
 pub async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, _token: TicketToken, client: Client, mut client_data: ClientData) -> Result<Response, ABError> {
     let body = &request.body.body;
@@ -127,13 +125,13 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
 }
 
 fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<ContactType>, ABError> {
-    let contact_service = client_data.get_contact_service();
-    let contact_list = client_data.get_contact_list().lock().unwrap();
-    let mut contacts = contact_service.inner.pending_contacts.lock().unwrap();
+   // let contact_service = client_data.get_contact_service();
+   // let contact_list = client_data.get_contact_list().lock().unwrap();
+   // let mut contacts = contact_service.inner.pending_contacts.lock().unwrap();
 
     let mut current_contacts = Vec::new();
 
-    for (_string, contact) in contacts.drain() {
+/*    for (_string, contact) in contacts.drain() {
         match contact {
             ContactDiff::AddContact { user_id, pending } => {
                 let msn_user = MsnUser::from_user_id(&user_id);
@@ -186,7 +184,7 @@ fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<ContactTyp
         }
 
 
-    }
+    }*/
 
 
     Ok(current_contacts)

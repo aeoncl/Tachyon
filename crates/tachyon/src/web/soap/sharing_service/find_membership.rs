@@ -1,18 +1,14 @@
 use axum::http::StatusCode;
 use axum::response::Response;
 use matrix_sdk::Client;
-use msnp::shared::models::email_address::EmailAddress;
-use msnp::shared::models::msn_user::MsnUser;
 
+use crate::notification::client_store::ClientData;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
-use msnp::soap::abch::msnab_datatypes::{BaseMember, MemberState};
+use msnp::soap::abch::msnab_datatypes::BaseMember;
 use msnp::soap::abch::sharing_service::find_membership::request::FindMembershipRequestSoapEnvelope;
 use msnp::soap::abch::sharing_service::find_membership::response::factory::FindMembershipResponseFactory;
 use msnp::soap::traits::xml::ToXml;
-use crate::matrix::contacts::contact_service::MembershipDiff;
-use crate::notification::client_store::ClientData;
-use crate::shared::identifiers::MatrixIdCompatible;
 
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
@@ -45,11 +41,11 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token
 
 fn get_delta_sync(client_data: &mut ClientData) -> Result<Vec<BaseMember>, ABError> {
     let mut members = Vec::new();
-    let contact_service = client_data.get_contact_service();
-    let mut memberships = contact_service.inner.pending_members.lock().unwrap();
-    let contact_list = client_data.get_contact_list().lock().unwrap();
+    //let contact_service = client_data.get_contact_service();
+    //let mut memberships = contact_service.inner.pending_members.lock().unwrap();
+  //  let contact_list = client_data.get_contact_list().lock().unwrap();
 
-    for member in memberships.drain(..) {
+/*    for member in memberships.drain(..) {
         match member {
             MembershipDiff::AddMembership { user_id, list_type } => {
                 let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(&user_id));
@@ -81,7 +77,7 @@ fn get_delta_sync(client_data: &mut ClientData) -> Result<Vec<BaseMember>, ABErr
             }
         }
 
-    }
+    }*/
 
     Ok(members)
 }

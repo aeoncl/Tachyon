@@ -1,6 +1,4 @@
-use crate::matrix::contacts::contact_handler::handle_contacts_room_updates;
-use crate::matrix::directs::direct_handler;
-use crate::matrix::directs::direct_service::{DirectMappingsEventContent, MappingDiff};
+use crate::matrix::handlers::context::TachyonContext;
 use crate::notification::client_store::ClientData;
 use futures::StreamExt;
 use log::{debug, error, info};
@@ -22,105 +20,23 @@ use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use std::collections::HashSet;
 use tokio::sync::broadcast::Receiver;
-
-#[derive(Clone)]
-pub struct TachyonContext {
-    client_data: ClientData
-}
-
-const REQUIRED_STATE: &[(StateEventType, &str)] = &[
-    (StateEventType::RoomName, ""),
-    (StateEventType::RoomEncryption, ""),
-    (StateEventType::RoomMember, "$LAZY"),
-    (StateEventType::RoomMember, "$ME"),
-    (StateEventType::RoomTopic, ""),
-    (StateEventType::RoomCanonicalAlias, ""),
-    (StateEventType::RoomPowerLevels, ""),
-    (StateEventType::CallMember, "*"),
-    (StateEventType::RoomJoinRules, ""),
-    // Those two events are required to properly compute room previews.
-    (StateEventType::RoomCreate, ""),
-    (StateEventType::RoomHistoryVisibility, ""),
-    // Required to correctly calculate the room display name.
-    (StateEventType::MemberHints, ""),
-];
-
-const DM_REQUIRED_STATE: &[(StateEventType, &str)] = &[
-    (StateEventType::RoomName, ""),
-    (StateEventType::RoomEncryption, ""),
-    (StateEventType::RoomMember, "*"),
-    (StateEventType::RoomTopic, ""),
-    (StateEventType::RoomCanonicalAlias, ""),
-    (StateEventType::RoomPowerLevels, ""),
-    (StateEventType::CallMember, "*"),
-    (StateEventType::RoomJoinRules, ""),
-    // Those two events are required to properly compute room previews.
-    (StateEventType::RoomCreate, ""),
-    (StateEventType::RoomHistoryVisibility, ""),
-    // Required to correctly calculate the room display name.
-    (StateEventType::MemberHints, ""),
-];
-
-async fn get_mandatory_rooms_for_initial_sync<'a>(room_mappings: &'a Option<Result<DirectMappingsEventContent, serde_json::Error>>, directs: &'a Option<Result<DirectEventContent, serde_json::Error>>) -> Result<Vec<&'a RoomId>, Error> {
-
-    let mut out : HashSet<&RoomId> = HashSet::new();
-
-    if let Some(room_mappings) = room_mappings {
-        match room_mappings {
-            Ok(room_mappings) => {
-                for current in room_mappings.get_room_ids().drain(..) {
-                    out.insert(current);
-                }
-            }
-            Err(e) => {
-                log::error!("Malformed room mappings received, ignoring. {}", e);
-            }
-        }
-    }
-
-    if let Some(directs) = directs {
-        match directs {
-            Ok(directs) => {
-                let mut directs: Vec<&RoomId> = directs.values().flatten().map(|room_id| room_id.as_ref()).collect();
-                for current in directs.drain(..) {
-                    out.insert(current);
-                }
-            }
-            Err(e) => {
-                log::error!("Malformed directs received, ignoring. {}", e);
-            }
-        }
-    }
-
-    Ok(Vec::from_iter(out.drain()))
-}
+use crate::matrix::handlers::direct_event_handler;
 
 fn create_room_list() -> SlidingSyncListBuilder {
 
-
     SlidingSyncList::builder("all_rooms")
-        .timeline_limit(1)
-        .required_state(REQUIRED_STATE.iter().map(|(key, val)| (key.to_owned(), val.to_string())).collect())
         .sync_mode(SlidingSyncMode::new_growing(20))
-        .filters(Some(assign!(ListFilters::default(), {
-            is_invite: None,
-            not_room_types: vec![RoomTypeFilter::Space],
-        })))
 
 }
 
 pub async fn build_sliding_sync(matrix_client: &Client) -> Result<SlidingSync, anyhow::Error> {
 
+
     let sliding_sync_builder = matrix_client.sliding_sync("everything_list")?
         .add_list(
             create_room_list()
         )
-        .with_to_device_extension(
-            assign!(ToDevice::default(), { enabled: Some(true)}),
-        )
-        .with_e2ee_extension(assign!(E2EE::default(), { enabled: Some(true)}))
-        .with_account_data_extension(assign!(AccountData::default(), { enabled: Some(true)}))
-        .with_typing_extension(assign!(Typing::default(), { enabled: Some(true)}))
+        .with_all_extensions()
         .share_pos();
 
     Ok(sliding_sync_builder.build().await?)
@@ -133,28 +49,6 @@ pub fn sync(client_data: ClientData, kill_signal: Receiver<()>){
     let updates_recv = client.subscribe_to_all_room_updates();
 
     spawn_sync_task(client_data, sliding_sync, updates_recv, kill_signal, true);
-
-}
-
-async fn setup_sliding_sync_room_subscriptions(sliding_sync: &SlidingSync, client: &Client) -> Result<(), anyhow::Error> {
-
-    let maybe_direct_mappings = client.account()
-        .fetch_account_data(GlobalAccountDataEventType::from("org.tachyon.direct_mappings")).await?
-        .map(|raw| raw.deserialize_as_unchecked::<DirectMappingsEventContent>());
-
-    let maybe_direct_event = client.account().fetch_account_data(GlobalAccountDataEventType::Direct).await?.map(|raw| raw.deserialize_as_unchecked::<DirectEventContent>());
-
-    let rooms_to_watch = get_mandatory_rooms_for_initial_sync(&maybe_direct_mappings, &maybe_direct_event).await?;
-
-    let subscription = assign!(RoomSubscription::default(), {
-        required_state: DM_REQUIRED_STATE.iter().map(|(key, val)| (key.to_owned(), val.to_string())).collect(),
-        timeline_limit: UInt::new_wrapping(10)
-            });
-
-    let room_refs: Vec<&RoomId> = rooms_to_watch.iter().map(|r| r.as_ref()).collect();
-    sliding_sync.subscribe_to_rooms(&room_refs, Some(subscription), false);
-
-    Ok(())
 
 }
 
@@ -171,27 +65,7 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
             //     direct_service.handle_direct_mappings_update(event.content).await.unwrap();
             // });
 
-            matrix_client.add_event_handler(|event: DirectEvent, context: Ctx<TachyonContext>, _client: Client | async move {
-                let direct_service = context.client_data.get_direct_service();
-                let _direct_diffs = direct_service.handle_directs_update(event.content).await.unwrap();
-
-                // TODO: ask wassup with this ?
-                // for direct_diff in direct_diffs {
-                //     if let DirectDiff::RoomAdded(user_id, room_id) = direct_diff {
-                //         if let Some(room) = client.get_room(&room_id) {
-                //             //Remark room as direct room (not supported for now i believe by the sdk
-                //         }
-                //     }
-                // }
-
-
-            });
-        
-        info!("Fetching room subscriptions...");
-        if let Err(err) = setup_sliding_sync_room_subscriptions(&sliding_sync, &matrix_client).await {
-            error!("Error setting up sliding sync room subscriptions: {:?}", err);
-            return;
-        }
+            matrix_client.add_event_handler(direct_event_handler::event_handler);
 
         let mut initial_sync = true;
 
@@ -221,8 +95,6 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
                                         first_sync_of_session = false;
                                         handle_first_sync(&client_data).await.unwrap();
                                     }
-                                    
-                                    handle_room_updates(&client_data, room_updates).await;
                                 }
                                 Err(err) => {
                                     error!("Error receiving RoomUpdates: {:?}", err);
@@ -254,80 +126,6 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
     });
 }
 
-async fn handle_room_updates(client_data: &ClientData, room_updates: RoomUpdates) {
-
-    let own_user_id = client_data.get_matrix_client().user_id().unwrap().to_owned();
-
-    let diffs = direct_handler::handle_direct_mappings_room_updates(room_updates.clone(), client_data.clone()).await.unwrap();
-
-    //TODO: This is not enough, custom behaviour needs to happen in the ContactService to remove old mapping before adding new ones.
-    let events_to_reevaluate = load_mapping_diff_events(client_data, diffs, &own_user_id).await.unwrap();
-    debug!("events_to_reevaluate: {:?}", events_to_reevaluate);
-    handle_contacts_room_updates(room_updates, client_data.clone(), events_to_reevaluate).await;
-
-    let contact_service = client_data.get_contact_service();
-
-    let contact_len = {
-        contact_service.inner.pending_contacts.lock().unwrap().len()
-    };
-
-    let member_len = {
-        contact_service.inner.pending_members.lock().unwrap().len()
-    };
-
-    let circle_len = {
-        contact_service.inner.pending_circles.lock().unwrap().len()
-    };
-
-    if contact_len > 0 || member_len > 0 || circle_len > 0{
-        let user = client_data.get_user_clone().unwrap();
-        let _ = client_data.get_notification_handle().send(NotificationServerCommand::NOT(NotServer {
-            payload: NotificationFactory::get_abch_updated(&user.uuid, user.get_email_address()),
-        })).await;
-    }
-
-
-    }
-
-#[derive(Debug)]
-pub struct MappingDiffEvents {
-    pub room_id: OwnedRoomId,
-    pub events: Vec<RawAnySyncOrStrippedState>
-}
-
-impl MappingDiffEvents {
-    fn new(room_id: OwnedRoomId) -> Self {
-        Self {
-            room_id,
-            events: Vec::new()
-        }
-    }
-}
-
-async fn load_mapping_diff_events(client_data: &ClientData, diffs: Vec<MappingDiff>, me: &UserId) -> Result<Vec<MappingDiffEvents>, anyhow::Error> {
-    let mut events_to_handle: Vec<MappingDiffEvents> = Vec::new();
-
-    for diff in diffs.into_iter() {
-        let user_id = diff.user_id();
-        let room_id = diff.room_id();
-
-        let matrix_client = client_data.get_matrix_client();
-        let room = matrix_client.get_room(&room_id).unwrap();
-
-        let mut mapping_diff_events = MappingDiffEvents::new(room_id.to_owned());
-        if let Some(event) = room.get_state_event(StateEventType::RoomMember, &user_id.as_str()).await? {
-            mapping_diff_events.events.push(event);
-        }
-
-        if let Some(event) = room.get_state_event(StateEventType::RoomMember, &me.as_str()).await? {
-            mapping_diff_events.events.push(event);
-        }
-
-        events_to_handle.push(mapping_diff_events);
-    }
-
-    Ok(events_to_handle)
-}
 
 async fn handle_first_sync(client_data: &ClientData) -> Result<(), anyhow::Error> {
 
@@ -335,6 +133,8 @@ async fn handle_first_sync(client_data: &ClientData) -> Result<(), anyhow::Error
     let ticket_token = client_data.get_ticket_token();
     let notification_handle = client_data.get_notification_handle();
 
+
+    // This is sent to make the client pass the logon screen. Timeout of the logon screen is 1 minute.
     let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
         sender: "Hotmail".to_string(),
         display_name: "Hotmail".to_string(),

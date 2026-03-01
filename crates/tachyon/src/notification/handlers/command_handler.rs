@@ -23,8 +23,6 @@ use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use tokio::sync::mpsc::Sender;
-use crate::matrix::contacts::contact_service::ContactService;
-use crate::matrix::directs::direct_service::DirectService;
 
 pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, client_store: &ClientStoreFacade, local_client_data: &mut LocalClientData) -> Result<(), anyhow::Error> {
 
@@ -91,17 +89,13 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             let user_id = local_store.email_addr.to_owned_user_id();
 
                             let matrix_client = matrix::login::login_with_token(user_id.clone(), ticket_token.clone(), true).await?;
-                            let sync_service = SyncService::builder(matrix_client.clone()).build().await?;
                             let sliding_sync = build_sliding_sync(&matrix_client).await?;
-                            let direct_service = DirectService::new_init_from_cache(matrix_client.clone()).await?;
-                            let contact_service = ContactService::new(direct_service.clone(), user_id.clone());
-
 
                             let endpoint_id = EndpointId::new(local_store.email_addr.clone(), Some(endpoint_guid));
                             let msn_user = MsnUser::new(endpoint_id);
 
 
-                            let client_data = ClientData::new(msn_user.clone(), ticket_token.clone(), notif_sender.clone(), matrix_client.clone(), sliding_sync, sync_service, direct_service, contact_service);
+                            let client_data = ClientData::new(msn_user.clone(), ticket_token.clone(), notif_sender.clone(), matrix_client.clone(), sliding_sync);
                             client_store.insert_client_data(ticket_token.as_str().to_owned(), client_data.clone());
 
                             local_store.token = ticket_token.clone();

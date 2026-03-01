@@ -1,4 +1,3 @@
-use crate::matrix::directs::direct_service::DirectService;
 use crate::notification::circle_store::CircleStore;
 use anyhow::anyhow;
 use dashmap::DashMap;
@@ -18,9 +17,8 @@ use std::sync::{Arc, LockResult, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwL
 use std::time::Duration;
 use thiserror::Error;
 use thiserror::__private::AsDynError;
-use tokio::sync::mpsc::error::SendTimeoutError;
 use tokio::sync::mpsc;
-use crate::matrix::contacts::contact_service::ContactService;
+use tokio::sync::mpsc::error::SendTimeoutError;
 
 #[derive(Clone)]
 pub struct SwitchboardHandle {
@@ -104,7 +102,6 @@ pub struct ClientDataInner {
     pub ticket_token: TicketToken,
     pub matrix_client: Client,
     pub sliding_sync: SlidingSync,
-    pub sync_service: SyncService,
     pub contact_list: Mutex<ContactList>,
     pub soap_holder: SoapHolder,
     pub switchboards: DashMap<OwnedRoomId, SwitchboardHandle>,
@@ -116,8 +113,8 @@ pub struct ClientDataInner {
 #[derive(Clone)]
 pub struct ClientData {
     pub inner: Arc<ClientDataInner>,
-    direct_service: DirectService,
-    contact_service: ContactService,
+ //   direct_service: DirectService,
+ //   contact_service: ContactService,
 }
 
 #[derive(Error, Debug)]
@@ -127,14 +124,13 @@ pub enum ClientStoreError {
 }
 
 impl ClientData {
-    pub fn new(user: MsnUser, token: TicketToken, notification_sender: mpsc::Sender<NotificationServerCommand>, matrix_client: Client, sliding_sync: SlidingSync, sync_service: SyncService, direct_service: DirectService, contact_service: ContactService) -> ClientData {
+    pub fn new(user: MsnUser, token: TicketToken, notification_sender: mpsc::Sender<NotificationServerCommand>, matrix_client: Client, sliding_sync: SlidingSync) -> ClientData {
         
         ClientData{ inner: Arc::new(ClientDataInner {
             user: RwLock::new(user),
             ticket_token: token,
             matrix_client,
             sliding_sync,
-            sync_service,
             contact_list: Default::default(),
             soap_holder: Default::default(),
             switchboards: Default::default(),
@@ -142,8 +138,8 @@ impl ClientData {
             notification_handle: NotificationHandle::new(notification_sender),
         },
         ),
-            direct_service,
-            contact_service,
+ //           direct_service,
+ //           contact_service,
         }
     }
 
@@ -191,9 +187,9 @@ impl ClientData {
         &self.inner.contact_list
     }
 
-    pub fn get_contact_service(&self) -> ContactService {
-        self.contact_service.clone()
-    }
+  //  pub fn get_contact_service(&self) -> ContactService {
+ //       self.contact_service.clone()
+  //  }
 
     pub fn get_contact_holder_mut(&mut self) -> LockResult<MutexGuard<'_, Vec<AddressBookContact>>> {
        self.inner.soap_holder.contacts.lock()
@@ -219,14 +215,11 @@ impl ClientData {
     pub fn get_sliding_sync(&self) -> SlidingSync {
         self.inner.sliding_sync.clone()
     }
-    
-    pub fn get_sync_service(&self) -> &SyncService {
-        &self.inner.sync_service
-    }
 
-    pub fn get_direct_service(&self) -> DirectService {
-        self.direct_service.clone()
-    }
+
+   // pub fn get_direct_service(&self) -> DirectService {
+  //      self.direct_service.clone()
+   // }
 
     pub fn get_notification_handle(&self) -> NotificationHandle {
         self.inner.notification_handle.clone()
