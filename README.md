@@ -3,39 +3,7 @@
 </p>
 
 # Tachyon
-Tachyon is a **translation layer** between **MSNP18** & **the Matrix API**. 
-
-## What's sort of working now
- - Redirection to localhost
- - User/Password login
- - Group Chats
- - Memberships and Contacts
- - Display names
-
-## Works on Master branch but needs refactoring
- - Profile pics
- - Presence (kinda working, WLM is not really compatible with the Matrix way of handling presence currently)
- - 1v1 DM Rooms
- - Text messages
- - File upload
- - Multiple Points of Presence (showing all your logged in sessions)
- - E2E encryption (kinda, no client validation)
- - Vocal messages
-   
-## What's next
- - Photo sharing
- - Contact management (Add, remove, etc)
- - Handle all the default matrix messages types (m.notice, etc)
- - Presence updates when presence disabled on homeserver
- - Add & Delete contacts
- - Font Styling for text messages
- - Custom events for WLM's specific messages (like nudges & winks)
- - Try to map Circles to non DM Rooms
- - Handle DM rooms with more than two people
- - Contacts recent activity
- - MSNToday
- - MSNObject stores (Emoticon packs, winks, etc)
- - Custom Games & Activities
+Tachyon is a work in progress **translation layer** between **MSNP18** & **the Matrix API**. 
 
 ## Components
 There are three distinct components making Tachyon tick:
@@ -52,6 +20,6 @@ There are three distinct components making Tachyon tick:
  - The Escargot Project
  - Luis Mariano Guerra and his project Emesene
  - Pang Wu, Ethem Evlice, Scott Werndorfer & The MSNPSharp Team 
- - All the people that saved documentation and packet capture from the time
- - The Matrix Foundation & the team behind the Rust SDK
- - The team behind Windows Live Messenger, especially 14.0: thanks for all my childhood memories and friendships that still carried on to this day
+ - All the people that saved documentation and packet captures at the time
+ - All the people Matrix ecosystem
+ - The team behind Windows Live Messenger, especially 14.0: thanks for all my childhood memories and friendships that still carry on to this day
