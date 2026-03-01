@@ -50,7 +50,7 @@ pub async fn login_with_token(matrix_id: OwnedUserId, token: TicketToken, disabl
     debug!("storepath: {:?}", &store_path);
 
     let client = get_matrix_client_builder(matrix_id.server_name(), None, disable_ssl)
-        .proxy("http://localhost:8182")
+  //      .proxy("http://localhost:8182")
         .sqlite_store(store_path, None)
         .build()
         .await?;
