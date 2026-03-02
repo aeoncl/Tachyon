@@ -29,7 +29,7 @@ mod tests {
             via: Some(NetworkIdEmail::new(NetworkId::Circle, EmailAddress::from_str("test@live.fr").unwrap())),
             display_name: "Testo".to_string(),
             client_capabilities: ClientCapabilities::new(0,0),
-            avatar: Some(MSNObjectFactory::get_contact_display_picture(&Vec::new(), "test@shlasouf.local".into(), "blabla.tmp".into(), FriendlyName::new("blabla.jpg"))),
+            avatar: Some(MSNObjectFactory::get_display_picture(&Vec::new(), "test@shlasouf.local".into(), "blabla.tmp".into(), FriendlyName::new("blabla.jpg"))),
             badge_url: None,
         };
 
@@ -49,7 +49,7 @@ mod tests {
             via: None,
             display_name: "Testo".to_string(),
             client_capabilities: ClientCapabilities::new(0,0),
-            avatar: Some(MSNObjectFactory::get_contact_display_picture(&Vec::new(), "test@shlasouf.local".into(), "blabla.tmp".into(), FriendlyName::new("blabla.jpg"))),
+            avatar: Some(MSNObjectFactory::get_display_picture(&Vec::new(), "test@shlasouf.local".into(), "blabla.tmp".into(), FriendlyName::new("blabla.jpg"))),
             badge_url: None,
         };
 

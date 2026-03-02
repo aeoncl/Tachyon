@@ -1,71 +1,110 @@
 use crate::matrix::handlers::context::TachyonContext;
+use crate::matrix::handlers::{self};
 use crate::notification::client_store::ClientData;
 use futures::StreamExt;
 use log::{debug, error, info};
 use matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::api::client::error::ErrorKind;
-use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{AccountData, ListFilters, RoomSubscription, ToDevice, Typing, E2EE};
+use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{
+    AccountData, ListFilters, RoomSubscription, ToDevice, Typing, E2EE,
+};
 use matrix_sdk::ruma::directory::RoomTypeFilter;
 use matrix_sdk::ruma::events::direct::{DirectEvent, DirectEventContent};
+use matrix_sdk::ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::ruma::events::{GlobalAccountDataEventType, StateEventType};
 use matrix_sdk::ruma::{assign, OwnedRoomId, RoomId, UInt, UserId};
 use matrix_sdk::sync::RoomUpdates;
-use matrix_sdk::{Client, Error, SlidingSync, SlidingSyncList, SlidingSyncListBuilder, SlidingSyncMode};
+use matrix_sdk::{
+    Client, Error, Room, SlidingSync, SlidingSyncList, SlidingSyncListBuilder, SlidingSyncMode,
+};
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
-use msnp::msnp::notification::command::not::factories::NotificationFactory;
-use msnp::msnp::notification::command::not::NotServer;
+
 use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
-use std::collections::HashSet;
 use tokio::sync::broadcast::Receiver;
-use crate::matrix::handlers::direct_event_handler;
 
 fn create_room_list() -> SlidingSyncListBuilder {
-
-    SlidingSyncList::builder("all_rooms")
-        .sync_mode(SlidingSyncMode::new_growing(20))
-
+    SlidingSyncList::builder("all_rooms").sync_mode(SlidingSyncMode::new_growing(20))
 }
 
 pub async fn build_sliding_sync(matrix_client: &Client) -> Result<SlidingSync, anyhow::Error> {
-
-
-    let sliding_sync_builder = matrix_client.sliding_sync("everything_list")?
-        .add_list(
-            create_room_list()
-        )
+    let sliding_sync_builder = matrix_client
+        .sliding_sync("everything_list")?
+        .add_list(create_room_list())
         .with_all_extensions()
         .share_pos();
 
     Ok(sliding_sync_builder.build().await?)
 }
 
-pub fn sync(client_data: ClientData, kill_signal: Receiver<()>){
-
+pub fn sync(client_data: ClientData, kill_signal: Receiver<()>) {
     let client = client_data.get_matrix_client();
     let sliding_sync = client_data.get_sliding_sync();
     let updates_recv = client.subscribe_to_all_room_updates();
 
     spawn_sync_task(client_data, sliding_sync, updates_recv, kill_signal, true);
-
 }
 
-fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updates_recv: Receiver<RoomUpdates>, mut kill_signal: Receiver<()>, mut first_sync_of_session: bool) {
+fn spawn_sync_task(
+    client_data: ClientData,
+    sliding_sync: SlidingSync,
+    mut updates_recv: Receiver<RoomUpdates>,
+    mut kill_signal: Receiver<()>,
+    mut first_sync_of_session: bool,
+) {
     tokio::spawn(async move {
         info!("Initializing Sliding Sync...");
         let matrix_client = client_data.get_matrix_client();
 
-        matrix_client.add_event_handler_context(TachyonContext{ client_data: client_data.clone() });
+        matrix_client.add_event_handler_context(TachyonContext {
+            client_data: client_data.clone(),
+        });
 
-            // FIXME: Due to some weird behavior with runa Event macro not adding the right things
-            // matrix_client.add_event_handler(|event: DirectMappingsEvent, context: Ctx<TachyonContext> | async move {
-            //     let direct_service = context.client_data.get_direct_service();
-            //     direct_service.handle_direct_mappings_update(event.content).await.unwrap();
-            // });
+        // FIXME: Due to some weird behavior with runa Event macro not adding the right things
+        // matrix_client.add_event_handler(|event: DirectMappingsEvent, context: Ctx<TachyonContext> | async move {
+        //     let direct_service = context.client_data.get_direct_service();
+        //     direct_service.handle_direct_mappings_update(event.content).await.unwrap();
+        // });
 
-            matrix_client.add_event_handler(direct_event_handler::event_handler);
+        matrix_client.add_event_handler(
+            |event: SyncRoomMemberEvent,
+             room: Room,
+             client: Client,
+             context: Ctx<TachyonContext>| async move {
+                handlers::contact_handlers::handle_contacts(event, room, context, client);
+            },
+        );
+
+        matrix_client.add_event_handler(
+            |event: SyncRoomMemberEvent,
+             room: Room,
+             client: Client,
+             context: Ctx<TachyonContext>| async move {
+                handlers::membership_handlers::handle_memberships(event, room, context, client);
+            },
+        );
+
+        matrix_client.add_event_handler(
+            |event: StrippedRoomMemberEvent,
+             room: Room,
+             client: Client,
+             context: Ctx<TachyonContext>| async move {
+                handlers::contact_handlers::handle_contacts_stripped(event, room, context, client);
+            },
+        );
+
+        matrix_client.add_event_handler(
+            |event: StrippedRoomMemberEvent,
+             room: Room,
+             client: Client,
+             context: Ctx<TachyonContext>| async move {
+                handlers::membership_handlers::handle_memberships_stripped(
+                    event, room, context, client,
+                );
+            },
+        );
 
         let mut initial_sync = true;
 
@@ -119,37 +158,36 @@ fn spawn_sync_task(client_data: ClientData, sliding_sync: SlidingSync, mut updat
                 }
 
             }
-
-
         }
-
     });
 }
 
-
 async fn handle_first_sync(client_data: &ClientData) -> Result<(), anyhow::Error> {
-
     let me = client_data.get_user_clone()?;
     let ticket_token = client_data.get_ticket_token();
     let notification_handle = client_data.get_notification_handle();
-
 
     // This is sent to make the client pass the logon screen. Timeout of the logon screen is 1 minute.
     let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
         sender: "Hotmail".to_string(),
         display_name: "Hotmail".to_string(),
-        payload: MsgPayload::Raw(RawMsgPayloadFactory::get_msmsgs_profile(&me.uuid.get_puid(), me.get_email_address(), &ticket_token))
+        payload: MsgPayload::Raw(RawMsgPayloadFactory::get_msmsgs_profile(
+            &me.uuid.get_puid(),
+            me.get_email_address(),
+            &ticket_token,
+        )),
     });
 
     notification_handle.send(initial_profile_msg).await?;
 
-
     //Todo fetch endpoint data
     let endpoint_data = b"<Data></Data>";
-    notification_handle.send(NotificationServerCommand::RAW(RawCommand::with_payload(&format!("UBX 1:{}", &me.get_email_address().as_str()), endpoint_data.to_vec()))).await?;
+    notification_handle
+        .send(NotificationServerCommand::RAW(RawCommand::with_payload(
+            &format!("UBX 1:{}", &me.get_email_address().as_str()),
+            endpoint_data.to_vec(),
+        )))
+        .await?;
 
     Ok(())
 }
-
-
-

@@ -20,7 +20,7 @@ impl EndpointId {
     }
 
     pub fn from_email_addr(email_addr: EmailAddress) -> Self {
-        let endpoint_guid = EndpointGuid(Uuid::from_seed(&email_addr.0));
+        let endpoint_guid = EndpointGuid(Uuid::from_seed(&email_addr.as_str()));
         Self::new(email_addr, Some(endpoint_guid))
     }
 

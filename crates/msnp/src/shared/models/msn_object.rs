@@ -195,10 +195,16 @@ impl yaserde::YaSerialize for &MsnObject {
         let obj_type = self.obj_type.to_string();
         let friendly = self.friendly.to_string();
         let mut elem = xml::writer::XmlEvent::start_element("msnobj")
-            .attr("Creator", &self.creator).attr("Type", &obj_type)
-            .attr("SHA1D", &self.sha1d).attr("Size", &size)
-            .attr("Location", &self.location)
-            .attr("Friendly", &friendly);
+            .attr("Creator", &self.creator).attr("Type", &obj_type);
+
+        //FIXME: this is an experiment to see if SHA1D is required for avatars
+        if !self.sha1d.is_empty() {
+            elem = elem.attr("SHA1D", &self.sha1d);
+        }
+
+
+        elem = elem.attr("Size", &size).attr("Location", &self.location).attr("Friendly", &friendly);
+
 
         let sha1c = self.get_sha1c();
         if self.compute_sha1c {
@@ -260,7 +266,13 @@ impl MsnObject {
             return self.sha1c.clone();
         }
 
-        let sha1_input = format!("Creator{creator}Type{obj_type}SHA1D{sha1d}Size{size}Location{location}Friendly{friendly}", creator = &self.creator, size = &self.size, obj_type = self.obj_type.clone() as i32, location = &self.location, friendly = self.friendly, sha1d = &self.sha1d);
+        //FIXME: this is an experiment to see if SHA1D is required for avatars
+        let sha1_input = if !self.sha1d.is_empty() {
+            format!("Creator{creator}Type{obj_type}SHA1D{sha1d}Size{size}Location{location}Friendly{friendly}", creator = &self.creator, size = &self.size, obj_type = self.obj_type.clone() as i32, location = &self.location, friendly = self.friendly, sha1d = &self.sha1d)
+        } else {
+            format!("Creator{creator}Type{obj_type}Size{size}Location{location}Friendly{friendly}", creator = &self.creator, size = &self.size, obj_type = self.obj_type.clone() as i32, location = &self.location, friendly = self.friendly)
+        };
+
         return compute_sha1(sha1_input.as_bytes());
     }
 
@@ -494,8 +506,12 @@ impl MSNObjectFactory {
 
     pub fn get_display_picture(image: &[u8], creator_msn_addr: &EmailAddress, location: String, friendly: FriendlyName) -> MsnObject {
         let sha1d = compute_sha1(&image);
-
         return MsnObject::new(creator_msn_addr.to_string(), MsnObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MsnObjectContentType::D), false);
+    }
+
+    //FIXME: this is an experiment to see if SHA1 is required or not.
+    pub fn get_display_picture_no_bytes(length: usize, creator_msn_addr: &EmailAddress, location: String, friendly: FriendlyName) -> MsnObject {
+        return MsnObject::new(creator_msn_addr.to_string(), MsnObjectType::DisplayPicture, location, String::new(), length, friendly, Some(MsnObjectContentType::D), false);
     }
 
     pub fn get_me_display_picture(image: &[u8], creator_msn_addr: String, friendly: FriendlyName) -> MsnObject {
@@ -508,11 +524,6 @@ impl MSNObjectFactory {
         return MsnObject::new(creator_msn_addr, MsnObjectType::VoiceClip,"0".into(), sha1d, data.len(),  friendly, None, false);
     }
 
-    pub fn get_contact_display_picture(image: &[u8], creator_msn_addr: String, location: String, friendly: FriendlyName) -> MsnObject {
-        let sha1d = compute_sha1(&image);
-
-        return MsnObject::new(creator_msn_addr, MsnObjectType::DisplayPicture, location, sha1d, image.len(), friendly, Some(MsnObjectContentType::D), false);
-    }
 }
 
 

@@ -80,7 +80,7 @@ impl MetadataMessage {
             received_timestamp: Some(ts),
             read_state: {if read { 1 } else { 0 }},
             size: message_size as u32,
-            sender_email_addr: sender.0,
+            sender_email_addr: sender.to_string(),
             message_id,
             folder_id: "00000000-0000-0000-0000-000000000009".to_string(),
             sender_display_name: encoded,

@@ -23,7 +23,7 @@ pub struct MsnUser {
 impl MsnUser {
 
     pub fn new(endpoint_id: EndpointId) -> Self {
-        let uuid = Uuid::from_seed(&endpoint_id.email_addr.0);
+        let uuid = Uuid::from_seed(&endpoint_id.email_addr.as_str());
         MsnUser {
             endpoint_id,
             network_id: NetworkId::WindowsLive,
@@ -48,7 +48,7 @@ impl MsnUser {
         if self.display_name.is_some() {
             self.display_name.as_ref().expect("yes")
         } else {
-            &self.endpoint_id.email_addr.0
+            &self.endpoint_id.email_addr.as_str()
         }
     }
     

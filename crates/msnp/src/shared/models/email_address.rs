@@ -1,9 +1,9 @@
+use crate::shared::errors::IdentifierError;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use crate::shared::errors::IdentifierError;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Default)]
-pub struct EmailAddress(pub String);
+pub struct EmailAddress(String);
 
 impl FromStr for EmailAddress {
     type Err = IdentifierError;
@@ -14,7 +14,6 @@ impl FromStr for EmailAddress {
         } else {
             Err(IdentifierError::InvalidEmailAddress(s.to_string()))
         }
-
     }
 }
 

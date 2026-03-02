@@ -24,24 +24,28 @@ use tokio::sync::mpsc::error::SendTimeoutError;
 pub struct SwitchboardHandle {
     room_id: String,
     msnp_sender: mpsc::Sender<SwitchboardServerCommand>,
-    p2p_sender: mpsc::Sender<String>
+    p2p_sender: mpsc::Sender<String>,
 }
 
 #[derive(Clone)]
 pub struct NotificationHandle {
-    notification_sender: mpsc::Sender<NotificationServerCommand>
+    notification_sender: mpsc::Sender<NotificationServerCommand>,
 }
 
 impl NotificationHandle {
-
     pub fn new(notification_sender: mpsc::Sender<NotificationServerCommand>) -> Self {
         NotificationHandle {
-            notification_sender
+            notification_sender,
         }
     }
 
-    pub async fn send(&self, notification: NotificationServerCommand) -> Result<(), SendTimeoutError<NotificationServerCommand>>  {
-        self.notification_sender.send_timeout(notification, Duration::from_secs(1)).await
+    pub async fn send(
+        &self,
+        notification: NotificationServerCommand,
+    ) -> Result<(), SendTimeoutError<NotificationServerCommand>> {
+        self.notification_sender
+            .send_timeout(notification, Duration::from_secs(1))
+            .await
     }
 }
 
@@ -83,10 +87,9 @@ impl NotificationHandle {
 //     }
 // }
 
-
 pub enum AddressBookContact {
     Contact(ContactType),
-    Circle(CircleData)
+    Circle(CircleData),
 }
 
 #[derive(Default)]
@@ -94,7 +97,7 @@ pub struct SoapHolder {
     pub oims: DashMap<String, OIM>,
     pub contacts: Mutex<Vec<AddressBookContact>>,
     pub circle_contacts: DashMap<String, Vec<ContactType>>,
-    pub memberships: Mutex<VecDeque<BaseMember>>
+    pub memberships: Mutex<VecDeque<BaseMember>>,
 }
 
 pub struct ClientDataInner {
@@ -109,61 +112,75 @@ pub struct ClientDataInner {
     pub notification_handle: NotificationHandle,
 }
 
-
 #[derive(Clone)]
 pub struct ClientData {
     pub inner: Arc<ClientDataInner>,
- //   direct_service: DirectService,
- //   contact_service: ContactService,
+    //   direct_service: DirectService,
+    //   contact_service: ContactService,
 }
 
 #[derive(Error, Debug)]
 pub enum ClientStoreError {
     #[error("Mutex lock was poisonned: {}", .name)]
-    PoisonnedLockError{name: String, source: anyhow::Error}
+    PoisonnedLockError { name: String, source: anyhow::Error },
 }
 
 impl ClientData {
-    pub fn new(user: MsnUser, token: TicketToken, notification_sender: mpsc::Sender<NotificationServerCommand>, matrix_client: Client, sliding_sync: SlidingSync) -> ClientData {
-        
-        ClientData{ inner: Arc::new(ClientDataInner {
-            user: RwLock::new(user),
-            ticket_token: token,
-            matrix_client,
-            sliding_sync,
-            contact_list: Default::default(),
-            soap_holder: Default::default(),
-            switchboards: Default::default(),
-            circle_store: CircleStore::new(),
-            notification_handle: NotificationHandle::new(notification_sender),
-        },
-        ),
- //           direct_service,
- //           contact_service,
+    pub fn new(
+        user: MsnUser,
+        token: TicketToken,
+        notification_sender: mpsc::Sender<NotificationServerCommand>,
+        matrix_client: Client,
+        sliding_sync: SlidingSync,
+    ) -> ClientData {
+        ClientData {
+            inner: Arc::new(ClientDataInner {
+                user: RwLock::new(user),
+                ticket_token: token,
+                matrix_client,
+                sliding_sync,
+                contact_list: Default::default(),
+                soap_holder: Default::default(),
+                switchboards: Default::default(),
+                circle_store: CircleStore::new(),
+                notification_handle: NotificationHandle::new(notification_sender),
+            }),
+            //           direct_service,
+            //           contact_service,
         }
     }
 
     pub fn get_switchboard(&self, id: OwnedRoomId) -> Option<SwitchboardHandle> {
         match self.inner.switchboards.get(&id) {
-            None => {
-                None
-            }
-            Some(found) => {
-                Some(found.value().clone())
-            }
+            None => None,
+            Some(found) => Some(found.value().clone()),
         }
     }
 
-    pub fn set_switchboard(&mut self, id: OwnedRoomId, switchboard: SwitchboardHandle) -> Option<SwitchboardHandle> {
+    pub fn set_switchboard(
+        &mut self,
+        id: OwnedRoomId,
+        switchboard: SwitchboardHandle,
+    ) -> Option<SwitchboardHandle> {
         self.inner.switchboards.insert(id, switchboard)
     }
 
-    pub fn remove_switchboard(&mut self, id: &OwnedRoomId) -> Option<(OwnedRoomId, SwitchboardHandle)> {
+    pub fn remove_switchboard(
+        &mut self,
+        id: &OwnedRoomId,
+    ) -> Option<(OwnedRoomId, SwitchboardHandle)> {
         self.inner.switchboards.remove(id)
     }
 
     pub fn get_user(&self) -> Result<RwLockReadGuard<'_, MsnUser>, ClientStoreError> {
-        let out = self.inner.user.read().map_err(|e| ClientStoreError::PoisonnedLockError {name: "User".into(), source: anyhow!(e.to_string())})?;
+        let out = self
+            .inner
+            .user
+            .read()
+            .map_err(|e| ClientStoreError::PoisonnedLockError {
+                name: "User".into(),
+                source: anyhow!(e.to_string()),
+            })?;
         Ok(out)
     }
 
@@ -172,11 +189,21 @@ impl ClientData {
     }
 
     pub fn get_user_mut(&mut self) -> Result<RwLockWriteGuard<'_, MsnUser>, ClientStoreError> {
-        Ok(self.inner.user.write().map_err(|e| ClientStoreError::PoisonnedLockError {name: "User".into(), source: anyhow!(e.to_string())})?)
+        Ok(self
+            .inner
+            .user
+            .write()
+            .map_err(|e| ClientStoreError::PoisonnedLockError {
+                name: "User".into(),
+                source: anyhow!(e.to_string()),
+            })?)
     }
 
     pub fn add_oim(&mut self, oim: OIM) {
-        self.inner.soap_holder.oims.insert(oim.message_id.clone(), oim);
+        self.inner
+            .soap_holder
+            .oims
+            .insert(oim.message_id.clone(), oim);
     }
 
     pub fn get_oims(&mut self) -> &DashMap<String, OIM> {
@@ -187,17 +214,18 @@ impl ClientData {
         &self.inner.contact_list
     }
 
-  //  pub fn get_contact_service(&self) -> ContactService {
- //       self.contact_service.clone()
-  //  }
+    //  pub fn get_contact_service(&self) -> ContactService {
+    //       self.contact_service.clone()
+    //  }
 
-    pub fn get_contact_holder_mut(&mut self) -> LockResult<MutexGuard<'_, Vec<AddressBookContact>>> {
-       self.inner.soap_holder.contacts.lock()
+    pub fn get_contact_holder_mut(
+        &self,
+    ) -> LockResult<MutexGuard<'_, Vec<AddressBookContact>>> {
+        self.inner.soap_holder.contacts.lock()
     }
 
     pub fn get_member_holder_mut(&mut self) -> LockResult<MutexGuard<'_, VecDeque<BaseMember>>> {
         self.inner.soap_holder.memberships.lock()
-
     }
 
     pub fn remove_oim(&mut self, message_id: &str) -> Option<(String, OIM)> {
@@ -216,20 +244,18 @@ impl ClientData {
         self.inner.sliding_sync.clone()
     }
 
-
-   // pub fn get_direct_service(&self) -> DirectService {
-  //      self.direct_service.clone()
-   // }
+    // pub fn get_direct_service(&self) -> DirectService {
+    //      self.direct_service.clone()
+    // }
 
     pub fn get_notification_handle(&self) -> NotificationHandle {
         self.inner.notification_handle.clone()
     }
-    
+
     //pub fn get_msn_client_handle(&self) -> MSNClientHandle {
     //    MSNClientHandle::new(self.clone())
     //}
 }
-
 
 // pub struct MSNClientHandle {
 //     client_data: ClientData,
@@ -253,27 +279,22 @@ impl ClientData {
 
 #[derive(Clone, Default)]
 pub struct ClientStoreFacade {
-    data: Arc<DashMap<String, ClientData>>
+    data: Arc<DashMap<String, ClientData>>,
 }
 
 impl ClientStoreFacade {
-
     pub fn get_single_client_data(&self) -> Option<ClientData> {
         if self.data.len() > 1 {
             return None;
         }
-        
+
         self.data.iter().next().map(|x| x.value().clone())
     }
 
     pub fn get_client_data(&self, key: &str) -> Option<ClientData> {
         match self.data.get(key) {
-            None => {
-                None
-            }
-            Some(found) => {
-                Some(found.value().clone())
-            }
+            None => None,
+            Some(found) => Some(found.value().clone()),
         }
     }
 
@@ -284,5 +305,4 @@ impl ClientStoreFacade {
     pub fn remove_client_data(&self, key: &str) -> Option<(String, ClientData)> {
         self.data.remove(key)
     }
-
 }

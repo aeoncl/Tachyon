@@ -1,4 +1,4 @@
-use crate::notification::client_store::ClientData;
+use crate::notification::client_store::{AddressBookContact, ClientData};
 use crate::shared::identifiers::MatrixIdCompatible;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
@@ -130,6 +130,15 @@ fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<ContactTyp
    // let mut contacts = contact_service.inner.pending_contacts.lock().unwrap();
 
     let mut current_contacts = Vec::new();
+    
+    for contact in client_data.get_contact_holder_mut().unwrap().drain(..) {
+        match contact {
+            AddressBookContact::Contact(contact) => {
+                current_contacts.push(contact);
+            }
+            AddressBookContact::Circle(_) => {}
+        }
+    }
 
 /*    for (_string, contact) in contacts.drain() {
         match contact {
