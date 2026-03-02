@@ -1,7 +1,7 @@
 use std::str::from_utf8_unchecked;
 
 use anyhow::anyhow;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use msnp::msnp::{notification::command::command::NotificationServerCommand, raw_command_parser::RawCommandParser};
 use msnp::msnp::notification::command::command::NotificationClientCommand;
 use msnp::shared::traits::MSNPCommand;
@@ -124,8 +124,13 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
     }
 
     client_kill_snd.send(())?;
-    client_store_facade.remove_client_data(local_client_data.token.0.as_str());
-
+    let removed = client_store_facade.remove_client_data(local_client_data.token.0.as_str());
+    if let Some((_, client_data)) = removed {
+        info!("Client data: {} removed successfully", client_data.get_user_clone()?.get_email_address());
+    } else {
+        warn!("Failed to remove client data");
+    }
+    
     info!("Client gracefully shutdown...");
     Ok(())
 

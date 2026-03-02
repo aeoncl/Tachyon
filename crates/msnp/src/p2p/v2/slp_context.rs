@@ -45,7 +45,7 @@ impl PreviewData {
 
 
         //Preview
-        LittleEndian::write_u32(&mut result[16..20], 0);
+        LittleEndian::write_u32(&mut result[16..20], 1);
 
         let mut test : Vec<u8> = Vec::new();
 
@@ -135,9 +135,7 @@ mod tests {
 
         let preview_data = PreviewData::new(54410887, String::from("ghost.psd"));
         let result = preview_data.to_slp_context();
-
-
-
+        
         let deserialized = PreviewData::from_slp_context(&result);
 
         println!("{:?}", deserialized);

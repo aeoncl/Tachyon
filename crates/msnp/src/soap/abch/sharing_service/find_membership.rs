@@ -256,9 +256,11 @@ pub mod response {
 
     #[cfg(test)]
     mod tests {
+        use std::str::FromStr;
         use yaserde::de::from_str;
         use yaserde::ser::to_string;
-
+        use crate::shared::models::email_address::EmailAddress;
+        use crate::shared::models::msn_user::MsnUser;
         use crate::shared::models::uuid::Uuid;
         use crate::soap::abch::msnab_datatypes::{BaseMember, HandleType, MemberState, MemberType, RoleId, ServiceName};
         use crate::soap::abch::sharing_service::find_membership::response::{ArrayOfServiceType, CircleAttributesType, FindMembershipResponse, FindMembershipResponseMessage, FindMembershipResponseMessageSoapEnvelope, Handle, InfoType, Members, Membership, MembershipResult, Memberships, OwnerNamespaceInfoType, OwnerNamespaceType, ServiceType, SoapFindMembershipResponseMessage};
@@ -266,8 +268,8 @@ pub mod response {
 
         #[test]
         fn test_get_empty_find_membership_response() {
-
-            let response = FindMembershipResponseFactory::get_empty_response(&Uuid::from_seed("TEST"), "test@matrix.org", "c4che_key", true);
+            let msn_user = MsnUser::with_email_addr(EmailAddress::from_str("aeon@tachyon.chat").unwrap());
+            let response = FindMembershipResponseFactory::get_empty_response(&msn_user,"c4che_key", true);
             let serialized = to_string(&response).unwrap();
         }
 

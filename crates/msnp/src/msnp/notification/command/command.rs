@@ -17,6 +17,7 @@ use crate::msnp::notification::command::usr::UsrServer;
 use crate::msnp::notification::command::uum::UumClient;
 use crate::msnp::notification::command::uux::UuxServer;
 use crate::msnp::notification::command::ver::VerServer;
+use crate::msnp::notification::command::xfr::{XfrClient, XfrServer};
 use crate::shared::command::ok::OkCommand;
 use crate::shared::traits::MSNPCommand;
 
@@ -38,7 +39,7 @@ pub enum NotificationClientCommand {
     UUM(UumClient),
     SDG(SdgClient),
     PUT(PutClient),
-    XFR(),
+    XFR(XfrClient),
     OUT,
     RAW(RawCommand)
 }
@@ -62,7 +63,7 @@ impl MSNPCommand for NotificationClientCommand {
             "UUM" => NotificationClientCommand::UUM(UumClient::try_from_raw(raw)?),
             "SDG" => NotificationClientCommand::SDG(SdgClient::try_from_raw(raw)?),
             "PUT" => NotificationClientCommand::PUT(PutClient::try_from_raw(raw)?),
-            "XFR" => NotificationClientCommand::XFR(),
+            "XFR" => NotificationClientCommand::XFR(XfrClient::try_from_raw(raw)?),
             "OUT" => NotificationClientCommand::OUT,
             _ => NotificationClientCommand::RAW(raw)
             //Err(CommandError::UnsupportedCommand { command: format!("{:?}", command) })
@@ -97,6 +98,7 @@ pub enum NotificationServerCommand {
     NLN(NlnServer),
     PUT(PutServer),
     SDG(SdgServer),
+    XFR(XfrServer),
     OUT,
     RAW(RawCommand)
 }
@@ -128,6 +130,7 @@ impl MSNPCommand for NotificationServerCommand {
             NotificationServerCommand::PUT(content) => {content.into_bytes()}
             NotificationServerCommand::NLN(content) => { content.into_bytes() }
             NotificationServerCommand::SDG(content) => { content.into_bytes() }
+            NotificationServerCommand::XFR(content) => { content.into_bytes() }
         }
     }
 }

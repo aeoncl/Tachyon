@@ -32,7 +32,7 @@ mod tests {
             assert!(matches!(content, SsoPhaseClient::I { .. }));
 
             if let SsoPhaseClient::I { email_addr } = content {
-                assert_eq!("login@test.com", &email_addr.0);
+                assert_eq!("login@test.com", email_addr.as_str());
             }
 
         }
@@ -109,7 +109,7 @@ mod tests {
 
     #[test]
     fn server_ok_ser() {
-        let usr = UsrServer { tr_id: 2, auth_type : OperationTypeServer::Ok { email_addr: EmailAddress("Xx-taytay-xX@hotmail.com".to_string()), verified: true, unknown_arg: false }};
+        let usr = UsrServer { tr_id: 2, auth_type : OperationTypeServer::Ok { email_addr: EmailAddress::from_str("Xx-taytay-xX@hotmail.com").unwrap(), verified: true, unknown_arg: false }};
         let ser = usr.to_string();
         assert_eq!("USR 2 OK Xx-taytay-xX@hotmail.com 1 0\r\n", ser);
     }

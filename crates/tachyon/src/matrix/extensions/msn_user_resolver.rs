@@ -7,6 +7,7 @@ use msnp::shared::models::msn_object::{FriendlyName, MSNObjectFactory};
 use msnp::shared::models::{email_address::EmailAddress, msn_user::MsnUser};
 use ruma::UserId;
 use std::str::FromStr;
+use base32::Alphabet;
 
 pub trait ToMsnUser {
     async fn to_msn_user(&self) -> Result<MsnUser, anyhow::Error>;
@@ -24,6 +25,8 @@ impl ToMsnUser for Room {
 
         if let Ok(display_name) = self.display_name().await {
             user.display_name = Some(display_name.to_string());
+        } else {
+            user.display_name = Some(self.room_id().to_string())
         }
 
         if let Some(avatar_info) = self.avatar_info() {
@@ -65,18 +68,22 @@ impl ToEmailAddress for Room {
                     .strip_suffix(format!(":{}", &server_name).as_str())
                     .expect("RoomIdV1 to contain it's server name");
 
-                let email_str = format!("{}@{}", local_part, &server_name);
+                let encoded_local_part = base32::encode(Alphabet::Rfc4648Lower { padding: false }, local_part.as_bytes());
+
+                let email_str = format!("{}@{}", encoded_local_part, &server_name);
                 Ok(EmailAddress::from_str(email_str.as_str()).expect("Room Email to be valid"))
             }
             matrix_sdk::ruma::room_version_rules::RoomIdFormatVersion::V2 => {
                 let room_create_id = room_id.strip_sigil();
+                let encoded_room_create_id = base32::encode(Alphabet::Rfc4648Lower { padding: false }, room_create_id.as_bytes());
+
                 let server_name = room_info
                     .create()
                     .expect("RoomCreateEvent to be present")
                     .creator
                     .server_name();
 
-                let email_str = format!("{}@{}", room_create_id, &server_name);
+                let email_str = format!("{}@{}", encoded_room_create_id, &server_name);
                 Ok(EmailAddress::from_str(email_str.as_str()).expect("Room Email to be valid"))
             }
             _ => {
@@ -86,7 +93,7 @@ impl ToEmailAddress for Room {
     }
 }
 
-trait FindRoomFromEmail {
+pub trait FindRoomFromEmail {
     fn find_room_from_email(&self, email: &EmailAddress) -> Result<Option<Room>, anyhow::Error>;
 }
 
@@ -117,13 +124,17 @@ impl FindRoomFromEmail for Client {
     fn find_room_from_email(&self, email: &EmailAddress) -> Result<Option<Room>, Error> {
 
         let (local_part, server_name) = email.crack();
+        let decoded_local_part = String::from_utf8(base32::decode(Alphabet::Rfc4648Lower { padding: false }, local_part).ok_or(anyhow::anyhow!("Failed to decode local part"))?)?;
+        
+        let room_id_v2 = RoomId::parse(format!("!{}", decoded_local_part))?;
+        println!("room_id_v2: {}", room_id_v2);
 
-        let room_id_v2 = RoomId::parse(format!("!{}", local_part))?;
         if let Some(room) = self.get_room(room_id_v2.as_ref()) {
             return Ok(Some(room));
         }
 
-        let room_id_v1 = RoomId::parse(format!("!{}:{}", local_part, server_name))?;
+        let room_id_v1 = RoomId::parse(format!("!{}:{}", decoded_local_part, server_name))?;
+        println!("room_id_v1: {}", room_id_v1);
 
         if let Some(room) = self.get_room(room_id_v1.as_ref()) {
             return Ok(Some(room));

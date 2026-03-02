@@ -59,15 +59,10 @@ pub async fn handle_contacts(
             println!("ContentHolder: {}", contact_holder.len());
         }
 
-        
         let me = context.client_data.get_user().unwrap().clone();
-
-        
         context.client_data.get_notification_handle().send(NotificationServerCommand::NOT(NotServer {
             payload: NotificationFactory::get_abch_updated(&me.uuid, me.get_email_address())
         })).await.unwrap();
-        
-
     }
 }
 

@@ -226,7 +226,7 @@ mod tests {
         let msn_user = MsnUser::without_endpoint_guid(EmailAddress::from_str("aeon.shl@shl.local").unwrap());
         let notif = NotificationFactory::get_abch_updated(&msn_user.uuid, &msn_user.endpoint_id.email_addr);
 
-        let notif_legacy = NotificationFactory::test(&msn_user.uuid, &msn_user.endpoint_id.email_addr.0);
+        let notif_legacy = NotificationFactory::test(&msn_user.uuid, &msn_user.endpoint_id.email_addr.as_str());
         assert_eq!(notif.to_xml().unwrap().as_str(), notif_legacy.replace("\r\n", ""));
     }
 }

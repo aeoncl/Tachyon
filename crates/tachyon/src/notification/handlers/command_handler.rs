@@ -23,6 +23,7 @@ use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use tokio::sync::mpsc::Sender;
+use crate::notification::handlers::xfr_handler::handle_xfr;
 
 pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, client_store: &ClientStoreFacade, local_client_data: &mut LocalClientData) -> Result<(), anyhow::Error> {
 
@@ -140,14 +141,17 @@ async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Se
         NotificationClientCommand::RML(command) => handle_rml(command, client_data, command_sender).await,
         NotificationClientCommand::UUX(command) => handle_uux(command, local_store, command_sender).await,
         NotificationClientCommand::UUM(command) => handle_uum(command, client_data, command_sender).await,
+        NotificationClientCommand::XFR(command) => {
+            todo!()
+        }
         NotificationClientCommand::BLP(command) => {
             command_sender.send(NotificationServerCommand::BLP(command)).await?;
             Ok(())
         }
         NotificationClientCommand::CHG(command) => handle_chg(command, local_store, client_data, command_sender).await,
-        NotificationClientCommand::PRP(_command) => {Ok(())}
-        NotificationClientCommand::UUN(_command) => {Ok(())}
-        NotificationClientCommand::XFR() => {Ok(())}
+        NotificationClientCommand::PRP(_command) => {Ok(())},
+        NotificationClientCommand::UUN(_command) => {Ok(())},
+        NotificationClientCommand::XFR(command) => handle_xfr(command, local_store, command_sender).await,
         NotificationClientCommand::RAW(command) => {
             warn!("Received RAW command: {:?}", command);
             Ok(())

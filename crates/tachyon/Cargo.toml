@@ -18,6 +18,7 @@ serde = { version = "1.0.203", features = ["derive"] }
 async-stream = "0.3.6"
 futures-core = "0.3.31"
 tokio-retry2 = { version = "0.5", features = ["jitter"] }
+base32 = "0.5.1"
 
 #todo move in workspace
 base64 = "0.22.0"

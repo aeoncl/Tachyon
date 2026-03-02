@@ -2,10 +2,9 @@ use crate::notification::client_store::ClientData;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::uum::{UumClient, UumPayload};
-use tokio::sync::mpsc::Sender;
 use msnp::shared::payload::msg::text_msg::FontStyle;
-use crate::shared::identifiers::MatrixIdCompatible;
-
+use tokio::sync::mpsc::Sender;
+use crate::matrix::extensions::msn_user_resolver::FindRoomFromEmail;
 pub async fn handle_uum(command: UumClient, client_data: ClientData, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     let ok_response = command.get_ok_response();
 
@@ -13,7 +12,7 @@ pub async fn handle_uum(command: UumClient, client_data: ClientData, command_sen
         UumPayload::TextMessage(content) => {
             let matrix_client = client_data.get_matrix_client();
 
-            let room = matrix_client.get_dm_room(&command.destination.email_addr.to_owned_user_id());
+            let room = matrix_client.find_room_from_email(&command.destination.email_addr)?;
             match room {
                 None => {
                     //NO DM ROOM FOUND

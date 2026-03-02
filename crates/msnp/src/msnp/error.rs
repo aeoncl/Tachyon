@@ -30,7 +30,6 @@ pub enum CommandError {
     #[error("No command to extract in buffer: {:?}", .buffer)]
     NoCommandToExtract { buffer: Vec<u8>},
 
-
     #[error(transparent)]
     UTF8Error(#[from] Utf8Error),
     #[error(transparent)]

@@ -1,4 +1,4 @@
-mod extensions;
+pub mod extensions;
 mod handlers;
 pub mod login;
 pub mod msn_user_resolver;
