@@ -31,38 +31,42 @@ pub async fn handle_contacts(
 
         let msn_user = room.to_msn_user().await.unwrap();
 
-        let mut contact_holder = context.client_data.get_contact_holder_mut().unwrap();
+        {
+            let mut contact_holder = context.client_data.get_contact_holder_mut().unwrap();
 
 
-        match event.membership() {
-            MembershipState::Ban => {
-                //I Got Ban
-                let contact = ContactType::new(&msn_user, ContactTypeEnum::LivePending, false);
-                contact_holder.push( AddressBookContact::Contact(contact));
-            }
-            MembershipState::Leave => {
-                //I Bailed
-                let contact = ContactType::new(&msn_user, ContactTypeEnum::Live, true);
-                contact_holder.push( AddressBookContact::Contact(contact));
-            }
-            MembershipState::Join => {
-                //I'm joined
-                let contact = ContactType::new(&msn_user, ContactTypeEnum::Live, false);
-                contact_holder.push( AddressBookContact::Contact(contact));
-            }
-            _ => {
-                // memberships we don't care about.
-            }
-        };
+            match event.membership() {
+                MembershipState::Ban => {
+                    //I Got Ban
+                    let contact = ContactType::new(&msn_user, ContactTypeEnum::LivePending, false);
+                    contact_holder.push( AddressBookContact::Contact(contact));
+                }
+                MembershipState::Leave => {
+                    //I Bailed
+                    let contact = ContactType::new(&msn_user, ContactTypeEnum::Live, true);
+                    contact_holder.push( AddressBookContact::Contact(contact));
+                }
+                MembershipState::Join => {
+                    //I'm joined
+                    let contact = ContactType::new(&msn_user, ContactTypeEnum::Live, false);
+                    contact_holder.push( AddressBookContact::Contact(contact));
+                }
+                _ => {
+                    // memberships we don't care about.
+                }
+            };
 
+            println!("ContentHolder: {}", contact_holder.len());
+        }
 
-        println!("ContentHolder: {}", contact_holder.len());
+        
+        let me = context.client_data.get_user().unwrap().clone();
 
-        let me = context.client_data.get_user().unwrap();
-
+        
         context.client_data.get_notification_handle().send(NotificationServerCommand::NOT(NotServer {
             payload: NotificationFactory::get_abch_updated(&me.uuid, me.get_email_address())
         })).await.unwrap();
+        
 
     }
 }

@@ -25,8 +25,27 @@ use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use tokio::sync::broadcast::Receiver;
 
+const REQUIRED_STATE: &[(StateEventType, &str)] = &[
+    (StateEventType::RoomName, ""),
+    (StateEventType::RoomEncryption, ""),
+    (StateEventType::RoomMember, "$LAZY"),
+    (StateEventType::RoomMember, "$ME"),
+    (StateEventType::RoomTopic, ""),
+    (StateEventType::RoomCanonicalAlias, ""),
+    (StateEventType::RoomPowerLevels, ""),
+    (StateEventType::CallMember, "*"),
+    (StateEventType::RoomJoinRules, ""),
+    // Those two events are required to properly compute room previews.
+    (StateEventType::RoomCreate, ""),
+    (StateEventType::RoomHistoryVisibility, ""),
+    // Required to correctly calculate the room display name.
+    (StateEventType::MemberHints, ""),
+];
+
 fn create_room_list() -> SlidingSyncListBuilder {
-    SlidingSyncList::builder("all_rooms").sync_mode(SlidingSyncMode::new_growing(20))
+    SlidingSyncList::builder("all_rooms")
+        .required_state(REQUIRED_STATE.iter().map(|(key, val)| (key.to_owned(), val.to_string())).collect())
+        .sync_mode(SlidingSyncMode::new_growing(20))
 }
 
 pub async fn build_sliding_sync(matrix_client: &Client) -> Result<SlidingSync, anyhow::Error> {
@@ -73,7 +92,8 @@ fn spawn_sync_task(
              room: Room,
              client: Client,
              context: Ctx<TachyonContext>| async move {
-                handlers::contact_handlers::handle_contacts(event, room, context, client);
+                println!("SyncRoomMemberEvent received: {:?}", &event);
+                handlers::contact_handlers::handle_contacts(event, room, context, client).await;
             },
         );
 
@@ -82,7 +102,8 @@ fn spawn_sync_task(
              room: Room,
              client: Client,
              context: Ctx<TachyonContext>| async move {
-                handlers::membership_handlers::handle_memberships(event, room, context, client);
+                println!("SyncRoomMemberEvent received: {:?}", &event);
+                handlers::membership_handlers::handle_memberships(event, room, context, client).await;
             },
         );
 
@@ -91,7 +112,8 @@ fn spawn_sync_task(
              room: Room,
              client: Client,
              context: Ctx<TachyonContext>| async move {
-                handlers::contact_handlers::handle_contacts_stripped(event, room, context, client);
+                println!("StrippedRoomMemberEvent received: {:?}", &event);
+                handlers::contact_handlers::handle_contacts_stripped(event, room, context, client).await;
             },
         );
 
@@ -100,9 +122,10 @@ fn spawn_sync_task(
              room: Room,
              client: Client,
              context: Ctx<TachyonContext>| async move {
+                println!("StrippedRoomMemberEvent received: {:?}", &event);
                 handlers::membership_handlers::handle_memberships_stripped(
                     event, room, context, client,
-                );
+                ).await;
             },
         );
 
@@ -130,6 +153,7 @@ fn spawn_sync_task(
 
                             match updates_recv.recv().await {
                                 Ok(room_updates) => {
+                                    println!("{:?}", &room_updates);
                                     if first_sync_of_session  {
                                         first_sync_of_session = false;
                                         handle_first_sync(&client_data).await.unwrap();
