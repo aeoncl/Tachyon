@@ -1,5 +1,5 @@
 use crate::matrix;
-use crate::matrix::sync2::{build_sliding_sync, sync};
+use crate::matrix::sync::{build_sliding_sync, sync};
 use crate::notification::client_store::{ClientData, ClientStoreFacade};
 use crate::notification::handlers::adl_handler::handle_adl;
 use crate::notification::handlers::chg_handler::handle_chg;

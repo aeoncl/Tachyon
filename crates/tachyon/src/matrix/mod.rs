@@ -3,6 +3,6 @@ mod handlers;
 pub mod login;
 pub mod msn_user_resolver;
 pub mod oim;
-pub mod sync2;
+pub mod sync;
 mod utils;
 mod errors;

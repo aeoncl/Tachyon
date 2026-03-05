@@ -70,7 +70,6 @@ pub async fn handle_memberships_stripped(
         match room.state() {
             RoomState::Invited => {
                 // I'm invited
-                //We do nothing here, invitations are handled in memberships
                 let invite_member = BaseMember::new_invite_passsport_member(&msn_user, event.content.reason.clone() ,false);
                 member_holder.push_back(invite_member);
                 let reverse_member = BaseMember::new_passport_member(&msn_user, MemberState::Accepted, RoleList::Reverse, false);
