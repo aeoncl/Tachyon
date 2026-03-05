@@ -7,7 +7,7 @@ use crate::msnp::switchboard::command::cal::{CalClient, CalServer};
 use crate::msnp::switchboard::command::iro::IroServer;
 use crate::msnp::switchboard::command::joi::JoiServer;
 use crate::msnp::switchboard::command::msg::{MsgClient, MsgServer};
-use crate::msnp::switchboard::command::usr::{UsrClient, UsrServerOk};
+use crate::msnp::switchboard::command::usr::{UsrClient, UsrServer};
 use crate::shared::command::ok::OkCommand;
 use crate::shared::traits::{MSNPCommand};
 
@@ -43,7 +43,7 @@ impl MSNPCommand for SwitchboardClientCommand {
 #[derive(Display)]
 pub enum SwitchboardServerCommand {
     OK(OkCommand),
-    USR(UsrServerOk),
+    USR(UsrServer),
     CAL(CalServer),
     ACK(AckServer),
     MSG(MsgServer),

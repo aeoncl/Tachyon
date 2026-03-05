@@ -1,2 +1,2 @@
 pub mod msn_user_resolver;
-mod direct;
+pub mod direct;

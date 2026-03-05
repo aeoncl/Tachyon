@@ -1,9 +1,10 @@
 use crate::matrix::handlers::context::TachyonContext;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::{Client, Room};
-use ruma::events::room::member::{MembershipChange, RoomMemberEvent};
-use ruma::events::room::name::RoomNameEvent;
-use ruma::user_id;
+use matrix_sdk::ruma::events::room::member::{MembershipChange, RoomMemberEvent};
+use matrix_sdk::ruma::events::room::name::RoomNameEvent;
+use matrix_sdk::ruma::{OwnedUserId, UserId};
+use crate::matrix::extensions::direct::DirectRoom;
 
 pub async fn handle_direct_member_profile_changed(
     event: RoomMemberEvent,
@@ -16,7 +17,7 @@ pub async fn handle_direct_member_profile_changed(
 
             if room.is_valid_one_to_one_direct() {
                 if let Some(direct_target) = room.get_single_direct_target() {
-                    if event.state_key() == direct_target.as_ref() {
+                    if event.state_key() == <matrix_sdk::ruma::OwnedUserId as AsRef<UserId>>::as_ref(&direct_target) {
                         if let MembershipChange::ProfileChanged { avatar_url_change, displayname_change } = original.membership_change() {
                             //TODO Send NLN Command with new name and avatar
                         }
@@ -39,7 +40,7 @@ pub async fn handle_room_name(
         if !room.is_valid_one_to_one_direct() {
             if let Some(original) = event.as_original() {
                 //TODO Send NLN Command with new Name
-                original.content.name;
+                //original.content.name;
             }
         }
 }

@@ -3,7 +3,7 @@ use std::str::FromStr;
 use anyhow::anyhow;
 use crate::msnp::error::CommandError;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TicketToken(pub String);
 
 impl TicketToken {

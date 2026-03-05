@@ -1,18 +1,28 @@
-use std::str::FromStr;
 use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::models::endpoint_id::EndpointId;
 use crate::shared::traits::MSNPCommand;
+use std::str::FromStr;
+use crate::shared::models::email_address::EmailAddress;
 
 // Initiate a new SB.
 // >>> USR 55 aeontest@shl.local;{F52973B6-C926-4BAD-9BA8-7C1E840E4AB0} token
 // <<< USR 55 aeontest@shl.local aeontest@shl.local OK
 pub struct UsrClient {
+    pub tr_id: u128,
+    pub endpoint_id: EndpointId,
+    pub token: String
+}
 
-    tr_id: u128,
-    endpoint_id: EndpointId,
-    token: String
+impl UsrClient {
 
+    pub fn get_ok_response_for(&self, display_name: String) -> UsrServer {
+        UsrServer{
+            tr_id: self.tr_id,
+            email_addr: self.endpoint_id.email_addr.clone(),
+            display_name,
+        }
+    }
 }
 
 impl MSNPCommand for UsrClient {
@@ -43,13 +53,13 @@ impl MSNPCommand for UsrClient {
 }
 
 
-pub struct UsrServerOk {
-    tr_id: u128,
-    email_addr: String,
-    display_name: String,
+pub struct UsrServer {
+    pub tr_id: u128,
+    pub email_addr: EmailAddress,
+    pub display_name: String,
 }
 
-impl MSNPCommand for UsrServerOk {
+impl MSNPCommand for UsrServer {
     type Err = CommandError;
 
     fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
