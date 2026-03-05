@@ -1,49 +1,72 @@
 use anyhow::Error;
 use base64::engine::general_purpose;
 use base64::Engine;
-use matrix_sdk::ruma::RoomId;
+use matrix_sdk::ruma::{RoomId, UserId};
 use matrix_sdk::{Client, Room};
 use msnp::shared::models::msn_object::{FriendlyName, MSNObjectFactory};
 use msnp::shared::models::{email_address::EmailAddress, msn_user::MsnUser};
-use ruma::UserId;
 use std::str::FromStr;
 use base32::Alphabet;
+use matrix_sdk::media::MediaFormat;
+use crate::matrix::extensions::direct::DirectRoom;
 
 pub trait ToMsnUser {
     async fn to_msn_user(&self) -> Result<MsnUser, anyhow::Error>;
-
+    async fn to_msn_user_lazy(&self)  -> Result<MsnUser, anyhow::Error>;
 }
 
 pub trait RoomMsnUserResolver {
     fn resolve_msn_user(user_id: &UserId) -> Result<MsnUser, anyhow::Error>;
 }
 
+
+
 impl ToMsnUser for Room {
     async fn to_msn_user(&self) -> Result<MsnUser, anyhow::Error> {
-        let email = self.to_email_address()?;
-        let mut user = MsnUser::with_email_addr(email);
+        to_msn_user_internal(self, false).await
+    }
 
-        if let Ok(display_name) = self.display_name().await {
+    async fn to_msn_user_lazy(&self) -> Result<MsnUser, Error> {
+        to_msn_user_internal(self, true).await
+    }
+}
+
+async fn to_msn_user_internal(room: &Room, lazy_resolve: bool) -> Result<MsnUser, Error> {
+    let email = room.to_email_address()?;
+    let mut user = MsnUser::with_email_addr(email);
+
+    let maybe_direct_target = if lazy_resolve {room.get_single_direct_target_member_lazy().await
+    } else {room.get_single_direct_target_member().await};
+
+    if let Ok(Some(direct_target)) = &maybe_direct_target {
+        user.display_name = direct_target.display_name().map(|name| name.to_string());
+    } else {
+        if let Ok(display_name) = room.display_name().await {
             user.display_name = Some(display_name.to_string());
         } else {
-            user.display_name = Some(self.room_id().to_string())
+            user.display_name = Some(room.room_id().to_string());
         }
-
-        if let Some(avatar_info) = self.avatar_info() {
-            //FIXME: Avatar MSNObject requires to compute the SHA1 of the bytes, let's see if we can avoid that.
-            // What happens if no SHA1 is set in the MSNObject?
-
-            let avatar_mxc = self.avatar_url().unwrap();
-            let base64_mxc =  general_purpose::STANDARD.encode(avatar_mxc.to_string());
+    };
 
 
-            let size = usize::try_from(avatar_info.size.unwrap()).unwrap();
-            let display_picture = MSNObjectFactory::get_display_picture_no_bytes(size, user.get_email_address(), format!("{}.tmp", base64_mxc).to_string(), FriendlyName::default());
-            user.display_picture = Some(display_picture)
-        }
+    //Todo chek if direct_target for avatar.
+    // Check if we call call endpoint with OPTION or HEAD request to fetch image size and avoid downloading the image at this time
 
-        Ok(user)
+
+    if let Some(avatar_info) = room.avatar_info() {
+        //FIXME: Avatar MSNObject requires to compute the SHA1 of the bytes, let's see if we can avoid that.
+        // What happens if no SHA1 is set in the MSNObject?
+
+        let avatar_mxc = room.avatar_url().unwrap();
+        let base64_mxc =  general_purpose::STANDARD.encode(avatar_mxc.to_string());
+
+
+        let size = usize::try_from(avatar_info.size.unwrap()).unwrap();
+        let display_picture = MSNObjectFactory::get_display_picture_no_bytes(size, user.get_email_address(), format!("{}.tmp", base64_mxc).to_string(), FriendlyName::default());
+        user.display_picture = Some(display_picture)
     }
+
+    Ok(user)
 }
 
 trait ToEmailAddress {
