@@ -10,7 +10,10 @@ pub trait DirectRoom {
 
     fn is_one_to_one_direct(&self) -> bool;
 
+    fn is_valid_one_to_one_direct(&self) -> bool;
+
     fn get_single_direct_target(&self) -> Option<OwnedUserId>;
+
     async fn get_single_direct_target_member(&self) -> Result<Option<RoomMember>, MatrixError>;
 
     async fn get_single_direct_target_member_lazy(&self) -> Result<Option<RoomMember>, MatrixError>;
@@ -22,6 +25,14 @@ impl DirectRoom for Room {
     fn is_one_to_one_direct(&self) -> bool {
         let direct_targets = self.direct_targets();
         direct_targets.len() == 1
+    }
+
+    fn is_valid_one_to_one_direct(&self) -> bool {
+        if !self.is_one_to_one_direct() {
+            return false;
+        }
+
+        self.active_members_count() <= 2
     }
 
     fn get_single_direct_target(&self) -> Option<OwnedUserId> {

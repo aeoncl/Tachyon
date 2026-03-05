@@ -251,31 +251,7 @@ impl ClientData {
     pub fn get_notification_handle(&self) -> NotificationHandle {
         self.inner.notification_handle.clone()
     }
-
-    //pub fn get_msn_client_handle(&self) -> MSNClientHandle {
-    //    MSNClientHandle::new(self.clone())
-    //}
 }
-
-// pub struct MSNClientHandle {
-//     client_data: ClientData,
-// }
-//
-// impl MSNClientHandle {
-//     pub fn new(client_data: ClientData) -> MSNClientHandle {
-//         MSNClientHandle { client_data }
-//     }
-//
-//     pub async fn send_notification(&self, payload: NotificationPayload) -> Result<(), SendError<NotificationServerCommand>> {
-//         self.client_data.inner.notification_sender.clone().send(
-//             NotificationServerCommand::NOT(
-//                 NotServer {
-//                     payload,
-//                 }
-//             )
-//         )?
-//     }
-// }
 
 #[derive(Clone, Default)]
 pub struct ClientStoreFacade {

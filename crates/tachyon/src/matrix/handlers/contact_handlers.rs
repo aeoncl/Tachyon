@@ -1,18 +1,12 @@
-use log::debug;
+use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::matrix::handlers::context::TachyonContext;
+use crate::notification::client_store::AddressBookContact;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::events::room::member::{
     MembershipState, StrippedRoomMemberEvent, SyncRoomMemberEvent,
 };
 use matrix_sdk::{Client, Room, RoomState};
-use msnp::msnp::notification::command::command::NotificationServerCommand;
-use msnp::msnp::notification::command::not::factories::NotificationFactory;
-use msnp::msnp::notification::command::not::NotServer;
-use msnp::shared::models::email_address::EmailAddress;
 use msnp::soap::abch::msnab_datatypes::{ContactType, ContactTypeEnum};
-use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
-use crate::notification::client_store::AddressBookContact;
-use crate::shared::identifiers::MatrixIdCompatible;
 
 pub async fn handle_contacts(
     event: SyncRoomMemberEvent,

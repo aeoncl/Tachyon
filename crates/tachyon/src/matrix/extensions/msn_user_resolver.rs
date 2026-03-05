@@ -29,14 +29,23 @@ impl ToMsnUser for Room {
     async fn to_msn_user_lazy(&self) -> Result<MsnUser, Error> {
         to_msn_user_internal(self, true).await
     }
+
 }
 
 async fn to_msn_user_internal(room: &Room, lazy_resolve: bool) -> Result<MsnUser, Error> {
     let email = room.to_email_address()?;
     let mut user = MsnUser::with_email_addr(email);
 
-    let maybe_direct_target = if lazy_resolve {room.get_single_direct_target_member_lazy().await
-    } else {room.get_single_direct_target_member().await};
+    let maybe_direct_target = if room.is_valid_one_to_one_direct() {
+         if lazy_resolve {
+             room.get_single_direct_target_member_lazy().await
+        } else {
+             room.get_single_direct_target_member().await
+         }
+    } else {
+        Ok(None)
+    };
+    
 
     if let Ok(Some(direct_target)) = &maybe_direct_target {
         user.display_name = direct_target.display_name().map(|name| name.to_string());

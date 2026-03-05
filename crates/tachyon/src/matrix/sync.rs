@@ -1,5 +1,5 @@
 use crate::matrix::handlers::context::TachyonContext;
-use crate::matrix::handlers::{self};
+use crate::matrix::handlers::{self, register_event_handlers};
 use crate::notification::client_store::ClientData;
 use futures::StreamExt;
 use log::{debug, error, info};
@@ -79,52 +79,7 @@ fn spawn_sync_task(
     tokio::spawn(async move {
         info!("Initializing Sliding Sync...");
         let matrix_client = client_data.get_matrix_client();
-
-        matrix_client.add_event_handler_context(TachyonContext {
-            client_data: client_data.clone(),
-        });
-
-        matrix_client.add_event_handler(
-            |event: SyncRoomMemberEvent,
-             room: Room,
-             client: Client,
-             context: Ctx<TachyonContext>| async move {
-                println!("SyncRoomMemberEvent received: {:?}", &event);
-                handlers::contact_handlers::handle_contacts(event, room, context, client).await;
-            },
-        );
-
-        matrix_client.add_event_handler(
-            |event: SyncRoomMemberEvent,
-             room: Room,
-             client: Client,
-             context: Ctx<TachyonContext>| async move {
-                println!("SyncRoomMemberEvent received: {:?}", &event);
-                handlers::membership_handlers::handle_memberships(event, room, context, client).await;
-            },
-        );
-
-        matrix_client.add_event_handler(
-            |event: StrippedRoomMemberEvent,
-             room: Room,
-             client: Client,
-             context: Ctx<TachyonContext>| async move {
-                println!("StrippedRoomMemberEvent received: {:?}", &event);
-                handlers::contact_handlers::handle_contacts_stripped(event, room, context, client).await;
-            },
-        );
-
-        matrix_client.add_event_handler(
-            |event: StrippedRoomMemberEvent,
-             room: Room,
-             client: Client,
-             context: Ctx<TachyonContext>| async move {
-                println!("StrippedRoomMemberEvent received: {:?}", &event);
-                handlers::membership_handlers::handle_memberships_stripped(
-                    event, room, context, client,
-                ).await;
-            },
-        );
+        register_event_handlers(&matrix_client, client_data.clone());
 
         let mut initial_sync = true;
 
@@ -158,7 +113,7 @@ fn spawn_sync_task(
                                 }
                             }
 
-                            handle_room_updates(&client_data).await.unwrap();
+                            handle_addressbook_notifications(&client_data).await.unwrap();
                             initial_sync = false
                         }
                         Some(Err(err)) => {
@@ -181,7 +136,7 @@ fn spawn_sync_task(
     });
 }
 
-async fn handle_room_updates(client_data: &ClientData) -> Result<(), SendTimeoutError<NotificationServerCommand>> {
+async fn handle_addressbook_notifications(client_data: &ClientData) -> Result<(), SendTimeoutError<NotificationServerCommand>> {
 
     let update_required = {
         let contact_holder = client_data.get_contact_holder_mut().unwrap();
