@@ -1,0 +1,36 @@
+<?xml version= "1.0" encoding= "utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+               xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+    <soap:Header>
+        <ABApplicationHeader xmlns="http://www.msn.com/webservices/AddressBook">
+            <ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId>
+            <IsMigration>false</IsMigration>
+            <PartnerScenario>ContactMsgrAPI</PartnerScenario>
+            <CacheKey>587A5B13-90D5-426D-A97D-48DFA2AAE7F1</CacheKey>
+        </ABApplicationHeader>
+        <ABAuthHeader xmlns="http://www.msn.com/webservices/AddressBook">
+            <ManagedGroupRequest>false</ManagedGroupRequest>
+            <TicketToken>t=0bfusc4t3dT0k3n</TicketToken>
+        </ABAuthHeader>
+    </soap:Header>
+    <soap:Body>
+        <ABContactAdd xmlns="http://www.msn.com/webservices/AddressBook">
+            <abId>00000000-0000-0000-0000-000000000000</abId>
+            <contacts>
+                <Contact xmlns="http://www.msn.com/webservices/AddressBook">
+                    <contactInfo>
+                        <passportName>room_id@shlasouf.local</passportName>
+                        <isMessengerUser>true</isMessengerUser>
+                        <MessengerMemberInfo>
+                            <DisplayName>Aeon</DisplayName>
+                        </MessengerMemberInfo>
+                    </contactInfo>
+                </Contact>
+            </contacts>
+            <options>
+                <EnableAllowListManagement>true</EnableAllowListManagement>
+            </options>
+        </ABContactAdd>
+    </soap:Body>
+</soap:Envelope>

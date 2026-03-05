@@ -224,7 +224,7 @@ impl ClientData {
         self.inner.soap_holder.contacts.lock()
     }
 
-    pub fn get_member_holder_mut(&mut self) -> LockResult<MutexGuard<'_, VecDeque<BaseMember>>> {
+    pub fn get_member_holder_mut(&self) -> LockResult<MutexGuard<'_, VecDeque<BaseMember>>> {
         self.inner.soap_holder.memberships.lock()
     }
 

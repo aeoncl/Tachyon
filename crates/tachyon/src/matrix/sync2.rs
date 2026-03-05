@@ -24,6 +24,9 @@ use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use tokio::sync::broadcast::Receiver;
+use tokio::sync::mpsc::error::SendTimeoutError;
+use msnp::msnp::notification::command::not::factories::NotificationFactory;
+use msnp::msnp::notification::command::not::NotServer;
 
 const REQUIRED_STATE: &[(StateEventType, &str)] = &[
     (StateEventType::RoomName, ""),
@@ -81,12 +84,6 @@ fn spawn_sync_task(
             client_data: client_data.clone(),
         });
 
-        // FIXME: Due to some weird behavior with runa Event macro not adding the right things
-        // matrix_client.add_event_handler(|event: DirectMappingsEvent, context: Ctx<TachyonContext> | async move {
-        //     let direct_service = context.client_data.get_direct_service();
-        //     direct_service.handle_direct_mappings_update(event.content).await.unwrap();
-        // });
-
         matrix_client.add_event_handler(
             |event: SyncRoomMemberEvent,
              room: Room,
@@ -133,22 +130,18 @@ fn spawn_sync_task(
 
         info!("Starting Sliding Sync...");
         let mut sync_stream = Box::pin(sliding_sync.sync());
-        loop {
+        'main: loop {
             tokio::select! {
                 _ = kill_signal.recv() => {
                     info!("Gracefully exit sync loop...");
                     if let Err(err) = sliding_sync.stop_sync() {
                         error!("Error stopping sync loop: {:?}", err);
                     }
-                    break;
+                    break 'main;
                 }
                 sync_response = sync_stream.next() => {
                     match sync_response {
                         Some(Ok(update_summary)) => {
-                            if initial_sync {
-                                // Tell the FindContacts & FindMemberships to require full sync
-                            }
-
                             info!("Received Sliding Sync stream response with pos: {:?}", &update_summary);
 
                             match updates_recv.recv().await {
@@ -158,19 +151,21 @@ fn spawn_sync_task(
                                         first_sync_of_session = false;
                                         handle_first_sync(&client_data).await.unwrap();
                                     }
+                                    
                                 }
                                 Err(err) => {
                                     error!("Error receiving RoomUpdates: {:?}", err);
                                 }
                             }
 
+                            handle_room_updates(&client_data).await.unwrap();
                             initial_sync = false
                         }
                         Some(Err(err)) => {
                             if err.client_api_error_kind() == Some(&ErrorKind::UnknownPos) {
                                 info!("Unknown pos, re-syncing...");
                                 spawn_sync_task(client_data, sliding_sync.clone(), updates_recv, kill_signal, first_sync_of_session);
-                                break;
+                                break 'main;
                             } else {
                                 error!("Error in sync stream: {:?}", err);
                             }
@@ -184,6 +179,24 @@ fn spawn_sync_task(
             }
         }
     });
+}
+
+async fn handle_room_updates(client_data: &ClientData) -> Result<(), SendTimeoutError<NotificationServerCommand>> {
+
+    let update_required = {
+        let contact_holder = client_data.get_contact_holder_mut().unwrap();
+        let member_holder = client_data.get_member_holder_mut().unwrap();
+        contact_holder.len() > 0 || member_holder.len() > 0
+    };
+
+    if update_required {
+        let user = client_data.get_user_clone().unwrap();
+        client_data.get_notification_handle().send(NotificationServerCommand::NOT(NotServer {
+            payload: NotificationFactory::get_abch_updated(&user.uuid, user.get_email_address()),
+        })).await
+    } else {
+        Ok(())
+    }
 }
 
 async fn handle_first_sync(client_data: &ClientData) -> Result<(), anyhow::Error> {
