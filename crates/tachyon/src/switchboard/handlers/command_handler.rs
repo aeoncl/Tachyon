@@ -1,14 +1,10 @@
-use std::str::FromStr;
-use anyhow::{anyhow, Error};
-use matrix_sdk::Room;
-use crate::notification::client_store::{ClientData, ClientStoreFacade};
+use crate::notification::client_store::ClientStoreFacade;
 use crate::switchboard::models::connection_phase::ConnectionPhase;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
-use tokio::sync::mpsc::Sender;
-use msnp::msnp::switchboard::command::usr::UsrServer;
 use msnp::shared::models::ticket_token::TicketToken;
-use crate::matrix::extensions::msn_user_resolver::FindRoomFromEmail;
+use std::str::FromStr;
+use tokio::sync::mpsc::Sender;
 
 pub(crate) async fn handle_command(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, client_store: &ClientStoreFacade, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
 
@@ -16,9 +12,13 @@ pub(crate) async fn handle_command(command: SwitchboardClientCommand, command_se
         ConnectionPhase::Authenticating => {
             handle_auth(command, command_sender, client_store, local_switchboard_data).await?
         }
+        ConnectionPhase::Initializing => {
+            //Wait for CAL of room
+            //Start load initial roster task
+        }
         ConnectionPhase::Ready => {
-            let room = local_switchboard_data.room.as_ref().ok_or(anyhow!("Room should be here by now"))?.clone();
-            let client_data = local_switchboard_data.client_data.as_ref().ok_or(anyhow!("Client Data should be here by now"))?.clone();
+            //let room = local_switchboard_data.room.as_ref().ok_or(anyhow!("Room should be here by now"))?.clone();
+            //let client_data = local_switchboard_data.client_data.as_ref().ok_or(anyhow!("Client Data should be here by now"))?.clone();
         }
     }
 
@@ -45,7 +45,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
                 }
                 Some(client_data) => {
 
-                    match client_data.get_matrix_client()
+                   /* match client_data.get_matrix_client()
                         .find_room_from_email(&local_switchboard_data.email_addr) {
                         Ok(Some(room)) => {
                             local_switchboard_data.room = Some(room);
@@ -55,13 +55,14 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
                         }
                         Err(err) => {
                             //TODO Error finding room
+                            println!("{}", &local_switchboard_data.email_addr);
+                            println!("{:?}", err)
                         }
-                    }
+                    }*/
                     local_switchboard_data.token = token;
                     local_switchboard_data.client_data = Some(client_data);
 
-                    //Start load initial roster task
-                    local_switchboard_data.phase = ConnectionPhase::Ready;
+                    local_switchboard_data.phase = ConnectionPhase::Initializing;
                     let email = &local_switchboard_data.email_addr;
                     let _ = command_sender.send(SwitchboardServerCommand::USR(usr_command.get_ok_response_for(email.to_string()))).await;
                 }
@@ -75,4 +76,9 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
 
     Ok(())
 
+}
+
+pub(crate) async fn handle_ready(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, client_store: &ClientStoreFacade, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
+
+    Ok(())
 }

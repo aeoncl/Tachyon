@@ -25,8 +25,10 @@ use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::mpsc::error::SendTimeoutError;
+use msnp::msnp::notification::command::nln::NlnServer;
 use msnp::msnp::notification::command::not::factories::NotificationFactory;
 use msnp::msnp::notification::command::not::NotServer;
+use msnp::shared::models::presence_status::PresenceStatus;
 
 const REQUIRED_STATE: &[(StateEventType, &str)] = &[
     (StateEventType::RoomName, ""),
@@ -180,6 +182,5 @@ async fn handle_first_sync(client_data: &ClientData) -> Result<(), anyhow::Error
             endpoint_data.to_vec(),
         )))
         .await?;
-
     Ok(())
 }

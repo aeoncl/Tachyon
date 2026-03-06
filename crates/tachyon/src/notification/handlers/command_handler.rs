@@ -141,9 +141,7 @@ async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Se
         NotificationClientCommand::RML(command) => handle_rml(command, client_data, command_sender).await,
         NotificationClientCommand::UUX(command) => handle_uux(command, local_store, command_sender).await,
         NotificationClientCommand::UUM(command) => handle_uum(command, client_data, command_sender).await,
-        NotificationClientCommand::XFR(command) => {
-            todo!()
-        }
+        NotificationClientCommand::XFR(command) => handle_xfr(command, local_store, command_sender).await,
         NotificationClientCommand::BLP(command) => {
             command_sender.send(NotificationServerCommand::BLP(command)).await?;
             Ok(())

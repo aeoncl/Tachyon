@@ -1,5 +1,6 @@
 pub(crate) enum ConnectionPhase {
     Authenticating,
+    Initializing,
     Ready
 }
 
