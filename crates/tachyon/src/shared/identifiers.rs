@@ -64,7 +64,7 @@ impl MatrixIdCompatible for EmailAddress {
         let domain = value.server_name().as_str();
         EmailAddress::from_str(&format!("{}@{}", name, domain)).expect("UserId to be valid")
     }
-
+    
     fn to_owned_user_id(&self) -> OwnedUserId {
         let as_str = self.as_str();
         let (name, domain) = as_str.split_once("@").expect("Email to contain @");

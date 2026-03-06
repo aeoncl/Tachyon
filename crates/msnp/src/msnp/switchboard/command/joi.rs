@@ -10,11 +10,9 @@ use crate::shared::traits::{MSNPCommand};
 //Like IRO, if MPOP is enabled, Send multiple Join, one without endpoint and then all the endpoints that are present in the SB.
 
 pub struct JoiServer {
-
-    endpoint_id: EndpointId,
-    display_name: String,
-    capabilities: ClientCapabilities
-
+    pub endpoint_id: EndpointId,
+    pub display_name: String,
+    pub capabilities: ClientCapabilities
 }
 
 impl MSNPCommand for JoiServer {

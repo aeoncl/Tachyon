@@ -9,7 +9,7 @@ use yaserde::ser::Serializer;
 use yaserde::{YaDeserialize, YaSerialize};
 use yaserde::de::Deserializer;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct EndpointGuid(pub Uuid);
 
 impl YaSerialize for EndpointGuid {
