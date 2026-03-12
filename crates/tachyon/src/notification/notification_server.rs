@@ -7,7 +7,7 @@ use msnp::msnp::notification::command::command::NotificationClientCommand;
 use msnp::shared::traits::MSNPCommand;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::OwnedWriteHalf, TcpListener, TcpStream}, sync::{broadcast::{self, Receiver}, mpsc::{self, Sender}}};
 
-use crate::notification::client_store::ClientStoreFacade;
+use crate::tachyon::client_store::ClientStoreFacade;
 use crate::notification::handlers::command_handler::handle_command;
 use crate::notification::models::local_client_data::LocalClientData;
 

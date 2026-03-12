@@ -1,4 +1,3 @@
-pub(crate) mod client_store;
 pub(crate) mod handlers;
 pub mod notification_server;
 

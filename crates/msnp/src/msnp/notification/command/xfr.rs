@@ -5,6 +5,7 @@ use crate::shared::traits::MSNPCommand;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use strum_macros::{Display, EnumString};
+use crate::msnp::switchboard::models::auth_method::AuthenticationMethod;
 
 #[derive(Display, EnumString)]
 pub enum ClientRequestType {
@@ -59,12 +60,6 @@ impl Display for XfrClient {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "XFR {} {}\r\n", self.tr_id, self.request_type)
     }
-}
-
-#[derive(Display, EnumString)]
-pub enum AuthenticationMethod {
-    #[strum(serialize = "CKI")]
-    CKI
 }
 
 #[derive(Display)]

@@ -1,6 +1,6 @@
 use crate::matrix;
 use crate::matrix::sync::{build_sliding_sync, sync};
-use crate::notification::client_store::ClientStoreFacade;
+use crate::tachyon::client_store::ClientStoreFacade;
 use crate::notification::handlers::adl_handler::handle_adl;
 use crate::notification::handlers::chg_handler::handle_chg;
 use crate::notification::handlers::png_handler::handle_png;
@@ -24,7 +24,7 @@ use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use tokio::sync::mpsc::Sender;
 use crate::notification::handlers::xfr_handler::handle_xfr;
-use crate::notification::models::client_data::ClientData;
+use crate::tachyon::tachyon_client::TachyonClient;
 
 pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, client_store: &ClientStoreFacade, local_client_data: &mut LocalClientData) -> Result<(), anyhow::Error> {
 
@@ -97,7 +97,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             let msn_user = MsnUser::new(endpoint_id);
 
 
-                            let client_data = ClientData::new(msn_user.clone(), ticket_token.clone(), notif_sender.clone(), matrix_client.clone(), sliding_sync);
+                            let client_data = TachyonClient::new(msn_user.clone(), ticket_token.clone(), notif_sender.clone(), matrix_client.clone(), sliding_sync);
                             client_store.insert_client_data(ticket_token.as_str().to_owned(), client_data.clone());
 
                             local_store.token = ticket_token.clone();
@@ -134,7 +134,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
 }
 
-async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, client_data: ClientData, local_store: &mut LocalClientData) -> Result<(), anyhow::Error> {
+async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, client_data: TachyonClient, local_store: &mut LocalClientData) -> Result<(), anyhow::Error> {
     match raw_command {
         NotificationClientCommand::USR(command) => handle_usr(command, local_store.email_addr.clone(), command_sender).await,
         NotificationClientCommand::PNG => handle_png(command_sender).await,

@@ -1,9 +1,10 @@
 use crate::matrix::handlers;
 use crate::matrix::handlers::context::TachyonContext;
-use crate::notification::models::client_data::ClientData;
+use crate::tachyon::tachyon_client::TachyonClient;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::{Client, Room};
+use matrix_sdk::ruma::events::room::message::OriginalSyncRoomMessageEvent;
 
 pub(super) mod contact_handlers;
 pub(super) mod context;
@@ -12,7 +13,7 @@ pub(super) mod profile_handlers;
 pub(super) mod presence_handlers;
 mod message_handlers;
 
-pub(super) fn register_event_handlers(matrix_client: &Client, client_data: ClientData) {
+pub(super) fn register_event_handlers(matrix_client: &Client, client_data: TachyonClient) {
 
     matrix_client.add_event_handler_context(TachyonContext {
         client_data,
@@ -55,6 +56,18 @@ pub(super) fn register_event_handlers(matrix_client: &Client, client_data: Clien
          context: Ctx<TachyonContext>| async move {
             println!("StrippedRoomMemberEvent received: {:?}", &event);
             handlers::membership_handlers::handle_memberships_stripped(
+                event, room, context, client,
+            ).await;
+        },
+    );
+
+    matrix_client.add_event_handler(
+        |event: OriginalSyncRoomMessageEvent,
+         room: Room,
+         client: Client,
+         context: Ctx<TachyonContext>| async move {
+            println!("OriginalSyncRoomMessageEvent received: {:?}", &event);
+            handlers::message_handlers::handle_message(
                 event, room, context, client,
             ).await;
         },

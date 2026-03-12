@@ -1,6 +1,6 @@
 use crate::matrix::handlers::context::TachyonContext;
 use crate::matrix::handlers::{self, register_event_handlers};
-use crate::notification::models::client_data::ClientData;
+use crate::tachyon::tachyon_client::TachyonClient;
 use futures::StreamExt;
 use log::{debug, error, info};
 use matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState;
@@ -63,7 +63,7 @@ pub async fn build_sliding_sync(matrix_client: &Client) -> Result<SlidingSync, a
     Ok(sliding_sync_builder.build().await?)
 }
 
-pub fn sync(client_data: ClientData, kill_signal: Receiver<()>) {
+pub fn sync(client_data: TachyonClient, kill_signal: Receiver<()>) {
     let client = client_data.matrix_client();
     let sliding_sync = client_data.sliding_sync();
     let updates_recv = client.subscribe_to_all_room_updates();
@@ -72,7 +72,7 @@ pub fn sync(client_data: ClientData, kill_signal: Receiver<()>) {
 }
 
 fn spawn_sync_task(
-    client_data: ClientData,
+    client_data: TachyonClient,
     sliding_sync: SlidingSync,
     mut updates_recv: Receiver<RoomUpdates>,
     mut kill_signal: Receiver<()>,
@@ -138,7 +138,7 @@ fn spawn_sync_task(
     });
 }
 
-async fn handle_addressbook_notifications(client_data: &ClientData) -> Result<(), SendTimeoutError<NotificationServerCommand>> {
+async fn handle_addressbook_notifications(client_data: &TachyonClient) -> Result<(), SendTimeoutError<NotificationServerCommand>> {
 
     let update_required = {
         let contact_holder = client_data.soap_holder().contacts.lock().unwrap();
@@ -156,7 +156,7 @@ async fn handle_addressbook_notifications(client_data: &ClientData) -> Result<()
     }
 }
 
-async fn handle_first_sync(client_data: &ClientData) -> Result<(), anyhow::Error> {
+async fn handle_first_sync(client_data: &TachyonClient) -> Result<(), anyhow::Error> {
     let me = client_data.own_user()?;
     let ticket_token = client_data.ticket_token();
     let notification_handle = client_data.notification_handle();

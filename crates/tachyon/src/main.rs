@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use anyhow::anyhow;
 use directories::ProjectDirs;
-use crate::notification::client_store::{ClientStoreFacade};
+use tachyon::client_store::{ClientStoreFacade};
 use crate::shared::paths;
 use crate::shared::paths::create_dirs;
 use crate::shared::tachyon_config::TachyonConfig;
@@ -23,6 +23,7 @@ mod web;
 mod switchboard;
 mod shared;
 mod matrix;
+mod tachyon;
 
 #[tokio::main]
 async fn main() {

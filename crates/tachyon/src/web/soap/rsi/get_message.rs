@@ -6,11 +6,11 @@ use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::rsi::get_message::request::GetMessageMessageSoapEnvelope;
 use msnp::soap::rsi::get_message::response::GetMessageResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::ToXml;
-use crate::notification::models::client_data::ClientData;
+use crate::tachyon::tachyon_client::TachyonClient;
 use crate::web::soap::rsi::error::RSIError;
 use crate::web::soap::shared;
 
-pub async fn get_message(request : GetMessageMessageSoapEnvelope, _token: TicketToken, _client: Client, client_data: &mut ClientData) -> Result<Response, RSIError> {
+pub async fn get_message(request : GetMessageMessageSoapEnvelope, _token: TicketToken, _client: Client, client_data: &mut TachyonClient) -> Result<Response, RSIError> {
 
     let message_id = request.body.body.message_id;
     let mark_as_read = request.body.body.also_mark_as_read;

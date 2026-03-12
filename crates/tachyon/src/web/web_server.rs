@@ -13,7 +13,7 @@ use tokio::net::TcpListener;
 use tokio::sync::broadcast::Receiver;
 use http_body_util::BodyExt;
 
-use crate::notification::client_store::ClientStoreFacade;
+use crate::tachyon::client_store::ClientStoreFacade;
 use crate::web::soap::ab_service::ab_service::address_book_service;
 use crate::web::soap::rsi::rsi::rsi;
 use crate::web::soap::sharing_service::sharing_service::sharing_service;

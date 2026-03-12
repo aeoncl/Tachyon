@@ -13,7 +13,7 @@ use msnp::soap::storage_service::get_profile::request::GetProfileMessageSoapEnve
 use msnp::soap::storage_service::get_profile::response::GetProfileResponseMessageSoapEnvelope;
 use msnp::soap::storage_service::headers::StorageServiceRequestSoapEnvelope;
 use msnp::soap::traits::xml::{ToXml, TryFromXml};
-use crate::notification::client_store::ClientStoreFacade;
+use crate::tachyon::client_store::ClientStoreFacade;
 use crate::shared::identifiers::MatrixIdCompatible;
 use crate::shared::traits::ToUuid;
 use crate::web::soap::error::ABError;

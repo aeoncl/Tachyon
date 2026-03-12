@@ -2,6 +2,7 @@ use std::str::FromStr;
 use strum_macros::{Display, EnumString};
 use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
+use crate::msnp::switchboard::models::session_id::SessionId;
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::traits::MSNPCommand;
 
@@ -43,7 +44,7 @@ pub enum CalServerFunction {
 pub struct CalServer {
     pub tr_id: u128,
     pub function: CalServerFunction,
-    pub session_id: u64
+    pub session_id: SessionId
 }
 
 impl MSNPCommand for CalServer {

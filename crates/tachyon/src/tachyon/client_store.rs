@@ -2,7 +2,7 @@ use dashmap::DashMap;
 use std::sync::Arc;
 use thiserror::Error;
 use thiserror::__private::AsDynError;
-use crate::notification::models::client_data::ClientData;
+use crate::tachyon::tachyon_client::TachyonClient;
 //     pub async fn send_with_retry(&self, payload: NotificationServerCommand) -> Result<(), TachyonError> {
 //
 //         let retry_strategy = ExponentialBackoff::from_millis(10)
@@ -49,11 +49,11 @@ pub enum ClientStoreError {
 
 #[derive(Clone, Default)]
 pub struct ClientStoreFacade {
-    data: Arc<DashMap<String, ClientData>>,
+    data: Arc<DashMap<String, TachyonClient>>,
 }
 
 impl ClientStoreFacade {
-    pub fn get_single_client_data(&self) -> Option<ClientData> {
+    pub fn get_single_client_data(&self) -> Option<TachyonClient> {
         if self.data.len() > 1 {
             return None;
         }
@@ -61,18 +61,18 @@ impl ClientStoreFacade {
         self.data.iter().next().map(|x| x.value().clone())
     }
 
-    pub fn get_client_data(&self, key: &str) -> Option<ClientData> {
+    pub fn get_client_data(&self, key: &str) -> Option<TachyonClient> {
         match self.data.get(key) {
             None => None,
             Some(found) => Some(found.value().clone()),
         }
     }
 
-    pub fn insert_client_data(&self, key: String, client_data: ClientData) {
+    pub fn insert_client_data(&self, key: String, client_data: TachyonClient) {
         self.data.insert(key, client_data);
     }
 
-    pub fn remove_client_data(&self, key: &str) -> Option<(String, ClientData)> {
+    pub fn remove_client_data(&self, key: &str) -> Option<(String, TachyonClient)> {
         self.data.remove(key)
     }
 }

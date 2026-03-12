@@ -13,8 +13,10 @@ use strum_macros::{Display, EnumString};
 
 use crate::msnp::error::{CommandError, PayloadError};
 use crate::msnp::raw_command_parser::RawCommand;
-use crate::shared::payload::msg::raw_msg_payload::RawMsgPayload;
-use crate::shared::traits::{MSNPCommand, MSNPPayload};
+use crate::shared::models::email_address::EmailAddress;
+use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
+use crate::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
+use crate::shared::traits::{MSGPayload, MSNPCommand, MSNPPayload};
 
 pub struct MsgClient {
     tr_id: u128,
@@ -35,11 +37,12 @@ impl MSNPCommand for MsgClient {
         let raw_ack_type = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "ack_type".into(), 1))?;
         let ack_type = MsgAcknowledgment::from_str(&raw_ack_type)?;
 
-        //TODO RawMsgPayload from bytes
+        let payload = RawMsgPayload::try_from_bytes(raw.payload)?;
+
         Ok(MsgClient{
             tr_id,
             ack_type,
-            payload: Default::default(),
+            payload,
         })
     }
 
@@ -62,7 +65,7 @@ pub enum MsgAcknowledgment {
 }
 
 pub struct MsgServer {
-    pub sender: String,
+    pub sender: EmailAddress,
     pub display_name: String,
     pub payload: MsgPayload
 }
@@ -85,24 +88,33 @@ impl MSNPCommand for MsgServer {
 
 pub enum MsgPayload {
     Raw(RawMsgPayload),
+    TextPlain(TextPlainMessagePayload)
 }
 
 impl MSNPPayload for MsgPayload {
     type Err = PayloadError;
 
     fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> {
-        let _rawMsgPayload = RawMsgPayload::try_from_bytes(bytes)?;
-
-
-        todo!()
+        let raw_msg_payload = RawMsgPayload::try_from_bytes(bytes)?;
+        match raw_msg_payload.get_content_type()? {
+            MsgContentType::TextPlain => {
+                let text_plain_payload = TextPlainMessagePayload::try_from_raw(raw_msg_payload)?;
+                Ok(MsgPayload::TextPlain(text_plain_payload))
+            }
+            MsgContentType::Profile => { Ok(MsgPayload::Raw(raw_msg_payload))}
+            MsgContentType::InitialMailDataNotification => {Ok(MsgPayload::Raw(raw_msg_payload))}
+            MsgContentType::SystemMessage => {Ok(MsgPayload::Raw(raw_msg_payload))}
+            MsgContentType::Control => {Ok(MsgPayload::Raw(raw_msg_payload))}
+            MsgContentType::Datacast => {Ok(MsgPayload::Raw(raw_msg_payload))}
+            MsgContentType::P2P => {Ok(MsgPayload::Raw(raw_msg_payload))}
+            MsgContentType::None => {Ok(MsgPayload::Raw(raw_msg_payload))}
+        }
     }
 
     fn into_bytes(self) -> Vec<u8> {
         match self {
             MsgPayload::Raw(payload) => { payload.into_bytes() }
-            _ => {
-                todo!()
-            }
+            MsgPayload::TextPlain(payload) => { payload.into_bytes() }
         }
     }
 }

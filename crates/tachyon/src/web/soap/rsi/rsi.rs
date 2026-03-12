@@ -11,7 +11,7 @@ use msnp::soap::rsi::get_metadata::request::GetMetadataMessageSoapEnvelope;
 use msnp::soap::rsi::service_header::RSIAuthSoapEnvelope;
 use msnp::soap::traits::xml::TryFromXml;
 
-use crate::notification::client_store::ClientStoreFacade;
+use crate::tachyon::client_store::ClientStoreFacade;
 use crate::web::soap::rsi::delete_messages::delete_messages;
 use crate::web::soap::rsi::error::RSIError;
 use crate::web::soap::rsi::get_message::get_message;

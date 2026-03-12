@@ -45,10 +45,13 @@ impl MsnUser {
     }
 
     pub fn compute_display_name(&self) -> &str {
-        if self.display_name.is_some() {
-            self.display_name.as_ref().expect("yes")
-        } else {
-            &self.endpoint_id.email_addr.as_str()
+        match self.display_name.as_ref() {
+            None => {
+                &self.endpoint_id.email_addr.as_str()
+            }
+            Some(display_name) => {
+                display_name
+            }
         }
     }
     

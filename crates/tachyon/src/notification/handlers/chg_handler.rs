@@ -1,4 +1,4 @@
-use crate::notification::models::client_data::ClientData;
+use crate::tachyon::tachyon_client::TachyonClient;
 use crate::notification::models::local_client_data::LocalClientData;
 use msnp::msnp::notification::command::chg::ChgClient;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
@@ -9,7 +9,7 @@ use msnp::msnp::notification::command::ubx::{ExtendedPresenceContent, UbxPayload
 use msnp::shared::models::network_id_email::NetworkIdEmail;
 use msnp::shared::models::presence_status::PresenceStatus;
 
-pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, client_data: ClientData, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
+pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, client_data: TachyonClient, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     command_sender.send(NotificationServerCommand::CHG(command.clone())).await?;
 
     let notif_sender = command_sender.clone();

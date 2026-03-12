@@ -1,2 +1,2 @@
 pub mod command;
-mod models;
+pub mod models;

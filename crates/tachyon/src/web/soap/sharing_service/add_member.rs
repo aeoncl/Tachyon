@@ -6,11 +6,11 @@ use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::abch::sharing_service::add_member::request::AddMemberMessageSoapEnvelope;
 use msnp::soap::abch::sharing_service::add_member::response::AddMemberResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::ToXml;
-use crate::notification::models::client_data::ClientData;
+use crate::tachyon::tachyon_client::TachyonClient;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 
-pub async fn add_member(request : AddMemberMessageSoapEnvelope, _token: TicketToken, _client: Client, _client_data: ClientData) -> Result<Response, ABError> {
+pub async fn add_member(request : AddMemberMessageSoapEnvelope, _token: TicketToken, _client: Client, _client_data: TachyonClient) -> Result<Response, ABError> {
     let cache_key = &request.header.ok_or(anyhow!("Header missing"))?.application_header.cache_key.unwrap_or_default();
 
     let soap_body = AddMemberResponseMessageSoapEnvelope::new(cache_key);

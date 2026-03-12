@@ -3,7 +3,7 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use matrix_sdk::Client;
 
-use crate::notification::models::client_data::ClientData;
+use crate::tachyon::tachyon_client::TachyonClient;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::Ab;
@@ -15,7 +15,7 @@ use msnp::soap::traits::xml::ToXml;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 
-pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token: TicketToken, client: Client, mut client_data: ClientData) -> Result<Response, ABError> {
+pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token: TicketToken, client: Client, mut client_data: TachyonClient) -> Result<Response, ABError> {
 
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or(Uuid::new().to_string());
 
@@ -41,7 +41,7 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token
     }
 }
 
-fn get_delta_sync(client_data: &mut ClientData) -> Result<Vec<BaseMember>, ABError> {
+fn get_delta_sync(client_data: &mut TachyonClient) -> Result<Vec<BaseMember>, ABError> {
     let mut member_holder = client_data.soap_holder().memberships.lock().map_err(|e| ABError::InternalServerError(anyhow!("Could not lock member holder mutex")))?;
 
 

@@ -1,4 +1,4 @@
-use crate::notification::client_store::ClientStoreFacade;
+use crate::tachyon::client_store::ClientStoreFacade;
 use crate::switchboard::models::connection_phase::ConnectionPhase;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
@@ -9,9 +9,10 @@ use rand::Rng;
 use tokio::sync::mpsc::Sender;
 use msnp::msnp::switchboard::command::cal::{CalServer, CalServerFunction};
 use msnp::msnp::switchboard::command::joi::JoiServer;
+use msnp::msnp::switchboard::models::session_id::SessionId;
 use msnp::shared::models::endpoint_id::EndpointId;
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
-use crate::notification::models::client_data::ClientData;
+use crate::tachyon::tachyon_client::TachyonClient;
 use crate::shared::identifiers::MatrixIdCompatible;
 
 pub(crate) async fn handle_command(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, client_store: &ClientStoreFacade, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
@@ -73,7 +74,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
                     local_switchboard_data.endpoint_guid = usr_command.endpoint_id.endpoint_guid.clone();
                     local_switchboard_data.token = token;
                     local_switchboard_data.client_data = Some(client_data);
-                    local_switchboard_data.session_id = get_sb_session_id();
+                    local_switchboard_data.session_id = SessionId::random();
                     local_switchboard_data.phase = ConnectionPhase::Initializing;
                     let email = &local_switchboard_data.email_addr;
                     let _ = command_sender.send(SwitchboardServerCommand::USR(usr_command.get_ok_response_for(email.to_string()))).await;
@@ -90,7 +91,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
 
 }
 
-pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, client_data: ClientData, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, client_data: TachyonClient, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
     match command {
         SwitchboardClientCommand::ANS(_) => {}
         SwitchboardClientCommand::USR(_) => {}
@@ -102,7 +103,7 @@ pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sende
             let _ = command_sender.send(SwitchboardServerCommand::CAL(CalServer {
                 tr_id: cal_client.tr_id,
                 function: CalServerFunction::RINGING,
-                session_id: local_switchboard_data.session_id as u64
+                session_id: local_switchboard_data.session_id.clone()
             })).await;
 
 
@@ -171,12 +172,5 @@ pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sende
 
 
 pub(crate) async fn handle_ready(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, client_store: &ClientStoreFacade, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
-
     Ok(())
-}
-
-pub fn get_sb_session_id() -> u16 {
-    let mut rng = rand::thread_rng();
-    let n2: u16 = rng.gen();
-    n2
 }

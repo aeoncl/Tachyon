@@ -8,11 +8,11 @@ use msnp::soap::rsi::get_metadata::request::GetMetadataMessageSoapEnvelope;
 use msnp::soap::rsi::get_metadata::response::GetMetadataResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::ToXml;
 
-use crate::notification::models::client_data::ClientData;
+use crate::tachyon::tachyon_client::TachyonClient;
 use crate::web::soap::rsi::error::RSIError;
 use crate::web::soap::shared;
 
-pub async fn get_metadata(_request : GetMetadataMessageSoapEnvelope, _token: TicketToken, _client: Client, client_data: &mut ClientData) -> Result<Response, RSIError> {
+pub async fn get_metadata(_request : GetMetadataMessageSoapEnvelope, _token: TicketToken, _client: Client, client_data: &mut TachyonClient) -> Result<Response, RSIError> {
 
     let mut md = MetaData {
         ..Default::default()

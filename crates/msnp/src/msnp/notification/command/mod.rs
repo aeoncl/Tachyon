@@ -19,3 +19,4 @@ pub mod nfy;
 pub mod put;
 pub mod nln;
 pub mod xfr;
+pub mod rng;

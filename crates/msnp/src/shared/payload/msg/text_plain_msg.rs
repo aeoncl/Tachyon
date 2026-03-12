@@ -1,3 +1,4 @@
+use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::fmt::{Display, Formatter};
@@ -8,6 +9,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use log::warn;
 
 use crate::msnp::error::PayloadError;
+use crate::shared::models::url_encoded_string::UrlEncodedString;
 use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
 use crate::shared::payload::msg::raw_msg_payload::MsgContentType::TextPlain;
 use crate::shared::traits::{MSGPayload, MSNPPayload};
@@ -136,15 +138,23 @@ mod tests {
 
 }
 
-pub struct TextMessageContent {
-    pub font_family: String,
+type FontFamily = UrlEncodedString;
+
+impl Default for FontFamily {
+    fn default() -> Self {
+        Self("Segoe UI".to_string())
+    }
+}
+
+pub struct TextPlainMessagePayload {
+    pub font_family: FontFamily,
     pub right_to_left: bool,
     pub font_styles: FontStyles,
     pub font_color: FontColor,
     pub body : String,
 }
 
-impl MSGPayload for TextMessageContent {
+impl MSGPayload for TextPlainMessagePayload {
     type Err = PayloadError;
 
     fn try_from_raw(mut raw: RawMsgPayload) -> Result<Self, Self::Err> where Self: Sized {
@@ -170,7 +180,7 @@ impl MSGPayload for TextMessageContent {
         }
 
         let font_family = format_header_map.get("FN").ok_or(PayloadError::MandatoryPartNotFound{ name: "FN".to_string(), payload: "".to_string() })?;
-        let font_family = urlencoding::decode(font_family)?.to_string();
+        let font_family = FontFamily::from_str(font_family).map_err(|e| PayloadError::AnyError(anyhow!(e)))?;
 
         let right_to_left = format_header_map.get("RL").unwrap_or(&"0") == &"1";
 
@@ -181,7 +191,7 @@ impl MSGPayload for TextMessageContent {
         let body =  String::from_utf8(raw.body)?;
 
         Ok(
-            TextMessageContent {
+            TextPlainMessagePayload {
                 font_family,
                 right_to_left,
                 font_styles: FontStyles::from_str(font_styles).expect("To be infaillible"),
@@ -199,11 +209,11 @@ impl MSGPayload for TextMessageContent {
     }
 }
 
-impl TextMessageContent {
+impl TextPlainMessagePayload {
 
     pub fn new_with_default_style(body: &str) -> Self {
         Self {
-            font_family: "Segoe UI".to_string(),
+            font_family: FontFamily::default(),
             right_to_left: false,
             font_styles: Default::default(),
             font_color: Default::default(),
@@ -211,9 +221,9 @@ impl TextMessageContent {
         }
     }
 
-    pub fn new(font_family: &str, font_color: FontColor, font_styles: FontStyles, right_to_left: bool, body: &str) -> Self {
+    pub fn new(font_family: FontFamily, font_color: FontColor, font_styles: FontStyles, right_to_left: bool, body: &str) -> Self {
         Self{
-            font_family: font_family.to_string(),
+            font_family: font_family,
             right_to_left,
             font_styles,
             font_color,
@@ -234,14 +244,13 @@ impl TextMessageContent {
     }
 
     pub fn is_default_font(&self) -> bool {
-        &self.font_family == "Segoe UI"
+        self.font_family == FontFamily::default()
     }
 
     pub fn get_mms_format_header(&self) -> String {
-        let font_family = urlencoding::encode(&self.font_family);
         let right_left = if self.right_to_left { "1" } else { "0" };
 
-        format!("FN={}; EF={}; CO={}; PF={}; RL={}", font_family, self.font_styles, self.font_color, 0, right_left)
+        format!("FN={}; EF={}; CO={}; PF={}; RL={}", self.font_family, self.font_styles, self.font_color, 0, right_left)
     }
 }
 

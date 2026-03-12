@@ -10,7 +10,7 @@ use msnp::soap::abch::sharing_service::add_member::request::AddMemberMessageSoap
 use msnp::soap::abch::sharing_service::delete_member::request::DeleteMemberMessageSoapEnvelope;
 use msnp::soap::abch::sharing_service::find_membership::request::FindMembershipRequestSoapEnvelope;
 use msnp::soap::traits::xml::TryFromXml;
-use crate::notification::client_store::ClientStoreFacade;
+use crate::tachyon::client_store::ClientStoreFacade;
 use crate::web::soap::error::ABError;
 use crate::web::soap::sharing_service::add_member::add_member;
 use crate::web::soap::sharing_service::delete_member::delete_member;

@@ -17,8 +17,8 @@ use msnp::shared::models::oim::OIM;
 use msnp::shared::models::uuid::Uuid;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use msnp::shared::payload::msg::raw_msg_payload::MsgContentType;
-use crate::notification::client_store::ClientStoreError;
-use crate::notification::models::client_data::ClientData;
+use crate::tachyon::client_store::ClientStoreError;
+use crate::tachyon::tachyon_client::TachyonClient;
 use crate::shared::identifiers::MatrixIdCompatible;
 
 #[derive(Error, Debug)]
@@ -36,7 +36,7 @@ pub enum OIMError {
     NativeDatetimeConversionError{ source: anyhow::Error}
 }
 
-pub async fn handle_oims(client: Client, response: SyncResponse, mut client_data: ClientData, notif_sender: Sender<NotificationServerCommand>, first_sync_token: Option<String>) -> Result<(), OIMError>{
+pub async fn handle_oims(client: Client, response: SyncResponse, mut client_data: TachyonClient, notif_sender: Sender<NotificationServerCommand>, first_sync_token: Option<String>) -> Result<(), OIMError>{
     let me_email_addr = client_data.own_user()?.endpoint_id.email_addr;
 
     for (room_id, room) in &response.rooms.joined {

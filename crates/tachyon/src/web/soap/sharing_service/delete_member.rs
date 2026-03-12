@@ -8,11 +8,11 @@ use msnp::soap::abch::sharing_service::delete_member::request::DeleteMemberMessa
 use msnp::soap::abch::sharing_service::delete_member::response::DeleteMemberResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::ToXml;
 
-use crate::notification::models::client_data::ClientData;
+use crate::tachyon::tachyon_client::TachyonClient;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 
-pub async fn delete_member(request : DeleteMemberMessageSoapEnvelope, _token: TicketToken, _client: Client, _client_data: ClientData) -> Result<Response, ABError> {
+pub async fn delete_member(request : DeleteMemberMessageSoapEnvelope, _token: TicketToken, _client: Client, _client_data: TachyonClient) -> Result<Response, ABError> {
     let cache_key = &request.header.ok_or(anyhow!("Header missing"))?.application_header.cache_key.unwrap_or_default();
 
     let soap_body = DeleteMemberResponseMessageSoapEnvelope::new(cache_key);

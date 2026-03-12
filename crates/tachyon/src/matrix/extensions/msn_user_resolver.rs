@@ -78,7 +78,7 @@ async fn to_msn_user_internal(room: &Room, lazy_resolve: bool) -> Result<MsnUser
     Ok(user)
 }
 
-trait ToEmailAddress {
+pub trait ToEmailAddress {
     fn to_email_address(&self) -> Result<EmailAddress, anyhow::Error>;
 }
 

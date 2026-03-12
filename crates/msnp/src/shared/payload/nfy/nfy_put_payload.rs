@@ -9,7 +9,7 @@ use strum_macros::{Display, EnumString};
 
 use crate::msnp::error::PayloadError;
 use crate::shared::models::network_id_email::NetworkIdEmail;
-use crate::shared::payload::msg::text_msg::TextMessageContent;
+use crate::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use crate::shared::traits::MSNPPayload;
 
 #[cfg(test)]
@@ -314,7 +314,7 @@ impl RawNfyPayload {
 
     }
 
-    pub fn new_text_message(from: NetworkIdEmail, to: NetworkIdEmail, payload: TextMessageContent) -> Self {
+    pub fn new_text_message(from: NetworkIdEmail, to: NetworkIdEmail, payload: TextPlainMessagePayload) -> Self {
         let envelope = NfyEnvelope{
             routing: "1.0".to_string(),
             from,

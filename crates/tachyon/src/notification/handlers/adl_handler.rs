@@ -6,9 +6,9 @@ use msnp::msnp::notification::command::iln::IlnServer;
 use msnp::msnp::notification::command::nln::NlnServer;
 use msnp::shared::models::network_id_email::NetworkIdEmail;
 use msnp::shared::models::presence_status::PresenceStatus;
-use crate::notification::models::client_data::ClientData;
+use crate::tachyon::tachyon_client::TachyonClient;
 
-pub async fn handle_adl(command: AdlClient, client_data: ClientData, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
+pub async fn handle_adl(command: AdlClient, client_data: TachyonClient, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     debug!("ADL: {:?}", &command);
 
     let contacts = command.payload.get_contacts()?;

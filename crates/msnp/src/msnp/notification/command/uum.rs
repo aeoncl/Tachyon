@@ -11,7 +11,7 @@ use crate::shared::models::endpoint_id::EndpointId;
 use crate::shared::models::network_id::NetworkId;
 use crate::shared::payload::msg::datacast_msg::{DatacastMessageContent, DatacastType};
 use crate::shared::payload::msg::raw_msg_payload::RawMsgPayload;
-use crate::shared::payload::msg::text_msg::TextMessageContent;
+use crate::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use crate::shared::payload::msg::typing_user_msg::TypingUserMessageContent;
 use crate::shared::traits::{IntoBytes, MSGPayload, MSNPCommand, MSNPPayload};
 
@@ -23,7 +23,7 @@ mod tests {
     use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::endpoint_id::EndpointId;
     use crate::shared::models::network_id::NetworkId;
-    use crate::shared::payload::msg::text_msg::{FontStyle, TextMessageContent};
+    use crate::shared::payload::msg::text_plain_msg::{FontStyle, TextPlainMessagePayload};
     use crate::shared::traits::MSNPCommand;
 
     use super::{UumClient, UumPayload};
@@ -80,7 +80,7 @@ mod tests {
             tr_id: 1,
             destination: EndpointId::new(EmailAddress::from_str("aeon@lukewarmmail.com").unwrap(), None),
             network_id: NetworkId::WindowsLive,
-            payload: UumPayload::TextMessage(TextMessageContent::new_with_default_style("Hello")),
+            payload: UumPayload::TextMessage(TextPlainMessagePayload::new_with_default_style("Hello")),
         };
 
         let bytes = uum.into_bytes();
@@ -116,7 +116,7 @@ pub enum MessageType {
 }
 
 pub enum UumPayload {
-    TextMessage(TextMessageContent),
+    TextMessage(TextPlainMessagePayload),
     TypingUser(TypingUserMessageContent),
     Nudge(DatacastMessageContent),
     Raw(RawMsgPayload),
@@ -128,7 +128,7 @@ impl UumPayload {
         match payload_type {
             MessageType::TextMessage => {
                 let raw = RawMsgPayload::try_from_bytes(payload)?;
-                let content = TextMessageContent::try_from_raw(raw)?;
+                let content = TextPlainMessagePayload::try_from_raw(raw)?;
                 Ok(UumPayload::TextMessage(content))
             },
             MessageType::TypingUser => {
