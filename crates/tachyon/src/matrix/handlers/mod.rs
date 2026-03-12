@@ -4,7 +4,9 @@ use crate::tachyon::tachyon_client::TachyonClient;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::{Client, Room};
+use matrix_sdk::ruma::events::key::verification::request::ToDeviceKeyVerificationRequestEvent;
 use matrix_sdk::ruma::events::room::message::OriginalSyncRoomMessageEvent;
+use crate::matrix::handlers::request_verification_handlers::request_verification_handler;
 
 pub(super) mod contact_handlers;
 pub(super) mod context;
@@ -12,6 +14,7 @@ pub(super) mod membership_handlers;
 pub(super) mod profile_handlers;
 pub(super) mod presence_handlers;
 mod message_handlers;
+mod request_verification_handlers;
 
 pub(super) fn register_event_handlers(matrix_client: &Client, client_data: TachyonClient) {
 
@@ -70,6 +73,18 @@ pub(super) fn register_event_handlers(matrix_client: &Client, client_data: Tachy
             handlers::message_handlers::handle_message(
                 event, room, context, client,
             ).await;
+        },
+    );
+
+    matrix_client.add_event_handler(
+        |ev: ToDeviceKeyVerificationRequestEvent, client: Client| async move {
+            let request = client
+                .encryption()
+                .get_verification_request(&ev.sender, &ev.content.transaction_id)
+                .await
+                .expect("Request object wasn't created");
+
+            tokio::spawn(request_verification_handler(client, request));
         },
     );
 
