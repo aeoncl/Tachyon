@@ -2,6 +2,7 @@ use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::models::capabilities::ClientCapabilities;
 use crate::shared::models::endpoint_id::EndpointId;
+use crate::shared::models::msn_user::MsnUser;
 use crate::shared::traits::{MSNPCommand};
 
 // Initial Roster sent after an ANS command
@@ -16,6 +17,19 @@ pub struct IroServer {
     endpoint_id: EndpointId,
     display_name: String,
     capabilities: ClientCapabilities
+}
+
+impl IroServer {
+    pub fn new(tr_id: u128, index: u32, roster_count:u32, display_name: String, endpoint_id: EndpointId, capabilities: ClientCapabilities) -> Self{
+        Self {
+            tr_id,
+            index,
+            roster_count,
+            display_name,
+            endpoint_id,
+            capabilities,
+        }
+    }
 }
 
 impl MSNPCommand for IroServer {

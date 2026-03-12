@@ -39,12 +39,14 @@ pub struct TachyonClient {
     pub inner: Arc<ClientDataInner>
 }
 
+#[derive(Clone)]
 pub struct SwitchboardService {
     tachyon_client: TachyonClient
 }
 
 impl SwitchboardService {
 
+    //TODO Better locks on switchboard.
     pub fn new(tachyon_client: TachyonClient) -> Self {
         SwitchboardService {
             tachyon_client,
@@ -59,12 +61,26 @@ impl SwitchboardService {
         self.tachyon_client.inner.switchboards.contains_key(room_id)
     }
 
-    pub fn get_or_create(&self, room_id: &RoomId, inviter: &MsnUser) -> SwitchboardHandle {
+    pub fn insert(&self, switchboard: SwitchboardHandle) -> Result<SwitchboardHandle, anyhow::Error> {
+        {
+            let mut pending_events = switchboard.pending_events.lock().map_err(|e| anyhow::anyhow!("Failed to lock pending events: {}", e))?;
+            let old_value = self.tachyon_client.inner.switchboards.insert(switchboard.room_id.clone(), switchboard.clone());
+            if let Some(old) = old_value {
+                for old_pending in old.pending_events.lock().map_err(|e| anyhow::anyhow!("Failed to lock pending events: {}", e))?.drain(..) {
+                    pending_events.push(old_pending);
+                }
+
+            }
+        }
+        Ok(switchboard)
+    }
+
+    pub fn get_or_initialize(&self, room_id: &RoomId, inviter: &MsnUser) -> SwitchboardHandle {
         if let Some(switchboard) = self.get(room_id) {
             return switchboard;
         }
 
-        self.create(room_id, &inviter)
+        self.initialize(room_id, &inviter)
     }
 
     pub fn remove(&self, room_id: &RoomId) -> Option<SwitchboardHandle> {
@@ -73,7 +89,7 @@ impl SwitchboardService {
             .map(|(room_id, sb)| sb)
     }
 
-    pub fn create(&self, room_id: &RoomId, inviter: &MsnUser) -> SwitchboardHandle {
+    pub fn initialize(&self, room_id: &RoomId, inviter: &MsnUser) -> SwitchboardHandle {
 
         let switchboard = SwitchboardHandle::new(SessionId::random(), room_id.to_owned());
         self.tachyon_client.inner.switchboards.insert(room_id.to_owned(), switchboard.clone());
@@ -84,6 +100,10 @@ impl SwitchboardService {
         let inviter_clone = inviter.clone();
         let token = self.tachyon_client.ticket_token().0;
         let room_id = room_id.to_owned();
+
+        let sb_service_clone = self.tachyon_client.switchboards();
+        //TODO make a task that checks on all SBs instead of just one.
+
         tokio::spawn(async move {
             let max_tries = 3;
             for current_try in 0..max_tries {
@@ -105,11 +125,14 @@ impl SwitchboardService {
                     .max_interval(5000)
                     .take(5);
 
-                let switchboard_handle_clone_clone = switchboard_handle_clone.clone();
+                let room_id_clone = room_id.clone();
+                let sb_service_clone_clone = sb_service_clone.clone();
+
                 let result = Retry::spawn(retry_strategy, move || {
-                    let switchboard_clone = switchboard_handle_clone_clone.clone();
+                    let sb_service_clone = sb_service_clone_clone.clone();
+                    let switchboard = sb_service_clone.get(&room_id_clone).unwrap();
                     async move {
-                        Self::check_sb_initialized(switchboard_clone)
+                        Self::check_sb_initialized(switchboard.clone())
                     }
                 }
                 ).await;
@@ -117,6 +140,7 @@ impl SwitchboardService {
                 match result {
                     Ok(_) => {
                         debug!("Switchboard {} is initialized", &switchboard_handle_clone.room_id);
+                        switchboard_handle_clone.send_pending_events().await;
                         return;
                     }
                     Err(e) => {

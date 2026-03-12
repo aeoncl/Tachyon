@@ -8,7 +8,9 @@ use msnp::shared::models::{email_address::EmailAddress, msn_user::MsnUser};
 use std::str::FromStr;
 use base32::Alphabet;
 use matrix_sdk::media::MediaFormat;
+use matrix_sdk::room::RoomMember;
 use crate::matrix::extensions::direct::DirectRoom;
+use crate::shared::identifiers::MatrixIdCompatible;
 
 pub trait ToMsnUser {
     async fn to_msn_user(&self) -> Result<MsnUser, anyhow::Error>;
@@ -173,5 +175,24 @@ impl FindRoomFromEmail for Client {
         }
 
         Ok(None)
+    }
+}
+
+impl ToMsnUser for RoomMember {
+    async fn to_msn_user(&self) -> Result<MsnUser, Error> {
+        let mut msn_user = MsnUser::from_user_id(self.user_id());
+        msn_user.display_name = self.display_name().map(|name| name.to_string());
+
+        //TODO Display Picture
+
+        Ok(msn_user)
+    }
+
+    async fn to_msn_user_lazy(&self) -> Result<MsnUser, Error> {
+        let mut msn_user = MsnUser::from_user_id(self.user_id());
+        msn_user.display_name = self.display_name().map(|name| name.to_string());
+
+
+        Ok(msn_user)
     }
 }

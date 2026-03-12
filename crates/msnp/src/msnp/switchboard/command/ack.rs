@@ -7,6 +7,12 @@ pub struct AckServer {
     tr_id: u128
 }
 
+impl AckServer {
+    pub fn new(tr_id: u128) -> Self {
+        Self { tr_id }
+    }
+}
+
 impl MSNPCommand for AckServer {
     type Err = CommandError;
 

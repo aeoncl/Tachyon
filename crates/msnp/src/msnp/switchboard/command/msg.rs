@@ -19,9 +19,9 @@ use crate::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use crate::shared::traits::{MSGPayload, MSNPCommand, MSNPPayload};
 
 pub struct MsgClient {
-    tr_id: u128,
-    ack_type: MsgAcknowledgment,
-    payload: RawMsgPayload
+    pub tr_id: u128,
+    pub ack_type: MsgAcknowledgment,
+    pub payload: MsgPayload
 }
 
 impl MSNPCommand for MsgClient {
@@ -37,7 +37,7 @@ impl MSNPCommand for MsgClient {
         let raw_ack_type = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "ack_type".into(), 1))?;
         let ack_type = MsgAcknowledgment::from_str(&raw_ack_type)?;
 
-        let payload = RawMsgPayload::try_from_bytes(raw.payload)?;
+        let payload = MsgPayload::try_from_bytes(raw.payload)?;
 
         Ok(MsgClient{
             tr_id,

@@ -4,6 +4,7 @@ use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::msnp::switchboard::models::session_id::SessionId;
 use std::mem;
 use std::sync::{Arc, Mutex};
+use matrix_sdk::Room;
 use tokio::sync::mpsc;
 
 #[derive(Clone)]
@@ -14,6 +15,21 @@ pub struct SwitchboardHandle {
     pub switchboard_state: Arc<Mutex<SwitchboardState>>
 }
 
+impl SwitchboardHandle {
+    pub(crate) async fn send_pending_events(&self) -> Result<(), anyhow::Error>  {
+        if let SwitchboardState::Ready { msnp_sender } = self.state()? {
+
+            let events: Vec<SwitchboardServerCommand> = {
+                self.pending_events.lock().map_err(|e| anyhow!("Failed to acquire pending events lock: {}", e))?.drain(..).collect()
+            };
+
+            for event in events {
+                msnp_sender.send(event).await?;
+            }
+        }
+        Ok(())
+    }
+}
 
 impl SwitchboardHandle {
     pub fn new(session_id: SessionId, room_id: OwnedRoomId) -> Self {
@@ -22,6 +38,15 @@ impl SwitchboardHandle {
             room_id,
             pending_events: Arc::new(Mutex::new(vec![])),
             switchboard_state: Arc::new(Mutex::new(SwitchboardState::default()))
+        }
+    }
+
+    pub fn new_ready(session_id: SessionId, room_id: OwnedRoomId, msnp_sender: mpsc::Sender<SwitchboardServerCommand>) -> Self {
+        Self {
+            session_id,
+            room_id,
+            pending_events: Arc::new(Mutex::new(vec![])),
+            switchboard_state: Arc::new(Mutex::new(SwitchboardState::Ready { msnp_sender }))
         }
     }
 
@@ -46,7 +71,7 @@ impl SwitchboardHandle {
                 Ok(())
             }
             SwitchboardState::Ready {
-                msnp_sender, p2p_sender
+                msnp_sender
             } => {
                 msnp_sender.send(command).await?;
                 Ok(())
@@ -61,7 +86,7 @@ pub enum SwitchboardState {
     Initializing,
     Ready {
         msnp_sender: mpsc::Sender<SwitchboardServerCommand>,
-        p2p_sender: mpsc::Sender<String>,
+      //  p2p_sender: mpsc::Sender<String>,
     }
 }
 

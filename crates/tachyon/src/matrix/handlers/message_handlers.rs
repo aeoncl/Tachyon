@@ -3,9 +3,11 @@ use crate::matrix::handlers::context::TachyonContext;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::events::room::message::{FormattedBody, MessageFormat, MessageType, OriginalSyncRoomMessageEvent};
 use matrix_sdk::{Client, Room};
+use matrix_sdk::ruma::OwnedUserId;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
 use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
+use crate::matrix::extensions::direct::DirectRoom;
 
 pub async fn handle_message(
     event: OriginalSyncRoomMessageEvent,
@@ -14,8 +16,25 @@ pub async fn handle_message(
     client: Client,
 ) {
 
-    let msn_user = room.to_msn_user_lazy().await.unwrap();
-    let switchboard = context.client_data.switchboards().get_or_create(room.room_id(), &msn_user);
+    let room_user = room.to_msn_user_lazy().await.unwrap();
+    let switchboard = context.client_data.switchboards().get_or_initialize(room.room_id(), &room_user);
+
+
+    let message_sender = if event.sender != room.own_user_id() {
+
+        match room.get_single_direct_target() {
+            None => {
+                room.get_member_no_sync(event.sender.as_ref()).await.unwrap().unwrap().to_msn_user_lazy().await.unwrap()
+            }
+            Some(direct_target) => {
+                room_user.clone()
+            }
+        }
+
+    } else {
+        context.client_data.own_user().unwrap()
+    };
+
 
     match event.content.msgtype {
         MessageType::Audio(_) => {}
@@ -28,8 +47,8 @@ pub async fn handle_message(
         MessageType::Text(message) => {
 
             let msg = SwitchboardServerCommand::MSG(MsgServer {
-                sender: msn_user.get_email_address().clone(),
-                display_name: msn_user.compute_display_name().to_string(),
+                sender: message_sender.get_email_address().clone(),
+                display_name: message_sender.compute_display_name().to_string(),
                 payload: MsgPayload::TextPlain(TextPlainMessagePayload::new_with_default_style(&message.body)),
             }
             );

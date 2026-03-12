@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::io::SeekFrom::End;
 use std::str::FromStr;
 use crate::msnp::error::CommandError;
 use crate::msnp::notification::models::endpoint_guid::EndpointGuid;
@@ -22,6 +23,10 @@ impl EndpointId {
     pub fn from_email_addr(email_addr: EmailAddress) -> Self {
         let endpoint_guid = EndpointGuid(Uuid::from_seed(&email_addr.as_str()));
         Self::new(email_addr, Some(endpoint_guid))
+    }
+
+    pub fn strip_endpoint_guid(&self) -> EndpointId {
+        EndpointId::new(self.email_addr.clone(), None)
     }
 
 }
