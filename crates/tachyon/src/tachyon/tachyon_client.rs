@@ -6,7 +6,7 @@ use matrix_sdk::{Client, SlidingSync};
 use dashmap::DashMap;
 use matrix_sdk::ruma::{OwnedRoomId, RoomId};
 use anyhow::anyhow;
-use log::{debug, error};
+use log::{debug, error, trace};
 use tokio_retry2::{Retry, RetryError};
 use tokio_retry2::strategy::{ExponentialBackoff, MaxInterval};
 use msnp::msnp::models::contact_list::ContactList;
@@ -20,6 +20,7 @@ use crate::tachyon::client_store::ClientStoreError;
 use crate::notification::models::notification_handle::NotificationHandle;
 use crate::notification::models::soap_holder::SoapHolder;
 use crate::switchboard::models::switchboard_handle::{SwitchboardHandle, SwitchboardState};
+use crate::switchboard::models::switchboard_token::SwitchboardToken;
 
 pub struct ClientDataInner {
     pub own_user: Mutex<MsnUser>,
@@ -81,6 +82,8 @@ impl SwitchboardService {
         let notification_client_clone = self.tachyon_client.notification_handle().clone();
 
         let inviter_clone = inviter.clone();
+        let token = self.tachyon_client.ticket_token().0;
+        let room_id = room_id.to_owned();
         tokio::spawn(async move {
             let max_tries = 3;
             for current_try in 0..max_tries {
@@ -89,7 +92,7 @@ impl SwitchboardService {
                         RngServer::new(
                             SessionId::random(),
                             IpAddress::new(Ipv4Addr::new(127, 0, 0, 1), 1864),
-                            String::new(),
+                            SwitchboardToken::new(room_id.clone(), token.clone()).into(),
                             inviter_clone.get_email_address().clone(),
                             inviter_clone.compute_display_name().to_string()
                         )
@@ -118,7 +121,7 @@ impl SwitchboardService {
                     }
                     Err(e) => {
                         debug!("Failed to initialize Switchboard for room: {} (try {} of {})", &switchboard_handle_clone.room_id, current_try, max_tries);
-                        debug!("Switchboard initialization error: {:?}", e);
+                        trace!("Switchboard initialization error: {:?}", e);
                     }
                 }
             }
@@ -204,8 +207,8 @@ impl TachyonClient {
     //       self.contact_service.clone()
     //  }
 
-    pub fn ticket_token(&self) -> &TicketToken {
-        &self.inner.ticket_token
+    pub fn ticket_token(&self) -> TicketToken {
+        self.inner.ticket_token.clone()
     }
 
     pub fn matrix_client(&self) -> Client {

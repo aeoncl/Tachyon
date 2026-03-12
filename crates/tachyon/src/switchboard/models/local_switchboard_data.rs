@@ -13,7 +13,7 @@ pub struct LocalSwitchboardData {
     pub(crate) email_addr: EmailAddress,
     pub(crate) endpoint_guid: Option<EndpointGuid>,
     pub(crate) token: TicketToken,
-    pub(crate) client_data: Option<TachyonClient>,
+    pub(crate) tachyon_client: Option<TachyonClient>,
     pub(crate) client_kill_recv: Receiver<()>,
     pub(crate) room: Option<Room>,
     pub(crate) session_id: SessionId
@@ -26,7 +26,7 @@ impl LocalSwitchboardData {
             email_addr: EmailAddress::default(),
             endpoint_guid: None,
             token: TicketToken::default(),
-            client_data: None,
+            tachyon_client: None,
             client_kill_recv,
             room: None,
             session_id: SessionId::empty(),

@@ -5,6 +5,7 @@ use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, Switch
 use msnp::shared::models::ticket_token::TicketToken;
 use std::str::FromStr;
 use anyhow::anyhow;
+use matrix_sdk::Room;
 use rand::Rng;
 use tokio::sync::mpsc::Sender;
 use msnp::msnp::switchboard::command::cal::{CalServer, CalServerFunction};
@@ -14,6 +15,7 @@ use msnp::shared::models::endpoint_id::EndpointId;
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
 use crate::tachyon::tachyon_client::TachyonClient;
 use crate::shared::identifiers::MatrixIdCompatible;
+use crate::switchboard::models::switchboard_token::SwitchboardToken;
 
 pub(crate) async fn handle_command(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, client_store: &ClientStoreFacade, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
 
@@ -24,7 +26,7 @@ pub(crate) async fn handle_command(command: SwitchboardClientCommand, command_se
         ConnectionPhase::Initializing => {
             //Wait for CAL of room
             //Start load initial roster task
-            let client_data = local_switchboard_data.client_data.as_ref().ok_or(anyhow!("Client Data should be here by now"))?.clone();
+            let client_data = local_switchboard_data.tachyon_client.as_ref().ok_or(anyhow!("Client Data should be here by now"))?.clone();
             handle_init(command, command_sender, client_data, local_switchboard_data).await?
 
         }
@@ -42,8 +44,39 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
 
     match command {
         SwitchboardClientCommand::ANS(ans_command) => {
+            let token = SwitchboardToken::try_from(ans_command.token.clone())?;
+
+            match client_store.get_client_data(&token.matrix_token) {
+                None => {}
+                Some(tachyon_client) => {
+                    let matrix_client = tachyon_client.matrix_client();
+                    match matrix_client.get_room(token.room_id.as_ref()) {
+                        None => {}
+                        Some(room) => {
+                            let msn_user = room.to_msn_user_lazy().await?;
+                            local_switchboard_data.token = TicketToken(token.matrix_token);
+                            local_switchboard_data.session_id = SessionId::random();
+                            local_switchboard_data.email_addr = msn_user.get_email_address().clone();
+                            local_switchboard_data.endpoint_guid = msn_user.endpoint_id.endpoint_guid;
+                            local_switchboard_data.tachyon_client = Some(tachyon_client);
+                            local_switchboard_data.room = Some(room);
+
+                            local_switchboard_data.phase = ConnectionPhase::Initializing;
+
+                            //Send Initial roster = everyone but me
+
+                            command_sender.send(SwitchboardServerCommand::OK(ans_command.get_ok_response())).await?;
+                            //Send me joined
+                        }
+                    };
 
 
+
+                }
+            }
+
+
+            //TODO send errors
 
         }
         SwitchboardClientCommand::USR(usr_command) => {
@@ -73,7 +106,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
                     local_switchboard_data.email_addr = usr_command.endpoint_id.email_addr.clone();
                     local_switchboard_data.endpoint_guid = usr_command.endpoint_id.endpoint_guid.clone();
                     local_switchboard_data.token = token;
-                    local_switchboard_data.client_data = Some(client_data);
+                    local_switchboard_data.tachyon_client = Some(client_data);
                     local_switchboard_data.session_id = SessionId::random();
                     local_switchboard_data.phase = ConnectionPhase::Initializing;
                     let email = &local_switchboard_data.email_addr;

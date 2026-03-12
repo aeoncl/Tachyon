@@ -5,24 +5,25 @@ use crate::msnp::raw_command_parser::RawCommand;
 use crate::msnp::switchboard::models::auth_method::AuthenticationMethod;
 use crate::msnp::switchboard::models::session_id::SessionId;
 use crate::shared::models::email_address::EmailAddress;
+use crate::shared::models::ticket_token::TicketToken;
 use crate::shared::traits::MSNPCommand;
 
 pub struct RngServer {
     session_id: SessionId,
     address: IpAddress,
     auth_type: AuthenticationMethod,
-    auth_token: String,
+    ticket_token: TicketToken,
     inviter_passport: EmailAddress,
     inviter_name: String,
 }
 
 impl RngServer {
-    pub fn new(session_id: SessionId, address: IpAddress, auth_token: String, inviter_passport: EmailAddress, inviter_name: String) -> Self {
+    pub fn new(session_id: SessionId, address: IpAddress, ticket_token: TicketToken, inviter_passport: EmailAddress, inviter_name: String) -> Self {
         Self {
             session_id,
             address,
             auth_type: AuthenticationMethod::default(),
-            auth_token,
+            ticket_token,
             inviter_passport,
             inviter_name,
         }
@@ -50,7 +51,7 @@ impl Display for RngServer {
                sess_id = self.session_id,
                address = self.address,
                auth_type = self.auth_type,
-               token = self.auth_token,
+               token = self.ticket_token,
                inviter_passport = self.inviter_passport,
                inviter_name = self.inviter_name
         )

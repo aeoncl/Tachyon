@@ -87,7 +87,7 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
                             Ok(commands) => {
 
                                 for command in commands {
-                                    debug!("NS << | {}", command.get_command());
+                                    debug!("SB << | {}", command.get_command());
 
                                     let notification_command = SwitchboardClientCommand::try_from_raw(command);
                                     match notification_command {
