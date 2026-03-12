@@ -223,7 +223,7 @@ impl TextPlainMessagePayload {
 
     pub fn new(font_family: FontFamily, font_color: FontColor, font_styles: FontStyles, right_to_left: bool, body: &str) -> Self {
         Self{
-            font_family: font_family,
+            font_family,
             right_to_left,
             font_styles,
             font_color,
@@ -260,7 +260,7 @@ impl FontStyles {
     pub fn matches(&self, font_style: FontStyle) -> bool {
         let font_style_as_int = font_style as u32;
         let and = self.0 & font_style_as_int;
-        return and == font_style_as_int
+        and == font_style_as_int
     }
 
 }
