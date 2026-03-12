@@ -6,7 +6,7 @@ use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::rsi::get_message::request::GetMessageMessageSoapEnvelope;
 use msnp::soap::rsi::get_message::response::GetMessageResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::ToXml;
-use crate::notification::client_store::ClientData;
+use crate::notification::models::client_data::ClientData;
 use crate::web::soap::rsi::error::RSIError;
 use crate::web::soap::shared;
 
@@ -16,7 +16,7 @@ pub async fn get_message(request : GetMessageMessageSoapEnvelope, _token: Ticket
     let mark_as_read = request.body.body.also_mark_as_read;
 
     if mark_as_read {
-        match client_data.get_oims().get_mut(&message_id) {
+        match client_data.soap_holder().oims.get_mut(&message_id) {
             None => {
                 Err(RSIError::InternalServerError(anyhow!("No Content")))
             }
@@ -27,7 +27,7 @@ pub async fn get_message(request : GetMessageMessageSoapEnvelope, _token: Ticket
             }
         }
     } else {
-        match client_data.get_oims().get(&message_id) {
+        match client_data.soap_holder().oims.get(&message_id) {
             None => {
                 Err(RSIError::InternalServerError(anyhow!("No Content")))
             }

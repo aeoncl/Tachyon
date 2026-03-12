@@ -1,6 +1,6 @@
 use crate::matrix::handlers::context::TachyonContext;
 use crate::matrix::handlers::{self, register_event_handlers};
-use crate::notification::client_store::ClientData;
+use crate::notification::models::client_data::ClientData;
 use futures::StreamExt;
 use log::{debug, error, info};
 use matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState;
@@ -64,8 +64,8 @@ pub async fn build_sliding_sync(matrix_client: &Client) -> Result<SlidingSync, a
 }
 
 pub fn sync(client_data: ClientData, kill_signal: Receiver<()>) {
-    let client = client_data.get_matrix_client();
-    let sliding_sync = client_data.get_sliding_sync();
+    let client = client_data.matrix_client();
+    let sliding_sync = client_data.sliding_sync();
     let updates_recv = client.subscribe_to_all_room_updates();
 
     spawn_sync_task(client_data, sliding_sync, updates_recv, kill_signal, true);
@@ -80,7 +80,7 @@ fn spawn_sync_task(
 ) {
     tokio::spawn(async move {
         info!("Initializing Sliding Sync...");
-        let matrix_client = client_data.get_matrix_client();
+        let matrix_client = client_data.matrix_client();
         register_event_handlers(&matrix_client, client_data.clone());
 
         let mut initial_sync = true;
@@ -141,14 +141,14 @@ fn spawn_sync_task(
 async fn handle_addressbook_notifications(client_data: &ClientData) -> Result<(), SendTimeoutError<NotificationServerCommand>> {
 
     let update_required = {
-        let contact_holder = client_data.get_contact_holder_mut().unwrap();
-        let member_holder = client_data.get_member_holder_mut().unwrap();
+        let contact_holder = client_data.soap_holder().contacts.lock().unwrap();
+        let member_holder = client_data.soap_holder().memberships.lock().unwrap();
         contact_holder.len() > 0 || member_holder.len() > 0
     };
 
     if update_required {
-        let user = client_data.get_user_clone().unwrap();
-        client_data.get_notification_handle().send(NotificationServerCommand::NOT(NotServer {
+        let user = client_data.own_user().unwrap();
+        client_data.notification_handle().send(NotificationServerCommand::NOT(NotServer {
             payload: NotificationFactory::get_abch_updated(&user.uuid, user.get_email_address()),
         })).await
     } else {
@@ -157,9 +157,9 @@ async fn handle_addressbook_notifications(client_data: &ClientData) -> Result<()
 }
 
 async fn handle_first_sync(client_data: &ClientData) -> Result<(), anyhow::Error> {
-    let me = client_data.get_user_clone()?;
-    let ticket_token = client_data.get_ticket_token();
-    let notification_handle = client_data.get_notification_handle();
+    let me = client_data.own_user()?;
+    let ticket_token = client_data.ticket_token();
+    let notification_handle = client_data.notification_handle();
 
     // This is sent to make the client pass the logon screen. Timeout of the logon screen is 1 minute.
     let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {

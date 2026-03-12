@@ -99,7 +99,7 @@ pub async fn get_profile_pic(Path((image_mxid, _image_type)): Path<(String, Stri
 
     let client_data = state.get_single_client_data().unwrap();
 
-    let client= client_data.get_matrix_client();
+    let client= client_data.matrix_client();
 
 
     let thumbnail_settings = MediaThumbnailSettings::new(UInt::new(200).unwrap(), UInt::new(200).unwrap() );

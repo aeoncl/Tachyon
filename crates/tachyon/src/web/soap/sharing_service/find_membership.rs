@@ -3,7 +3,7 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use matrix_sdk::Client;
 
-use crate::notification::client_store::ClientData;
+use crate::notification::models::client_data::ClientData;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::Ab;
@@ -21,7 +21,7 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token
 
 
     let deltas_only = request.body.request.deltas_only.unwrap_or(false);
-    let own_user = client_data.get_user_clone().unwrap();
+    let own_user = client_data.own_user().unwrap();
 
     if deltas_only {
         // Fetch from store. TODO
@@ -42,7 +42,10 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token
 }
 
 fn get_delta_sync(client_data: &mut ClientData) -> Result<Vec<BaseMember>, ABError> {
-    let members : Vec<BaseMember> =client_data.get_member_holder_mut().map_err(|e| ABError::InternalServerError(anyhow!("Could not lock member holder mutex")))?
+    let mut member_holder = client_data.soap_holder().memberships.lock().map_err(|e| ABError::InternalServerError(anyhow!("Could not lock member holder mutex")))?;
+
+
+    let members : Vec<BaseMember> = member_holder
         .drain(..)
         .collect();
 

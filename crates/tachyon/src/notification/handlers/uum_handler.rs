@@ -1,4 +1,4 @@
-use crate::notification::client_store::ClientData;
+use crate::notification::models::client_data::ClientData;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::uum::{UumClient, UumPayload};
@@ -10,7 +10,7 @@ pub async fn handle_uum(command: UumClient, client_data: ClientData, command_sen
 
     match command.payload {
         UumPayload::TextMessage(content) => {
-            let matrix_client = client_data.get_matrix_client();
+            let matrix_client = client_data.matrix_client();
 
             let room = matrix_client.find_room_from_email(&command.destination.email_addr)?;
             match room {

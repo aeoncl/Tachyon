@@ -1,4 +1,4 @@
-use crate::notification::client_store::ClientData;
+use crate::notification::models::client_data::ClientData;
 
 #[derive(Clone)]
 pub struct TachyonContext {

@@ -27,7 +27,7 @@ pub async fn rsi(headers: HeaderMap, State(state): State<ClientStoreFacade>, bod
 
     let mut client_data = state.get_client_data(&token.0).ok_or(RSIError::AuthenticationFailed {source: anyhow!("Missing Client Data in client store"), service_url: "https://rsi.hotmail.com/rsi/rsi.asmx".to_string() })?;
 
-    let client = client_data.get_matrix_client();
+    let client = client_data.matrix_client();
 
     let client_token = client.access_token().ok_or(RSIError::AuthenticationFailed {source: anyhow!("No Token present in Matrix Client"), service_url: "https://rsi.hotmail.com/rsi/rsi.asmx".to_string() })?;
     if token != client_token {

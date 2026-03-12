@@ -5,7 +5,7 @@ use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::rsi::delete_messages::request::DeleteMessagesSoapEnvelope;
 use msnp::soap::rsi::delete_messages::response::DeleteMessagesResponseSoapEnvelope;
 use msnp::soap::traits::xml::ToXml;
-use crate::notification::client_store::ClientData;
+use crate::notification::models::client_data::ClientData;
 use crate::web::soap::rsi::error::RSIError;
 use crate::web::soap::shared;
 
@@ -14,7 +14,7 @@ pub async fn delete_messages(request : DeleteMessagesSoapEnvelope, _token: Ticke
     let message_ids = request.body.body.message_ids.message_id;
 
     for message_id in message_ids {
-        client_data.remove_oim(&message_id);
+        client_data.soap_holder().oims.remove(&message_id);
     }
 
     let soap_body = DeleteMessagesResponseSoapEnvelope::new();

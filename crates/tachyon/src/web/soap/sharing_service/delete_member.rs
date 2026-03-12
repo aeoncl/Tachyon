@@ -8,7 +8,7 @@ use msnp::soap::abch::sharing_service::delete_member::request::DeleteMemberMessa
 use msnp::soap::abch::sharing_service::delete_member::response::DeleteMemberResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::ToXml;
 
-use crate::notification::client_store::ClientData;
+use crate::notification::models::client_data::ClientData;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 

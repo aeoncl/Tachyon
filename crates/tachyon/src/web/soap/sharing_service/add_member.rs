@@ -6,7 +6,7 @@ use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::abch::sharing_service::add_member::request::AddMemberMessageSoapEnvelope;
 use msnp::soap::abch::sharing_service::add_member::response::AddMemberResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::ToXml;
-use crate::notification::client_store::ClientData;
+use crate::notification::models::client_data::ClientData;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 

@@ -4,7 +4,7 @@ use msnp::shared::models::role_list::RoleList;
 use msnp::soap::abch::msnab_datatypes::{BaseMember, ContactType, ContactTypeEnum, MemberState};
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::matrix::handlers::context::TachyonContext;
-use crate::notification::client_store::AddressBookContact;
+use crate::notification::models::soap_holder::AddressBookContact;
 
 pub async fn handle_memberships(
     event: SyncRoomMemberEvent,
@@ -19,7 +19,7 @@ pub async fn handle_memberships(
     if event_is_about_me {
 
         let msn_user = room.to_msn_user().await.unwrap();
-        let mut member_holder = context.client_data.get_member_holder_mut().unwrap();
+        let mut member_holder = context.client_data.soap_holder().memberships.lock().unwrap();
         
         match event.membership() {
                 MembershipState::Ban => {
@@ -64,7 +64,7 @@ pub async fn handle_memberships_stripped(
     if event_is_about_me {
 
         let msn_user = room.to_msn_user().await.unwrap();
-        let mut member_holder = context.client_data.get_member_holder_mut().unwrap();
+        let mut member_holder = context.client_data.soap_holder().memberships.lock().unwrap();
 
 
         match room.state() {

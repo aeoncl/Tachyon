@@ -2,7 +2,7 @@ use log::debug;
 use tokio::sync::mpsc::Sender;
 use msnp::msnp::notification::command::adl::RmlClient;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
-use crate::notification::client_store::ClientData;
+use crate::notification::models::client_data::ClientData;
 
 pub async fn handle_rml(command: RmlClient, client_data: ClientData, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     debug!("RML: {:?}", &command);

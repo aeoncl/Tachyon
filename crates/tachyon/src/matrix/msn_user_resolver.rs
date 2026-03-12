@@ -15,16 +15,16 @@ use msnp::shared::models::msn_object::{FriendlyName, MSNObjectFactory, MsnObject
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::presence_status::PresenceStatus;
 
-use crate::notification::client_store::ClientData;
+use crate::notification::models::client_data::ClientData;
 use crate::shared::identifiers::MatrixIdCompatible;
 use crate::shared::traits::PresenceStateCompatible;
 
 
 pub fn resolve_msn_user_lean(user_id: &UserId, client_data: &ClientData) -> MsnUser {
-    let client = client_data.get_matrix_client();
+    let client = client_data.matrix_client();
 
     if user_id == client.user_id().expect("to be here") {
-        return client_data.get_user_clone().expect("to be here");
+        return client_data.own_user().expect("to be here");
     }
 
     MsnUser::with_email_addr(EmailAddress::from_user_id(user_id))
@@ -32,7 +32,7 @@ pub fn resolve_msn_user_lean(user_id: &UserId, client_data: &ClientData) -> MsnU
 
 pub async fn resolve_msn_user_from_rm(room_member: &RoomMember, client_data: &ClientData, profile: bool, presence: bool) -> Result<MsnUser, anyhow::Error> {
     let mut out = resolve_msn_user_lean(room_member.user_id(), client_data);
-    let client = client_data.get_matrix_client();
+    let client = client_data.matrix_client();
     out = resolve_msn_user_from_rm_internal(out, room_member, &client, profile, presence).await?;
     Ok(out)
 }
@@ -47,7 +47,7 @@ pub async fn resolve_msn_user_from_presence_event(presence_event: PresenceEvent,
 
     match presence_event.content.avatar_url {
         Some(avatar_url) => {
-            let client = client_data.get_matrix_client();
+            let client = client_data.matrix_client();
             let result = avatar_mxid_to_msn_object(&client, msn_user.get_email_address(), &avatar_url).await;
             match result {
                 Ok(avatar) => {
@@ -98,7 +98,7 @@ async fn resolve_msn_user_from_rm_internal(mut out: MsnUser, room_member: &RoomM
 pub async fn resolve_msn_user(user_id: &UserId, room: Option<Room>, client_data: &ClientData, profile: bool, presence: bool) -> Result<MsnUser, anyhow::Error> {
     let mut out = resolve_msn_user_lean(user_id, client_data);
 
-    let client = client_data.get_matrix_client();
+    let client = client_data.matrix_client();
 
     if profile {
         let room = resolve_room(user_id, room, &client).await?;

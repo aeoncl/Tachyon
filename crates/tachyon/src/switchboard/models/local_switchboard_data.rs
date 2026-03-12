@@ -4,7 +4,7 @@ use msnp::msnp::notification::models::endpoint_guid::EndpointGuid;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::ticket_token::TicketToken;
-use crate::notification::client_store::ClientData;
+use crate::notification::models::client_data::ClientData;
 use crate::switchboard::models::connection_phase::ConnectionPhase;
 
 pub struct LocalSwitchboardData {

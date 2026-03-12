@@ -1,6 +1,6 @@
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::matrix::handlers::context::TachyonContext;
-use crate::notification::client_store::AddressBookContact;
+use crate::notification::models::soap_holder::AddressBookContact;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::events::room::member::{
     MembershipState, StrippedRoomMemberEvent, SyncRoomMemberEvent,
@@ -26,7 +26,7 @@ pub async fn handle_contacts(
         let msn_user = room.to_msn_user().await.unwrap();
 
         {
-            let mut contact_holder = context.client_data.get_contact_holder_mut().unwrap();
+            let mut contact_holder = context.client_data.soap_holder().contacts.lock().unwrap();
 
 
             match event.membership() {
@@ -67,7 +67,7 @@ pub async fn handle_contacts_stripped(
     if event_is_about_me {
 
         let msn_user = room.to_msn_user().await.unwrap();
-        let mut contact_holder = context.client_data.get_contact_holder_mut().unwrap();
+        let mut contact_holder = context.client_data.soap_holder().contacts.lock().unwrap();
 
         match room.state() {
             RoomState::Invited => {

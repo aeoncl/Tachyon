@@ -1,4 +1,4 @@
-use crate::notification::client_store::{ClientData, ClientStoreFacade};
+use crate::notification::client_store::ClientStoreFacade;
 use crate::switchboard::models::connection_phase::ConnectionPhase;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
@@ -11,6 +11,7 @@ use msnp::msnp::switchboard::command::cal::{CalServer, CalServerFunction};
 use msnp::msnp::switchboard::command::joi::JoiServer;
 use msnp::shared::models::endpoint_id::EndpointId;
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
+use crate::notification::models::client_data::ClientData;
 use crate::shared::identifiers::MatrixIdCompatible;
 
 pub(crate) async fn handle_command(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, client_store: &ClientStoreFacade, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
@@ -107,7 +108,7 @@ pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sende
 
             if email == local_switchboard_data.email_addr {
                 // It's me !
-                let me = client_data.get_user_clone().unwrap();
+                let me = client_data.own_user().unwrap();
 
                 let _ = command_sender.send(SwitchboardServerCommand::JOI(JoiServer {
                     display_name: me.compute_display_name().to_string(),
@@ -127,7 +128,7 @@ pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sende
                 }
 
             } else {
-                let matrix_client = client_data.get_matrix_client();
+                let matrix_client = client_data.matrix_client();
                 let maybe_found = matrix_client.find_room_from_email(&email).unwrap();
                 if let Some(room) = maybe_found {
                     let target_room_user = room.to_msn_user_lazy().await.unwrap();

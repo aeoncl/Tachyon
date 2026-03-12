@@ -8,7 +8,7 @@ use msnp::soap::rsi::get_metadata::request::GetMetadataMessageSoapEnvelope;
 use msnp::soap::rsi::get_metadata::response::GetMetadataResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::ToXml;
 
-use crate::notification::client_store::ClientData;
+use crate::notification::models::client_data::ClientData;
 use crate::web::soap::rsi::error::RSIError;
 use crate::web::soap::shared;
 
@@ -18,7 +18,7 @@ pub async fn get_metadata(_request : GetMetadataMessageSoapEnvelope, _token: Tic
         ..Default::default()
     };
 
-    for oim in client_data.get_oims().iter() {
+    for oim in client_data.soap_holder().oims.iter() {
         let oim = oim.value();
         let serialized = oim.to_string();
 

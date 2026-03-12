@@ -1,6 +1,6 @@
 use crate::matrix::handlers;
 use crate::matrix::handlers::context::TachyonContext;
-use crate::notification::client_store::ClientData;
+use crate::notification::models::client_data::ClientData;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::{Client, Room};
@@ -10,7 +10,7 @@ pub(super) mod context;
 pub(super) mod membership_handlers;
 pub(super) mod profile_handlers;
 pub(super) mod presence_handlers;
-
+mod message_handlers;
 
 pub(super) fn register_event_handlers(matrix_client: &Client, client_data: ClientData) {
 

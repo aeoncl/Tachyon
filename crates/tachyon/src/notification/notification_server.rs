@@ -126,7 +126,7 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
     client_kill_snd.send(())?;
     let removed = client_store_facade.remove_client_data(local_client_data.token.0.as_str());
     if let Some((_, client_data)) = removed {
-        info!("Client data: {} removed successfully", client_data.get_user_clone()?.get_email_address());
+        info!("Client data: {} removed successfully", client_data.own_user()?.get_email_address());
     } else {
         warn!("Failed to remove client data");
     }

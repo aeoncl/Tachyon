@@ -2,7 +2,7 @@ use tokio::sync::broadcast::Receiver;
 use msnp::msnp::notification::models::endpoint_data::PrivateEndpointData;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
-use crate::notification::client_store::ClientData;
+use crate::notification::models::client_data::ClientData;
 use crate::notification::models::connection_phase::ConnectionPhase;
 
 pub(crate) struct LocalClientData {

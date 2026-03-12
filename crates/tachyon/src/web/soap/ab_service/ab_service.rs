@@ -26,7 +26,7 @@ pub async fn address_book_service(headers: HeaderMap, State(state): State<Client
 
     let client_data = state.get_client_data(&token.0).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Client Data to be present in client Store")})?;
 
-    let client = client_data.get_matrix_client();
+    let client = client_data.matrix_client();
 
     let client_token = client.access_token().ok_or(ABError::AuthenticationFailed {source: anyhow!("No Token present in Matrix Client")})?;
     if token != client_token {

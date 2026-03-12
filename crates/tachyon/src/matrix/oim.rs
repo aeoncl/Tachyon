@@ -5,7 +5,7 @@ use matrix_sdk::room::MessagesOptions;
 use matrix_sdk::ruma::api::client::filter::RoomEventFilter;
 use matrix_sdk::ruma::events::{AnySyncMessageLikeEvent, AnySyncTimelineEvent, SyncMessageLikeEvent};
 use matrix_sdk::ruma::events::room::message::{MessageType, SyncRoomMessageEvent};
-use matrix_sdk::ruma::{EventId, OwnedRoomId, uint, UserId};
+use matrix_sdk::ruma::{uint, EventId, OwnedRoomId, UserId};
 use matrix_sdk::sync::SyncResponse;
 
 use thiserror::Error;
@@ -17,7 +17,8 @@ use msnp::shared::models::oim::OIM;
 use msnp::shared::models::uuid::Uuid;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use msnp::shared::payload::msg::raw_msg_payload::MsgContentType;
-use crate::notification::client_store::{ClientData, ClientStoreError};
+use crate::notification::client_store::ClientStoreError;
+use crate::notification::models::client_data::ClientData;
 use crate::shared::identifiers::MatrixIdCompatible;
 
 #[derive(Error, Debug)]
@@ -36,7 +37,7 @@ pub enum OIMError {
 }
 
 pub async fn handle_oims(client: Client, response: SyncResponse, mut client_data: ClientData, notif_sender: Sender<NotificationServerCommand>, first_sync_token: Option<String>) -> Result<(), OIMError>{
-    let me_email_addr = client_data.get_user()?.endpoint_id.email_addr.clone();
+    let me_email_addr = client_data.own_user()?.endpoint_id.email_addr;
 
     for (room_id, room) in &response.rooms.joined {
         let room_uuid = Uuid::from_seed(room_id.to_string().as_str());
@@ -74,7 +75,7 @@ pub async fn handle_oims(client: Client, response: SyncResponse, mut client_data
                                     match oim {
                                         None => {}
                                         Some(oim) => {
-                                            client_data.add_oim(oim);
+                                            client_data.soap_holder().add_oim(oim);
                                             seq_num+=1;
                                         }
                                     }
@@ -123,7 +124,7 @@ pub async fn handle_oims(client: Client, response: SyncResponse, mut client_data
                         match oim {
                             None => {}
                             Some(oim) => {
-                                client_data.add_oim(oim);
+                                client_data.soap_holder().add_oim(oim);
                                 seq_num+=1;
                             }
                         }
@@ -136,7 +137,7 @@ pub async fn handle_oims(client: Client, response: SyncResponse, mut client_data
     }
 
 
-    let payload = if !client_data.get_oims().is_empty() { RawMsgPayloadFactory::get_initial_mail_data_too_large_notification() } else { RawMsgPayloadFactory::get_initial_mail_data_empty_notification() };
+    let payload = if !client_data.soap_holder().oims.is_empty() { RawMsgPayloadFactory::get_initial_mail_data_too_large_notification() } else { RawMsgPayloadFactory::get_initial_mail_data_empty_notification() };
 
     notif_sender.send(NotificationServerCommand::MSG(MsgServer {
         sender: "Hotmail".to_string(),

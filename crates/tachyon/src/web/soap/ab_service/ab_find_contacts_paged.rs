@@ -1,4 +1,3 @@
-use crate::notification::client_store::{AddressBookContact, ClientData};
 use crate::shared::identifiers::MatrixIdCompatible;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
@@ -16,6 +15,8 @@ use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContac
 use msnp::soap::abch::msnab_datatypes::{CircleRelationshipRole, ContactType, ContactTypeEnum, RelationshipState};
 use msnp::soap::traits::xml::ToXml;
 use std::str::FromStr;
+use crate::notification::models::client_data::ClientData;
+use crate::notification::models::soap_holder::AddressBookContact;
 
 pub async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, _token: TicketToken, client: Client, mut client_data: ClientData) -> Result<Response, ABError> {
     let body = &request.body.body;
@@ -101,7 +102,7 @@ async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, 
 async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelope, client: Client, client_data: &mut ClientData) -> Result<Response, ABError> {
     let body = request.body.body;
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or(Uuid::new().to_string());
-    let me_user = client_data.get_user_clone()?;
+    let me_user = client_data.own_user()?;
     let _uuid = &me_user.uuid;
     let _msn_addr = me_user.get_email_address();
 
@@ -130,8 +131,10 @@ fn get_delta_contact_list(client_data: &mut ClientData) -> Result<Vec<ContactTyp
    // let mut contacts = contact_service.inner.pending_contacts.lock().unwrap();
 
     let mut current_contacts = Vec::new();
+
+    let mut contact_holder = client_data.soap_holder().contacts.lock().unwrap();
     
-    for contact in client_data.get_contact_holder_mut().unwrap().drain(..) {
+    for contact in contact_holder.drain(..) {
         match contact {
             AddressBookContact::Contact(contact) => {
                 current_contacts.push(contact);

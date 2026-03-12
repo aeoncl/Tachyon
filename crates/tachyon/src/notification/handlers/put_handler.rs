@@ -1,4 +1,4 @@
-use crate::notification::client_store::ClientData;
+use crate::notification::models::client_data::ClientData;
 use crate::notification::models::local_client_data::LocalClientData;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::put::PutClient;

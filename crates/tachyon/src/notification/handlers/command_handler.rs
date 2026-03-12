@@ -1,6 +1,6 @@
 use crate::matrix;
 use crate::matrix::sync::{build_sliding_sync, sync};
-use crate::notification::client_store::{ClientData, ClientStoreFacade};
+use crate::notification::client_store::ClientStoreFacade;
 use crate::notification::handlers::adl_handler::handle_adl;
 use crate::notification::handlers::chg_handler::handle_chg;
 use crate::notification::handlers::png_handler::handle_png;
@@ -24,6 +24,7 @@ use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use tokio::sync::mpsc::Sender;
 use crate::notification::handlers::xfr_handler::handle_xfr;
+use crate::notification::models::client_data::ClientData;
 
 pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, client_store: &ClientStoreFacade, local_client_data: &mut LocalClientData) -> Result<(), anyhow::Error> {
 
