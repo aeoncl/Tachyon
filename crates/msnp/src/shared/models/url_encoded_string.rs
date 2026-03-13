@@ -1,11 +1,24 @@
-use std::cmp::PartialEq;
 use crate::msnp::error::CommandError;
+use std::cmp::PartialEq;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use num_derive::FromPrimitive;
 
-#[derive(Eq, PartialEq, Debug, Clone)]
-pub struct UrlEncodedString(pub(crate) String);
+#[derive(Eq, PartialEq, Debug, Clone, Default)]
+pub struct UrlEncodedString(String);
+
+impl UrlEncodedString {
+    pub fn new(value: String) -> Self {
+      Self(value)
+    }
+
+    pub fn new_from_ref(value: &str) -> Self {
+        Self(value.to_owned())
+    }
+
+    pub fn value(&self) -> &str {
+        &self.0
+    }
+}
 
 impl FromStr for UrlEncodedString {
     type Err = CommandError;

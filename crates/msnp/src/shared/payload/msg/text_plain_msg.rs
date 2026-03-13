@@ -140,9 +140,13 @@ mod tests {
 
 type FontFamily = UrlEncodedString;
 
-impl Default for FontFamily {
-    fn default() -> Self {
-        Self("Segoe UI".to_string())
+trait DefaultFont {
+    fn default_font() -> Self;
+}
+
+impl DefaultFont for FontFamily {
+    fn default_font() -> Self {
+        Self::new_from_ref("Segoe UI")
     }
 }
 
@@ -213,7 +217,7 @@ impl TextPlainMessagePayload {
 
     pub fn new_with_default_style(body: &str) -> Self {
         Self {
-            font_family: FontFamily::default(),
+            font_family: FontFamily::default_font(),
             right_to_left: false,
             font_styles: Default::default(),
             font_color: Default::default(),
@@ -244,7 +248,7 @@ impl TextPlainMessagePayload {
     }
 
     pub fn is_default_font(&self) -> bool {
-        self.font_family == FontFamily::default()
+        self.font_family == FontFamily::default_font()
     }
 
     pub fn get_mms_format_header(&self) -> String {

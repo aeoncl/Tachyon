@@ -59,7 +59,14 @@ async fn to_msn_user_internal(room: &Room, lazy_resolve: bool) -> Result<MsnUser
     
 
     if let Ok(Some(direct_target)) = &maybe_direct_target {
-        user.display_name = direct_target.display_name().map(|name| name.to_string());
+        user.display_name = match direct_target.display_name() {
+            None => {
+                Some(direct_target.to_email_address().expect("to never fail").to_string())
+            }
+            Some(display_name) => {
+                Some(display_name.to_string())
+            }
+        }
     } else {
         if let Ok(display_name) = room.display_name().await {
             user.display_name = Some(display_name.to_string());
@@ -190,7 +197,24 @@ impl FindRoomFromEmail for Client {
             let room_id = entry.value();
             self.get_room(room_id.as_ref())
         } else {
-            None
+            
+            let mut found = None;
+            
+            for room in self.rooms() {
+                let room_id = room.room_id();
+                let mut hasher = Sha1::new();
+                Digest::update(&mut hasher, room_id.as_bytes());
+                let result = hasher.finalize();
+                let hash = hex::encode(result);
+                ROOM_HASH_TABLE.insert(hash.clone(), room_id.to_owned());
+                ROOM_HASH_CACHE.insert(room_id.to_owned(), hash.clone());
+                if hash == room_id_hashed {
+                    found = Some(room);
+                    break;
+                }
+            }
+            
+            found
         };
 
         Ok(out)
@@ -213,5 +237,11 @@ impl ToMsnUser for RoomMember {
 
 
         Ok(msn_user)
+    }
+}
+
+impl ToEmailAddress for RoomMember {
+    fn to_email_address(&self) -> Result<EmailAddress, Error> {
+        Ok(EmailAddress::from_user_id(self.user_id()))
     }
 }
