@@ -1,16 +1,25 @@
+use crate::matrix::extensions::direct::DirectRoom;
+use crate::shared::identifiers::MatrixIdCompatible;
 use anyhow::Error;
 use base64::engine::general_purpose;
 use base64::Engine;
-use matrix_sdk::ruma::{RoomId, UserId};
+use dashmap::DashMap;
+use lazy_static::lazy_static;
+use matrix_sdk::room::RoomMember;
+use matrix_sdk::ruma::{OwnedRoomId, UserId};
 use matrix_sdk::{Client, Room};
 use msnp::shared::models::msn_object::{FriendlyName, MSNObjectFactory};
 use msnp::shared::models::{email_address::EmailAddress, msn_user::MsnUser};
+use sha1::digest::DynDigest;
+use sha1::{Digest, Sha1};
 use std::str::FromStr;
-use base32::Alphabet;
-use matrix_sdk::media::MediaFormat;
-use matrix_sdk::room::RoomMember;
-use crate::matrix::extensions::direct::DirectRoom;
-use crate::shared::identifiers::MatrixIdCompatible;
+
+
+lazy_static! {
+    static ref ROOM_HASH_TABLE: DashMap<String, OwnedRoomId> = DashMap::new();
+    static ref ROOM_HASH_CACHE: DashMap<OwnedRoomId, String> = DashMap::new();
+
+}
 
 pub trait ToMsnUser {
     async fn to_msn_user(&self) -> Result<MsnUser, anyhow::Error>;
@@ -91,25 +100,37 @@ impl ToEmailAddress for Room {
         let room_id_format = room_info.room_version_rules_or_default().room_id_format;
 
         let room_id = self.room_id();
+
+        let room_id_hashed = {
+            if let Some(cached) = ROOM_HASH_CACHE.get(room_id) {
+                cached.value().to_owned()
+            } else {
+                let mut hasher = Sha1::new();
+                Digest::update(&mut hasher, room_id.as_bytes());
+                let result = hasher.finalize();
+                let hash = hex::encode(result);
+                ROOM_HASH_TABLE.insert(hash.clone(), room_id.to_owned());
+                ROOM_HASH_CACHE.insert(room_id.to_owned(), hash.clone());
+                hash
+            }
+        };
+
         match room_id_format {
             matrix_sdk::ruma::room_version_rules::RoomIdFormatVersion::V1 => {
                 let server_name = room_id
                     .server_name()
                     .expect("RoomIdV1 to contain it's server name");
 
-                let local_part = room_id
-                    .strip_sigil()
-                    .strip_suffix(format!(":{}", &server_name).as_str())
-                    .expect("RoomIdV1 to contain it's server name");
+                let domain = if server_name.as_str().len() > 64 - room_id_hashed.len() - 1 {
+                    "t.local"
+                } else {
+                    server_name.as_str()
+                };
 
-                let encoded_local_part = base32::encode(Alphabet::Rfc4648Lower { padding: false }, local_part.as_bytes());
-
-                let email_str = format!("{}@{}", encoded_local_part, &server_name);
+                let email_str = format!("{}@{}", room_id_hashed, &domain);
                 Ok(EmailAddress::from_str(email_str.as_str()).expect("Room Email to be valid"))
             }
             matrix_sdk::ruma::room_version_rules::RoomIdFormatVersion::V2 => {
-                let room_create_id = room_id.strip_sigil();
-                let encoded_room_create_id = base32::encode(Alphabet::Rfc4648Lower { padding: false }, room_create_id.as_bytes());
 
                 let server_name = room_info
                     .create()
@@ -117,7 +138,13 @@ impl ToEmailAddress for Room {
                     .creator
                     .server_name();
 
-                let email_str = format!("{}@{}", encoded_room_create_id, &server_name);
+                let domain = if server_name.as_str().len() > 64 - room_id_hashed.len() - 1 {
+                    "t.local"
+                } else {
+                    server_name.as_str()
+                };
+
+                let email_str = format!("{}@{}", room_id_hashed, &domain);
                 Ok(EmailAddress::from_str(email_str.as_str()).expect("Room Email to be valid"))
             }
             _ => {
@@ -157,24 +184,16 @@ impl FindRoomFromEmail for Client {
     ///
     fn find_room_from_email(&self, email: &EmailAddress) -> Result<Option<Room>, Error> {
 
-        let (local_part, server_name) = email.crack();
-        let decoded_local_part = String::from_utf8(base32::decode(Alphabet::Rfc4648Lower { padding: false }, local_part).ok_or(anyhow::anyhow!("Failed to decode local part"))?)?;
-        
-        let room_id_v2 = RoomId::parse(format!("!{}", decoded_local_part))?;
-        println!("room_id_v2: {}", room_id_v2);
+        let (room_id_hashed, server_name) = email.crack();
 
-        if let Some(room) = self.get_room(room_id_v2.as_ref()) {
-            return Ok(Some(room));
-        }
+        let out = if let Some(entry) = ROOM_HASH_TABLE.get(room_id_hashed) {
+            let room_id = entry.value();
+            self.get_room(room_id.as_ref())
+        } else {
+            None
+        };
 
-        let room_id_v1 = RoomId::parse(format!("!{}:{}", decoded_local_part, server_name))?;
-        println!("room_id_v1: {}", room_id_v1);
-
-        if let Some(room) = self.get_room(room_id_v1.as_ref()) {
-            return Ok(Some(room));
-        }
-
-        Ok(None)
+        Ok(out)
     }
 }
 
