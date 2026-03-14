@@ -44,7 +44,7 @@ mod tests {
 
         if let UumPayload::TextMessage(content) = uum_client.payload {
             //  assert_eq!(0, content.font_color);
-            assert_eq!("Microsoft Sans Serif", &content.font_family);
+            assert_eq!("Microsoft Sans Serif", content.font_family.value());
             assert_eq!("Hello Bob !", &content.body);
             assert_eq!(false, content.right_to_left);
             assert!(content.font_styles.matches(FontStyle::Bold));
@@ -66,7 +66,7 @@ mod tests {
 
         if let UumPayload::TextMessage(content) = uum_client.payload {
             // assert_eq!(0, content.font_color);
-            assert_eq!("Segoe UI Semibold", &content.font_family);
+            assert_eq!("Segoe UI Semibold", content.font_family.value());
             assert_eq!("TEST", &content.body);
             assert_eq!(false, content.right_to_left);
             assert!(content.font_styles.matches(FontStyle::Italic));
