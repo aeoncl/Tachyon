@@ -7,7 +7,7 @@
 - [ ] Install WLM & WLM Contacts
   - Check if there is a silent mode on the setup.exe
 - [ ] Patch both msnmsgr.exe & wlcomm.exe with the detour library
-- [ ] Patch the db dll broken by Windows 11 24H2 (by swapping it with an older version from a previous windows)
+- [ ] Copy the db dll broken by Windows 11 24H2 (by swapping it with an older version from a previous windows)
 
 ## Launching the server
 
@@ -20,17 +20,15 @@
   - Detour dll needs to know the ports, let's use static ports that aren't used by anything else.
 
 ## MVP Features
-- [ ] Simplify the contact list. Show rooms, not contacts.
-- [ ] Migrate the switchboard logic from the old code
+- [X] Simplify the contact list. Show rooms, not contacts.
+- [X] Send Text Messages
 - [ ] E2E Device verification
-- [ ] MAS Support
-- [ ] Add contacts
-- [ ] Remove contacts
+- [ ] Add, Remove contacts
 - [ ] Search for contacts
-- [ ] 1to1 DM
-- [ ] Groupchats (msn spaces or ephemeral rooms)
+- [ ] Avatar Transfer
 
 ## Nice to have
+- [ ] Groupchats (msn spaces or ephemeral rooms)
 - [ ] Spaces to category mapping
 - [ ] File sharing working
 - [ ] Status & Presence using new Account Data

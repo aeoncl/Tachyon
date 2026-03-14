@@ -1,5 +1,6 @@
+use crate::switchboard::handlers::handle_command;
+use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::tachyon::client_store::ClientStoreFacade;
-use crate::switchboard::handlers::command_handler::handle_command;
 use anyhow::anyhow;
 use log::{debug, error, info};
 use msnp::msnp::notification::command::command::NotificationServerCommand;
@@ -13,7 +14,6 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::{broadcast, mpsc};
-use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 
 pub struct SwitchboardServer;
 

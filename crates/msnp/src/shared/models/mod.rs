@@ -12,3 +12,4 @@ pub mod network_id;
 pub mod network_id_email;
 pub mod b64_string;
 pub mod url_encoded_string;
+pub mod display_name;

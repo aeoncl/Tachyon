@@ -6,14 +6,14 @@ use base64::Engine;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use matrix_sdk::room::RoomMember;
-use matrix_sdk::ruma::{OwnedRoomId, UserId};
+use matrix_sdk::ruma::{OwnedRoomId, RoomId, UserId};
 use matrix_sdk::{Client, Room};
 use msnp::shared::models::msn_object::{FriendlyName, MSNObjectFactory};
 use msnp::shared::models::{email_address::EmailAddress, msn_user::MsnUser};
 use sha1::digest::DynDigest;
 use sha1::{Digest, Sha1};
 use std::str::FromStr;
-
+use dashmap::mapref::one::Ref;
 
 lazy_static! {
     static ref ROOM_HASH_TABLE: DashMap<String, OwnedRoomId> = DashMap::new();
@@ -108,19 +108,7 @@ impl ToEmailAddress for Room {
 
         let room_id = self.room_id();
 
-        let room_id_hashed = {
-            if let Some(cached) = ROOM_HASH_CACHE.get(room_id) {
-                cached.value().to_owned()
-            } else {
-                let mut hasher = Sha1::new();
-                Digest::update(&mut hasher, room_id.as_bytes());
-                let result = hasher.finalize();
-                let hash = hex::encode(result);
-                ROOM_HASH_TABLE.insert(hash.clone(), room_id.to_owned());
-                ROOM_HASH_CACHE.insert(room_id.to_owned(), hash.clone());
-                hash
-            }
-        };
+        let room_id_hashed = hash_room_id_cached(room_id);
 
         match room_id_format {
             matrix_sdk::ruma::room_version_rules::RoomIdFormatVersion::V1 => {
@@ -200,25 +188,37 @@ impl FindRoomFromEmail for Client {
             
             let mut found = None;
             
-            for room in self.rooms() {
-                let room_id = room.room_id();
-                let mut hasher = Sha1::new();
-                Digest::update(&mut hasher, room_id.as_bytes());
-                let result = hasher.finalize();
-                let hash = hex::encode(result);
-                ROOM_HASH_TABLE.insert(hash.clone(), room_id.to_owned());
-                ROOM_HASH_CACHE.insert(room_id.to_owned(), hash.clone());
-                if hash == room_id_hashed {
-                    found = Some(room);
+            for curent_room in self.rooms() {
+                let current_room_hash = hash_room_id_cached(curent_room.room_id());
+                if current_room_hash == room_id_hashed {
+                    found = Some(curent_room);
                     break;
                 }
             }
-            
             found
         };
 
         Ok(out)
     }
+}
+
+
+fn hash_room_id_cached(room_id: &RoomId) -> String {
+    match ROOM_HASH_CACHE.get(room_id) {
+        None => {
+            let hash = hash_room_id(room_id);
+            ROOM_HASH_TABLE.insert(hash.clone(), room_id.to_owned());
+            ROOM_HASH_CACHE.insert(room_id.to_owned(), hash.clone());
+            hash
+        }
+        Some(hash) => { hash.value().clone() }
+    }
+}
+fn hash_room_id(room_id: &RoomId) -> String {
+    let mut hasher = Sha1::new();
+    Digest::update(&mut hasher, room_id.as_bytes());
+    let result = hasher.finalize();
+    hex::encode(result)
 }
 
 impl ToMsnUser for RoomMember {

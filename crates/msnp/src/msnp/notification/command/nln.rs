@@ -1,6 +1,7 @@
 use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::models::capabilities::ClientCapabilities;
+use crate::shared::models::display_name::DisplayName;
 use crate::shared::models::msn_object::MsnObject;
 use crate::shared::models::network_id_email::NetworkIdEmail;
 use crate::shared::models::presence_status::PresenceStatus;
@@ -11,6 +12,7 @@ mod tests {
     use std::str::FromStr;
 
     use crate::shared::models::capabilities::ClientCapabilities;
+    use crate::shared::models::display_name::DisplayName;
     use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::msn_object::{FriendlyName, MSNObjectFactory};
     use crate::shared::models::network_id::NetworkId;
@@ -27,7 +29,7 @@ mod tests {
             presence_status: PresenceStatus::BSY,
             target_user: NetworkIdEmail::new(NetworkId::WindowsLive, EmailAddress::from_str("test@shlasouf.local").unwrap()),
             via: Some(NetworkIdEmail::new(NetworkId::Circle, EmailAddress::from_str("test@live.fr").unwrap())),
-            display_name: "Testo".to_string(),
+            display_name: DisplayName::new_from_ref("Testo"),
             client_capabilities: ClientCapabilities::new(0,0),
             avatar: Some(MSNObjectFactory::get_display_picture(&Vec::new(), &EmailAddress::from_str("test@shlasouf.local").unwrap(), "blabla.tmp".into(), FriendlyName::new("blabla.jpg"))),
             badge_url: None,
@@ -47,7 +49,7 @@ mod tests {
             presence_status: PresenceStatus::BSY,
             target_user: NetworkIdEmail::new(NetworkId::WindowsLive, EmailAddress::from_str("test@shlasouf.local").unwrap()),
             via: None,
-            display_name: "Testo".to_string(),
+            display_name: DisplayName::new_from_ref("Testo"),
             client_capabilities: ClientCapabilities::new(0,0),
             avatar: Some(MSNObjectFactory::get_display_picture(&Vec::new(), &EmailAddress::from_str("test@shlasouf.local").unwrap(), "blabla.tmp".into(), FriendlyName::new("blabla.jpg"))),
             badge_url: None,
@@ -67,7 +69,7 @@ mod tests {
             presence_status: PresenceStatus::BSY,
             target_user: NetworkIdEmail::new(NetworkId::WindowsLive, EmailAddress::from_str("test@shlasouf.local").unwrap()),
             via: None,
-            display_name: "Testo".to_string(),
+            display_name: DisplayName::new_from_ref("Testo"),
             client_capabilities: ClientCapabilities::new(0,0),
             avatar: None,
             badge_url: None,
@@ -88,7 +90,7 @@ mod tests {
             presence_status: PresenceStatus::BSY,
             target_user: NetworkIdEmail::new(NetworkId::WindowsLive, EmailAddress::from_str("test@shlasouf.local").unwrap()),
             via: None,
-            display_name: "Testo".to_string(),
+            display_name: DisplayName::new_from_ref("Testo"),
             client_capabilities: ClientCapabilities::new(0,0),
             avatar: None,
             badge_url: Some("http://badge.jpg".into()),
@@ -110,7 +112,7 @@ pub struct NlnServer {
     pub presence_status: PresenceStatus,
     pub target_user: NetworkIdEmail,
     pub via: Option<NetworkIdEmail>,
-    pub display_name: String,
+    pub display_name: DisplayName,
     pub client_capabilities: ClientCapabilities,
     pub avatar: Option<MsnObject>,
     pub badge_url: Option<String>,

@@ -1,19 +1,18 @@
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
 use crate::notification::models::local_client_data::LocalClientData;
+use crate::tachyon::tachyon_client::TachyonClient;
 use msnp::msnp::notification::command::chg::ChgClient;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
-use tokio::sync::mpsc::Sender;
-use msnp::msnp::notification::command::iln::{DisplayName, IlnServer};
-use msnp::msnp::notification::command::nln::NlnServer;
+use msnp::msnp::notification::command::iln::IlnServer;
 use msnp::msnp::notification::command::ubx::{ExtendedPresenceContent, UbxPayload, UbxServer};
+use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::network_id_email::NetworkIdEmail;
 use msnp::shared::models::presence_status::PresenceStatus;
-use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
+use tokio::sync::mpsc::Sender;
 
 pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, client_data: TachyonClient, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     command_sender.send(NotificationServerCommand::CHG(command.clone())).await?;
 
-    let notif_sender = command_sender.clone();
     let client_data = client_data.clone();
 
 

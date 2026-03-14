@@ -1,10 +1,10 @@
 use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::models::capabilities::ClientCapabilities;
+use crate::shared::models::display_name::DisplayName;
 use crate::shared::models::msn_object::MsnObject;
 use crate::shared::models::network_id_email::NetworkIdEmail;
 use crate::shared::models::presence_status::PresenceStatus;
-use crate::shared::models::url_encoded_string::UrlEncodedString;
 use crate::shared::traits::MSNPCommand;
 
 #[cfg(test)]
@@ -12,6 +12,7 @@ mod tests {
     use std::str::FromStr;
 
     use crate::shared::models::capabilities::ClientCapabilities;
+    use crate::shared::models::display_name::DisplayName;
     use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::msn_object::{FriendlyName, MSNObjectFactory};
     use crate::shared::models::network_id::NetworkId;
@@ -19,7 +20,7 @@ mod tests {
     use crate::shared::models::presence_status::PresenceStatus;
     use crate::shared::traits::MSNPCommand;
 
-    use super::{DisplayName, IlnServer};
+    use super::{IlnServer};
 
     #[test]
     pub fn test_nln_via_ser_msn_obj() {
@@ -110,7 +111,6 @@ mod tests {
 
 }
 
-pub type DisplayName = UrlEncodedString;
 
 pub struct IlnServer {
     pub tr_id: u128,
