@@ -23,6 +23,7 @@ use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use tokio::sync::mpsc::Sender;
+use crate::notification::handlers::prp_handler::handle_prp;
 use crate::notification::handlers::xfr_handler::handle_xfr;
 use crate::tachyon::tachyon_client::TachyonClient;
 
@@ -148,7 +149,7 @@ async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Se
             Ok(())
         }
         NotificationClientCommand::CHG(command) => handle_chg(command, local_store, client_data, command_sender).await,
-        NotificationClientCommand::PRP(_command) => {Ok(())},
+        NotificationClientCommand::PRP(command) => handle_prp(command, local_store, client_data, command_sender).await,
         NotificationClientCommand::UUN(_command) => {Ok(())},
         NotificationClientCommand::XFR(command) => handle_xfr(command, local_store, command_sender).await,
         NotificationClientCommand::RAW(command) => {

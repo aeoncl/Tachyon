@@ -6,8 +6,8 @@ use anyhow::anyhow;
 use crate::shared::traits::{MSNPCommand, MSNPCommandPart};
 
 pub struct Prp{
-    tr_id: u128,
-    operation: PrpOperation
+    pub tr_id: u128,
+    pub operation: PrpOperation
 }
 
 pub type PrpClient = Prp;
@@ -63,7 +63,7 @@ impl MSNPCommand for Prp {
     }
 
     fn into_bytes(self) -> Vec<u8> {
-        todo!()
+        self.to_string().into_bytes()
     }
 }
 
