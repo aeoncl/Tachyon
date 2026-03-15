@@ -6,10 +6,12 @@ use matrix_sdk::{Client, Room};
 use matrix_sdk::ruma::OwnedUserId;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
+use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use crate::matrix::extensions::direct::DirectRoom;
 use crate::matrix::extensions::message_dedup::SendWithDedup;
+use crate::switchboard::extensions::CustomStyles;
 
 pub async fn handle_message(
     event: OriginalSyncRoomMessageEvent,
@@ -21,7 +23,7 @@ pub async fn handle_message(
     if room.is_event_deduped(event.event_id.as_ref()) {
         return;
     }
-    
+
     let room_user = room.to_msn_user_lazy().await.unwrap();
     let switchboard = context.client_data.switchboards().get_or_initialize(room.room_id(), &room_user);
 
@@ -50,13 +52,24 @@ pub async fn handle_message(
         MessageType::File(_) => {}
         MessageType::Image(_) => {}
         MessageType::Location(_) => {}
-        MessageType::Notice(_) => {}
+        MessageType::Notice(message) => {
+            
+            let msg = SwitchboardServerCommand::MSG(MsgServer {
+                sender: message_sender.get_email_address().clone(),
+                display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
+                payload: MsgPayload::TextPlain(TextPlainMessagePayload::new_with_notice_style(&message.body)),
+            }
+            );
+
+            switchboard.send_command(msg).await.unwrap();
+
+        }
         MessageType::ServerNotice(_) => {}
         MessageType::Text(message) => {
 
             let msg = SwitchboardServerCommand::MSG(MsgServer {
                 sender: message_sender.get_email_address().clone(),
-                display_name: message_sender.compute_display_name().to_string(),
+                display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
                 payload: MsgPayload::TextPlain(TextPlainMessagePayload::new_with_default_style(&message.body)),
             }
             );

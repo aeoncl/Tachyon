@@ -13,6 +13,7 @@ use strum_macros::{Display, EnumString};
 
 use crate::msnp::error::{CommandError, PayloadError};
 use crate::msnp::raw_command_parser::RawCommand;
+use crate::shared::models::display_name::DisplayName;
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
 use crate::shared::payload::msg::service_msg::ServiceMessagePayload;
@@ -67,7 +68,7 @@ pub enum MsgAcknowledgment {
 
 pub struct MsgServer {
     pub sender: EmailAddress,
-    pub display_name: String,
+    pub display_name: DisplayName,
     pub payload: MsgPayload
 }
 

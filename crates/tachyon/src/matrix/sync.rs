@@ -23,7 +23,7 @@ use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 
 use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
-use tokio::sync::broadcast::Receiver;
+use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::sync::mpsc::error::SendTimeoutError;
 use msnp::msnp::notification::command::nln::NlnServer;
 use msnp::msnp::notification::command::not::factories::NotificationFactory;
@@ -64,19 +64,20 @@ pub async fn build_sliding_sync(matrix_client: &Client) -> Result<SlidingSync, a
     Ok(sliding_sync_builder.build().await?)
 }
 
-pub fn sync(client_data: TachyonClient, kill_signal: Receiver<()>) {
+pub fn sync(client_data: TachyonClient, kill_signal_snd: Sender<()>, kill_signal_rcv: Receiver<()>) {
     let client = client_data.matrix_client();
     let sliding_sync = client_data.sliding_sync();
     let updates_recv = client.subscribe_to_all_room_updates();
 
-    spawn_sync_task(client_data, sliding_sync, updates_recv, kill_signal, true);
+    spawn_sync_task(client_data, sliding_sync, updates_recv, kill_signal_snd, kill_signal_rcv, true);
 }
 
 fn spawn_sync_task(
     client_data: TachyonClient,
     sliding_sync: SlidingSync,
     mut updates_recv: Receiver<RoomUpdates>,
-    mut kill_signal: Receiver<()>,
+    kill_signal_snd: Sender<()>,
+    mut kill_signal_rcv: Receiver<()>,
     mut first_sync_of_session: bool,
 ) {
     tokio::spawn(async move {
@@ -90,7 +91,7 @@ fn spawn_sync_task(
         let mut sync_stream = Box::pin(sliding_sync.sync());
         'main: loop {
             tokio::select! {
-                _ = kill_signal.recv() => {
+                _ = kill_signal_rcv.recv() => {
                     info!("Gracefully exit sync loop...");
                     if let Err(err) = sliding_sync.stop_sync() {
                         error!("Error stopping sync loop: {:?}", err);
@@ -122,10 +123,13 @@ fn spawn_sync_task(
                         Some(Err(err)) => {
                             if err.client_api_error_kind() == Some(&ErrorKind::UnknownPos) {
                                 info!("Unknown pos, re-syncing...");
-                                spawn_sync_task(client_data, sliding_sync.clone(), updates_recv, kill_signal, first_sync_of_session);
+                                spawn_sync_task(client_data, sliding_sync.clone(), updates_recv, kill_signal_snd, kill_signal_rcv, first_sync_of_session);
                                 break 'main;
                             } else {
                                 error!("Error in sync stream: {:?}", err);
+                                if let Err(e) = kill_signal_snd.send(()) {
+                                    break 'main;
+                                };
                             }
                         }
                         _ => {

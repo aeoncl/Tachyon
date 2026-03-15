@@ -58,7 +58,7 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
     let (client_kill_snd, client_kill_recv) = broadcast::channel::<()>(1);
     let command_sender = start_write_task(write, client_kill_recv.resubscribe());
 
-    let mut local_client_data = LocalClientData::new(client_kill_recv);
+    let mut local_client_data = LocalClientData::new(client_kill_snd.clone(), client_kill_recv);
 
     let mut parser = RawCommandParser::new();
     let mut reader = BufReader::new(read);
@@ -123,7 +123,10 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
         }
     }
 
-    client_kill_snd.send(())?;
+    if let Err(e) = client_kill_snd.send(()) {
+        error!("NS: Unable to send kill signal to client: {}", e);
+    }
+
     let removed = client_store_facade.remove_client_data(local_client_data.token.0.as_str());
     if let Some((_, client_data)) = removed {
         info!("Client data: {} removed successfully", client_data.own_user()?.get_email_address());

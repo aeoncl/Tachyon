@@ -117,7 +117,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
                             notif_sender.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await?;
 
-                            sync(client_data, local_store.client_kill_recv.resubscribe());
+                            sync(client_data, local_store.client_kill_snd.clone(), local_store.client_kill_recv.resubscribe());
                         }
                     }
                 },

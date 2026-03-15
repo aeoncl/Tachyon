@@ -1,6 +1,7 @@
 use crate::matrix::extensions::direct::DirectRoom;
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
 use crate::shared::identifiers::MatrixIdCompatible;
+use crate::switchboard::extensions::CustomStyles;
 use crate::switchboard::models::connection_phase::ConnectionPhase;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::switchboard::models::switchboard_handle::{SwitchboardHandle, SwitchboardState};
@@ -12,18 +13,16 @@ use msnp::msnp::switchboard::command::cal::{CalServer, CalServerFunction};
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
 use msnp::msnp::switchboard::command::iro::IroServer;
 use msnp::msnp::switchboard::command::joi::JoiServer;
+use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::switchboard::models::session_id::SessionId;
+use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
+use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use std::str::FromStr;
 use tokio::sync::mpsc::Sender;
-use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
-use msnp::shared::models::email_address::EmailAddress;
-use msnp::shared::models::font_color::FontColor;
-use msnp::shared::models::font_name::FontName;
-use msnp::shared::models::font_style::{FontStyle, FontStyles};
-use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
+use msnp::shared::models::display_name::DisplayName;
 
 const ROOM_USER_PORTAL_MODE: bool = true;
 
@@ -221,9 +220,9 @@ async fn send_active_members_notice(room: &Room, sender: &Sender<SwitchboardServ
 fn create_notice_message(text: &str) -> MsgServer {
     MsgServer{
         sender: EmailAddress::from_str("tachyon@tachyon.internal").unwrap(),
-        display_name: "System".to_string(),
+        display_name: DisplayName::new_from_ref("System"),
         payload: MsgPayload::TextPlain(
-            TextPlainMessagePayload::new(FontName::default(), FontColor::parse_from_rgb("b8b8b8").unwrap(), FontStyles::new(&[FontStyle::Bold, FontStyle::Italic]), false, text)
+            TextPlainMessagePayload::new_with_notice_style(text)
         ),
     }
 }
