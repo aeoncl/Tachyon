@@ -52,7 +52,7 @@ pub enum Error {
 }
 
 
-#[derive(Clone, Debug, Default, Hash, Eq)]
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq)]
 
 pub struct Uuid {
     uuid : uuid::Uuid
@@ -61,43 +61,43 @@ pub struct Uuid {
 impl Uuid {
 
     pub fn new() -> Uuid{
-        return Uuid{ uuid: uuid::Uuid::new_v4() };
+        Uuid{ uuid: uuid::Uuid::new_v4() }
     }
 
     pub fn from_seed(seed: &str) -> Uuid {
-        return Uuid { uuid: uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, seed.as_bytes()) }
+        Uuid { uuid: uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, seed.as_bytes()) }
     }
 
     pub fn nil() -> Uuid {
-        return Uuid { uuid: uuid::Uuid::nil() };
+        Uuid { uuid: uuid::Uuid::nil() }
     }
 
     fn get_least_significant_bytes_as_array(&self) -> [u8; 8] {
         let bytes = self.uuid.as_bytes();
         let lsb = &bytes[8..16];
-        return lsb.try_into().unwrap();
+        lsb.try_into().unwrap()
     }
     
     pub fn get_least_significant_bytes(&self) -> u64 {
         let bytes = self.uuid.as_bytes();
         let lsb = &bytes[8..16];
-        return LittleEndian::read_u64(&lsb);
+        LittleEndian::read_u64(&lsb)
     }
 
     pub fn get_least_significant_bytes_as_hex(&self) -> String {
-        return format!("{:x}", self.get_least_significant_bytes());
+        format!("{:x}", self.get_least_significant_bytes())
     }
 
     fn get_most_significant_bytes_as_array(&self) -> [u8; 8] {
         let bytes = self.uuid.as_bytes();
         let msb = &bytes[0..8];
-        return msb.try_into().unwrap();
+        msb.try_into().unwrap()
     }
 
     pub fn get_most_significant_bytes(&self) -> u64 {
         let bytes = self.uuid.as_bytes();
         let msb = &bytes[0..8];
-        return LittleEndian::read_u64(&msb);
+        LittleEndian::read_u64(&msb)
     }
 
     pub fn get_most_significant_bytes_as_hex(&self) -> String {
@@ -105,23 +105,23 @@ impl Uuid {
     }
 
     pub fn get_puid(&self) -> Puid {
-        return self.into();
+        self.into()
     }
 
     pub fn to_hex_string(&self) -> String {
-        return format!("{:x}", self.uuid.as_u128());
+        format!("{:x}", self.uuid.as_u128())
     }
 
     pub fn to_decimal_cid_string(&self) -> String {
-        return format!("{}", self.get_most_significant_bytes());
+        format!("{}", self.get_most_significant_bytes())
     }
 
     pub fn to_decimal_cid(&self) -> i64 {
-        return self.get_most_significant_bytes() as i64;
+        self.get_most_significant_bytes() as i64
     }
 
     pub fn to_hex_cid(&self) -> String {
-        return format!("{:x}", self.get_most_significant_bytes());
+        format!("{:x}", self.get_most_significant_bytes())
     }
 }
 
@@ -138,7 +138,7 @@ impl FromStr for Uuid {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let uuid = uuid::Uuid::from_str(s)?;
-        return Result::Ok(Uuid { uuid });
+        Ok(Uuid { uuid })
     }
 }
 
@@ -146,16 +146,9 @@ impl Display for Uuid {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             let out = self.uuid.to_string().to_uppercase();
-            return write!(f, "{}", out);
+            write!(f, "{}", out)
     }
 }
-
-impl PartialEq for Uuid {
-    fn eq(&self, other: &Self) -> bool {
-       self.uuid == other.uuid
-    }
-}
-
 
 #[cfg(test)]
 mod tests {
