@@ -7,6 +7,7 @@ use msnp::msnp::notification::command::msg::MsgServer;
 use msnp::msnp::switchboard::command::ack::AckServer;
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
 use msnp::msnp::switchboard::command::msg::{MsgAcknowledgment, MsgClient, MsgPayload};
+use msnp::msnp::switchboard::command::nak::NakServer;
 use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
@@ -35,8 +36,8 @@ pub(super) async fn handle_msg(msg_command: MsgClient, command_sender: Sender<Sw
                 }
                 Err(err) => {
                     match msg_command.ack_type {
-                        MsgAcknowledgment::AckOnFailure => {
-                            command_sender.send(SwitchboardServerCommand::ACK(AckServer::new(msg_command.tr_id))).await?;
+                        MsgAcknowledgment::AckOnFailure | MsgAcknowledgment::AckA | MsgAcknowledgment::AckD => {
+                            command_sender.send(SwitchboardServerCommand::NAK(NakServer::new(msg_command.tr_id))).await?;
                         }
                         _ => {}
                     }
