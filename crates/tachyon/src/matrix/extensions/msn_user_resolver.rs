@@ -154,29 +154,7 @@ pub trait FindRoomFromEmail {
 }
 
 impl FindRoomFromEmail for Client {
-
-    /// Finds a room associated with a given email address.
-    ///
-    /// This function attempts to locate a room by interpreting the email address
-    /// as a potential Room ID, following two possible formats:
-    /// 1. A version 2 Room ID format derived from the local part of the email.
-    /// 2. A version 1 Room ID format combining the local part and domain of the email.
-    ///
-    /// # Arguments
-    ///
-    /// * `email` - A reference to an `EmailAddress` instance representing the email
-    ///   address to search for associated rooms.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(Some(Room))` - If a room associated with the email is found.
-    /// * `Ok(None)` - If no room could be found for either Room ID format.
-    /// * `Err(Error)` - If an error occurs during parsing of the Room ID or other operations.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the parsing of a Room ID (version 1 or version 2) fails.
-    ///
+    
     fn find_room_from_email(&self, email: &EmailAddress) -> Result<Option<Room>, Error> {
 
         let (room_id_hashed, server_name) = email.crack();

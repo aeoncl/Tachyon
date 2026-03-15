@@ -1,12 +1,12 @@
+use crate::switchboard::models::connection_phase::ConnectionPhase;
+use crate::tachyon::tachyon_client::TachyonClient;
+use matrix_sdk::ruma::OwnedRoomId;
 use matrix_sdk::Room;
-use tokio::sync::broadcast::Receiver;
 use msnp::msnp::notification::models::endpoint_guid::EndpointGuid;
 use msnp::msnp::switchboard::models::session_id::SessionId;
 use msnp::shared::models::email_address::EmailAddress;
-use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::ticket_token::TicketToken;
-use crate::tachyon::tachyon_client::TachyonClient;
-use crate::switchboard::models::connection_phase::ConnectionPhase;
+use tokio::sync::broadcast::Receiver;
 
 pub struct LocalSwitchboardData {
     pub(crate) phase: ConnectionPhase,
@@ -16,6 +16,7 @@ pub struct LocalSwitchboardData {
     pub(crate) tachyon_client: Option<TachyonClient>,
     pub(crate) client_kill_recv: Receiver<()>,
     pub(crate) room: Option<Room>,
+    pub(crate) room_id: Option<OwnedRoomId>,
     pub(crate) session_id: SessionId
 }
 
@@ -29,6 +30,7 @@ impl LocalSwitchboardData {
             tachyon_client: None,
             client_kill_recv,
             room: None,
+            room_id: None,
             session_id: SessionId::empty(),
         }
     }

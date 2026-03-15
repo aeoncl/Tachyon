@@ -54,10 +54,19 @@ impl SwitchboardHandle {
         Ok(self.switchboard_state.lock().map_err(|e| anyhow::anyhow!("Failed to acquire switchboard state lock: {}", e))?.clone())
     }
 
-    pub fn set_state(&mut self, state: SwitchboardState) -> Result<(), anyhow::Error> {
+    pub async fn set_state(&mut self, state: SwitchboardState) -> Result<(), anyhow::Error> {
 
-        let mut lock = self.switchboard_state.lock().map_err(|e| anyhow::anyhow!("{}", e))?;
-        let _ = mem::replace(&mut *lock, state);
+        let send_events = matches!(&state, SwitchboardState::Ready {..});
+        
+        {
+            let mut lock = self.switchboard_state.lock().map_err(|e| anyhow::anyhow!("{}", e))?;
+            let _ = mem::replace(&mut *lock, state);
+        }
+
+        if send_events {
+            self.send_pending_events().await?
+        }
+
         Ok(())
     }
 

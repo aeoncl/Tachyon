@@ -18,6 +18,7 @@ use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::str::FromStr;
 use tokio::sync::mpsc::Sender;
+use msnp::shared::models::email_address::EmailAddress;
 
 pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, client_store: &ClientStoreFacade, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
 
@@ -38,6 +39,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
                             local_switchboard_data.email_addr = room_msn_user.get_email_address().clone();
                             local_switchboard_data.endpoint_guid = room_msn_user.endpoint_id.endpoint_guid.clone();
                             local_switchboard_data.tachyon_client = Some(tachyon_client.clone());
+                            local_switchboard_data.room_id = Some(room.room_id().to_owned());
                             local_switchboard_data.room = Some(room.clone());
                             local_switchboard_data.phase = ConnectionPhase::Initializing;
 
@@ -68,7 +70,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
                             //set handle as ready
                             switchboard_handle.set_state(SwitchboardState::Ready {
                                 msnp_sender: command_sender.clone()
-                            })?;
+                            }).await?;
 
                         }
                     };
@@ -139,7 +141,7 @@ pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sende
                 if let Some(room) = maybe_found {
                     let target_room_user = room.to_msn_user_lazy().await?;
 
-
+                    local_switchboard_data.room_id = Some(room.room_id().to_owned());
                     local_switchboard_data.room = Some(room.clone());
                     local_switchboard_data.phase = ConnectionPhase::Ready;
 
@@ -197,7 +199,7 @@ async fn get_initial_roster(room: Room) -> Result<Vec<MsnUser>, anyhow::Error> {
 
         out.push(member.to_msn_user_lazy().await?);
     }
-
+    
     Ok(out)
 }
 

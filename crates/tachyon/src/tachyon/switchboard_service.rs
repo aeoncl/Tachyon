@@ -68,65 +68,23 @@ impl SwitchboardService {
         let switchboard = SwitchboardHandle::new(SessionId::random(), room_id.to_owned());
         self.tachyon_client.inner.switchboards.insert(room_id.to_owned(), switchboard.clone());
 
-        let switchboard_handle_clone = switchboard.clone();
         let notification_client_clone = self.tachyon_client.notification_handle().clone();
 
         let inviter_clone = inviter.clone();
         let token = self.tachyon_client.ticket_token().0;
         let room_id = room_id.to_owned();
 
-        let sb_service_clone = self.tachyon_client.switchboards();
-        //TODO make a task that checks on all SBs instead of just one.
-
         tokio::spawn(async move {
-            let max_tries = 3;
-            for current_try in 0..max_tries {
-                let _ = notification_client_clone.send(
-                    NotificationServerCommand::RNG(
-                        RngServer::new(
-                            SessionId::random(),
-                            IpAddress::new(Ipv4Addr::new(127, 0, 0, 1), 1864),
-                            SwitchboardToken::new(room_id.clone(), token.clone()).into(),
-                            inviter_clone.get_email_address().clone(),
-                            inviter_clone.compute_display_name().to_string()
-                        )
-                    )
-                ).await;
-
-                let retry_strategy = ExponentialBackoff::from_millis(10)
-                    .factor(1)
-                    .max_delay_millis(50000)
-                    .max_interval(5000)
-                    .take(10);
-
-                let room_id_clone = room_id.clone();
-                let sb_service_clone_clone = sb_service_clone.clone();
-
-                let result = Retry::spawn(retry_strategy, move || {
-                    let sb_service_clone = sb_service_clone_clone.clone();
-                    let switchboard = sb_service_clone.get(&room_id_clone).unwrap();
-                    async move {
-                        Self::check_sb_initialized(switchboard.clone())
-                    }
-                }
-                ).await;
-
-                match result {
-                    Ok(_) => {
-                        debug!("Switchboard {} is initialized", &switchboard_handle_clone.room_id);
-                        switchboard_handle_clone.send_pending_events().await;
-                        return;
-                    }
-                    Err(e) => {
-                        debug!("Failed to initialize Switchboard for room: {} (try {} of {})", &switchboard_handle_clone.room_id, current_try, max_tries);
-                        trace!("Switchboard initialization error: {:?}", e);
-                    }
-                }
-            }
-
-            error!("Failed to initialize Switchboard for room: {}, killing client.", &switchboard_handle_clone.room_id);
             let _ = notification_client_clone.send(
-                NotificationServerCommand::OUT
+                NotificationServerCommand::RNG(
+                    RngServer::new(
+                        SessionId::random(),
+                        IpAddress::new(Ipv4Addr::new(127, 0, 0, 1), 1864),
+                        SwitchboardToken::new(room_id.clone(), token.clone()).into(),
+                        inviter_clone.get_email_address().clone(),
+                        inviter_clone.compute_display_name().to_string()
+                    )
+                )
             ).await;
         });
 

@@ -13,6 +13,7 @@ use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
 use msnp::shared::payload::msg::service_msg::ServiceMessagePayload;
 use msnp::shared::traits::MSNPPayload;
+use crate::matrix::extensions::message_dedup::SendWithDedup;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::tachyon::tachyon_client::TachyonClient;
 
@@ -25,7 +26,7 @@ pub(super) async fn handle_msg(msg_command: MsgClient, command_sender: Sender<Sw
         MsgPayload::TextPlain(text_plain) => {
 
             let message = RoomMessageEventContent::text_plain(text_plain.body);
-            match room.send(message).await {
+            match room.send_with_dedup(message).await {
                 Ok(_) => {
                     match msg_command.ack_type {
                         MsgAcknowledgment::AckA | MsgAcknowledgment::AckD => {

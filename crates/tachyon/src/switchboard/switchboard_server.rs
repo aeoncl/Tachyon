@@ -124,7 +124,13 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
 
     client_kill_snd.send(())?;
 
-    //Todo cleanup everything registered here
+    //Cleanup
+    if let Some(room_id) = local_switchboard_data.room_id {
+        if let Some(client) = local_switchboard_data.tachyon_client {
+            client.switchboards().remove(&room_id);
+        }
+    }
+    
     info!("SB Client gracefully shutdown...");
     Ok(())
 }

@@ -9,6 +9,7 @@ use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use crate::matrix::extensions::direct::DirectRoom;
+use crate::matrix::extensions::message_dedup::SendWithDedup;
 
 pub async fn handle_message(
     event: OriginalSyncRoomMessageEvent,
@@ -17,6 +18,10 @@ pub async fn handle_message(
     client: Client,
 ) {
 
+    if room.is_event_deduped(event.event_id.as_ref()) {
+        return;
+    }
+    
     let room_user = room.to_msn_user_lazy().await.unwrap();
     let switchboard = context.client_data.switchboards().get_or_initialize(room.room_id(), &room_user);
 
