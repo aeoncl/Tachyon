@@ -13,3 +13,6 @@ pub mod network_id_email;
 pub mod b64_string;
 pub mod url_encoded_string;
 pub mod display_name;
+pub mod font_family;
+pub mod font_style;
+pub mod font_color;

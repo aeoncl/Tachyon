@@ -15,6 +15,7 @@ use crate::msnp::error::{CommandError, PayloadError};
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
+use crate::shared::payload::msg::service_msg::ServiceMessagePayload;
 use crate::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use crate::shared::traits::{MSGPayload, MSNPCommand, MSNPPayload};
 
@@ -88,7 +89,8 @@ impl MSNPCommand for MsgServer {
 
 pub enum MsgPayload {
     Raw(RawMsgPayload),
-    TextPlain(TextPlainMessagePayload)
+    TextPlain(TextPlainMessagePayload),
+    ServiceMessage(ServiceMessagePayload)
 }
 
 impl MSNPPayload for MsgPayload {
@@ -104,6 +106,10 @@ impl MSNPPayload for MsgPayload {
             MsgContentType::Profile => { Ok(MsgPayload::Raw(raw_msg_payload))}
             MsgContentType::InitialMailDataNotification => {Ok(MsgPayload::Raw(raw_msg_payload))}
             MsgContentType::SystemMessage => {Ok(MsgPayload::Raw(raw_msg_payload))}
+            MsgContentType::ServiceMessage => {
+                let service_msg_payload = ServiceMessagePayload::try_from_raw(raw_msg_payload)?;
+                Ok(MsgPayload::ServiceMessage(service_msg_payload))
+            }
             MsgContentType::Control => {Ok(MsgPayload::Raw(raw_msg_payload))}
             MsgContentType::Datacast => {Ok(MsgPayload::Raw(raw_msg_payload))}
             MsgContentType::P2P => {Ok(MsgPayload::Raw(raw_msg_payload))}
@@ -115,6 +121,7 @@ impl MSNPPayload for MsgPayload {
         match self {
             MsgPayload::Raw(payload) => { payload.into_bytes() }
             MsgPayload::TextPlain(payload) => { payload.into_bytes() }
+            MsgPayload::ServiceMessage(payload) => {payload.into_bytes()}
         }
     }
 }

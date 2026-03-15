@@ -12,6 +12,7 @@ use thiserror::Error;
 use tokio::sync::mpsc::Sender;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
+use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::oim::OIM;
 use msnp::shared::models::uuid::Uuid;
@@ -141,7 +142,7 @@ pub async fn handle_oims(client: Client, response: SyncResponse, mut client_data
 
     notif_sender.send(NotificationServerCommand::MSG(MsgServer {
         sender: "Hotmail".to_string(),
-        display_name: "Hotmail".to_string(),
+        display_name: DisplayName::new_from_ref("Hotmail"),
         payload: MsgPayload::Raw(payload)
     })).await?;
 

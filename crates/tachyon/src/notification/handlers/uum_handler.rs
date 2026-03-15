@@ -2,7 +2,7 @@ use crate::tachyon::tachyon_client::TachyonClient;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::uum::{UumClient, UumPayload};
-use msnp::shared::payload::msg::text_plain_msg::FontStyle;
+use msnp::shared::models::font_style::FontStyle;
 use tokio::sync::mpsc::Sender;
 use crate::matrix::extensions::msn_user_resolver::FindRoomFromEmail;
 pub async fn handle_uum(command: UumClient, client_data: TachyonClient, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {

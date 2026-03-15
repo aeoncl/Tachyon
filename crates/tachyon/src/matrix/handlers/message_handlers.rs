@@ -6,6 +6,7 @@ use matrix_sdk::{Client, Room};
 use matrix_sdk::ruma::OwnedUserId;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
+use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use crate::matrix::extensions::direct::DirectRoom;
 
@@ -32,7 +33,9 @@ pub async fn handle_message(
         }
 
     } else {
-        context.client_data.own_user().unwrap()
+        let mut own_user = context.client_data.own_user().unwrap();
+        own_user.endpoint_id = EndpointId::from_email_addr(own_user.get_email_address().clone());
+        own_user
     };
 
 

@@ -22,8 +22,9 @@ mod tests {
     use crate::msnp::raw_command_parser::RawCommandParser;
     use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::endpoint_id::EndpointId;
+    use crate::shared::models::font_style::FontStyle;
     use crate::shared::models::network_id::NetworkId;
-    use crate::shared::payload::msg::text_plain_msg::{FontStyle, TextPlainMessagePayload};
+    use crate::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
     use crate::shared::traits::MSNPCommand;
 
     use super::{UumClient, UumPayload};

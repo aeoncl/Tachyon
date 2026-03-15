@@ -21,8 +21,11 @@ pub enum MsgContentType {
     #[strum(serialize = "text/x-msmsgsinitialmdatanotification; charset=UTF-8", ascii_case_insensitive)]
     InitialMailDataNotification,
 
-    #[strum(serialize = "application/x-msmsgssystemmessage; charset=UTF-8", ascii_case_insensitive)]
+    #[strum(serialize = "text/x-msmsgssystemmessage; charset=UTF-8", ascii_case_insensitive)]
     SystemMessage,
+
+    #[strum(serialize = "text/x-msmsgsservicemessage; charset=UTF-8", ascii_case_insensitive)]
+    ServiceMessage,
 
     #[strum(serialize = "text/x-msmsgscontrol", ascii_case_insensitive)]
     Control,
@@ -67,6 +70,10 @@ impl RawMsgPayload {
     pub fn get_content_type(&self) -> Result<MsgContentType, PayloadError>  {
         let raw_content_type = self.get_header("Content-Type").ok_or(anyhow!("Content-Type not present in MSG Payload"))?;
         Ok(MsgContentType::from_str(raw_content_type).map_err(|e| anyhow!(e))?)
+    }
+
+    pub fn set_content_type(&mut self, content_type: MsgContentType) {
+        self.headers.insert("Content-Type".into(), content_type.to_string());
     }
 
     pub fn add_header(&mut self, name: &str, value: &str){

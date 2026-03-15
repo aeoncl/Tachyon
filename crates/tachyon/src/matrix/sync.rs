@@ -28,6 +28,7 @@ use tokio::sync::mpsc::error::SendTimeoutError;
 use msnp::msnp::notification::command::nln::NlnServer;
 use msnp::msnp::notification::command::not::factories::NotificationFactory;
 use msnp::msnp::notification::command::not::NotServer;
+use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::presence_status::PresenceStatus;
 
 const REQUIRED_STATE: &[(StateEventType, &str)] = &[
@@ -164,7 +165,7 @@ async fn handle_first_sync(client_data: &TachyonClient) -> Result<(), anyhow::Er
     // This is sent to make the client pass the logon screen. Timeout of the logon screen is 1 minute.
     let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
         sender: "Hotmail".to_string(),
-        display_name: "Hotmail".to_string(),
+        display_name: DisplayName::new_from_ref("Hotmail"),
         payload: MsgPayload::Raw(RawMsgPayloadFactory::get_msmsgs_profile(
             &me.uuid.get_puid(),
             me.get_email_address(),

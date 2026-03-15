@@ -1,12 +1,14 @@
 
 use crate::msnp::error::{CommandError, PayloadError};
 use crate::msnp::raw_command_parser::RawCommand;
+use crate::shared::models::display_name::DisplayName;
+use crate::shared::models::email_address::EmailAddress;
 use crate::shared::payload::msg::raw_msg_payload::RawMsgPayload;
 use crate::shared::traits::{MSNPCommand, MSNPPayload};
 
 pub struct MsgServer {
     pub sender: String,
-    pub display_name: String,
+    pub display_name: DisplayName,
     pub payload: MsgPayload
 }
 

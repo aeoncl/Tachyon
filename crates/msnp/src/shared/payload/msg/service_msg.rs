@@ -9,10 +9,10 @@ use crate::msnp::error::PayloadError;
 use crate::shared::models::font_color::FontColor;
 use crate::shared::models::font_family::{DefaultFont, FontFamily};
 use crate::shared::models::font_style::FontStyles;
-use crate::shared::payload::msg::raw_msg_payload::MsgContentType::TextPlain;
+use crate::shared::payload::msg::raw_msg_payload::MsgContentType::{ServiceMessage, TextPlain};
 use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
 use crate::shared::traits::{MSGPayload, MSNPPayload};
-pub struct TextPlainMessagePayload {
+pub struct ServiceMessagePayload {
     pub font_family: FontFamily,
     pub right_to_left: bool,
     pub font_styles: FontStyles,
@@ -20,12 +20,12 @@ pub struct TextPlainMessagePayload {
     pub body : String,
 }
 
-impl MSGPayload for TextPlainMessagePayload {
+impl MSGPayload for ServiceMessagePayload {
     type Err = PayloadError;
 
     fn try_from_raw(mut raw: RawMsgPayload) -> Result<Self, Self::Err> where Self: Sized {
 
-        if MsgContentType::TextPlain != raw.get_content_type().unwrap() {
+        if MsgContentType::ServiceMessage != raw.get_content_type().unwrap() {
             return Err(PayloadError::PayloadPropertyParseError {
                 property_name: "Content-Type".to_string(),
                 raw_value: format!("{:?}", raw),
@@ -57,7 +57,7 @@ impl MSGPayload for TextPlainMessagePayload {
         let body =  String::from_utf8(raw.body)?;
 
         Ok(
-            TextPlainMessagePayload {
+            ServiceMessagePayload {
                 font_family,
                 right_to_left,
                 font_styles: FontStyles::from_str(font_styles).expect("To be infaillible"),
@@ -68,14 +68,14 @@ impl MSGPayload for TextPlainMessagePayload {
     }
 
     fn into_bytes(self) -> Vec<u8> {
-        let mut out = RawMsgPayload::new(TextPlain, false);
+        let mut out = RawMsgPayload::new(ServiceMessage, false);
         out.add_header_owned("X-MMS-IM-Format".into(), self.get_mms_format_header());
         out.set_body_string(self.body);
         out.into_bytes()
     }
 }
 
-impl TextPlainMessagePayload {
+impl ServiceMessagePayload {
 
     pub fn new_with_default_style(body: &str) -> Self {
         Self {
