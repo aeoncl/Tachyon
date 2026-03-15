@@ -18,7 +18,14 @@ use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::str::FromStr;
 use tokio::sync::mpsc::Sender;
+use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
 use msnp::shared::models::email_address::EmailAddress;
+use msnp::shared::models::font_color::FontColor;
+use msnp::shared::models::font_name::FontName;
+use msnp::shared::models::font_style::{FontStyle, FontStyles};
+use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
+
+const ROOM_USER_PORTAL_MODE: bool = true;
 
 pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, client_store: &ClientStoreFacade, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
 
@@ -45,7 +52,12 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
 
 
                             //Send Initial roster = everyone but me
-                            let mut initial_roster = get_initial_roster_with_room_user(room, room_msn_user.clone()).await?;
+                            let mut initial_roster = if ROOM_USER_PORTAL_MODE {
+                                vec![room_msn_user.clone()]
+                            } else {
+                                get_initial_roster_with_room_user(&room, room_msn_user.clone()).await?
+                            };
+
                             let count = initial_roster.len() as u32;
                             let mut index = 1;
                             for member in initial_roster.drain(..) {
@@ -62,6 +74,10 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
                                 endpoint_id: me.endpoint_id.clone(),
                                 capabilities: me.capabilities.clone(),
                             })).await?;
+
+                            if ROOM_USER_PORTAL_MODE {
+                                send_active_members_notice(&room, &command_sender).await?;
+                            }
 
                             local_switchboard_data.phase = ConnectionPhase::Ready;
 
@@ -151,22 +167,28 @@ pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sende
                     tachyon_client.switchboards().insert(switchboard_handle)?;
 
                     let command_sender_clone = command_sender.clone();
-                    tokio::spawn(async move {
-                        let mut result = get_initial_roster(room).await;
-                        match result {
-                            Ok(mut initial_roster) => {
-                                for member in initial_roster.drain(..) {
-                                    if let Err(_) = send_initial_joined_member(member, &command_sender_clone.clone()).await {
-                                        //TODO we should retry here or disconnect
 
+                    if ROOM_USER_PORTAL_MODE {
+                        send_active_members_notice(&room, &command_sender_clone).await?;
+                    } else {
+                        tokio::spawn(async move {
+                            let mut result = get_initial_roster(&room).await;
+                            match result {
+                                Ok(mut initial_roster) => {
+
+
+                                    for member in initial_roster.drain(..) {
+                                        if let Err(_) = send_initial_joined_member(member, &command_sender_clone.clone()).await {
+                                            //TODO we should retry here or disconnect
+
+                                        }
                                     }
                                 }
-                            }
-                            Err(err) => {
-                                //Todo disconnect if we cannot fetch members.
-                            }
-                        }});
-
+                                Err(err) => {
+                                    //Todo disconnect if we cannot fetch members.
+                                }
+                            }});
+                    }
                 }
 
 
@@ -184,7 +206,29 @@ pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sende
     Ok(())
 }
 
-async fn get_initial_roster(room: Room) -> Result<Vec<MsnUser>, anyhow::Error> {
+async fn send_active_members_notice(room: &Room, sender: &Sender<SwitchboardServerCommand>) -> Result<(), anyhow::Error> {
+    let active = room.active_members_count();
+    if !room.is_valid_one_to_one_direct() || active > 2 {
+        let heroes_string = room.heroes().drain(..).map(|hero| hero.display_name.unwrap_or(hero.user_id.to_string())).reduce(|acc, hero| format!("{}, {}", acc, hero));
+        sender.send(SwitchboardServerCommand::MSG(create_notice_message(format!("This room is a portal room.\r\nYou are sharing it with {} other member(s).\r\n", active-1).as_str()))).await?;
+        if let Some(heroes) = heroes_string {
+            sender.send(SwitchboardServerCommand::MSG(create_notice_message(format!("Room heroes: {}\r\n", heroes).as_str()))).await?;
+        }
+    }
+    Ok(())
+}
+
+fn create_notice_message(text: &str) -> MsgServer {
+    MsgServer{
+        sender: EmailAddress::from_str("tachyon@tachyon.internal").unwrap(),
+        display_name: "System".to_string(),
+        payload: MsgPayload::TextPlain(
+            TextPlainMessagePayload::new(FontName::default(), FontColor::parse_from_rgb("b8b8b8").unwrap(), FontStyles::new(&[FontStyle::Bold, FontStyle::Italic]), false, text)
+        ),
+    }
+}
+
+async fn get_initial_roster(room: &Room) -> Result<Vec<MsnUser>, anyhow::Error> {
     let mut out = Vec::new();
 
     let direct_target = room.get_single_direct_target();
@@ -199,11 +243,11 @@ async fn get_initial_roster(room: Room) -> Result<Vec<MsnUser>, anyhow::Error> {
 
         out.push(member.to_msn_user_lazy().await?);
     }
-    
+
     Ok(out)
 }
 
-async fn get_initial_roster_with_room_user(room: Room, room_msn_user: MsnUser) -> Result<Vec<MsnUser>, anyhow::Error> {
+async fn get_initial_roster_with_room_user(room: &Room, room_msn_user: MsnUser) -> Result<Vec<MsnUser>, anyhow::Error> {
     let mut out = get_initial_roster(room).await?;
     out.push(room_msn_user);
     Ok(out)

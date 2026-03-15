@@ -11,6 +11,11 @@ impl FontStyles {
         let and = self.0 & font_style_as_int;
         and == font_style_as_int
     }
+
+    pub fn new(styles: &[FontStyle]) -> Self {
+        let styles = styles.iter().fold(0, |acc, style| acc | (*style as u32));
+        Self(styles)
+    }
     
     pub fn value(&self) -> u32 {
         self.0
@@ -69,6 +74,7 @@ impl Display for FontStyles {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FontStyle {
     Bold = 0x1,
     Italic = 0x2,

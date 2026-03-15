@@ -7,13 +7,13 @@ use anyhow::anyhow;
 use byteorder::ByteOrder;
 use crate::msnp::error::PayloadError;
 use crate::shared::models::font_color::FontColor;
-use crate::shared::models::font_family::{DefaultFont, FontFamily};
+use crate::shared::models::font_name::{DefaultFont, FontName};
 use crate::shared::models::font_style::FontStyles;
 use crate::shared::payload::msg::raw_msg_payload::MsgContentType::TextPlain;
 use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
 use crate::shared::traits::{MSGPayload, MSNPPayload};
 pub struct TextPlainMessagePayload {
-    pub font_family: FontFamily,
+    pub font_family: FontName,
     pub right_to_left: bool,
     pub font_styles: FontStyles,
     pub font_color: FontColor,
@@ -46,7 +46,7 @@ impl MSGPayload for TextPlainMessagePayload {
         }
 
         let font_family = format_header_map.get("FN").ok_or(PayloadError::MandatoryPartNotFound{ name: "FN".to_string(), payload: "".to_string() })?;
-        let font_family = FontFamily::from_str(font_family).map_err(|e| PayloadError::AnyError(anyhow!(e)))?;
+        let font_family = FontName::from_str(font_family).map_err(|e| PayloadError::AnyError(anyhow!(e)))?;
 
         let right_to_left = format_header_map.get("RL").unwrap_or(&"0") == &"1";
 
@@ -79,7 +79,7 @@ impl TextPlainMessagePayload {
 
     pub fn new_with_default_style(body: &str) -> Self {
         Self {
-            font_family: FontFamily::default_font(),
+            font_family: FontName::default_font(),
             right_to_left: false,
             font_styles: Default::default(),
             font_color: Default::default(),
@@ -87,7 +87,7 @@ impl TextPlainMessagePayload {
         }
     }
 
-    pub fn new(font_family: FontFamily, font_color: FontColor, font_styles: FontStyles, right_to_left: bool, body: &str) -> Self {
+    pub fn new(font_family: FontName, font_color: FontColor, font_styles: FontStyles, right_to_left: bool, body: &str) -> Self {
         Self{
             font_family,
             right_to_left,
@@ -110,7 +110,7 @@ impl TextPlainMessagePayload {
     }
 
     pub fn is_default_font(&self) -> bool {
-        self.font_family == FontFamily::default_font()
+        self.font_family == FontName::default_font()
     }
 
     pub fn get_mms_format_header(&self) -> String {
