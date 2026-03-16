@@ -5,7 +5,7 @@ use crate::shared::command::ok::OkCommand;
 use crate::shared::models::b64_string::Base64String;
 use crate::shared::models::endpoint_id::EndpointId;
 use crate::shared::models::ticket_token::TicketToken;
-use crate::shared::traits::MSNPCommand;
+use crate::shared::traits::TryFromRawCommand;
 
 // Answers an XFR command from the Notification Sever, joining a Switchboard
 // >>> ANS 3 aeontest@shl.local;{F52973B6-C926-4BAD-9BA8-7C1E840E4AB0} base64token 4060759068338340280
@@ -17,7 +17,7 @@ pub struct AnsClient {
     pub session_id: u64
 }
 
-impl MSNPCommand for AnsClient {
+impl TryFromRawCommand for AnsClient {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
@@ -42,10 +42,6 @@ impl MSNPCommand for AnsClient {
             token,
             session_id
         })
-    }
-
-    fn into_bytes(self) -> Vec<u8> {
-        todo!()
     }
 }
 

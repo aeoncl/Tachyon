@@ -1,4 +1,3 @@
-use std::fmt::{Display, Formatter};
 use crate::msnp::error::CommandError;
 use crate::msnp::notification::models::ip_address::IpAddress;
 use crate::msnp::raw_command_parser::RawCommand;
@@ -6,7 +5,8 @@ use crate::msnp::switchboard::models::auth_method::AuthenticationMethod;
 use crate::msnp::switchboard::models::session_id::SessionId;
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::ticket_token::TicketToken;
-use crate::shared::traits::MSNPCommand;
+use crate::shared::traits::{IntoBytes, TryFromRawCommand};
+use std::fmt::{Display, Formatter};
 
 pub struct RngServer {
     session_id: SessionId,
@@ -30,7 +30,7 @@ impl RngServer {
     }
 }
 
-impl MSNPCommand for RngServer {
+impl TryFromRawCommand for RngServer {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err>
@@ -40,6 +40,9 @@ impl MSNPCommand for RngServer {
         todo!()
     }
 
+}
+
+impl IntoBytes for RngServer {
     fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }

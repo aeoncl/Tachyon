@@ -1,24 +1,26 @@
-
-use yaserde::ser::to_string_with_config;
-use yaserde_derive::{YaDeserialize, YaSerialize};
 use crate::msnp::error::PayloadError;
 use crate::msnp::raw_command_parser::RawCommand;
-use crate::shared::traits::{MSNPCommand, MSNPPayload};
+use crate::shared::traits::{IntoBytes, TryFromBytes, TryFromRawCommand};
 use crate::soap::error::SoapMarshallError;
 use crate::soap::traits::xml::ToXml;
+use yaserde::ser::to_string_with_config;
+use yaserde_derive::{YaDeserialize, YaSerialize};
 
 //NOT {payload_size}\r\n{payload}
 pub struct NotServer {
     pub payload: NotificationPayload
 }
 
-impl MSNPCommand for NotServer {
+impl TryFromRawCommand for NotServer {
     type Err = PayloadError;
 
     fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
         todo!()
     }
 
+}
+
+impl IntoBytes for NotServer {
     fn into_bytes(self) -> Vec<u8> {
 
         let mut payload = self.payload.into_bytes();
@@ -30,13 +32,16 @@ impl MSNPCommand for NotServer {
 }
 
 
-impl MSNPPayload for NotificationPayload {
+impl TryFromBytes for NotificationPayload {
     type Err = PayloadError;
 
     fn try_from_bytes(_bytes: Vec<u8>) -> Result<Self, Self::Err> where Self: Sized {
         todo!()
     }
 
+}
+
+impl IntoBytes for NotificationPayload {
     fn into_bytes(self) -> Vec<u8> {
         self.to_xml().expect("To work").into_bytes()
     }
@@ -153,7 +158,7 @@ impl ToXml for NotificationData {
 
 pub mod factories {
     use chrono::Local;
-    
+
     use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::uuid::Uuid;
     use crate::soap::traits::xml::ToXml;
@@ -217,9 +222,9 @@ pub mod factories {
 mod tests {
     use std::str::FromStr;
 
-    use crate::{msnp::notification::command::not::factories::NotificationFactory, shared::models::msn_user::MsnUser};
     use crate::shared::models::email_address::EmailAddress;
     use crate::soap::traits::xml::ToXml;
+    use crate::{msnp::notification::command::not::factories::NotificationFactory, shared::models::msn_user::MsnUser};
 
     #[test]
     fn ab_notification_test_2() {

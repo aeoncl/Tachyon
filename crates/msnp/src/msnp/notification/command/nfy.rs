@@ -3,7 +3,7 @@ use strum_macros::{Display, EnumString};
 use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::payload::nfy::nfy_put_payload::RawNfyPayload;
-use crate::shared::traits::{MSNPCommand, MSNPPayload};
+use crate::shared::traits::{IntoBytes, TryFromBytes, TryFromRawCommand};
 
 pub struct NfyServer {
     pub operation: NfyOperation,
@@ -19,13 +19,16 @@ pub enum NfyOperation {
     Del
 }
 
-impl MSNPCommand for NfyServer {
+impl TryFromRawCommand for NfyServer {
     type Err = CommandError;
 
     fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
         todo!()
     }
+    
+}
 
+impl IntoBytes for NfyServer {
     fn into_bytes(self) -> Vec<u8> {
         let mut payload = self.payload.into_bytes();
 

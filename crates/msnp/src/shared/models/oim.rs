@@ -5,9 +5,9 @@ use std::str::{from_utf8, FromStr};
 use chrono::{DateTime, Utc};
 use xml::attribute::OwnedAttribute;
 use xml::namespace::Namespace;
-use yaserde::{YaDeserialize, YaSerialize};
 use yaserde::de::Deserializer;
-use yaserde::ser::{Serializer, to_string_with_config};
+use yaserde::ser::{to_string_with_config, Serializer};
+use yaserde::{YaDeserialize, YaSerialize};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
 use crate::msnp::error::PayloadError;
@@ -16,7 +16,7 @@ use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::uuid::Uuid;
 use crate::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use crate::shared::payload::msg::raw_msg_payload::MsgContentType;
-use crate::shared::traits::MSNPPayload;
+use crate::shared::traits::{IntoBytes, TryFromBytes};
 use crate::soap::error::SoapMarshallError;
 use crate::soap::traits::xml::ToXml;
 

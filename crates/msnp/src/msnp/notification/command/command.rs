@@ -1,7 +1,5 @@
-
 use strum_macros::Display;
 
-use crate::msnp::{error::CommandError, raw_command_parser::RawCommand};
 use crate::msnp::notification::command::blp::BlpServer;
 use crate::msnp::notification::command::chg::ChgServer;
 use crate::msnp::notification::command::cvr::CvrServer;
@@ -20,8 +18,9 @@ use crate::msnp::notification::command::uum::UumClient;
 use crate::msnp::notification::command::uux::UuxServer;
 use crate::msnp::notification::command::ver::VerServer;
 use crate::msnp::notification::command::xfr::{XfrClient, XfrServer};
+use crate::msnp::{error::CommandError, raw_command_parser::RawCommand};
 use crate::shared::command::ok::OkCommand;
-use crate::shared::traits::MSNPCommand;
+use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 
 use super::{adl::{AdlClient, RmlClient}, blp::BlpClient, chg::ChgClient, cvr::CvrClient, prp::PrpClient, usr::UsrClient, uun::UunClient, uux::UuxClient, ver::VerClient};
 
@@ -46,7 +45,7 @@ pub enum NotificationClientCommand {
     RAW(RawCommand)
 }
 
-impl MSNPCommand for NotificationClientCommand {
+impl TryFromRawCommand for NotificationClientCommand {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
@@ -74,9 +73,6 @@ impl MSNPCommand for NotificationClientCommand {
         Ok(out)
     }
 
-    fn into_bytes(self) -> Vec<u8> {
-        todo!()
-    }
 }
 
 
@@ -107,13 +103,17 @@ pub enum NotificationServerCommand {
     RAW(RawCommand)
 }
 
-impl MSNPCommand for NotificationServerCommand {
+impl TryFromRawCommand for NotificationServerCommand {
     type Err = CommandError;
 
     fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
         todo!()
     }
 
+
+}
+
+impl IntoBytes for NotificationServerCommand {
     fn into_bytes(self) -> Vec<u8> {
         match self {
             NotificationServerCommand::VER(command) => command.into_bytes(),
@@ -140,4 +140,3 @@ impl MSNPCommand for NotificationServerCommand {
         }
     }
 }
-

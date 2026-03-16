@@ -1,7 +1,7 @@
 use std::{fmt::Display, str::FromStr};
 
 use crate::msnp::{error::{CommandError, PayloadError}, notification::models::endpoint_data::PrivateEndpointData, raw_command_parser::RawCommand};
-use crate::shared::traits::{MSNPCommand, MSNPPayload};
+use crate::shared::traits::{TryFromRawCommand, TryFromBytes, IntoBytes};
 
 pub struct Uux {
     pub tr_id : u128,
@@ -25,7 +25,7 @@ impl Display for Uux {
     }
 }
 
-impl MSNPCommand for Uux {
+impl TryFromRawCommand for Uux {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
@@ -45,9 +45,13 @@ impl MSNPCommand for Uux {
         })
     }
 
+}
+
+impl IntoBytes for Uux {
     fn into_bytes(self) -> Vec<u8> {
         self.to_string().as_bytes().to_vec()
     }
+
 }
 
 impl Uux {
@@ -65,14 +69,16 @@ pub enum UuxPayload {
     Unknown(String)
 }
 
-impl MSNPPayload for UuxPayload {
+impl TryFromBytes for UuxPayload {
     type Err = PayloadError;
 
     fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> {
         let payload = String::from_utf8(bytes)?;
         UuxPayload::from_str(&payload)
     }
+}
 
+impl IntoBytes for UuxPayload {
     fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
@@ -110,7 +116,7 @@ mod tests {
     use std::str::FromStr;
 
     use crate::msnp::{error::{CommandError, PayloadError}, notification::command::uux::{Uux, UuxPayload}, raw_command_parser::RawCommand};
-    use crate::shared::traits::MSNPCommand;
+    use crate::shared::traits::TryFromRawCommand;
 
     use super::UuxClient;
 

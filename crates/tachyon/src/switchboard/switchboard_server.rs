@@ -6,7 +6,7 @@ use log::{debug, error, info};
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::raw_command_parser::RawCommandParser;
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
-use msnp::shared::traits::MSNPCommand;
+use msnp::shared::traits::{IntoBytes, TryFromRawCommand};
 use std::str::from_utf8_unchecked;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::tcp::OwnedWriteHalf;

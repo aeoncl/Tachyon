@@ -10,15 +10,15 @@ use strum_macros::{Display, EnumString};
 use crate::msnp::error::PayloadError;
 use crate::shared::models::network_id_email::NetworkIdEmail;
 use crate::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
-use crate::shared::traits::MSNPPayload;
+use crate::shared::traits::{IntoBytes, TryFromBytes};
 
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
 
-    use crate::shared::models::network_id_email::NetworkIdEmail;
     use super::{NfyContentType, NfyEnvelope, RawNfyPayload};
-    use crate::shared::traits::MSNPPayload;
+    use crate::shared::models::network_id_email::NetworkIdEmail;
+    use crate::shared::traits::{IntoBytes, TryFromBytes};
 
     #[test]
     fn test_put_envelope_serialize() {
@@ -360,7 +360,7 @@ impl RawNfyPayload {
     }
 }
 
-impl MSNPPayload for RawNfyPayload {
+impl TryFromBytes for RawNfyPayload {
     type Err = PayloadError;
 
     fn try_from_bytes(mut bytes: Vec<u8>) -> Result<Self, Self::Err> {
@@ -437,6 +437,10 @@ impl MSNPPayload for RawNfyPayload {
 
         Ok(out)
     }
+
+}
+
+impl IntoBytes for RawNfyPayload {
 
     fn into_bytes(mut self) -> Vec<u8> {
         let mut out = self.envelope.to_string().into_bytes();

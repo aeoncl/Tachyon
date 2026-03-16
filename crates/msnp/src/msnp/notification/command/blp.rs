@@ -1,37 +1,46 @@
-
 use std::str::FromStr;
 
-use strum_macros::{Display, EnumString};
+use crate::msnp::{error::CommandError, raw_command_parser::RawCommand};
+use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 use std::fmt::Display;
-use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}};
-use crate::shared::traits::{MSNPCommand};
+use strum_macros::{Display, EnumString};
 
-pub struct Blp{
+pub struct Blp {
     tr_id: u128,
-    list_type: ListType
+    list_type: ListType,
 }
 
 pub type BlpClient = Blp;
 
 pub type BlpServer = Blp;
 
-
-impl MSNPCommand for Blp {
+impl TryFromRawCommand for Blp {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
         let mut split = raw.command_split;
         let _operand = split.pop_front();
 
-        let raw_tr_id = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "tr_id".into(), 1))?;
+        let raw_tr_id = split.pop_front().ok_or(CommandError::MissingArgument(
+            raw.command.clone(),
+            "tr_id".into(),
+            1,
+        ))?;
 
         let tr_id = u128::from_str(&raw_tr_id)?;
 
-        let raw_list_type = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "list_type".into(), 2))?;
+        let raw_list_type = split.pop_front().ok_or(CommandError::MissingArgument(
+            raw.command.clone(),
+            "list_type".into(),
+            2,
+        ))?;
 
         let list_type = ListType::from_str(&raw_list_type)?;
         Ok(Self { tr_id, list_type })    }
 
+}
+
+impl IntoBytes for Blp {
     fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
@@ -42,7 +51,7 @@ pub enum ListType {
     #[strum(serialize = "AL")]
     AllowList,
     #[strum(serialize = "BL")]
-    BlockList
+    BlockList,
 }
 
 impl Display for Blp {
@@ -56,18 +65,16 @@ mod tests {
     use std::str::FromStr;
 
     use crate::msnp::{notification::command::blp::ListType, raw_command_parser::RawCommand};
-    use crate::shared::traits::MSNPCommand;
+    use crate::shared::traits::TryFromRawCommand;
 
     use super::Blp;
 
-    
     #[test]
     fn test_deserialize_al() {
         let blp = Blp::try_from_raw(RawCommand::from_str("BLP 1 AL\r\n").unwrap()).unwrap();
 
         assert_eq!(1, blp.tr_id);
         assert!(matches!(blp.list_type, ListType::AllowList));
-
     }
 
     #[test]
@@ -76,14 +83,15 @@ mod tests {
 
         assert_eq!(1, blp.tr_id);
         assert!(matches!(blp.list_type, ListType::BlockList));
-
     }
 
     #[test]
     fn test_serialize() {
-        let blp = Blp{ tr_id: 1, list_type: ListType::AllowList };
+        let blp = Blp {
+            tr_id: 1,
+            list_type: ListType::AllowList,
+        };
         let ser = blp.to_string();
         assert_eq!("BLP 1 AL\r\n", ser.as_str());
     }
 }
-

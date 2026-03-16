@@ -1,7 +1,7 @@
 use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::models::endpoint_id::EndpointId;
-use crate::shared::traits::MSNPCommand;
+use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 use std::str::FromStr;
 use crate::shared::models::email_address::EmailAddress;
 
@@ -25,7 +25,7 @@ impl UsrClient {
     }
 }
 
-impl MSNPCommand for UsrClient {
+impl TryFromRawCommand for UsrClient {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
@@ -47,9 +47,6 @@ impl MSNPCommand for UsrClient {
         })
     }
 
-    fn into_bytes(self) -> Vec<u8> {
-        todo!()
-    }
 }
 
 
@@ -59,12 +56,16 @@ pub struct UsrServer {
     pub display_name: String,
 }
 
-impl MSNPCommand for UsrServer {
+impl TryFromRawCommand for UsrServer {
     type Err = CommandError;
 
     fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
         todo!()
     }
+
+}
+
+impl IntoBytes for UsrServer {
 
     fn into_bytes(self) -> Vec<u8> {
         format!("USR {} {} {} OK\r\n", self.tr_id, self.email_addr, self.display_name).into_bytes()

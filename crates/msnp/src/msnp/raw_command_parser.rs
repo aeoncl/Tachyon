@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use log::{debug, info};
 
 use crate::shared::command::command::split_raw_command_no_arg;
-use crate::shared::traits::MSNPCommand;
+use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 
 use super::error::{CommandError, PayloadError};
 
@@ -233,12 +233,17 @@ impl Debug for RawCommand {
     }
 }
 
-impl MSNPCommand for RawCommand {
+impl TryFromRawCommand for RawCommand {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
         Ok(raw)
     }
+
+}
+
+
+impl IntoBytes for RawCommand {
 
     fn into_bytes(mut self) -> Vec<u8> {
         let mut cmd = if !self.payload.is_empty() {
@@ -251,7 +256,6 @@ impl MSNPCommand for RawCommand {
         cmd
     }
 }
-
 
 
 #[cfg(test)]

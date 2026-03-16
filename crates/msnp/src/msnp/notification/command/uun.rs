@@ -5,9 +5,9 @@ use num_derive::FromPrimitive;
 use yaserde::{de::from_str, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
-use crate::{msnp::{error::{CommandError, PayloadError}, raw_command_parser::RawCommand}, shared::command::ok::OkCommand};
 use crate::shared::models::endpoint_id::EndpointId;
-use crate::shared::traits::{MSNPCommand, MSNPPayload};
+use crate::shared::traits::{IntoBytes, TryFromBytes, TryFromRawCommand};
+use crate::{msnp::{error::{CommandError, PayloadError}, raw_command_parser::RawCommand}, shared::command::ok::OkCommand};
 
 pub struct UunClient {
     tr_id: u128,
@@ -21,7 +21,7 @@ impl UunClient {
     }
 }
 
-impl MSNPCommand for UunClient {
+impl TryFromRawCommand for UunClient {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
@@ -43,10 +43,6 @@ impl MSNPCommand for UunClient {
         Ok(Self { tr_id, destination, payload })
 
     }
-
-    fn into_bytes(self) -> Vec<u8> {
-        todo!()
-    }
 }
 
 pub enum UunPayload {
@@ -58,12 +54,16 @@ pub enum UunPayload {
     Unknown(Vec<u8>)
 }
 
-impl MSNPPayload for UunPayload {
+impl TryFromBytes for UunPayload {
     type Err = PayloadError;
 
     fn try_from_bytes(_bytes: Vec<u8>) -> Result<Self, Self::Err> {
         todo!()
     }
+
+}
+
+impl IntoBytes for UunPayload {
 
     fn into_bytes(self) -> Vec<u8> {
         match self {
@@ -176,13 +176,16 @@ pub struct UbnServer {
     payload: UbnPayload
 }
 
-impl MSNPCommand for UbnServer {
+impl TryFromRawCommand for UbnServer {
     type Err = CommandError;
 
     fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
         todo!()
     }
+    
+}
 
+impl IntoBytes for UbnServer {
     fn into_bytes(self) -> Vec<u8> {
         let payload_type  = UserNotificationType::from(&self.payload);
 

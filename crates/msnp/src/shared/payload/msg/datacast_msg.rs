@@ -6,19 +6,19 @@ use crate::msnp::error::PayloadError;
 use crate::shared::models::msn_object::MsnObject;
 use crate::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
-use crate::shared::traits::{MSGPayload, MSNPPayload};
+use crate::shared::traits::{TryFromRawMsgPayload, TryFromBytes, IntoBytes};
 
-pub struct DatacastMessageContent {
+pub struct DatacastMessagePayload {
     data: Datacast
 }
 
-impl DatacastMessageContent {
+impl DatacastMessagePayload {
     pub fn get_type(&self) -> DatacastType {
         self.data.get_type()
     }
 }
 
-impl MSGPayload for DatacastMessageContent {
+impl TryFromRawMsgPayload for DatacastMessagePayload {
     type Err = PayloadError;
 
     fn try_from_raw(mut raw_msg_payload: RawMsgPayload) -> Result<Self, Self::Err> where Self: Sized {
@@ -31,30 +31,50 @@ impl MSGPayload for DatacastMessageContent {
             });
         }
 
+
+        //FIXME: DATACAST ID IS IN BODY, not in HEADER
+        /*
+        16-03-2026T01:06:24.514 [DEBUG] - SB << | MSG 113 N 1325MIME-Version: 1.0
+Content-Type: text/x-msnmsgr-datacast
+Message-ID: {5CFDB40C-9737-4788-B186-9A22A350564B}
+Chunks: 3
+
+ID: 2
+Data: <msnobj Creator="aeonshl@shlasouf.local"..etc
+         */
+
+
         let raw_datacast_type = u8::from_str(&raw_msg_payload.headers.remove("ID").ok_or(PayloadError::MandatoryPartNotFound{ name: "ID".to_string(), payload: "".to_string() })?)?;
         let datacast_type =  DatacastType::from_u8(raw_datacast_type).ok_or(anyhow!("Unknown datacast type: {}", raw_datacast_type))?;
 
         let content = match datacast_type {
             DatacastType::Nudge => {
-                DatacastMessageContent {
+                DatacastMessagePayload {
                     data: Datacast::Nudge,
                 }
             }
             DatacastType::MsnObject => {
-                DatacastMessageContent {
+                DatacastMessagePayload {
                     data: Datacast::MsnObject(MsnObject::from_str(raw_msg_payload.get_body_as_str()?)?),
                 }
             }
             DatacastType::ActionMsg => {
-                DatacastMessageContent {
+                DatacastMessagePayload {
                     data: Datacast::ActionMsg(String::from_utf8(raw_msg_payload.body)?)
+                }
+            }
+            DatacastType::Wink => {
+                DatacastMessagePayload {
+                    data: Datacast::Wink(MsnObject::from_str(raw_msg_payload.get_body_as_str()?)?),
                 }
             }
         };
 
         Ok(content)
     }
+}
 
+impl IntoBytes for DatacastMessagePayload {
     fn into_bytes(self) -> Vec<u8> {
         match self.data {
             Datacast::Nudge => {
@@ -66,19 +86,23 @@ impl MSGPayload for DatacastMessageContent {
             Datacast::ActionMsg(msg) => {
                 RawMsgPayloadFactory::get_action_msg(msg, false).into_bytes()
             }
-        }
-    }
+            Datacast::Wink(_) => {
+                todo!()
+            }
+        }    }
 }
 
 pub enum Datacast {
     Nudge,
+    Wink(MsnObject),
     MsnObject(MsnObject),
     ActionMsg(String)
 }
 
-#[derive(FromPrimitive, PartialEq, Eq)]
+#[derive(FromPrimitive, PartialEq, Eq, Debug)]
 pub enum DatacastType {
     Nudge = 1,
+    Wink = 2,
     MsnObject = 3,
     ActionMsg = 4,
 }
@@ -95,6 +119,9 @@ impl Datacast {
             }
             Datacast::ActionMsg(_) => {
                 DatacastType::ActionMsg
+            }
+            Datacast::Wink(_) => {
+                DatacastType::Wink
             }
         }
     }

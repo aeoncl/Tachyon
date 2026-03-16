@@ -9,11 +9,11 @@ use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::command::ok::OkCommand;
 use crate::shared::models::endpoint_id::EndpointId;
 use crate::shared::models::network_id::NetworkId;
-use crate::shared::payload::msg::datacast_msg::{DatacastMessageContent, DatacastType};
+use crate::shared::payload::msg::datacast_msg::{DatacastMessagePayload, DatacastType};
 use crate::shared::payload::msg::raw_msg_payload::RawMsgPayload;
 use crate::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use crate::shared::payload::msg::typing_user_msg::TypingUserMessageContent;
-use crate::shared::traits::{IntoBytes, MSGPayload, MSNPCommand, MSNPPayload};
+use crate::shared::traits::{IntoBytes, TryFromBytes, TryFromRawCommand, TryFromRawMsgPayload};
 
 #[cfg(test)]
 mod tests {
@@ -25,7 +25,7 @@ mod tests {
     use crate::shared::models::font_style::FontStyle;
     use crate::shared::models::network_id::NetworkId;
     use crate::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
-    use crate::shared::traits::MSNPCommand;
+    use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 
     use super::{UumClient, UumPayload};
 
@@ -119,7 +119,7 @@ pub enum MessageType {
 pub enum UumPayload {
     TextMessage(TextPlainMessagePayload),
     TypingUser(TypingUserMessageContent),
-    Nudge(DatacastMessageContent),
+    Nudge(DatacastMessagePayload),
     Raw(RawMsgPayload),
 }
 
@@ -139,7 +139,7 @@ impl UumPayload {
             },
             MessageType::Nudge => {
                 let raw = RawMsgPayload::try_from_bytes(payload)?;
-                let content = DatacastMessageContent::try_from_raw(raw)?;
+                let content = DatacastMessagePayload::try_from_raw(raw)?;
                 if content.get_type() != DatacastType::Nudge {
                     return Err(PayloadError::AnyError(anyhow!("Wrong datacast type for UUM Nudge message: expected 1, got {}", content.get_type() as u32)))
                 }
@@ -191,7 +191,7 @@ impl From<&UumPayload> for MessageType {
     }
 }
 
-impl MSNPCommand for UumClient {
+impl TryFromRawCommand for UumClient {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
@@ -224,6 +224,10 @@ impl MSNPCommand for UumClient {
             payload,
         })
     }
+
+}
+
+impl IntoBytes for UumClient {
 
     fn into_bytes(self) -> Vec<u8> {
         let message_type = MessageType::from(&self.payload);

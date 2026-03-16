@@ -5,7 +5,63 @@ use crate::shared::models::display_name::DisplayName;
 use crate::shared::models::msn_object::MsnObject;
 use crate::shared::models::network_id_email::NetworkIdEmail;
 use crate::shared::models::presence_status::PresenceStatus;
-use crate::shared::traits::MSNPCommand;
+use crate::shared::traits::{IntoBytes, TryFromRawCommand};
+pub struct IlnServer {
+    pub tr_id: u128,
+    pub presence_status: PresenceStatus,
+    pub target_user: NetworkIdEmail,
+    pub via: Option<NetworkIdEmail>,
+    pub display_name: DisplayName,
+    pub client_capabilities: ClientCapabilities,
+    pub avatar: Option<MsnObject>,
+    pub badge_url: Option<String>,
+}
+
+impl TryFromRawCommand for IlnServer {
+    type Err = CommandError;
+
+    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
+        todo!()
+    }
+
+}
+
+impl IntoBytes for IlnServer {
+    fn into_bytes(self) -> Vec<u8> {
+
+        let target_user = match self.via {
+            None => {
+                self.target_user.to_string()
+            }
+            Some(via) => {
+                format!("{};via={}", self.target_user.to_string(), via.to_string())
+            }
+        };
+
+
+
+        let mut out = format!("ILN {tr_id} {presence_status} {target_user} {display_name} {capab} {avatar}",
+                              tr_id = self.tr_id,
+                              presence_status = self.presence_status,
+                              target_user = target_user,
+                              display_name = self.display_name,
+                              capab = self.client_capabilities,
+                              avatar = self.avatar.map(|a| a.to_string()).unwrap_or("0".into())
+        );
+
+
+        match self.badge_url {
+            None => {
+                out.push_str("\r\n");
+            }
+            Some(badge_url) => {
+                out.push_str(&format!(" {}\r\n", badge_url));
+            }
+        }
+
+        out.into_bytes()
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -18,9 +74,9 @@ mod tests {
     use crate::shared::models::network_id::NetworkId;
     use crate::shared::models::network_id_email::NetworkIdEmail;
     use crate::shared::models::presence_status::PresenceStatus;
-    use crate::shared::traits::MSNPCommand;
+    use crate::shared::traits::IntoBytes;
 
-    use super::{IlnServer};
+    use super::IlnServer;
 
     #[test]
     pub fn test_nln_via_ser_msn_obj() {
@@ -111,57 +167,3 @@ mod tests {
 
 }
 
-
-pub struct IlnServer {
-    pub tr_id: u128,
-    pub presence_status: PresenceStatus,
-    pub target_user: NetworkIdEmail,
-    pub via: Option<NetworkIdEmail>,
-    pub display_name: DisplayName,
-    pub client_capabilities: ClientCapabilities,
-    pub avatar: Option<MsnObject>,
-    pub badge_url: Option<String>,
-}
-
-impl MSNPCommand for IlnServer {
-    type Err = CommandError;
-
-    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
-        todo!()
-    }
-
-    fn into_bytes(self) -> Vec<u8> {
-
-        let target_user = match self.via {
-            None => {
-                self.target_user.to_string()
-            }
-            Some(via) => {
-                format!("{};via={}", self.target_user.to_string(), via.to_string())
-            }
-        };
-
-
-
-        let mut out = format!("ILN {tr_id} {presence_status} {target_user} {display_name} {capab} {avatar}",
-                tr_id = self.tr_id,
-                presence_status = self.presence_status,
-                target_user = target_user,
-                display_name = self.display_name,
-                capab = self.client_capabilities,
-                avatar = self.avatar.map(|a| a.to_string()).unwrap_or("0".into())
-        );
-
-
-        match self.badge_url {
-            None => {
-                out.push_str("\r\n");
-            }
-            Some(badge_url) => {
-                out.push_str(&format!(" {}\r\n", badge_url));
-            }
-        }
-
-        out.into_bytes()
-    }
-}

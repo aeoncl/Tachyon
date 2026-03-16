@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
-use crate::shared::traits::MSNPCommand;
+use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 
 pub struct OkCommand {
     pub operand: String,
@@ -15,13 +15,18 @@ impl Display for OkCommand {
     }
 }
 
-impl MSNPCommand for OkCommand {
+impl TryFromRawCommand for OkCommand {
     type Err = CommandError;
 
     fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
         todo!()
     }
 
+}
+
+impl IntoBytes for OkCommand {
+
     fn into_bytes(self) -> Vec<u8> {
-        self.to_string().into_bytes()    }
+        self.to_string().into_bytes()
+    }
 }

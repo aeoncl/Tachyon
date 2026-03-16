@@ -1,5 +1,5 @@
-use std::str::FromStr;
 use std::fmt::Debug;
+use std::str::FromStr;
 use std::str::{from_utf8, Utf8Error};
 
 use anyhow::anyhow;
@@ -8,7 +8,7 @@ use log::warn;
 use strum_macros::{Display, EnumString};
 
 use crate::msnp::error::PayloadError;
-use crate::shared::traits::MSNPPayload;
+use crate::shared::traits::{IntoBytes, TryFromBytes};
 
 #[derive(Clone, EnumString, Display, PartialEq, Debug)]
 pub enum MsgContentType {
@@ -50,6 +50,16 @@ pub struct RawMsgPayload {
     enable_trailing_terminators : bool,
     pub headers: LinkedHashMap<String, String>,
     pub body: Vec<u8>
+}
+
+impl Default for RawMsgPayload {
+    fn default() -> Self {
+        Self {
+            enable_trailing_terminators: false,
+            headers: Default::default(),
+            body: vec![],
+        }
+    }
 }
 
 impl RawMsgPayload {
@@ -99,10 +109,13 @@ impl RawMsgPayload {
     pub fn get_body_as_str(&self) -> Result<&str, Utf8Error> {
         from_utf8(&self.body)
     }
+    pub fn is_chunked(&self) -> bool {
+        self.get_header("Chunks").is_some() || self.get_header("Chunk").is_some()
+    }
 
 }
 
-impl MSNPPayload for RawMsgPayload {
+impl TryFromBytes for RawMsgPayload {
     type Err = PayloadError;
 
     fn try_from_bytes(mut bytes: Vec<u8>) -> Result<Self, Self::Err> {
@@ -140,9 +153,6 @@ impl MSNPPayload for RawMsgPayload {
         }
 
         out.body = body[3..].to_vec();
-
-        out.get_content_type()?;
-
         Ok(out)
     }
 
@@ -155,6 +165,9 @@ impl MSNPPayload for RawMsgPayload {
      Body
      \r\n (sometimes)
      */
+}
+
+impl IntoBytes for RawMsgPayload {
     fn into_bytes(mut self) -> Vec<u8> {
         let mut out = Vec::new();
 
@@ -175,28 +188,17 @@ impl MSNPPayload for RawMsgPayload {
     }
 }
 
-impl Default for RawMsgPayload {
-    fn default() -> Self {
-        RawMsgPayload {
-            enable_trailing_terminators: false,
-            headers: Default::default(),
-            body: vec![],
-        }
-    }
-}
-
 pub mod factories {
-    
     use base64::Engine;
     use chrono::{DateTime, Local, Utc};
-    
 
-    use crate::{p2p::v2::p2p_transport_packet::P2PTransportPacket, shared::models::{msn_object::MsnObject, msn_user::MsnUser, uuid::Puid}};
+
     use crate::shared::converters::filetime::FileTime;
     use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::oim::MetaData;
     use crate::shared::models::ticket_token::TicketToken;
     use crate::soap::traits::xml::ToXml;
+    use crate::{p2p::v2::p2p_transport_packet::P2PTransportPacket, shared::models::{msn_object::MsnObject, msn_user::MsnUser, uuid::Puid}};
 
     use super::{MsgContentType, RawMsgPayload};
 
@@ -337,7 +339,6 @@ pub mod factories {
             out
         }
 
-
     }
 
 }
@@ -351,7 +352,7 @@ mod tests {
     use crate::shared::models::uuid::Uuid;
     use crate::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
     use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
-    use crate::shared::traits::MSNPPayload;
+    use crate::shared::traits::{IntoBytes, TryFromBytes};
 
     #[test]
     fn test_padding() {

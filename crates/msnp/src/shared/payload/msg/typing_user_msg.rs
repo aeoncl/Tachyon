@@ -4,9 +4,9 @@ use anyhow::anyhow;
 
 use crate::msnp::error::PayloadError;
 use crate::shared::models::email_address::EmailAddress;
-use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
 use crate::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
-use crate::shared::traits::{MSGPayload, MSNPPayload};
+use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
+use crate::shared::traits::{IntoBytes, TryFromBytes, TryFromRawMsgPayload};
 
 pub struct TypingUserMessageContent {
 
@@ -14,7 +14,7 @@ pub struct TypingUserMessageContent {
 
 }
 
-impl MSGPayload for TypingUserMessageContent {
+impl TryFromRawMsgPayload for TypingUserMessageContent {
     type Err = PayloadError;
 
     fn try_from_raw(mut raw_msg_payload: RawMsgPayload) -> Result<Self, Self::Err> where Self: Sized {
@@ -34,6 +34,10 @@ impl MSGPayload for TypingUserMessageContent {
         Ok(Self { typing_user })
 
     }
+
+}
+
+impl IntoBytes for TypingUserMessageContent {
 
     fn into_bytes(self) -> Vec<u8> {
         let raw = RawMsgPayloadFactory::get_typing_user(self.typing_user.as_str());

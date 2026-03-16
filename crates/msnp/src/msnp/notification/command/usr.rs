@@ -7,17 +7,17 @@ use strum_macros::{Display, EnumString};
 use crate::msnp::{error::CommandError, notification::models::endpoint_guid::EndpointGuid, raw_command_parser::RawCommand};
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::ticket_token::TicketToken;
-use crate::shared::traits::{MSNPCommand, MSNPCommandPart};
+use crate::shared::traits::{IntoBytes, TryFromRawCommand, TryFromSplit};
 
 
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
 
-    use crate::msnp::{error::CommandError, notification::command::usr::{AuthOperationTypeClient, SsoPhaseClient}};
     use crate::msnp::raw_command_parser::RawCommand;
+    use crate::msnp::{error::CommandError, notification::command::usr::{AuthOperationTypeClient, SsoPhaseClient}};
     use crate::shared::models::email_address::EmailAddress;
-    use crate::shared::traits::MSNPCommand;
+    use crate::shared::traits::TryFromRawCommand;
 
     use super::{AuthPolicy, OperationTypeServer, SsoPhaseServer, UsrClient, UsrServer};
 
@@ -127,7 +127,7 @@ pub struct UsrClient {
 }
 
 
-impl MSNPCommand for UsrClient {
+impl TryFromRawCommand for UsrClient {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
@@ -145,10 +145,6 @@ impl MSNPCommand for UsrClient {
         })
 
     }
-
-    fn into_bytes(self) -> Vec<u8> {
-        todo!()
-    }
 }
 
 #[derive(Display)]
@@ -159,7 +155,7 @@ pub enum AuthOperationTypeClient {
     Sha(ShaPhaseClient),
 }
 
-impl MSNPCommandPart for AuthOperationTypeClient {
+impl TryFromSplit for AuthOperationTypeClient {
     type Err = CommandError;
 
     fn try_from_split(mut split: VecDeque<String>, command: &str) -> Result<Self, Self::Err> {
@@ -181,7 +177,7 @@ pub enum ShaPhaseClient {
     }
 }
 
-impl MSNPCommandPart for ShaPhaseClient{
+impl TryFromSplit for ShaPhaseClient{
     type Err = CommandError;
 
     fn try_from_split(mut split: VecDeque<String>, command: &str) -> Result<Self, Self::Err> where Self: Sized {
@@ -213,7 +209,7 @@ pub enum SsoPhaseClient {
 }
 
 
-impl MSNPCommandPart for SsoPhaseClient {
+impl TryFromSplit for SsoPhaseClient {
     type Err = CommandError;
 
     fn try_from_split(mut split: VecDeque<String>, command: &str) -> Result<Self, Self::Err> {
@@ -313,14 +309,18 @@ impl core::fmt::Display for UsrServer {
     }
 }
 
-impl MSNPCommand for UsrServer {
+impl TryFromRawCommand for UsrServer {
     type Err = CommandError;
 
     fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
         todo!()
     }
 
+}
+
+impl IntoBytes for UsrServer {
     fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
+
 }

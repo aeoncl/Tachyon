@@ -2,7 +2,7 @@ use std::str::FromStr;
 use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::payload::nfy::nfy_put_payload::RawNfyPayload;
-use crate::shared::traits::{MSNPCommand, MSNPPayload};
+use crate::shared::traits::{TryFromRawCommand, TryFromBytes, IntoBytes};
 
 pub struct SdgClient {
     pub tr_id: u128,
@@ -11,7 +11,7 @@ pub struct SdgClient {
 
 pub type SdgServer = SdgClient;
 
-impl MSNPCommand for SdgClient {
+impl TryFromRawCommand for SdgClient {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
@@ -30,6 +30,10 @@ impl MSNPCommand for SdgClient {
         })
 
     }
+
+}
+
+impl IntoBytes for SdgClient {
 
     fn into_bytes(self) -> Vec<u8> {
 

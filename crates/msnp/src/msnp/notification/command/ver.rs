@@ -1,7 +1,7 @@
 use std::{fmt::Display, str::FromStr};
 
 use crate::msnp::{error::CommandError, notification::models::msnp_version::MsnpVersion, raw_command_parser::RawCommand};
-use crate::shared::traits::MSNPCommand;
+use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 
 pub struct VerClient {
     pub tr_id: u128,
@@ -26,7 +26,7 @@ impl VerClient {
     }
 }
 
-impl MSNPCommand for VerClient {
+impl TryFromRawCommand for VerClient {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
@@ -47,7 +47,9 @@ impl MSNPCommand for VerClient {
         Ok(VerClient {tr_id, first_candidate, second_candidate, cvr})
 
     }
+}
 
+impl IntoBytes for VerClient {
     fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
@@ -75,7 +77,7 @@ impl VerServer {
     }
 }
 
-impl MSNPCommand for VerServer {
+impl TryFromRawCommand for VerServer {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
@@ -92,6 +94,9 @@ impl MSNPCommand for VerServer {
 
     }
 
+}
+
+impl IntoBytes for VerServer {
     fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
@@ -109,7 +114,7 @@ mod tests {
 
     use crate::msnp::notification::models::msnp_version::MsnpVersion;
     use crate::msnp::raw_command_parser::RawCommand;
-    use crate::shared::traits::MSNPCommand;
+    use crate::shared::traits::TryFromRawCommand;
 
     use super::{VerClient, VerServer};
 

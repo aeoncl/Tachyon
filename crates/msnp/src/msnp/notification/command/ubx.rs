@@ -1,16 +1,15 @@
-use std::fmt::Display;
-use yaserde::ser::to_string_with_config;
-use yaserde_derive::{YaDeserialize, YaSerialize};
 use crate::msnp::error::{CommandError, PayloadError};
 use crate::msnp::notification::models::endpoint_data::{EndpointData, PrivateEndpointData};
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::models::network_id_email::NetworkIdEmail;
-use crate::shared::traits::{MSNPCommand, MSNPPayload};
+use crate::shared::traits::{IntoBytes, TryFromBytes, TryFromRawCommand};
+use std::fmt::Display;
+use yaserde::ser::to_string_with_config;
+use yaserde_derive::{YaDeserialize, YaSerialize};
 
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use crate::msnp::notification::command::ubx::{ExtendedPresenceContent, UbxPayload, UbxServer};
     use crate::msnp::notification::models::endpoint_data::EndpointData;
     use crate::msnp::notification::models::endpoint_guid::EndpointGuid;
@@ -19,7 +18,8 @@ mod tests {
     use crate::shared::models::network_id::NetworkId;
     use crate::shared::models::network_id_email::NetworkIdEmail;
     use crate::shared::models::uuid::Uuid;
-    use crate::shared::traits::MSNPCommand;
+    use crate::shared::traits::IntoBytes;
+    use std::str::FromStr;
 
     #[test]
     pub fn ubx_extended_presence_ser_test() {
@@ -53,12 +53,16 @@ pub struct UbxServer {
     pub payload: UbxPayload
 }
 
-impl MSNPCommand for UbxServer {
+impl TryFromRawCommand for UbxServer {
     type Err = CommandError;
 
     fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
         todo!()
     }
+
+}
+
+impl IntoBytes for UbxServer {
 
     fn into_bytes(self) -> Vec<u8> {
         let mut payload = self.payload.into_bytes();
@@ -87,13 +91,16 @@ pub enum UbxPayload {
     ExtendedPresence(ExtendedPresenceContent)
 }
 
-impl MSNPPayload for UbxPayload {
+impl TryFromBytes for UbxPayload {
     type Err = PayloadError;
 
     fn try_from_bytes(_bytes: Vec<u8>) -> Result<Self, Self::Err> where Self: Sized {
         todo!()
     }
 
+}
+
+impl IntoBytes for UbxPayload {
     fn into_bytes(self) -> Vec<u8> {
         match self {
             UbxPayload::ExtendedPresence(content) => {
@@ -101,7 +108,6 @@ impl MSNPPayload for UbxPayload {
             }
         }
     }
-
 }
 
 #[derive(Debug, Clone, Default, YaSerialize, YaDeserialize)]

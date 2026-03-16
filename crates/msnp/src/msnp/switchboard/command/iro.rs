@@ -2,8 +2,7 @@ use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::models::capabilities::ClientCapabilities;
 use crate::shared::models::endpoint_id::EndpointId;
-use crate::shared::models::msn_user::MsnUser;
-use crate::shared::traits::{MSNPCommand};
+use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 
 // Initial Roster sent after an ANS command
 // SB >> IRO 1 1 2 aeon@lukewarmail.com Aeon 2789003324:48
@@ -32,13 +31,16 @@ impl IroServer {
     }
 }
 
-impl MSNPCommand for IroServer {
+impl TryFromRawCommand for IroServer {
     type Err = CommandError;
 
     fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
         todo!()
     }
 
+}
+
+impl IntoBytes for IroServer {
     fn into_bytes(self) -> Vec<u8> {
         format!("IRO {tr_id} {index} {roster_count} {endpoint_id} {display_name} {capabilities}\r\n", tr_id = self.tr_id, index = self.index, roster_count = self.roster_count, endpoint_id =  self.endpoint_id, display_name = self.display_name, capabilities = self.capabilities).into_bytes()
     }

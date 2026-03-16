@@ -1,11 +1,11 @@
 use crate::msnp::error::CommandError;
 use crate::msnp::notification::models::ip_address::IpAddress;
 use crate::msnp::raw_command_parser::RawCommand;
-use crate::shared::traits::MSNPCommand;
+use crate::msnp::switchboard::models::auth_method::AuthenticationMethod;
+use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use strum_macros::{Display, EnumString};
-use crate::msnp::switchboard::models::auth_method::AuthenticationMethod;
 
 #[derive(Display, EnumString)]
 pub enum ClientRequestType {
@@ -32,7 +32,7 @@ impl XfrClient {
     }
 }
 
-impl MSNPCommand for XfrClient {
+impl TryFromRawCommand for XfrClient {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err>
@@ -50,6 +50,10 @@ impl MSNPCommand for XfrClient {
 
         Ok(Self::new(tr_id, request_type))
     }
+
+}
+
+impl IntoBytes for XfrClient {
 
     fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
@@ -107,7 +111,7 @@ impl XfrServer {
     }
 }
 
-impl MSNPCommand for XfrServer {
+impl TryFromRawCommand for XfrServer {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err>
@@ -117,6 +121,9 @@ impl MSNPCommand for XfrServer {
         todo!()
     }
 
+}
+
+impl IntoBytes for XfrServer {
     fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
@@ -139,7 +146,7 @@ impl Display for XfrServer {
 mod tests {
     use crate::msnp::notification::command::xfr::{ClientRequestType, XfrClient, XfrServer};
     use crate::msnp::raw_command_parser::RawCommand;
-    use crate::shared::traits::MSNPCommand;
+    use crate::shared::traits::TryFromRawCommand;
     use std::str::FromStr;
 
     #[test]

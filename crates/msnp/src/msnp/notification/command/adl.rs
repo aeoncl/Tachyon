@@ -7,7 +7,7 @@ use yaserde_derive::{YaDeserialize, YaSerialize};
 use crate::{msnp::{error::{CommandError, PayloadError}, raw_command_parser::RawCommand}, shared::command::ok::OkCommand};
 use crate::msnp::models::contact::Contact;
 use crate::shared::models::email_address::EmailAddress;
-use crate::shared::traits::{MSNPCommand, MSNPPayload};
+use crate::shared::traits::{TryFromRawCommand, TryFromBytes, IntoBytes};
 use crate::shared::errors::IdentifierError;
 use crate::shared::models::network_id::NetworkId;
 
@@ -27,7 +27,7 @@ impl AdlClient {
 }
 
 
-impl MSNPCommand for AdlClient {
+impl TryFromRawCommand for AdlClient {
 
     type Err = CommandError;
 
@@ -51,10 +51,6 @@ impl MSNPCommand for AdlClient {
             tr_id,
             payload,
         })
-    }
-
-    fn into_bytes(self) -> Vec<u8> {
-        todo!()
     }
 }
 
@@ -137,17 +133,20 @@ impl Display for ADLPayload {
     }
 }
 
-impl MSNPPayload for ADLPayload {
+impl TryFromBytes for ADLPayload {
     type Err = PayloadError;
 
     fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> {
         let payload = String::from_utf8(bytes)?;
         Self::from_str(&payload)
     }
+}
 
+impl IntoBytes for ADLPayload {
     fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
+
 }
 
 impl FromStr for ADLPayload {

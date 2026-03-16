@@ -11,7 +11,7 @@ use crate::shared::models::font_name::{DefaultFont, FontName};
 use crate::shared::models::font_style::FontStyles;
 use crate::shared::payload::msg::raw_msg_payload::MsgContentType::TextPlain;
 use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
-use crate::shared::traits::{MSGPayload, MSNPPayload};
+use crate::shared::traits::{TryFromRawMsgPayload, TryFromBytes, IntoBytes};
 pub struct TextPlainMessagePayload {
     pub font_family: FontName,
     pub right_to_left: bool,
@@ -20,7 +20,7 @@ pub struct TextPlainMessagePayload {
     pub body : String,
 }
 
-impl MSGPayload for TextPlainMessagePayload {
+impl TryFromRawMsgPayload for TextPlainMessagePayload {
     type Err = PayloadError;
 
     fn try_from_raw(mut raw: RawMsgPayload) -> Result<Self, Self::Err> where Self: Sized {
@@ -66,7 +66,9 @@ impl MSGPayload for TextPlainMessagePayload {
             }
         )
     }
+}
 
+impl IntoBytes for TextPlainMessagePayload {
     fn into_bytes(self) -> Vec<u8> {
         let mut out = RawMsgPayload::new(TextPlain, false);
         out.add_header_owned("X-MMS-IM-Format".into(), self.get_mms_format_header());

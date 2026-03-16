@@ -1,4 +1,3 @@
-use strum_macros::Display;
 use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::msnp::switchboard::command::ack::AckServer;
@@ -10,7 +9,8 @@ use crate::msnp::switchboard::command::msg::{MsgClient, MsgServer};
 use crate::msnp::switchboard::command::nak::NakServer;
 use crate::msnp::switchboard::command::usr::{UsrClient, UsrServer};
 use crate::shared::command::ok::OkCommand;
-use crate::shared::traits::{MSNPCommand};
+use crate::shared::traits::{IntoBytes, TryFromRawCommand};
+use strum_macros::Display;
 
 #[derive(Display)]
 pub enum SwitchboardClientCommand {
@@ -22,7 +22,7 @@ pub enum SwitchboardClientCommand {
     RAW(RawCommand)
 }
 
-impl MSNPCommand for SwitchboardClientCommand {
+impl TryFromRawCommand for SwitchboardClientCommand {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
@@ -34,10 +34,7 @@ impl MSNPCommand for SwitchboardClientCommand {
             "OUT" => SwitchboardClientCommand::OUT,
             _ => SwitchboardClientCommand::RAW(raw),
         };
-        Ok(out)    }
-
-    fn into_bytes(self) -> Vec<u8> {
-        todo!()
+        Ok(out)
     }
 }
 
@@ -55,13 +52,16 @@ pub enum SwitchboardServerCommand {
     RAW(RawCommand)
 }
 
-impl MSNPCommand for SwitchboardServerCommand {
+impl TryFromRawCommand for SwitchboardServerCommand {
     type Err = CommandError;
 
     fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
         todo!()
     }
 
+}
+
+impl IntoBytes for SwitchboardServerCommand {
     fn into_bytes(self) -> Vec<u8> {
         match self {
             SwitchboardServerCommand::OK(command) => command.into_bytes(),

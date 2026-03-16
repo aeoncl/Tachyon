@@ -1,9 +1,9 @@
+use crate::shared::traits::{IntoBytes, TryFromRawCommand, TryFromSplit};
+use crate::msnp::{error::CommandError, raw_command_parser::RawCommand};
+use anyhow::anyhow;
 use std::collections::VecDeque;
 use std::fmt::Display;
 use std::str::FromStr;
-use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}};
-use anyhow::anyhow;
-use crate::shared::traits::{MSNPCommand, MSNPCommandPart};
 
 pub struct Prp{
     pub tr_id: u128,
@@ -27,7 +27,7 @@ impl Display for PrpOperation {
     }
 }
 
-impl MSNPCommandPart for PrpOperation {
+impl TryFromSplit for PrpOperation {
     type Err = CommandError;
 
     fn try_from_split(mut split: VecDeque<String>, command: &str) -> Result<Self, Self::Err> {
@@ -47,7 +47,7 @@ impl MSNPCommandPart for PrpOperation {
     }
 }
 
-impl MSNPCommand for Prp {
+impl TryFromRawCommand for Prp {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
@@ -61,7 +61,9 @@ impl MSNPCommand for Prp {
 
         Ok(Self { tr_id, operation })
     }
+}
 
+impl IntoBytes for Prp {
     fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }

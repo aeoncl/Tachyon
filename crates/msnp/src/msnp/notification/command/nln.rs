@@ -5,7 +5,7 @@ use crate::shared::models::display_name::DisplayName;
 use crate::shared::models::msn_object::MsnObject;
 use crate::shared::models::network_id_email::NetworkIdEmail;
 use crate::shared::models::presence_status::PresenceStatus;
-use crate::shared::traits::MSNPCommand;
+use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 
 #[cfg(test)]
 mod tests {
@@ -18,9 +18,9 @@ mod tests {
     use crate::shared::models::network_id::NetworkId;
     use crate::shared::models::network_id_email::NetworkIdEmail;
     use crate::shared::models::presence_status::PresenceStatus;
-    use crate::shared::traits::MSNPCommand;
+    use crate::shared::traits::IntoBytes;
 
-    use super::{NlnServer};
+    use super::NlnServer;
 
     #[test]
     pub fn test_nln_via_ser_msn_obj() {
@@ -118,12 +118,16 @@ pub struct NlnServer {
     pub badge_url: Option<String>,
 }
 
-impl MSNPCommand for NlnServer {
+impl TryFromRawCommand for NlnServer {
     type Err = CommandError;
 
     fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
         todo!()
     }
+
+}
+
+impl IntoBytes for NlnServer {
 
     fn into_bytes(self) -> Vec<u8> {
 

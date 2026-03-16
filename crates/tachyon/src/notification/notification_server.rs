@@ -2,14 +2,14 @@ use std::str::from_utf8_unchecked;
 
 use anyhow::anyhow;
 use log::{debug, error, info, warn};
-use msnp::msnp::{notification::command::command::NotificationServerCommand, raw_command_parser::RawCommandParser};
 use msnp::msnp::notification::command::command::NotificationClientCommand;
-use msnp::shared::traits::MSNPCommand;
+use msnp::msnp::{notification::command::command::NotificationServerCommand, raw_command_parser::RawCommandParser};
+use msnp::shared::traits::{IntoBytes, TryFromRawCommand};
 use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::OwnedWriteHalf, TcpListener, TcpStream}, sync::{broadcast::{self, Receiver}, mpsc::{self, Sender}}};
 
-use crate::tachyon::client_store::ClientStoreFacade;
 use crate::notification::handlers::command_handler::handle_command;
 use crate::notification::models::local_client_data::LocalClientData;
+use crate::tachyon::client_store::ClientStoreFacade;
 
 pub struct NotificationServer;
 

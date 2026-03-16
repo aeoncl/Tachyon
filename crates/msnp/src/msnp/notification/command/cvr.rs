@@ -1,7 +1,7 @@
 use std::{fmt::Display, str::FromStr};
 
-use crate::{msnp::{error::CommandError, raw_command_parser::RawCommand}};
-use crate::shared::traits::MSNPCommand;
+use crate::shared::traits::{IntoBytes, TryFromRawCommand};
+use crate::msnp::{error::CommandError, raw_command_parser::RawCommand};
 
 
 pub struct CvrClient {
@@ -43,7 +43,7 @@ impl CvrClient {
 }
 
 
-impl MSNPCommand for CvrClient {
+impl TryFromRawCommand for CvrClient {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
@@ -82,10 +82,6 @@ impl MSNPCommand for CvrClient {
             client_name,
             email_addr,
         })
-    }
-
-    fn into_bytes(self) -> Vec<u8> {
-        todo!()
     }
 }
 
@@ -135,13 +131,15 @@ impl Display for CvrServer {
     }
 }
 
-impl MSNPCommand for CvrServer {
+impl TryFromRawCommand for CvrServer {
     type Err = CommandError;
 
     fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
         todo!()
     }
+}
 
+impl IntoBytes for CvrServer {
     fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
@@ -149,10 +147,10 @@ impl MSNPCommand for CvrServer {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use crate::msnp::notification::command::cvr::CvrClient;
     use crate::msnp::raw_command_parser::RawCommand;
-    use crate::shared::traits::MSNPCommand;
+    use crate::shared::traits::TryFromRawCommand;
+    use std::str::FromStr;
 
 
     #[test]

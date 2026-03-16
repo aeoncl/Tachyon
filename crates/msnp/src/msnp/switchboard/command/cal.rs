@@ -4,7 +4,7 @@ use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::msnp::switchboard::models::session_id::SessionId;
 use crate::shared::models::email_address::EmailAddress;
-use crate::shared::traits::MSNPCommand;
+use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 
 // Invite someone to join the SB
 // >>> CAL 58 aeontest@shl.local
@@ -15,7 +15,7 @@ pub struct CalClient {
     pub email_addr: EmailAddress
 }
 
-impl MSNPCommand for CalClient {
+impl TryFromRawCommand for CalClient {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
@@ -30,10 +30,6 @@ impl MSNPCommand for CalClient {
         Ok(CalClient{ tr_id, email_addr })
 
     }
-
-    fn into_bytes(self) -> Vec<u8> {
-        todo!()
-    }
 }
 
 #[derive(Display, EnumString)]
@@ -47,12 +43,16 @@ pub struct CalServer {
     pub session_id: SessionId
 }
 
-impl MSNPCommand for CalServer {
+impl TryFromRawCommand for CalServer {
     type Err = CommandError;
 
     fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
         todo!()
     }
+
+}
+
+impl IntoBytes for CalServer {
 
     fn into_bytes(self) -> Vec<u8> {
         format!("CAL {} {} {}\r\n", self.tr_id, self.function, self.session_id).into_bytes()

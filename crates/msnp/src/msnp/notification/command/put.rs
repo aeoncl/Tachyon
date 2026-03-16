@@ -2,7 +2,7 @@ use std::str::FromStr;
 use crate::msnp::error::CommandError;
 use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::payload::nfy::nfy_put_payload::RawNfyPayload;
-use crate::shared::traits::{MSNPCommand, MSNPPayload};
+use crate::shared::traits::{TryFromRawCommand, TryFromBytes, IntoBytes};
 
 pub struct PutClient {
     pub tr_id: u128,
@@ -17,7 +17,7 @@ impl PutClient {
     }
 }
 
-impl MSNPCommand for PutClient {
+impl TryFromRawCommand for PutClient {
     type Err = CommandError;
 
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
@@ -34,6 +34,10 @@ impl MSNPCommand for PutClient {
             payload,
         })
     }
+
+}
+
+impl IntoBytes for PutClient {
 
     fn into_bytes(self) -> Vec<u8> {
         let mut payload = self.payload.into_bytes();
@@ -52,13 +56,16 @@ pub struct PutServer {
     tr_id: u128
 }
 
-impl MSNPCommand for PutServer {
+impl TryFromRawCommand for PutServer {
     type Err = CommandError;
 
     fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
         todo!()
     }
 
+}
+
+impl IntoBytes for PutServer {
     fn into_bytes(self) -> Vec<u8> {
         format!("PUT {} OK 0\r\n", self.tr_id).into_bytes()
     }
