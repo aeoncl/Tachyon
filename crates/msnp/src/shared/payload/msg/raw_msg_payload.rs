@@ -280,7 +280,7 @@ pub mod factories {
         }
 
         pub fn get_action_msg(text: String, plugin_context: bool) -> RawMsgPayload {
-            let mut out = RawMsgPayload::new(MsgContentType::Datacast, true);
+            let mut out = RawMsgPayload::new(MsgContentType::Datacast, false);
             if plugin_context {
                 out.add_header("PlugIn-Context", "1");
             }

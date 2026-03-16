@@ -11,7 +11,7 @@ use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload
 use crate::shared::traits::{TryFromRawMsgPayload, TryFromBytes, IntoBytes};
 
 pub struct DatacastMessagePayload {
-    data: Datacast
+    pub data: Datacast
 }
 
 impl DatacastMessagePayload {

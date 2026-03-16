@@ -23,6 +23,7 @@ use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use std::str::FromStr;
 use tokio::sync::mpsc::Sender;
 use msnp::shared::models::display_name::DisplayName;
+use msnp::shared::payload::msg::datacast_msg::{Datacast, DatacastMessagePayload};
 
 const ROOM_USER_PORTAL_MODE: bool = true;
 
