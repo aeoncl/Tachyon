@@ -1,3 +1,4 @@
+use std::str::from_utf8;
 use anyhow::anyhow;
 use log::debug;
 use crate::msnp::error::PayloadError;
@@ -189,6 +190,12 @@ impl MsgChunks {
                 }
                 Some(found_index) => {
                     let mut found_body = self.chunks.remove(found_index).body;
+
+                    let test = from_utf8(&found_body).unwrap();
+                    let vec: Vec<&str> = test.split("\r\n").collect();
+                    debug!("Chunk {} found with {} lines", current_chunk, vec.len());
+                    debug!("{}", &test);
+                    debug!("{:?}", &vec);
                     first.body.append(&mut found_body)
                 }
             }

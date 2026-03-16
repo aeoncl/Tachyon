@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::str::{from_utf8, Utf8Error};
-
+use std::string::FromUtf8Error;
 use anyhow::anyhow;
 use linked_hash_map::LinkedHashMap;
 use log::warn;
@@ -109,6 +109,11 @@ impl RawMsgPayload {
     pub fn get_body_as_str(&self) -> Result<&str, Utf8Error> {
         from_utf8(&self.body)
     }
+
+    pub fn get_body_as_string(self) -> Result<String, FromUtf8Error> {
+        String::from_utf8(self.body)
+    }
+
     pub fn is_chunked(&self) -> bool {
         self.get_header("Chunks").is_some() || self.get_header("Chunk").is_some()
     }
@@ -152,7 +157,7 @@ impl TryFromBytes for RawMsgPayload {
             }
         }
 
-        out.body = body[3..].to_vec();
+        out.body = body.trim_ascii().to_vec();
         Ok(out)
     }
 

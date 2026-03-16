@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 use anyhow::anyhow;
+use log::{debug, warn};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use crate::msnp::error::PayloadError;
@@ -44,8 +46,33 @@ Data: <msnobj Creator="aeonshl@shlasouf.local"..etc
          */
 
 
-        let raw_datacast_type = u8::from_str(&raw_msg_payload.headers.remove("ID").ok_or(PayloadError::MandatoryPartNotFound{ name: "ID".to_string(), payload: "".to_string() })?)?;
+        let body_str = raw_msg_payload.get_body_as_string()?;
+
+        debug!("DatacastBody: Parsing body: {}", body_str);
+
+        let body_split : Vec<&str> = body_str.split("\r\n").collect();
+
+        debug!("body split: {:?}", &body_split);
+
+        let mut body_map = {
+            let mut body = HashMap::new();
+            for current in body_split {
+                match current.split_once(":") {
+                    None => {
+                        warn!("DatacastBody: Malformed header, ignoring...: {}", current);
+                    }
+                    Some((name, value)) => {
+                        body.insert(name.trim(), value.trim());
+                    }
+                }
+            }
+            body
+        };
+
+
+        let raw_datacast_type = u8::from_str(body_map.remove("ID").ok_or(PayloadError::MandatoryPartNotFound{ name: "ID".to_string(), payload: "".to_string() })?)?;
         let datacast_type =  DatacastType::from_u8(raw_datacast_type).ok_or(anyhow!("Unknown datacast type: {}", raw_datacast_type))?;
+        let data = body_map.remove("Data").ok_or(PayloadError::MandatoryPartNotFound{ name: "Data".to_string(), payload: "".to_string() })?;
 
         let content = match datacast_type {
             DatacastType::Nudge => {
@@ -55,17 +82,17 @@ Data: <msnobj Creator="aeonshl@shlasouf.local"..etc
             }
             DatacastType::MsnObject => {
                 DatacastMessagePayload {
-                    data: Datacast::MsnObject(MsnObject::from_str(raw_msg_payload.get_body_as_str()?)?),
+                    data: Datacast::MsnObject(MsnObject::from_str(data)?),
                 }
             }
             DatacastType::ActionMsg => {
                 DatacastMessagePayload {
-                    data: Datacast::ActionMsg(String::from_utf8(raw_msg_payload.body)?)
+                    data: Datacast::ActionMsg(data.to_string())
                 }
             }
             DatacastType::Wink => {
                 DatacastMessagePayload {
-                    data: Datacast::Wink(MsnObject::from_str(raw_msg_payload.get_body_as_str()?)?),
+                    data: Datacast::Wink(MsnObject::from_str(data)?),
                 }
             }
         };
