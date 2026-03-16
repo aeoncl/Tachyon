@@ -21,5 +21,5 @@ There are three distinct components making Tachyon tick:
  - Luis Mariano Guerra and his project Emesene
  - Pang Wu, Ethem Evlice, Scott Werndorfer & The MSNPSharp Team 
  - All the people that saved documentation and packet captures at the time
- - All the people Matrix ecosystem
- - The team behind Windows Live Messenger, especially 14.0: thanks for all my childhood memories and friendships that still carry on to this day
+ - The Matrix & Element folks
+ - The team behind Windows Live Messenger, especially 14.0: thank you for all the childhood memories
