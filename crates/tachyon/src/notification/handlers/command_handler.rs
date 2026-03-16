@@ -99,7 +99,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
 
                             let client_data = TachyonClient::new(msn_user.clone(), ticket_token.clone(), notif_sender.clone(), matrix_client.clone(), sliding_sync);
-                            client_store.insert_client_data(ticket_token.as_str().to_owned(), client_data.clone());
+                            client_store.insert_client(ticket_token.as_str().to_owned(), client_data.clone());
 
                             local_store.token = ticket_token.clone();
                             local_store.client_data = Some(client_data.clone());

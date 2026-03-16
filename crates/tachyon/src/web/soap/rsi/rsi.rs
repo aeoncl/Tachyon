@@ -25,7 +25,7 @@ pub async fn rsi(headers: HeaderMap, State(state): State<ClientStoreFacade>, bod
     let header_env = RSIAuthSoapEnvelope::try_from_xml(&body)?;
     let token = TicketToken(header_env.header.ok_or(RSIError::AuthenticationFailed {source: anyhow!("Missing Soap Header", ), service_url: "https://rsi.hotmail.com/rsi/rsi.asmx".to_string() })?.passport_cookie.t);
 
-    let mut client_data = state.get_client_data(&token.0).ok_or(RSIError::AuthenticationFailed {source: anyhow!("Missing Client Data in client store"), service_url: "https://rsi.hotmail.com/rsi/rsi.asmx".to_string() })?;
+    let mut client_data = state.get_client(&token.0).ok_or(RSIError::AuthenticationFailed {source: anyhow!("Missing Client Data in client store"), service_url: "https://rsi.hotmail.com/rsi/rsi.asmx".to_string() })?;
 
     let client = client_data.matrix_client();
 

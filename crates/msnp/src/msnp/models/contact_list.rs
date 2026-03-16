@@ -5,6 +5,7 @@ use strum::IntoEnumIterator;
 use crate::msnp::models::contact::Contact;
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::role_list::RoleList;
+use crate::shared::models::uuid::Uuid;
 
 pub struct ContactList {
     pub contact_list: HashMap<EmailAddress, Contact>,
@@ -72,6 +73,10 @@ impl ContactList {
 
     pub fn get_contact(&self, email_address: &EmailAddress) -> Option<&Contact> {
         self.contact_list.get(email_address)
+    }
+
+    pub fn find_contact_by_uuid(&self, uuid: &Uuid) -> Option<&Contact>  {
+        self.contact_list.iter().find(|(email, contact)| Uuid::from(*email) == *uuid).map(|(_k, v)| v)
     }
 
 }

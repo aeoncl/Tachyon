@@ -118,10 +118,14 @@ pub mod request {
 }
 
 pub mod response {
+    use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
 
     use crate::soap::abch::msnab_faults::SoapFault;
     use crate::soap::abch::service_header::ServiceHeaderContainer;
+    use crate::soap::abch::sharing_service::find_membership::response::FindMembershipResponseMessageSoapEnvelope;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::ToXml;
 
     #[cfg(test)]
     mod tests {
@@ -172,6 +176,14 @@ pub mod response {
         pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapAbcontactDeleteResponseMessage,
+    }
+
+    impl ToXml for AbcontactDeleteResponseMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+        fn to_xml(&self) -> Result<String, Self::Error>  {
+            to_string(self).map_err(|e| SoapMarshallError::SerializationError { message: e})
+        }
+
     }
 
     impl AbcontactDeleteResponseMessageSoapEnvelope {

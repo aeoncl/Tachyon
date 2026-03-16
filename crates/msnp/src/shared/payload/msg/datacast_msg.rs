@@ -33,26 +33,8 @@ impl TryFromRawMsgPayload for DatacastMessagePayload {
             });
         }
 
-
-        //FIXME: DATACAST ID IS IN BODY, not in HEADER
-        /*
-        16-03-2026T01:06:24.514 [DEBUG] - SB << | MSG 113 N 1325MIME-Version: 1.0
-Content-Type: text/x-msnmsgr-datacast
-Message-ID: {5CFDB40C-9737-4788-B186-9A22A350564B}
-Chunks: 3
-
-ID: 2
-Data: <msnobj Creator="aeonshl@shlasouf.local"..etc
-         */
-
-
         let body_str = raw_msg_payload.get_body_as_string()?;
-
-        debug!("DatacastBody: Parsing body: {}", body_str);
-
         let body_split : Vec<&str> = body_str.split("\r\n").collect();
-
-        debug!("body split: {:?}", &body_split);
 
         let mut body_map = {
             let mut body = HashMap::new();

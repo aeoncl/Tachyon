@@ -33,7 +33,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
         SwitchboardClientCommand::ANS(ans_command) => {
             let token = SwitchboardToken::try_from(ans_command.token.clone())?;
 
-            match client_store.get_client_data(&token.matrix_token) {
+            match client_store.get_client(&token.matrix_token) {
                 None => {}
                 Some(tachyon_client) => {
                     let matrix_client = tachyon_client.matrix_client();
@@ -104,7 +104,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
 
             let token = TicketToken::from_str(&usr_command.token).unwrap();
 
-            match client_store.get_client_data(token.as_str()) {
+            match client_store.get_client(token.as_str()) {
                 None => {
                     //TODO AUTH error
                 }

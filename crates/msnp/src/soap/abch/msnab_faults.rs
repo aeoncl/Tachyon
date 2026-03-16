@@ -57,7 +57,7 @@ impl SoapFaultResponseEnvelope {
 		}
 	}
 
-	pub fn new_contact_already_exists(soap_action: String, confict_object_id: &Uuid) -> Self {
+	pub fn new_contact_already_exists(soap_action: &str, confict_object_id: &Uuid) -> Self {
 
 		let additional_details = FaultAdditionalDetails{
 			original_exception_error_message: None,
@@ -76,7 +76,7 @@ impl SoapFaultResponseEnvelope {
 		let soap_fault = SoapFault{
 			fault_code: Some("soap:Client".into()),
 			fault_string: Some("Contact Already Exists".into()),
-			fault_actor: Some(soap_action),
+			fault_actor: Some(soap_action.to_string()),
 			detail: Some(fault_detail),
 		};
 
@@ -87,7 +87,7 @@ impl SoapFaultResponseEnvelope {
 		}
 	}
 
-	pub fn new_contact_doesnt_exist(soap_action: String, confict_object_id: &Uuid) -> Self {
+	pub fn new_contact_doesnt_exist(soap_action: &str, confict_object_id: &Uuid) -> Self {
 
 		let additional_details = FaultAdditionalDetails{
 			original_exception_error_message: None,
@@ -106,7 +106,7 @@ impl SoapFaultResponseEnvelope {
 		let soap_fault = SoapFault{
 			fault_code: Some("soap:Client".into()),
 			fault_string: Some("Contact Does Not Exist".into()),
-			fault_actor: Some(soap_action),
+			fault_actor: Some(soap_action.to_string()),
 			detail: Some(fault_detail),
 		};
 

@@ -136,11 +136,15 @@ pub mod request {
 }
 
 pub mod response {
+    use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
     use crate::shared::models::uuid::Uuid;
+    use crate::soap::abch::ab_service::ab_contact_update::response::AbcontactUpdateResponseMessageSoapEnvelope;
     use crate::soap::abch::msnab_datatypes::Guid;
     use crate::soap::abch::msnab_faults::SoapFault;
     use crate::soap::abch::service_header::ServiceHeaderContainer;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::traits::xml::ToXml;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapAbcontactAddResponseMessage {
@@ -181,6 +185,14 @@ pub mod response {
         pub header: Option<ServiceHeaderContainer>,
         #[yaserde(rename = "Body", prefix = "soap")]
         pub body: SoapAbcontactAddResponseMessage,
+    }
+
+    impl ToXml for AbcontactAddResponseMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+        fn to_xml(&self) -> Result<String, Self::Error>  {
+            to_string(self).map_err(|e| SoapMarshallError::SerializationError { message: e})
+        }
+
     }
 
     impl AbcontactAddResponseMessageSoapEnvelope {

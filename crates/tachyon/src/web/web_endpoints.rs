@@ -97,7 +97,7 @@ pub async fn get_profile_pic(Path((image_mxid, _image_type)): Path<(String, Stri
     let image_mxid = String::from_utf8(general_purpose::STANDARD.decode(image_mxid.as_bytes()).unwrap()).unwrap();
     let parsed_mxc = OwnedMxcUri::from(image_mxid);
 
-    let client_data = state.get_single_client_data().unwrap();
+    let client_data = state.get_single_client().unwrap();
 
     let client= client_data.matrix_client();
 

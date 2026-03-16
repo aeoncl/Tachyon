@@ -7,6 +7,7 @@ use matrix_sdk::ruma::events::room::member::{
 };
 use matrix_sdk::{Client, Room, RoomState};
 use msnp::soap::abch::msnab_datatypes::{ContactType, ContactTypeEnum};
+use crate::matrix::extensions::direct::DirectRoom;
 
 pub async fn handle_contacts(
     event: SyncRoomMemberEvent,
@@ -22,8 +23,7 @@ pub async fn handle_contacts(
         event.state_key() == client.user_id().expect("UserId to be known while syncing");
 
     if event_is_about_me {
-
-        let msn_user = room.to_msn_user().await.unwrap();
+        let room_msn_user = room.to_msn_user().await.unwrap();
 
         {
             let mut contact_holder = context.client_data.soap_holder().contacts.lock().unwrap();
@@ -32,17 +32,17 @@ pub async fn handle_contacts(
             match event.membership() {
                 MembershipState::Ban => {
                     //I Got Ban
-                    let contact = ContactType::new(&msn_user, ContactTypeEnum::LivePending, false);
+                    let contact = ContactType::new(&room_msn_user, ContactTypeEnum::LivePending, false);
                     contact_holder.push( AddressBookContact::Contact(contact));
                 }
                 MembershipState::Leave => {
                     //I Bailed
-                    let contact = ContactType::new(&msn_user, ContactTypeEnum::Live, true);
+                    let contact = ContactType::new(&room_msn_user, ContactTypeEnum::Live, true);
                     contact_holder.push( AddressBookContact::Contact(contact));
                 }
                 MembershipState::Join => {
                     //I'm joined
-                    let contact = ContactType::new(&msn_user, ContactTypeEnum::Live, false);
+                    let contact = ContactType::new(&room_msn_user, ContactTypeEnum::Live, false);
                     contact_holder.push( AddressBookContact::Contact(contact));
                 }
                 _ => {

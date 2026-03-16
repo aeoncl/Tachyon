@@ -18,7 +18,7 @@ use std::str::FromStr;
 use crate::tachyon::tachyon_client::TachyonClient;
 use crate::notification::models::soap_holder::AddressBookContact;
 
-pub async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, _token: TicketToken, client: Client, mut client_data: TachyonClient) -> Result<Response, ABError> {
+pub(super) async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, _token: TicketToken, client: Client, mut tachyon_client: TachyonClient) -> Result<Response, ABError> {
     let body = &request.body.body;
 
     let ab_id = {
@@ -35,10 +35,10 @@ pub async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnve
 
     if &ab_id == "00000000-0000-0000-0000-000000000000" {
         //Handle User Request
-        return handle_user_contact_list(request, client, &mut client_data).await;
+        return handle_user_contact_list(request, client, &mut tachyon_client).await;
     } else {
         //Handle Circle Request
-        return handle_circle_request(request, &ab_id, client, &mut client_data).await;
+        return handle_circle_request(request, &ab_id, client, &mut tachyon_client).await;
     }
 
     Err(anyhow!("Unsupported AB Id"))?

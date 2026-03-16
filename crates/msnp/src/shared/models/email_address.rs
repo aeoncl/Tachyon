@@ -1,6 +1,7 @@
 use crate::shared::errors::IdentifierError;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
+use crate::shared::models::uuid::Uuid;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Default)]
 pub struct EmailAddress(String);
@@ -29,6 +30,18 @@ impl EmailAddress {
 impl Into<String> for EmailAddress {
     fn into(self) -> String {
         self.0
+    }
+}
+
+impl From<EmailAddress> for Uuid {
+    fn from(value: EmailAddress) -> Self {
+        Uuid::from_seed(value.as_str())
+    }
+}
+
+impl From<&EmailAddress> for Uuid {
+    fn from(value: &EmailAddress) -> Self {
+        Uuid::from_seed(value.as_str())
     }
 }
 
