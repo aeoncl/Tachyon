@@ -58,22 +58,12 @@ async fn to_msn_user_internal(room: &Room, lazy_resolve: bool) -> Result<MsnUser
     };
     
 
-    if let Ok(Some(direct_target)) = &maybe_direct_target {
-        user.display_name = match direct_target.display_name() {
-            None => {
-                Some(direct_target.to_email_address().expect("to never fail").to_string())
-            }
-            Some(display_name) => {
-                Some(display_name.to_string())
-            }
-        }
-    } else {
+
         if let Ok(display_name) = room.display_name().await {
             user.display_name = Some(display_name.to_string());
         } else {
             user.display_name = Some(room.room_id().to_string());
         }
-    };
 
 
     //Todo chek if direct_target for avatar.

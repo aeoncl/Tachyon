@@ -6,6 +6,7 @@ use matrix_sdk::ruma::events::room::member::{
     MembershipState, StrippedRoomMemberEvent, SyncRoomMemberEvent,
 };
 use matrix_sdk::{Client, Room, RoomState};
+use matrix_sdk::ruma::room::RoomType;
 use msnp::soap::abch::msnab_datatypes::{ContactType, ContactTypeEnum};
 use crate::matrix::extensions::direct::DirectRoom;
 
@@ -15,6 +16,11 @@ pub async fn handle_contacts(
     context: Ctx<TachyonContext>,
     client: Client,
 ) {
+    let is_space = room.room_type().is_some_and(|room_type| matches!(room_type, RoomType::Space));
+
+    if is_space {
+        return;
+    }
 
     println!("Handling contact event for room: {}", room.room_id().to_string());
 
@@ -61,6 +67,12 @@ pub async fn handle_contacts_stripped(
     context: Ctx<TachyonContext>,
     client: Client,
 ) {
+    let is_space = room.room_type().is_some_and(|room_type| matches!(room_type, RoomType::Space));
+
+    if is_space {
+        return;
+    }
+
     let event_is_about_me =
         event.state_key == client.user_id().expect("UserId to be known while syncing");
 

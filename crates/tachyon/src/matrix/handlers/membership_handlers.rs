@@ -1,5 +1,7 @@
+use std::any::Any;
 use matrix_sdk::{event_handler::Ctx, ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMemberEvent}, Client, Room, RoomState};
 use matrix_sdk::ruma::events::room::member::MembershipState;
+use matrix_sdk::ruma::room::RoomType;
 use msnp::shared::models::role_list::RoleList;
 use msnp::soap::abch::msnab_datatypes::{BaseMember, ContactType, ContactTypeEnum, MemberState};
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
@@ -12,6 +14,11 @@ pub async fn handle_memberships(
     context: Ctx<TachyonContext>,
     client: Client,
 ) {
+    let is_space = room.room_type().is_some_and(|room_type| matches!(room_type, RoomType::Space));
+
+    if is_space {
+        return;
+    }
 
     let event_is_about_me =
         event.state_key() == client.user_id().expect("UserId to be known while syncing");
@@ -57,7 +64,12 @@ pub async fn handle_memberships_stripped(
     context: Ctx<TachyonContext>,
     client: Client,
 ) {
+    let is_space = room.room_type().is_some_and(|room_type| matches!(room_type, RoomType::Space));
 
+    if is_space {
+        return;
+    }
+    
     let event_is_about_me =
         event.state_key == client.user_id().expect("UserId to be known while syncing");
 

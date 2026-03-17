@@ -69,11 +69,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
 
                             //Send me joined
                             let me = tachyon_client.own_user()?;
-                            command_sender.send(SwitchboardServerCommand::JOI(JoiServer {
-                                display_name: me.compute_display_name().to_string(),
-                                endpoint_id: me.endpoint_id.clone(),
-                                capabilities: me.capabilities.clone(),
-                            })).await?;
+                            send_initial_joined_member(me, &command_sender).await?;
 
                             if ROOM_USER_PORTAL_MODE {
                                 send_active_members_notice(&room, &command_sender).await?;
