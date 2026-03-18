@@ -118,7 +118,7 @@ impl SoapFaultResponseEnvelope {
 
 	}
 
-	pub fn new_email_missing_at_sign(soap_action: String) -> Self {
+	pub fn new_email_missing_at_sign(soap_action: &str) -> Self {
 		let additional_details = FaultAdditionalDetails{
 			original_exception_error_message: Some("Malformed email Argument Email missing '@' character".into()),
 			conflict_object_id: None
@@ -135,7 +135,7 @@ impl SoapFaultResponseEnvelope {
 		let soap_fault = SoapFault{
 			fault_code: Some("soap:Client".into()),
 			fault_string: Some("Malformed email Argument Email missing '@' character".into()),
-			fault_actor: Some(soap_action),
+			fault_actor: Some(soap_action.to_string()),
 			detail: Some(fault_detail),
 		};
 
@@ -237,7 +237,7 @@ impl SoapFaultResponseEnvelope {
 
 	}
 
-	pub fn new_invalid_passport_user(soap_action: String, msn_addr: &str) -> Self {
+	pub fn new_invalid_passport_user(soap_action: &str, msn_addr: &str) -> Self {
 		let additional_details = FaultAdditionalDetails{
 			original_exception_error_message: Some(format!("The Passport user specified is invalid SignInName: {}", msn_addr)),
 			conflict_object_id: None
@@ -254,7 +254,7 @@ impl SoapFaultResponseEnvelope {
 		let soap_fault = SoapFault{
 			fault_code: Some("soap:Client".into()),
 			fault_string: Some(format!("The Passport user specified is invalid SignInName: {}", msn_addr)),
-			fault_actor: Some(soap_action),
+			fault_actor: Some(soap_action.to_string()),
 			detail: Some(fault_detail),
 		};
 
