@@ -17,6 +17,10 @@
 - [ ] Figure out how do we configure the server ports
   - Detour dll needs to know the ports, let's use static ports that aren't used by anything else.
 
+## Landing Page
+
+- [ ] Do a download setup landing page
+
 ## MVP Features
 - [X] Simplify the contact list. Show rooms, not contacts.
 - [X] Send Text Messages
@@ -24,11 +28,13 @@
 - [ ] E2E Device verification
 - [ ] MSN Today Page
 - [ ] MSNP Errors
+- [ ] Testing
 
 # Nice to have
 - [ ] File Transfer
 - [ ] Avatar Transfer
 - [ ] Voice Messages
+- [ ] Anonymize logs
 
 ## Next
 - [ ] OIMs
