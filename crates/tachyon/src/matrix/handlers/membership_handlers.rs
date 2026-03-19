@@ -1,12 +1,10 @@
-use std::any::Any;
-use matrix_sdk::{event_handler::Ctx, ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMemberEvent}, Client, Room, RoomState};
-use matrix_sdk::ruma::events::room::member::MembershipState;
-use matrix_sdk::ruma::room::RoomType;
-use msnp::shared::models::role_list::RoleList;
-use msnp::soap::abch::msnab_datatypes::{BaseMember, ContactType, ContactTypeEnum, MemberState};
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::matrix::handlers::context::TachyonContext;
-use crate::notification::models::soap_holder::AddressBookContact;
+use matrix_sdk::ruma::events::room::member::MembershipState;
+use matrix_sdk::ruma::room::RoomType;
+use matrix_sdk::{event_handler::Ctx, ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMemberEvent}, Client, Room, RoomState};
+use msnp::shared::models::role_list::RoleList;
+use msnp::soap::abch::msnab_datatypes::{BaseMember, MemberState};
 
 pub async fn handle_memberships(
     event: SyncRoomMemberEvent,
