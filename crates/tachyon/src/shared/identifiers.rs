@@ -6,6 +6,8 @@ use msnp::shared::models::msn_user::MsnUser;
 use ruma::RoomId;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
+use lazy_static::lazy_static;
+use regex::Regex;
 
 pub struct MatrixDeviceId(String);
 
@@ -69,5 +71,20 @@ impl MatrixIdCompatible for EmailAddress {
         let as_str = self.as_str();
         let (name, domain) = as_str.split_once("@").expect("Email to contain @");
         OwnedUserId::from_str(&format!("@{}:{}", name, domain)).expect("OwnedUserId to be valid")
+    }
+}
+
+pub trait IsSha1 {
+    fn is_sha1_imprecise(&self) -> bool;
+}
+
+lazy_static! {
+    static ref SHA1_REGEX: Regex = Regex::new("^[0-9a-f]{40}$").unwrap();
+}
+
+impl IsSha1 for EmailAddress {
+    fn is_sha1_imprecise(&self) -> bool {
+        let (local_part, _domain) = self.crack();
+        local_part.len() == 40 && SHA1_REGEX.is_match(local_part)
     }
 }

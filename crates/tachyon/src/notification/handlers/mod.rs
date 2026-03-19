@@ -9,3 +9,4 @@ mod chg_handler;
 mod put_handler;
 mod xfr_handler;
 mod prp_handler;
+mod fqy_handler;

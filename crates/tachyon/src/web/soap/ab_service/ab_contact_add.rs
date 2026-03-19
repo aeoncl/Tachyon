@@ -6,6 +6,7 @@ use axum::response::Response;
 use log::debug;
 use matrix_sdk::{Client, Room, RoomState};
 use matrix_sdk::ruma::events::room::member::MembershipState;
+use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use matrix_sdk::ruma::UserId;
 use tokio::task;
 use tokio::time::sleep;
@@ -18,11 +19,12 @@ use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::ab_service::ab_contact_add::request::AbcontactAddMessageSoapEnvelope;
 use msnp::soap::abch::ab_service::ab_contact_add::response::AbcontactAddResponseMessageSoapEnvelope;
-use msnp::soap::abch::msnab_datatypes::{ContactType, ContactTypeEnum};
+use msnp::soap::abch::msnab_datatypes::{ContactType, ContactTypeEnum, MessengerMemberInfo};
 use msnp::soap::abch::msnab_datatypes::RoleId::Email;
 use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::traits::xml::ToXml;
 use crate::matrix::extensions::direct::DirectRoom;
+use crate::matrix::extensions::message_dedup::SendWithDedup;
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToEmailAddress, ToMsnUser};
 use crate::notification::models::soap_holder::AddressBookContact;
 use crate::shared::identifiers::MatrixIdCompatible;
@@ -43,6 +45,9 @@ pub(super) async fn ab_contact_add(request : AbcontactAddMessageSoapEnvelope, _t
     if let Some(contacts) = request.body.ab_contact_add.contacts.map(|c| c.contact) {
         for contact in contacts {
             if let Some(contact_info) = contact.contact_info {
+
+                let invite_msg = extract_invite_msg(contact_info.messenger_member_info.as_ref());
+
                  if let Some(Ok(contact_email)) = contact_info.passport_name.map(|p| EmailAddress::from_str(&p)) {
 
                      //We were sent a room sha1d email
@@ -55,17 +60,25 @@ pub(super) async fn ab_contact_add(request : AbcontactAddMessageSoapEnvelope, _t
 
                      //We were sent a user mapping
                      let contact_user_id = contact_email.to_owned_user_id();
-                     println!("ContactUserId {}", &contact_user_id );
                      match client.get_dm_room(&contact_user_id) {
                          None => {
                              let dm = client.create_dm(&contact_user_id).await?;
+                             if let Some(invite_msg) = invite_msg {
+                                 let message = RoomMessageEventContent::text_plain(invite_msg);
+                                 let _ = dm.send_with_dedup(message).await;
+                             }
                              return Ok(contact_create(&contact_email, &cache_key, soap_action, tachyon_client).await?);
                          }
                          Some(dm) => {
                                 if !dm.is_valid_one_to_one_direct() {
                                     let dm = client.create_dm(&contact_user_id).await?;
+                                    if let Some(invite_msg) = invite_msg {
+                                        let message = RoomMessageEventContent::text_plain(invite_msg);
+                                        let _ = dm.send_with_dedup(message).await;
+                                    }
                                     return Ok(contact_create(&contact_email, &cache_key, soap_action, tachyon_client).await?);
                                 } else {
+
                                     if let Some(member) = dm.get_member(&contact_user_id).await? {
                                         match member.membership()  {
                                             MembershipState::Invite | MembershipState::Join => {
@@ -76,7 +89,10 @@ pub(super) async fn ab_contact_add(request : AbcontactAddMessageSoapEnvelope, _t
                                             }
                                         }
                                         return Ok(contact_already_exists(&dm, &soap_action)?);
-                                    } else if let Ok(invite) = dm.invite_details().await {
+                                    }
+
+                                    //FIXME: Doesnt work, we cannot rejoined invited room
+                                    if let Ok(_invite) = dm.invite_details().await {
                                         dm.join().await?;
                                         return Ok(contact_create(&contact_email, &cache_key, soap_action, tachyon_client).await?);
                                     }
@@ -92,6 +108,17 @@ pub(super) async fn ab_contact_add(request : AbcontactAddMessageSoapEnvelope, _t
 
 }
 
+
+fn extract_invite_msg(messenger_member_info: Option<&MessengerMemberInfo>) -> Option<String> {
+    if let Some(member_info) = messenger_member_info {
+        if let Some(annotations) = &member_info.pending_annotations {
+            if let Some(found) = annotations.annotation.iter().find(|a| a.name.as_str() == "MSN.IM.InviteMessage") {
+                return found.value.clone();
+            }
+        }
+    }
+    return None;
+}
 
 //TODO
 //Maybe this will be irrelevent when FindByContacts is implemented
@@ -125,12 +152,15 @@ async fn contact_create(contact_email_addr: &EmailAddress, soap_action: &str,  c
 
     let contact_email_addr_clone = contact_email_addr.clone();
 
+    //Delete user contact mapping
     task::spawn(async move {
         let _ = delete_user_contact(contact_email_addr_clone, tachyon_client).await;
     });
 
 
     Ok(shared::build_soap_response(AbcontactAddResponseMessageSoapEnvelope::get_response(&contact_uuid, cache_key).to_xml()?, StatusCode::OK))
+
+    //Error responses triggers a forward query (FQY) that checks if the passport is not an alias.
     //Ok(shared::build_soap_response(SoapFaultResponseEnvelope::new_invalid_passport_user(soap_action, &contact_email_addr.to_string()).to_xml()?, StatusCode::OK))
     //Ok(shared::build_soap_response(SoapFaultResponseEnvelope::new_email_missing_at_sign(soap_action).to_xml()?, StatusCode::OK))
 

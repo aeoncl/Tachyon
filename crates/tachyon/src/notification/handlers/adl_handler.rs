@@ -11,6 +11,7 @@ use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::network_id_email::NetworkIdEmail;
 use msnp::shared::models::presence_status::PresenceStatus;
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
+use crate::shared::identifiers::IsSha1;
 use crate::tachyon::tachyon_client::TachyonClient;
 
 pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
@@ -22,8 +23,7 @@ pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, comma
     let mut contact_list = tachyon_client.get_contact_list().lock().unwrap();
         contact_list.add_contacts(contacts.clone(), command.payload.is_initial());
     }
-    
-    
+
     command_sender.send(NotificationServerCommand::OK(command.get_ok_response("ADL"))).await?;
 
 
@@ -34,6 +34,10 @@ pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, comma
         //Hardcoded presence to Online
         //TODO: implement real presence
         for contact in contacts {
+
+            if !contact.email_address.is_sha1_imprecise() {
+                continue;
+            }
 
             let display_name = if let Ok(Some(room)) = matrix_client.find_room_from_email(&contact.email_address) {
                 if let Ok(msn_user) = room.to_msn_user_lazy().await {

@@ -23,6 +23,7 @@ use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use tokio::sync::mpsc::Sender;
+use crate::notification::handlers::fqy_handler::handle_fqy;
 use crate::notification::handlers::prp_handler::handle_prp;
 use crate::notification::handlers::xfr_handler::handle_xfr;
 use crate::tachyon::tachyon_client::TachyonClient;
@@ -71,7 +72,7 @@ pub(crate) async fn handle_negotiation(raw_command: NotificationClientCommand, n
 }
 
 
-const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"9999\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"200\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
+const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"1000\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"100\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
 pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, client_store: &ClientStoreFacade, local_store: &mut LocalClientData) -> Result<(), anyhow::Error> {
     match command {
         NotificationClientCommand::USR(command) => {
@@ -151,16 +152,15 @@ async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Se
         NotificationClientCommand::CHG(command) => handle_chg(command, local_store, client_data, command_sender).await,
         NotificationClientCommand::PRP(command) => handle_prp(command, local_store, client_data, command_sender).await,
         NotificationClientCommand::UUN(_command) => {Ok(())},
-        NotificationClientCommand::XFR(command) => handle_xfr(command, local_store, command_sender).await,
         NotificationClientCommand::RAW(command) => {
             warn!("Received RAW command: {:?}", command);
             Ok(())
         },
         NotificationClientCommand::PUT(command) => handle_put(command, local_store, client_data, command_sender).await,
         NotificationClientCommand::OUT => {Ok(())}
-        _ => {
-            warn!("Received unknown command");
-            Ok(())
-        }
+        NotificationClientCommand::VER(_) => {Ok(())}
+        NotificationClientCommand::CVR(_) => {Ok(())}
+        NotificationClientCommand::FQY(command) => {handle_fqy(command, client_data, command_sender).await}
+        NotificationClientCommand::SDG(_) => {Ok(())}
     }
     }

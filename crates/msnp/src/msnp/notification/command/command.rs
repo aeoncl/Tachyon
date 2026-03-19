@@ -19,6 +19,7 @@ use crate::msnp::notification::command::uux::UuxServer;
 use crate::msnp::notification::command::ver::VerServer;
 use crate::msnp::notification::command::xfr::{XfrClient, XfrServer};
 use crate::msnp::{error::CommandError, raw_command_parser::RawCommand};
+use crate::msnp::notification::command::fqy::{FqyClient, FqyServer};
 use crate::shared::command::ok::OkCommand;
 use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 
@@ -32,6 +33,7 @@ pub enum NotificationClientCommand {
     PNG,
     ADL(AdlClient),
     RML(RmlClient),
+    FQY(FqyClient),
     UUX(UuxClient),
     BLP(BlpClient),
     CHG(ChgClient),
@@ -56,6 +58,7 @@ impl TryFromRawCommand for NotificationClientCommand {
             "PNG" => NotificationClientCommand::PNG,
             "ADL" => NotificationClientCommand::ADL(AdlClient::try_from_raw(raw)?),
             "RML" => NotificationClientCommand::RML(RmlClient::try_from_raw(raw)?),
+            "FQY" => NotificationClientCommand::FQY(FqyClient::try_from_raw(raw)?),
             "UUX" => NotificationClientCommand::UUX(UuxClient::try_from_raw(raw)?),
             "BLP" => NotificationClientCommand::BLP(BlpClient::try_from_raw(raw)?),
             "CHG" => NotificationClientCommand::CHG(ChgClient::try_from_raw(raw)?),
@@ -88,6 +91,7 @@ pub enum NotificationServerCommand {
     UUX(UuxServer),
     UBX(UbxServer),
     OK(OkCommand),
+    FQY(FqyServer),
     CHG(ChgServer),
     NFY(NfyServer),
     BLP(BlpServer),
@@ -137,6 +141,7 @@ impl IntoBytes for NotificationServerCommand {
             NotificationServerCommand::XFR(content) => { content.into_bytes() }
             NotificationServerCommand::RNG(content) => { content.into_bytes() }
             NotificationServerCommand::PRP(content) => { content.into_bytes() }
+            NotificationServerCommand::FQY(content) => { content.into_bytes() }
         }
     }
 }
