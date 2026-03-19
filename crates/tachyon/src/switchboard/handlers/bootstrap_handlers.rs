@@ -1,6 +1,6 @@
 use crate::matrix::extensions::direct::DirectRoom;
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
-use crate::shared::identifiers::MatrixIdCompatible;
+use crate::tachyon::identifiers::MatrixIdCompatible;
 use crate::switchboard::extensions::CustomStyles;
 use crate::switchboard::models::connection_phase::ConnectionPhase;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;

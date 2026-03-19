@@ -14,8 +14,8 @@ use msnp::soap::storage_service::get_profile::response::GetProfileResponseMessag
 use msnp::soap::storage_service::headers::StorageServiceRequestSoapEnvelope;
 use msnp::soap::traits::xml::{ToXml, TryFromXml};
 use crate::tachyon::client_store::ClientStoreFacade;
-use crate::shared::identifiers::MatrixIdCompatible;
-use crate::shared::traits::ToUuid;
+use crate::tachyon::identifiers::MatrixIdCompatible;
+use crate::tachyon::traits::ToUuid;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 use crate::web::web_endpoints::DEFAULT_CACHE_KEY;

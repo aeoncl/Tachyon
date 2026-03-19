@@ -11,7 +11,7 @@ use crate::notification::handlers::uum_handler::handle_uum;
 use crate::notification::handlers::uux_handler::handle_uux;
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
-use crate::shared::identifiers::MatrixIdCompatible;
+use crate::tachyon::identifiers::MatrixIdCompatible;
 use anyhow::anyhow;
 use log::warn;
 use matrix_sdk_ui::sync_service::SyncService;

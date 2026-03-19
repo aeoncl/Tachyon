@@ -14,14 +14,13 @@ use std::str::FromStr;
 use anyhow::anyhow;
 use directories::ProjectDirs;
 use tachyon::client_store::{ClientStoreFacade};
-use crate::shared::paths;
-use crate::shared::paths::create_dirs;
-use crate::shared::tachyon_config::TachyonConfig;
+use tachyon::paths;
+use tachyon::paths::create_dirs;
+use tachyon::tachyon_config::TachyonConfig;
 
 mod notification;
 mod web;
 mod switchboard;
-mod shared;
 mod matrix;
 mod tachyon;
 

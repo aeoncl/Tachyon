@@ -11,7 +11,7 @@ use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::network_id_email::NetworkIdEmail;
 use msnp::shared::models::presence_status::PresenceStatus;
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
-use crate::shared::identifiers::IsSha1;
+use crate::tachyon::identifiers::IsSha1;
 use crate::tachyon::tachyon_client::TachyonClient;
 
 pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {

@@ -7,9 +7,9 @@ use matrix_sdk::ruma::{device_id, OwnedUserId};
 use matrix_sdk_ui::sync_service::SyncService;
 use msnp::shared::models::ticket_token::TicketToken;
 
-use crate::shared::error::{MatrixConversionError, TachyonError};
-use crate::shared::identifiers::MatrixDeviceId;
-use crate::shared::paths::get_store_path;
+use crate::tachyon::error::{MatrixConversionError, TachyonError};
+use crate::tachyon::identifiers::MatrixDeviceId;
+use crate::tachyon::paths::get_store_path;
 
 fn get_device_id() -> Result<MatrixDeviceId, MatrixConversionError> {
     MatrixDeviceId::from_hostname()

@@ -10,8 +10,8 @@ use msnp::soap::passport::rst2::response::factory::RST2ResponseFactory;
 use msnp::soap::traits::xml::{ToXml, TryFromXml};
 
 use crate::matrix::login::login_with_password;
-use crate::shared::identifiers::MatrixIdCompatible;
-use crate::shared::traits::{ToUuid};
+use crate::tachyon::identifiers::MatrixIdCompatible;
+use crate::tachyon::traits::{ToUuid};
 use crate::web::soap::error::RST2Error;
 use crate::web::soap::shared;
 

@@ -20,7 +20,7 @@ use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory
 use msnp::shared::payload::msg::raw_msg_payload::MsgContentType;
 use crate::tachyon::client_store::ClientStoreError;
 use crate::tachyon::tachyon_client::TachyonClient;
-use crate::shared::identifiers::MatrixIdCompatible;
+use crate::tachyon::identifiers::MatrixIdCompatible;
 
 #[derive(Error, Debug)]
 pub enum OIMError {

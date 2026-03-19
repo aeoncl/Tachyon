@@ -1,5 +1,5 @@
 use crate::matrix::extensions::direct::DirectRoom;
-use crate::shared::identifiers::MatrixIdCompatible;
+use crate::tachyon::identifiers::MatrixIdCompatible;
 use anyhow::Error;
 use base64::engine::general_purpose;
 use base64::Engine;

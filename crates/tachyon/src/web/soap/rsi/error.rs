@@ -7,7 +7,7 @@ use msnp::soap::rsi::faults::SoapFaultResponseEnvelope;
 use msnp::soap::error::SoapMarshallError;
 use msnp::soap::traits::xml::ToXml;
 use crate::tachyon::client_store::ClientStoreError;
-use crate::shared::error::MatrixConversionError;
+use crate::tachyon::error::MatrixConversionError;
 use crate::web::soap::shared::build_soap_response;
 
 #[derive(Error, Debug)]

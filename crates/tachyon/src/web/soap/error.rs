@@ -9,7 +9,7 @@ use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::passport::rst2::response::factory::RST2ResponseFactory;
 use msnp::soap::traits::xml::ToXml;
 use crate::tachyon::client_store::ClientStoreError;
-use crate::shared::error::{MatrixConversionError, TachyonError};
+use crate::tachyon::error::{MatrixConversionError, TachyonError};
 use crate::web::soap::error::ABError::InternalServerError;
 use crate::web::soap::shared;
 use crate::web::soap::shared::build_soap_response;

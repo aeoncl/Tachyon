@@ -1,4 +1,4 @@
-use crate::shared::error::MatrixConversionError;
+use crate::tachyon::error::MatrixConversionError;
 use anyhow::anyhow;
 use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, UserId};
 use msnp::shared::models::email_address::EmailAddress;
