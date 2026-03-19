@@ -8,9 +8,9 @@ use matrix_sdk::ruma::events::key::verification::request::ToDeviceKeyVerificatio
 use matrix_sdk::ruma::events::room::message::OriginalSyncRoomMessageEvent;
 use crate::matrix::handlers::request_verification_handlers::request_verification_handler;
 
-pub(super) mod contact_handlers;
+pub mod contact_handlers;
 pub(super) mod context;
-pub(super) mod membership_handlers;
+pub mod membership_handlers;
 pub(super) mod profile_handlers;
 pub(super) mod presence_handlers;
 mod message_handlers;
@@ -19,7 +19,7 @@ mod request_verification_handlers;
 pub(super) fn register_event_handlers(matrix_client: &Client, client_data: TachyonClient) {
 
     matrix_client.add_event_handler_context(TachyonContext {
-        client_data,
+        tachyon_client: client_data,
     });
 
     matrix_client.add_event_handler(
@@ -28,7 +28,7 @@ pub(super) fn register_event_handlers(matrix_client: &Client, client_data: Tachy
          client: Client,
          context: Ctx<TachyonContext>| async move {
             println!("SyncRoomMemberEvent received: {:?}", &event);
-            handlers::contact_handlers::handle_contacts(event, room, context, client).await;
+            handlers::contact_handlers::handle_contacts(event, room, context.tachyon_client.clone(), client).await;
         },
     );
 
@@ -38,7 +38,7 @@ pub(super) fn register_event_handlers(matrix_client: &Client, client_data: Tachy
          client: Client,
          context: Ctx<TachyonContext>| async move {
             println!("SyncRoomMemberEvent received: {:?}", &event);
-            handlers::membership_handlers::handle_memberships(event, room, context, client).await;
+            handlers::membership_handlers::handle_memberships(event, room, context.tachyon_client.clone(), client).await;
         },
     );
 
@@ -48,7 +48,7 @@ pub(super) fn register_event_handlers(matrix_client: &Client, client_data: Tachy
          client: Client,
          context: Ctx<TachyonContext>| async move {
             println!("StrippedRoomMemberEvent received: {:?}", &event);
-            handlers::contact_handlers::handle_contacts_stripped(event, room, context, client).await;
+            handlers::contact_handlers::handle_contacts_stripped(event, room, context.tachyon_client.clone(), client).await;
         },
     );
 
@@ -59,7 +59,7 @@ pub(super) fn register_event_handlers(matrix_client: &Client, client_data: Tachy
          context: Ctx<TachyonContext>| async move {
             println!("StrippedRoomMemberEvent received: {:?}", &event);
             handlers::membership_handlers::handle_memberships_stripped(
-                event, room, context, client,
+                event, room, context.tachyon_client.clone(), client,
             ).await;
         },
     );

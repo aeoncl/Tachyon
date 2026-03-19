@@ -25,7 +25,7 @@ pub async fn handle_message(
     }
 
     let room_user = room.to_msn_user_lazy().await.unwrap();
-    let switchboard = context.client_data.switchboards().get_or_initialize(room.room_id(), &room_user);
+    let switchboard = context.tachyon_client.switchboards().get_or_initialize(room.room_id(), &room_user);
 
 
     let message_sender = if event.sender != room.own_user_id() {
@@ -40,7 +40,7 @@ pub async fn handle_message(
         }
 
     } else {
-        let mut own_user = context.client_data.own_user().unwrap();
+        let mut own_user = context.tachyon_client.own_user().unwrap();
         own_user.endpoint_id = EndpointId::from_email_addr(own_user.get_email_address().clone());
         own_user
     };

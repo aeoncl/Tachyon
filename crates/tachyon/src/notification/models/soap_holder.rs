@@ -15,7 +15,7 @@ pub struct SoapHolder {
     pub oims: DashMap<String, OIM>,
     pub contacts: Mutex<Vec<AddressBookContact>>,
     pub circle_contacts: DashMap<String, Vec<ContactType>>,
-    pub memberships: Mutex<VecDeque<BaseMember>>,
+    pub memberships: Mutex<Vec<BaseMember>>,
 }
 
 impl SoapHolder {

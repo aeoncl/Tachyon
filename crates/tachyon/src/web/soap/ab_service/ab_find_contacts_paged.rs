@@ -15,6 +15,7 @@ use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContac
 use msnp::soap::abch::msnab_datatypes::{CircleRelationshipRole, ContactType, ContactTypeEnum, RelationshipState};
 use msnp::soap::traits::xml::ToXml;
 use std::str::FromStr;
+use crate::matrix::handlers::contact_handlers::{compute_all_contacts};
 use crate::tachyon::tachyon_client::TachyonClient;
 use crate::notification::models::soap_holder::AddressBookContact;
 
@@ -32,17 +33,73 @@ pub(super) async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageS
         }
     };
 
-
     if &ab_id == "00000000-0000-0000-0000-000000000000" {
         //Handle User Request
-        return handle_user_contact_list(request, client, &mut tachyon_client).await;
+        handle_user_contact_list(request, client, &mut tachyon_client).await
     } else {
         //Handle Circle Request
-        return handle_circle_request(request, &ab_id, client, &mut tachyon_client).await;
+        handle_circle_request(request, &ab_id, client, &mut tachyon_client).await
+    }
+}
+
+async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelope, client: Client, client_data: &mut TachyonClient) -> Result<Response, ABError> {
+    let body = request.body.body;
+    let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or(Uuid::new().to_string());
+    let me_user = client_data.own_user()?;
+    let _uuid = &me_user.uuid;
+    let _msn_addr = me_user.get_email_address();
+
+    if body.filter_options.deltas_only {
+
+        let contacts = get_delta_contact_list(client_data)?;
+        
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(&me_user, &cache_key, contacts, vec![], false);
+
+        Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
+
+        //Ok(shared::build_soap_response(SoapFaultResponseEnvelope::new_fullsync_required("http://www.msn.com/webservices/AddressBook/ABFindContactsPaged").to_xml()?, StatusCode::OK))
+    } else {
+        // Full contact list demanded.
+        let (contacts, circles) = {
+            let mut contacts = Vec::new();
+            let mut circles = Vec::new();
+            for current in compute_all_contacts(client).await.drain(..) {
+                match current {
+                    AddressBookContact::Contact(contact) => {
+                        contacts.push(contact);
+                    }
+                    AddressBookContact::Circle(circle) => {
+                        circles.push(circle);
+                    }
+                }
+            }
+            (contacts, circles)
+        };
+
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(&me_user, &cache_key, contacts, circles,false );
+        Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
     }
 
-    Err(anyhow!("Unsupported AB Id"))?
 }
+
+fn get_delta_contact_list(client_data: &mut TachyonClient) -> Result<Vec<ContactType>, ABError> {
+    let mut current_contacts = Vec::new();
+
+    let mut contact_holder = client_data.soap_holder().contacts.lock().unwrap();
+    
+    for contact in contact_holder.drain(..) {
+        match contact {
+            AddressBookContact::Contact(contact) => {
+                current_contacts.push(contact);
+            }
+            AddressBookContact::Circle(_) => {}
+        }
+    }
+
+    Ok(current_contacts)
+}
+
+
 
 async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, ab_id: &str, client: Client, client_data: &mut TachyonClient) -> Result<Response, ABError> {
     let body = request.body.body;
@@ -97,157 +154,4 @@ async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, 
     }
 
 
-}
-
-async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelope, client: Client, client_data: &mut TachyonClient) -> Result<Response, ABError> {
-    let body = request.body.body;
-    let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or(Uuid::new().to_string());
-    let me_user = client_data.own_user()?;
-    let _uuid = &me_user.uuid;
-    let _msn_addr = me_user.get_email_address();
-
-    if body.filter_options.deltas_only {
-
-        let contacts = get_delta_contact_list(client_data)?;
-        
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(&me_user, &cache_key, contacts, vec![], false);
-
-        Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
-
-        //Ok(shared::build_soap_response(SoapFaultResponseEnvelope::new_fullsync_required("http://www.msn.com/webservices/AddressBook/ABFindContactsPaged").to_xml()?, StatusCode::OK))
-    } else {
-        // Full contact list demanded.
-        //TODO Circle fullsync
-        let contacts = get_fullsync_contact_list(&client).await?;
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(&me_user, &cache_key, contacts, Vec::new(),false );
-        Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
-    }
-
-}
-
-fn get_delta_contact_list(client_data: &mut TachyonClient) -> Result<Vec<ContactType>, ABError> {
-   // let contact_service = client_data.get_contact_service();
-   // let contact_list = client_data.get_contact_list().lock().unwrap();
-   // let mut contacts = contact_service.inner.pending_contacts.lock().unwrap();
-
-    let mut current_contacts = Vec::new();
-
-    let mut contact_holder = client_data.soap_holder().contacts.lock().unwrap();
-    
-    for contact in contact_holder.drain(..) {
-        match contact {
-            AddressBookContact::Contact(contact) => {
-                current_contacts.push(contact);
-            }
-            AddressBookContact::Circle(_) => {}
-        }
-    }
-
-/*    for (_string, contact) in contacts.drain() {
-        match contact {
-            ContactDiff::AddContact { user_id, pending } => {
-                let msn_user = MsnUser::from_user_id(&user_id);
-
-                if let Some(contact) = contact_list.get_contact(&msn_user.get_email_address()) {
-                    if contact.has_role(RoleList::Pending) && pending {
-                        continue;
-                    }
-
-                    if contact.has_role(RoleList::Forward) && !pending {
-                        continue;
-                    }
-                }
-
-                if pending {
-                    current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::LivePending, false))
-
-                } else {
-                    current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::Live, false))
-                }
-
-            }
-            ContactDiff::RemoveContact { user_id, pending } => {
-                let msn_user = MsnUser::from_user_id(&user_id);
-
-                if let Some(contact) = contact_list.get_contact(&msn_user.get_email_address()) {
-                    if contact.has_role(RoleList::Pending) && pending {
-                        current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::LivePending, true))
-                    }
-
-                    if contact.has_role(RoleList::Forward) && !pending {
-                        current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::Live, true))
-                    }
-                }
-
-            }
-            ContactDiff::ClearContact { user_id } => {
-                let msn_user = MsnUser::from_user_id(&user_id);
-
-                if let Some(contact) = contact_list.get_contact(&msn_user.get_email_address()) {
-                    if contact.has_role(RoleList::Pending) {
-                        current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::LivePending, true))
-                    }
-
-                    if contact.has_role(RoleList::Forward) {
-                        current_contacts.push(ContactType::new(&msn_user, ContactTypeEnum::Live, true))
-                    }
-                }
-            }
-        }
-
-
-    }*/
-
-
-    Ok(current_contacts)
-}
-
-async fn get_fullsync_contact_list(_matrix_client: &Client) -> Result<Vec<ContactType>, ABError> {
-    let out = Vec::new();
-
-    // for joined_room in matrix_client.joined_rooms() {
-    //     if joined_room.is_direct().await? {
-    //         let direct_target = resolve_direct_target(&joined_room.direct_targets(), &joined_room, me, matrix_client).await?;
-    //         match direct_target {
-    //             None => {
-    //                 warn!("SOAP|ABCH|ABFindContactsPaged: Could not resolve direct target for direct joined room: {}", joined_room.room_id());
-    //                 continue;
-    //             }
-    //             Some(direct_target) => {
-
-    //                 let target_usr = MsnUser::with_email_addr(EmailAddress::from_user_id(&direct_target));
-    //                 let target_uuid = target_usr.uuid;
-    //                 let target_msn_addr = target_usr.endpoint_id.email_addr.to_string();
-
-    //                 match joined_room.get_member(&direct_target).await? {
-
-    //                     None => {
-    //                         //If member is not here, still consider him a contact, if we want to click on him and create a dm room with him.
-    //                         let contact = ContactType::new(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, false);
-    //                         out.push(contact);
-    //                         debug!("SOAP|ABCH|ABFindContactsPaged: + Live(None) - {}", &target_msn_addr);
-    //                     }
-
-    //                     Some(member) => {
-    //                         match member.membership() {
-    //                             //If member is here, handle memberships
-    //                             MembershipState::Invite => {
-    //                                 let contact = ContactType::new(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::LivePending, false);
-    //                                 out.push(contact);
-    //                                 debug!("SOAP|ABCH|ABFindContactsPaged: + LivePending(Invite) - {}", &target_msn_addr);
-    //                             }
-    //                             _ => {
-    //                                 let contact = ContactType::new(&target_uuid, &target_msn_addr, &target_msn_addr, ContactTypeEnum::Live, false);
-    //                                 out.push(contact);
-    //                                 debug!("SOAP|ABCH|ABFindContactsPaged: + Live({}) - {}", member.membership() ,&target_msn_addr);
-    //                             }
-    //                         }
-    //                     }
-
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-    Ok(out)
 }
