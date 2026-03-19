@@ -1,7 +1,5 @@
 # Stuff to do
 
-- [ ] Keep it simple, stupid.
-
 ## Installer
 
 - [ ] Install WLM & WLM Contacts
@@ -22,15 +20,21 @@
 ## MVP Features
 - [X] Simplify the contact list. Show rooms, not contacts.
 - [X] Send Text Messages
+- [X] Add, Remove contacts
 - [ ] E2E Device verification
-- [ ] Add, Remove contacts
-- [ ] Search for contacts
-- [ ] Avatar Transfer
+- [ ] MSN Today Page
+- [ ] MSNP Errors
 
-## Nice to have
+# Nice to have
+- [ ] File Transfer
+- [ ] Avatar Transfer
+- [ ] Voice Messages
+
+## Next
+- [ ] OIMs
+- [ ] Search for contacts
 - [ ] Groupchats (msn spaces or ephemeral rooms)
 - [ ] Spaces to category mapping
-- [ ] File sharing working
 - [ ] Status & Presence using new Account Data
 - [ ] Image sharing
 - [ ] Voice calls

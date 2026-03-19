@@ -40,6 +40,7 @@ pub fn get_matrix_client_builder(server_name: &ServerName, homeserver_url: Optio
     client_builder
 }
 
+// FIXME: SSL should be a config option
 pub async fn login_with_token(matrix_id: OwnedUserId, token: TicketToken, disable_ssl: bool) -> Result<Client, TachyonError> {
     let device_id_str = get_device_id()?.to_string();
     let device_id = device_id!(device_id_str.as_str()).to_owned();
