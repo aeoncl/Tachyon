@@ -1,22 +1,21 @@
 use crate::matrix::extensions::msn_user_resolver::FindRoomFromEmail;
+use crate::tachyon::tachyon_client::TachyonClient;
 use crate::web::soap::error::ABError;
+use crate::web::soap::shared;
 use anyhow::anyhow;
+use axum::http::StatusCode;
 use axum::response::Response;
 use matrix_sdk::Client;
-use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
-use msnp::soap::abch::ab_service::ab_contact_delete::request::AbcontactDeleteMessageSoapEnvelope;
-use std::str::FromStr;
-use axum::http::StatusCode;
 use msnp::shared::models::uuid::Uuid;
+use msnp::soap::abch::ab_service::ab_contact_delete::request::AbcontactDeleteMessageSoapEnvelope;
 use msnp::soap::abch::ab_service::ab_contact_delete::response::AbcontactDeleteResponseMessageSoapEnvelope;
-use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContactsPagedResponseMessageSoapEnvelope;
 use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::traits::xml::ToXml;
-use crate::shared::traits::ToUuid;
-use crate::tachyon::tachyon_client::TachyonClient;
-use crate::web::soap::shared;
+use std::str::FromStr;
 
+
+//TODO Contact Delete is called after a delay of 10 secs. Check if we find something in contact dll regarding SHIELDS
 pub(super) async fn ab_contact_delete(request : AbcontactDeleteMessageSoapEnvelope, _token: TicketToken, client: Client, tachyon_client: TachyonClient, soap_action: &str) -> Result<Response, ABError> {
 
     if request.body.ab_contact_delete.ab_id.body != "00000000-0000-0000-0000-000000000000" {
