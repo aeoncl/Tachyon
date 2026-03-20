@@ -29,16 +29,16 @@
 - [ ] MSN Today Page
 - [ ] MSNP Errors
 - [ ] Testing
+- [ ] Anonymize logs
 
-# Nice to have
+# First Release
+- [ ] OIMs
+- [ ] Search for contacts
 - [ ] File Transfer
 - [ ] Avatar Transfer
 - [ ] Voice Messages
-- [ ] Anonymize logs
 
 ## Next
-- [ ] OIMs
-- [ ] Search for contacts
 - [ ] Groupchats (msn spaces or ephemeral rooms)
 - [ ] Spaces to category mapping
 - [ ] Status & Presence using new Account Data
