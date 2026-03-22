@@ -131,11 +131,11 @@ fn error_page(message: &str) -> Markup {
     html! {
         html {
             head {
-                title { "MSN Today - Error" }
+                title { "Matrix Today - Error" }
                 meta http-equiv="Content-Type" content="text/html; charset=utf-8" {}
             }
             body {
-                h1 { "MSN Today" }
+                h1 { "Matrix Today" }
                 p { (message) }
             }
         }
