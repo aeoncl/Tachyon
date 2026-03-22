@@ -14,7 +14,7 @@ use tokio::net::TcpListener;
 use tokio::sync::broadcast::Receiver;
 
 use crate::tachyon::client_store::ClientStoreFacade;
-use crate::web::ads::{get_banner_ads, get_text_ad};
+use crate::web::ads::{get_banner_ads, get_matrix_icon, get_tab_ad, get_text_ad};
 use crate::web::matrix_today::get_msn_today;
 use crate::web::soap::ab_service::ab_service::address_book_service;
 use crate::web::soap::rsi::rsi::rsi;
@@ -40,6 +40,8 @@ impl WebServer {
             .route("/ads/banner", get(get_banner_ads))
             .route("/ads/text", get(get_text_ad))
             .route("/ads/msn-today", get(get_msn_today))
+            .route("/ads/tabad/{tab_index}", get(get_tab_ad))
+            .route("/ads/matrix-icon.png", get(get_matrix_icon))
             .route("/ppsecure/sha1auth.srf", post(sha1auth))
             .route("/ppcrlconfig.srf", get(ppcrlconfigsrf))
             .route("/ppcrlconfig.bin", get(ppcrlconfigsrf))

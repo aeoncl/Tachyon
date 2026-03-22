@@ -26,7 +26,7 @@
 - [X] Send Text Messages
 - [X] Add, Remove contacts
 - [ ] E2E Device verification
-- [ ] MSN Today Page
+- [X] MSN Today Page
 - [ ] MSNP Errors
 - [ ] Testing
 - [ ] Anonymize logs
