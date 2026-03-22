@@ -19,7 +19,7 @@ lazy_static! {
         Ads{
             tab_ads: vec![
                 TabAd {
-                    image: Some("http://127.0.0.1:8080/ads/matrix-icon.png".to_string()),
+                    image: "http://127.0.0.1:8080/ads/matrix-icon.png".to_string(),
                     name: "Matrix Today".to_string(),
                     tab_type: "matrix".to_string(),
                     tooltip: "Find out what's up in the Matrix ecosystem".to_string(),
@@ -37,7 +37,7 @@ lazy_static! {
 #[derive(Debug, Default, YaSerialize)]
 #[yaserde(rename = "tabad")]
 struct TabAd {
-    image: Option<String>,
+    image: String,
     name: String,
     #[yaserde(rename = "type")]
     tab_type: String,
@@ -106,7 +106,7 @@ pub async fn get_text_ad() -> Response<Body> {
 #[cfg(test)]
 mod tests {
     use yaserde::ser;
-    use crate::web::ads::{Ads, TabAd, TabAdType};
+    use crate::web::ads::{Ads, TabAd};
 
     #[test]
     fn tab_ad_serialization_test() {
