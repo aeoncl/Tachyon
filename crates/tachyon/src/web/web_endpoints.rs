@@ -22,8 +22,6 @@ lazy_static! {
 
 lazy_static_include_bytes! {
     MSGR_CONFIG_XML => "./assets/web/MsgrConfig.xml",
-    BANNER => "./assets/web/banner.html",
-    TEXT_AD => "./assets/web/ads/textad.xml",
     PPCRLCONFIG => "./assets/web/ppcrlconfig.bin",
     WLIDSVCCONFIG => "./assets/web/wlidsvcconfig.xml",
     PPCRLCHECK => "./assets/web/ppcrlcheck.srf.html"
@@ -36,24 +34,6 @@ pub async fn firewall_test() -> StatusCode {
 pub async fn get_msgr_config() -> Response<Body> {
     let data: &'static [u8] = *MSGR_CONFIG_XML;
     build_soap_response(from_utf8(data).expect("MsgrConfig to be valid").to_string(), StatusCode::OK)
-}
-
-pub async fn get_banner_ads() -> Response<Body> {
-    let data: &'static [u8] = *BANNER;
-
-    axum::response::Response::builder()
-        .header(CONTENT_TYPE, "text/html")
-        .body(Body::from(data)).expect("banner ads response to be valid")
-
-}
-
-pub async fn get_text_ad() -> Response<Body> {
-    let data: &'static [u8] = *TEXT_AD;
-
-    axum::response::Response::builder()
-        .header(CONTENT_TYPE, "text/html")
-        .body(Body::from(data)).expect("Text ad response to be valid")
-
 }
 
 pub async fn sha1auth(body: String) -> (StatusCode, HeaderMap ){
@@ -81,6 +61,8 @@ pub async fn wlidsvcconfig() -> Response<Body> {
         .body(Body::from(data)).expect("wlid config to be valid")
 
 }
+
+
 
 pub async fn ppcrlcheck() -> Response<Body> {
 

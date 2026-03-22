@@ -23,6 +23,8 @@
 		<TrustedDomains>
 			<domain name="localhost" />
             <domain name="127.0.0.1" />
+			<domain name="matrix.org" />
+			<domain name="tachyon.chat" />
 		</TrustedDomains>
 		<ErrorResponseTable>
 			<Feature type="0" name="Login">
@@ -134,9 +136,9 @@
 			<TextAdServer>http://127.0.0.1:8080/ads/text?puid=$PUID$</TextAdServer>
 		</AdMainConfig>
 		<AppDirConfig>
-			<AppDirPageURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/Directory.aspx?L=en-us</AppDirPageURL>
-			<AppDirSeviceURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/AppDirectory.asmx</AppDirSeviceURL>
-			<AppDirVersionURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/GetAppdirVersion.aspx</AppDirVersionURL>
+			<AppDirPageURL>https://127.0.0.1/AppDirectory/Directory.aspx?L=en-us</AppDirPageURL>
+			<AppDirSeviceURL>https://127.0.0.1/AppDirectory/AppDirectory.asmx</AppDirSeviceURL>
+			<AppDirVersionURL>https://127.0.0.1/AppDirectory/GetAppdirVersion.aspx</AppDirVersionURL>
 		</AppDirConfig>
 		<Contacts>
 			<ABPendingRequests>
@@ -184,7 +186,7 @@
 			<ImagesURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=images</ImagesURL>
 			<NearMeURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</NearMeURL>
 			<NewsURL>https://duckduckgo.com/?q=$QUERY$+news&amp;ia=news</NewsURL>
-			<PeopleSearchURL>http://home.live.com/search?query=$QUERY$</PeopleSearchURL>
+			<PeopleSearchURL>http://127.0.0.1/search?query=$QUERY$</PeopleSearchURL>
 			<PeopleSearchSiteID>73625</PeopleSearchSiteID>
 			<SearchKidsURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SearchKidsURL>
 			<SearchURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SearchURL>
@@ -193,7 +195,7 @@
 		</MSNSearch>
 		<MsnTodayConfig>
 			<MsnTodaySiteID>6528</MsnTodaySiteID>
-			<MsnTodayURL>https://escargot.log1p.xyz/etc/escargot-today</MsnTodayURL>
+			<MsnTodayURL>http://127.0.0.1:8080/ads/msn-today</MsnTodayURL>
 			<Flags>2</Flags>
 		</MsnTodayConfig>
 		<OneCare Enabled="0" />

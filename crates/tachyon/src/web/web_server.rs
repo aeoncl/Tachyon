@@ -1,26 +1,28 @@
 use std::str::from_utf8;
 
 use anyhow::anyhow;
-use axum::{middleware, Router};
 use axum::body::Body;
 use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::Response;
 use axum::routing::{get, post};
-use log::{debug, info, Level, log_enabled, warn};
+use axum::{middleware, Router};
+use http_body_util::BodyExt;
+use log::{debug, info, log_enabled, warn, Level};
 use tokio::net::TcpListener;
 use tokio::sync::broadcast::Receiver;
-use http_body_util::BodyExt;
 
 use crate::tachyon::client_store::ClientStoreFacade;
+use crate::web::ads::{get_banner_ads, get_text_ad};
+use crate::web::matrix_today::get_msn_today;
 use crate::web::soap::ab_service::ab_service::address_book_service;
 use crate::web::soap::rsi::rsi::rsi;
 use crate::web::soap::sharing_service::sharing_service::sharing_service;
 
 use crate::web::soap::rst2::rst2_handler;
 use crate::web::soap::storage_service::storage_service::storage_service;
-use crate::web::web_endpoints::{firewall_test, get_banner_ads, get_msgr_config, get_profile_pic, get_text_ad, ppcrlcheck, ppcrlconfigsrf, sha1auth, wlidsvcconfig};
+use crate::web::web_endpoints::{firewall_test, get_msgr_config, get_profile_pic, ppcrlcheck, ppcrlconfigsrf, sha1auth, wlidsvcconfig};
 
 pub struct WebServer;
 
@@ -37,6 +39,7 @@ impl WebServer {
             .route("/Config/MsgrConfig.asmx", get(get_msgr_config))
             .route("/ads/banner", get(get_banner_ads))
             .route("/ads/text", get(get_text_ad))
+            .route("/ads/msn-today", get(get_msn_today))
             .route("/ppsecure/sha1auth.srf", post(sha1auth))
             .route("/ppcrlconfig.srf", get(ppcrlconfigsrf))
             .route("/ppcrlconfig.bin", get(ppcrlconfigsrf))
@@ -44,7 +47,7 @@ impl WebServer {
             .route("/wlidsvcconfig.xml", get(wlidsvcconfig))
             .route("/pcrlcheck.srf", get(ppcrlcheck))
             .route("/RST2.srf", post(rst2_handler))
-            .route("/storage/usertile/:image_mxid/:image_type", get(get_profile_pic))
+            .route("/storage/usertile/{image_mxid}/{image_type}", get(get_profile_pic))
             //SOAP
             .route("/abservice/abservice.asmx", post(address_book_service))
             .route("/abservice/SharingService.asmx", post(sharing_service))
