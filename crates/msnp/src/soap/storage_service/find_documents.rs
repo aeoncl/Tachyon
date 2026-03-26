@@ -16,26 +16,28 @@ pub mod request {
     prefix = "nsi1"
     )]
     pub struct FindDocumentsRequestType {
-        #[yaserde(rename = "objectHandle", default)]
+        #[yaserde(rename = "objectHandle",  prefix="nsi1")]
         pub object_handle: Handle,
-        #[yaserde(rename = "documentAttributes", default)]
+        #[yaserde(rename = "documentAttributes",  prefix="nsi1")]
         pub document_attributes: DocumentAttributes,
-        #[yaserde(rename = "documentFilter", default)]
+        #[yaserde(rename = "documentFilter",  prefix="nsi1")]
         pub document_filter: DocumentFilter,
-        #[yaserde(rename = "documentSort", default)]
+        #[yaserde(rename = "documentSort",  prefix="nsi1")]
         pub document_sort: DocumentSort,
-        #[yaserde(rename = "findContext", default)]
+        #[yaserde(rename = "findContext",  prefix="nsi1")]
         pub find_context: FindContext,
     }
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
     rename = "documentAttributes",
+        namespace = "nsi1: http://www.msn.com/webservices/storage/2008",
+        prefix = "nsi1",
     )]
     pub struct DocumentAttributes {
-        #[yaserde(rename = "ResourceID", default)]
+        #[yaserde(rename = "ResourceID",  prefix="nsi1")]
         pub resource_id: bool,
-        #[yaserde(rename = "Name", default)]
+        #[yaserde(rename = "Name",  prefix="nsi1")]
         pub name: bool,
     }
 
@@ -43,29 +45,35 @@ pub mod request {
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
     rename = "documentFilter",
+        namespace = "nsi1: http://www.msn.com/webservices/storage/2008",
+        prefix = "nsi1",
     )]
     pub struct DocumentFilter {
-        #[yaserde(rename = "FilterAttributes", default)]
+        #[yaserde(rename = "FilterAttributes", prefix="nsi1")]
         pub filter_attributes: String,
     }
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
     rename = "documentSort",
+        namespace = "nsi1: http://www.msn.com/webservices/storage/2008",
+        prefix = "nsi1",
     )]
     pub struct DocumentSort {
-        #[yaserde(rename = "SortBy", default)]
+        #[yaserde(rename = "SortBy", prefix="nsi1")]
         pub sort_by: String,
     }
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
     rename = "findContext",
+        namespace = "nsi1: http://www.msn.com/webservices/storage/2008",
+        prefix = "nsi1",
     )]
     pub struct FindContext {
-        #[yaserde(rename = "FindMethod", default)]
+        #[yaserde(rename = "FindMethod", prefix = "nsi1")]
         pub find_method: String,
-        #[yaserde(rename = "ChunkSize", default)]
+        #[yaserde(rename = "ChunkSize", prefix = "nsi1")]
         pub chunk_size: i32,
     }
 
@@ -101,6 +109,7 @@ pub mod response {
     use crate::soap::storage_service::headers::StorageServiceHeaders;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
+
     pub struct SoapFindDocumentsResponseMessage {
         #[yaserde(rename = "FindDocumentsResponse", default)]
         pub body: FindDocumentsResultType,
@@ -123,11 +132,13 @@ pub mod response {
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
     rename = "Document",
+        namespace = "nsi1: http://www.msn.com/webservices/storage/2008",
+        prefix = "nsi1"
     )]
     pub struct Document {
-        #[yaserde(rename = "ResourceID", default)]
+        #[yaserde(rename = "ResourceID", prefix = "nsi1")]
         pub resource_id: String,
-        #[yaserde(rename = "Name", default)]
+        #[yaserde(rename = "Name", prefix = "nsi1")]
         pub name: String,
     }
 

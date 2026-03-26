@@ -7,6 +7,7 @@ use crate::msnp::error::PayloadError;
 
 /** source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/Client_Capabilities */
 
+#[repr(u64)]
 pub enum Capabilities {
 
     // This means you are running a Windows Mobile device. The official client changes the little icon to a little man with a phone, and puts the status 'Phone' next to your name.
@@ -80,6 +81,7 @@ pub enum Capabilities {
 
 }
 
+#[repr(u64)]
 pub enum ExtendedCapabilities {
     None = 0x0,
     IsSmsOnly = 0x01,

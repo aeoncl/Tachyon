@@ -5,6 +5,7 @@ use matrix_sdk::deserialized_responses::RawSyncOrStrippedState;
 use matrix_sdk::ruma::events::room::member::{MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::ruma::room::RoomType;
 use matrix_sdk::{Client, Room, RoomState};
+use matrix_sdk::ruma::events::room::tombstone::{OriginalSyncRoomTombstoneEvent, RoomTombstoneEvent, SyncRoomTombstoneEvent};
 use msnp::soap::abch::msnab_datatypes::{ContactType, ContactTypeEnum};
 
 pub(super) async fn handle_contacts(
@@ -137,4 +138,19 @@ pub async fn compute_all_contacts(client: Client) -> Vec<AddressBookContact> {
     }
 
     out
+}
+
+pub(super) async fn handle_tombstone(    event: OriginalSyncRoomTombstoneEvent,
+                               room: Room,
+                               tachyon_client: TachyonClient,
+                               client: Client) {
+
+    let room_msn_user = room.to_msn_user().await.unwrap();
+
+    let contact = ContactType::new(&room_msn_user, ContactTypeEnum::Live, true);
+
+    let mut contact_holder = tachyon_client.soap_holder().contacts.lock().unwrap();
+    contact_holder.push(AddressBookContact::Contact(contact));
+
+
 }

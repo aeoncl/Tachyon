@@ -1,7 +1,10 @@
 pub mod request {
     use yaserde_derive::{YaDeserialize, YaSerialize};
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::storage_service::get_profile::request::GetProfileMessageSoapEnvelope;
     use crate::soap::storage_service::headers::StorageServiceHeaders;
     use crate::soap::storage_service::msnstorage_datatypes::{ExpressionProfileAttributesType, Profile};
+    use crate::soap::traits::xml::TryFromXml;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapUpdateProfileMessage {
@@ -14,20 +17,23 @@ pub mod request {
     rename = "UpdateProfile",
     namespace = "nsi1: http://www.msn.com/webservices/storage/2008",
     prefix = "nsi1"
+    default_namespace = "nsi1"
     )]
     pub struct UpdateProfileRequestType {
-        #[yaserde(rename = "profile", default)]
+        #[yaserde(rename = "profile", prefix="nsi1")]
         pub profile: Profile,
-        #[yaserde(rename = "profileAttributesToDelete", default)]
+        #[yaserde(rename = "profileAttributesToDelete", prefix="nsi1")]
         pub profile_attributes_to_delete: Option<ProfileAttributesToDelete>,
     }
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
     #[yaserde(
     rename = "profileAttributesToDelete",
+        namespace = "nsi1: http://www.msn.com/webservices/storage/2008",
+        prefix = "nsi1"
     )]
     pub struct ProfileAttributesToDelete {
-        #[yaserde(rename = "ExpressionProfileAttributes", default)]
+        #[yaserde(rename = "ExpressionProfileAttributes", prefix="nsi1")]
         pub expression_profile_attributes: ExpressionProfileAttributesType,
     }
 
@@ -50,6 +56,8 @@ pub mod request {
 
     impl UpdateProfileMessageSoapEnvelope {
         pub fn new(body: SoapUpdateProfileMessage) -> Self {
+
+
             UpdateProfileMessageSoapEnvelope {
                 body,
                 header: StorageServiceHeaders::default(),
@@ -57,14 +65,24 @@ pub mod request {
         }
     }
 
+    impl TryFromXml for UpdateProfileMessageSoapEnvelope {
+        type Error = SoapMarshallError;
 
+        fn try_from_xml(xml_str: &str) -> Result<Self, Self::Error> {
+            yaserde::de::from_str::<Self>(&xml_str).map_err(|e| Self::Error::DeserializationError { message: e})
+        }
+    }
 
 }
 
 pub mod response {
+    use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
+    use crate::soap::error::SoapMarshallError;
     use crate::soap::storage_service::fault::SoapFault;
-    use crate::soap::storage_service::headers::StorageServiceHeaders;
+    use crate::soap::storage_service::get_profile::response::GetProfileResponseMessageSoapEnvelope;
+    use crate::soap::storage_service::headers::{AffinityCacheHeader, StorageServiceHeaders};
+    use crate::soap::traits::xml::ToXml;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapUpdateProfileResponseMessage {
@@ -100,11 +118,26 @@ pub mod response {
     }
 
     impl UpdateProfileResponseMessageSoapEnvelope {
-        pub fn new(body: SoapUpdateProfileResponseMessage) -> Self {
+        pub fn new(cache_key: String) -> Self {
+
+            let affinity_cache_header = AffinityCacheHeader{ cache_key: Some(cache_key)};
+
+            let headers = StorageServiceHeaders{ storage_application: None, storage_user: None, affinity_cache: Some(affinity_cache_header) };
+
             UpdateProfileResponseMessageSoapEnvelope {
-                body,
-                header: StorageServiceHeaders::default(),
+                body: SoapUpdateProfileResponseMessage::default(),
+                header: headers,
             }
         }
     }
+
+    impl ToXml for UpdateProfileResponseMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+        fn to_xml(&self) -> Result<String, Self::Error>  {
+            to_string(self).map_err(|e| SoapMarshallError::SerializationError { message: e})
+        }
+
+    }
+
+
 }

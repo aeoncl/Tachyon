@@ -90,7 +90,7 @@ fn setup_logs(path: PathBuf, config: &TachyonConfig) {
         .filter(Some("v2") , LevelFilter::Debug)
         .filter(Some("tachyon") , LevelFilter::Debug)
         .filter(Some("msnp") , LevelFilter::Debug)
-        .filter(Some("matrix-sdk"), LevelFilter::Warn)
+        .filter(Some("matrix-sdk"), LevelFilter::Off)
         .filter(Some("yaserde"), LevelFilter::Warn)
         .filter(None, LevelFilter::Warn)
         .init();
@@ -101,7 +101,6 @@ fn setup_logs(path: PathBuf, config: &TachyonConfig) {
 
 
 async fn listen_for_stop_signal(master_kill_signal: Sender<()>) {
-
     match signal::ctrl_c().await {
         Ok(()) => {},
         Err(err) => {

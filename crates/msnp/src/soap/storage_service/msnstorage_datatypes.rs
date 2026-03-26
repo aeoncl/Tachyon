@@ -156,32 +156,37 @@ pub struct ExpressionProfileAttributesType {
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 rename = "DocumentStreams",
+    namespace = "nsi1: http://www.msn.com/webservices/storage/2008",
+    prefix = "nsi1",
 )]
 pub struct DocumentStreams {
-    #[yaserde(rename = "DocumentStream", default)]
+    #[yaserde(rename = "DocumentStream", prefix="nsi1")]
     pub document_stream: Vec<DocumentStream>,
 }
 
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 rename = "documentBaseType",
+    namespace = "nsi1: http://www.msn.com/webservices/storage/2008",
+    prefix = "nsi1",
 )]
 pub struct DocumentBaseType {
-    #[yaserde(rename = "ResourceID", default)]
+    #[yaserde(rename = "ResourceID", prefix="nsi1")]
     pub resource_id: Option<String>,
-    #[yaserde(rename = "Name", default)]
+    #[yaserde(rename = "Name", prefix="nsi1")]
     pub name: Option<String>,
-    #[yaserde(rename = "ItemType", default)]
+    #[yaserde(rename = "ItemType", prefix="nsi1")]
     pub item_type: Option<String>,
-    #[yaserde(rename = "DateModified", default)]
+    #[yaserde(rename = "DateModified", prefix="nsi1")]
     pub date_modified: Option<String>,
-    #[yaserde(rename = "DocumentStreams", default)]
+    #[yaserde(rename = "DocumentStreams", prefix="nsi1")]
     pub document_streams: DocumentStreams,
 }
 
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 rename = "Photo",
+
 )]
 pub struct Photo {
     #[yaserde(flatten, default)]
@@ -193,27 +198,31 @@ pub struct Photo {
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 rename = "ExpressionProfile",
+    namespace = "nsi1: http://www.msn.com/webservices/storage/2008",
+    prefix = "nsi1"
 )]
 pub struct ExpressionProfile {
-    #[yaserde(rename = "FreeText", default)]
+    #[yaserde(rename = "FreeText", prefix = "nsi1")]
     pub free_text: Option<String>,
-    #[yaserde(rename = "DisplayName", default)]
+    #[yaserde(rename = "DisplayName", prefix = "nsi1")]
     pub display_name: Option<String>,
-    #[yaserde(rename = "PersonalStatus", default)]
+    #[yaserde(rename = "PersonalStatus", prefix = "nsi1")]
     pub personal_status: Option<String>,
-    #[yaserde(rename = "Flags", default)]
+    #[yaserde(rename = "Flags", prefix = "nsi1")]
     pub flags: Option<i32>,
-    #[yaserde(rename = "RoleDefinitionName", default)]
+    #[yaserde(rename = "RoleDefinitionName", prefix = "nsi1")]
     pub role_definition_name: Option<String>,
 }
 
 #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 rename = "profile",
+    namespace = "nsi1: http://www.msn.com/webservices/storage/2008",
+    prefix = "nsi1"
 )]
 pub struct Profile {
-    #[yaserde(rename = "ResourceID", default)]
+    #[yaserde(rename = "ResourceID", prefix = "nsi1")]
     pub resource_id: String,
-    #[yaserde(rename = "ExpressionProfile", default)]
+    #[yaserde(rename = "ExpressionProfile", prefix = "nsi1")]
     pub expression_profile: ExpressionProfile,
 }

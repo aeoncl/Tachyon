@@ -153,7 +153,7 @@ pub mod response {
     #[yaserde(
     rename = "GetProfileResponse",
     namespace = "nsi1: http://www.msn.com/webservices/storage/2008",
-    prefix = "nsi1",
+        prefix = "nsi1",
     default_namespace="nsi1"
     )]
     pub struct GetProfileResponse {

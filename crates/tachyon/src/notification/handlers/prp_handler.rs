@@ -7,6 +7,9 @@ use tokio::sync::mpsc::Sender;
 pub async fn handle_prp(command: PrpClient, local_store: &mut LocalClientData, client_data: TachyonClient, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
 
     match &command.operation {
+
+
+
         PrpOperation::ModifyName { display_name } => {
             let to_set = if display_name.is_empty() {
                 None
@@ -14,9 +17,6 @@ pub async fn handle_prp(command: PrpClient, local_store: &mut LocalClientData, c
                 Some(display_name.as_str())
             };
 
-            client_data.matrix_client().account().set_display_name(to_set).await?;
-
-            //Todo react to the event sent from the server instead of setting it here
             client_data.own_user_mut()?.display_name = to_set.map(|n| n.to_owned());
             command_sender.send(NotificationServerCommand::PRP(command)).await?;
         }

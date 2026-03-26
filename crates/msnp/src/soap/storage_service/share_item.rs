@@ -1,10 +1,13 @@
 pub mod request {
-    use yaserde_derive::{YaDeserialize, YaSerialize};
+    use crate::soap::error::SoapMarshallError;
     use crate::soap::storage_service::headers::StorageServiceHeaders;
+    use crate::soap::storage_service::update_profile::request::UpdateProfileMessageSoapEnvelope;
+    use crate::soap::traits::xml::TryFromXml;
+    use yaserde_derive::{YaDeserialize, YaSerialize};
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapShareItemMessage {
-        #[yaserde(rename = "ShareItem", default)]
+        #[yaserde(rename = "ShareItem", prefix = "nsi1")]
         pub body: ShareItemRequestType
     }
 
@@ -45,12 +48,24 @@ pub mod request {
         }
     }
 
+    impl TryFromXml for ShareItemMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+
+        fn try_from_xml(xml_str: &str) -> Result<Self, Self::Error> {
+            yaserde::de::from_str::<Self>(&xml_str).map_err(|e| Self::Error::DeserializationError { message: e})
+        }
+    }
+
 }
 
 pub mod response {
-    use yaserde_derive::{YaDeserialize, YaSerialize};
+    use crate::soap::error::SoapMarshallError;
     use crate::soap::storage_service::fault::SoapFault;
     use crate::soap::storage_service::headers::StorageServiceHeaders;
+    use crate::soap::storage_service::upate_document::response::UpdateDocumentResponseMessageSoapEnvelope;
+    use crate::soap::traits::xml::ToXml;
+    use yaserde::ser::to_string;
+    use yaserde_derive::{YaDeserialize, YaSerialize};
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapShareItemResponseMessage {
@@ -97,5 +112,12 @@ pub mod response {
         }
     }
 
+    impl ToXml for ShareItemResponseMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+        fn to_xml(&self) -> Result<String, Self::Error>  {
+            to_string(self).map_err(|e| SoapMarshallError::SerializationError { message: e})
+        }
+
+    }
 
 }

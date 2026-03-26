@@ -1,14 +1,14 @@
 pub mod request {
     use yaserde_derive::{YaDeserialize, YaSerialize};
+    use crate::soap::error::SoapMarshallError;
     use crate::soap::storage_service::headers::StorageServiceHeaders;
     use crate::soap::storage_service::msnstorage_datatypes::Handle;
+    use crate::soap::traits::xml::TryFromXml;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapDeleteRelationshipsMessage {
         #[yaserde(rename = "DeleteRelationships", default)]
-        pub body: DeleteRelationshipsRequestType,
-        #[yaserde(attribute)]
-        pub xmlns: Option<String>,
+        pub body: DeleteRelationshipsRequestType
     }
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize, Clone)]
@@ -59,12 +59,23 @@ pub mod request {
         }
     }
 
+    impl TryFromXml for DeleteRelationshipsMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+
+        fn try_from_xml(xml: &str) -> Result<Self, Self::Error> {
+            yaserde::de::from_str(xml).map_err(|e| Self::Error::DeserializationError { message: e})
+        }
+    }
+
 }
 
 pub mod response {
+    use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
     use crate::soap::abch::msnab_faults::SoapFault;
-    use crate::soap::storage_service::headers::StorageServiceHeaders;
+    use crate::soap::error::SoapMarshallError;
+    use crate::soap::storage_service::headers::{AffinityCacheHeader, StorageServiceHeaders};
+    use crate::soap::traits::xml::ToXml;
 
     #[derive(Debug, Default, YaSerialize, YaDeserialize)]
     pub struct SoapDeleteRelationshipsResponseMessage {
@@ -103,11 +114,24 @@ pub mod response {
     }
 
     impl DeleteRelationshipsResponseMessageSoapEnvelope {
-        pub fn new(body: SoapDeleteRelationshipsResponseMessage) -> Self {
+        pub fn new(cache_key: String) -> Self {
+
+            let affinity_cache_header = AffinityCacheHeader{ cache_key: Some(cache_key)};
+
+            let headers = StorageServiceHeaders{ storage_application: None, storage_user: None, affinity_cache: Some(affinity_cache_header) };
+
             DeleteRelationshipsResponseMessageSoapEnvelope {
-                body,
-                header: StorageServiceHeaders::default(),
+                body: SoapDeleteRelationshipsResponseMessage::default(),
+                header: headers,
             }
+        }
+    }
+
+    impl ToXml for DeleteRelationshipsResponseMessageSoapEnvelope {
+        type Error = SoapMarshallError;
+
+        fn to_xml(&self) -> Result<String, Self::Error>  {
+            to_string(self).map_err(|e| SoapMarshallError::SerializationError { message: e})
         }
     }
 

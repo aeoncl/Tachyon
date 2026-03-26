@@ -23,6 +23,9 @@ use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use tokio::sync::mpsc::Sender;
+use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
+use msnp::shared::models::display_name::DisplayName;
+use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use crate::notification::handlers::fqy_handler::handle_fqy;
 use crate::notification::handlers::prp_handler::handle_prp;
 use crate::notification::handlers::xfr_handler::handle_xfr;
@@ -117,6 +120,29 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
 
                             notif_sender.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await?;
+
+                            //TODO initial sync only and synchronous before anything else;
+
+                            let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
+                                sender: "Hotmail".to_string(),
+                                display_name: DisplayName::new_from_ref("Hotmail"),
+                                payload: MsgPayload::Raw(RawMsgPayloadFactory::get_msmsgs_profile(
+                                    &msn_user.uuid.get_puid(),
+                                    msn_user.get_email_address(),
+                                    &ticket_token,
+                                )),
+                            });
+
+                            notif_sender.send(initial_profile_msg).await?;
+
+                            //Todo fetch endpoint data
+                            let endpoint_data = b"<Data></Data>";
+                            notif_sender
+                                .send(NotificationServerCommand::RAW(RawCommand::with_payload(
+                                    &format!("UBX 1:{}", &msn_user.get_email_address().as_str()),
+                                    endpoint_data.to_vec(),
+                                )))
+                                .await?;
 
                             sync(client_data, local_store.client_kill_snd.clone(), local_store.client_kill_recv.resubscribe());
                         }

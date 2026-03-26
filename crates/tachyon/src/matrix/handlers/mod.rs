@@ -6,6 +6,7 @@ use matrix_sdk::ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMe
 use matrix_sdk::{Client, Room};
 use matrix_sdk::ruma::events::key::verification::request::ToDeviceKeyVerificationRequestEvent;
 use matrix_sdk::ruma::events::room::message::OriginalSyncRoomMessageEvent;
+use matrix_sdk::ruma::events::room::tombstone::{OriginalSyncRoomTombstoneEvent, RoomTombstoneEvent, SyncRoomTombstoneEvent};
 use crate::matrix::handlers::request_verification_handlers::request_verification_handler;
 
 pub mod contact_handlers;
@@ -59,6 +60,30 @@ pub(super) fn register_event_handlers(matrix_client: &Client, client_data: Tachy
          context: Ctx<TachyonContext>| async move {
             println!("StrippedRoomMemberEvent received: {:?}", &event);
             handlers::membership_handlers::handle_memberships_stripped(
+                event, room, context.tachyon_client.clone(), client,
+            ).await;
+        },
+    );
+
+    matrix_client.add_event_handler(
+        |event: OriginalSyncRoomTombstoneEvent,
+         room: Room,
+         client: Client,
+         context: Ctx<TachyonContext>| async move {
+            println!("StrippedRoomMemberEvent received: {:?}", &event);
+            handlers::contact_handlers::handle_tombstone(
+                event, room, context.tachyon_client.clone(), client,
+            ).await;
+        },
+    );
+
+    matrix_client.add_event_handler(
+        |event: OriginalSyncRoomTombstoneEvent,
+         room: Room,
+         client: Client,
+         context: Ctx<TachyonContext>| async move {
+            println!("StrippedRoomMemberEvent received: {:?}", &event);
+            handlers::membership_handlers::handle_tombstone(
                 event, room, context.tachyon_client.clone(), client,
             ).await;
         },

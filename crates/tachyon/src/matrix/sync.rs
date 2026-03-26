@@ -46,6 +46,7 @@ const REQUIRED_STATE: &[(StateEventType, &str)] = &[
     (StateEventType::RoomHistoryVisibility, ""),
     // Required to correctly calculate the room display name.
     (StateEventType::MemberHints, ""),
+    (StateEventType::RoomTombstone, ""),
 ];
 
 fn create_room_list() -> SlidingSyncListBuilder {
@@ -167,25 +168,6 @@ async fn handle_first_sync(client_data: &TachyonClient) -> Result<(), anyhow::Er
     let notification_handle = client_data.notification_handle();
 
     // This is sent to make the client pass the logon screen. Timeout of the logon screen is 1 minute.
-    let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
-        sender: "Hotmail".to_string(),
-        display_name: DisplayName::new_from_ref("Hotmail"),
-        payload: MsgPayload::Raw(RawMsgPayloadFactory::get_msmsgs_profile(
-            &me.uuid.get_puid(),
-            me.get_email_address(),
-            &ticket_token,
-        )),
-    });
 
-    notification_handle.send(initial_profile_msg).await?;
-
-    //Todo fetch endpoint data
-    let endpoint_data = b"<Data></Data>";
-    notification_handle
-        .send(NotificationServerCommand::RAW(RawCommand::with_payload(
-            &format!("UBX 1:{}", &me.get_email_address().as_str()),
-            endpoint_data.to_vec(),
-        )))
-        .await?;
     Ok(())
 }

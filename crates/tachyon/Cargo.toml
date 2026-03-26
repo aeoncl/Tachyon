@@ -47,6 +47,7 @@ ruma = { version = "0.14.1", features = ["api", "events"] }
 rand = "0.8.5"
 reqwest = "0.12.28"
 quick-xml = "0.39.2"
+mime = "0.3.17"
 
 [dev-dependencies]
 mockall = "0.13.1"

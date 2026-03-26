@@ -1,10 +1,10 @@
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::tachyon::tachyon_client::TachyonClient;
+use matrix_sdk::deserialized_responses::RawSyncOrStrippedState;
 use matrix_sdk::ruma::events::room::member::{MembershipState, RoomMemberEventContent};
 use matrix_sdk::ruma::room::RoomType;
 use matrix_sdk::{ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMemberEvent}, Client, Room, RoomState};
-use matrix_sdk::deserialized_responses::{RawAnySyncOrStrippedState, RawSyncOrStrippedState};
-use matrix_sdk::ruma::events::StateEventType;
+use matrix_sdk::ruma::events::room::tombstone::{OriginalSyncRoomTombstoneEvent, RoomTombstoneEvent, SyncRoomTombstoneEvent};
 use msnp::shared::models::role_list::RoleList;
 use msnp::soap::abch::msnab_datatypes::{BaseMember, MemberState};
 
@@ -150,4 +150,23 @@ pub async fn compute_all_memberships(client: Client) -> Vec<BaseMember> {
     }
 
     out
+}
+
+pub(super) async fn handle_tombstone(event: OriginalSyncRoomTombstoneEvent,
+                               room: Room,
+                               tachyon_client: TachyonClient,
+                               client: Client) {
+
+    let room_msn_user = room.to_msn_user().await.unwrap();
+
+
+    let delete_allow_member = BaseMember::new_passport_member(&room_msn_user, MemberState::Accepted, RoleList::Allow, true);
+    let delete_pending_member = BaseMember::new_passport_member(&room_msn_user, MemberState::Accepted, RoleList::Pending, true);
+    let delete_reverse_member = BaseMember::new_passport_member(&room_msn_user, MemberState::Accepted, RoleList::Reverse, true);
+
+    let mut member_holder = tachyon_client.soap_holder().memberships.lock().unwrap();
+    member_holder.push(delete_allow_member);
+    member_holder.push(delete_pending_member);
+    member_holder.push(delete_reverse_member);
+
 }
