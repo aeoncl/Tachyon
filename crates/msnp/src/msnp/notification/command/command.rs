@@ -14,12 +14,13 @@ use crate::msnp::notification::command::rng::RngServer;
 use crate::msnp::notification::command::sdg::{SdgClient, SdgServer};
 use crate::msnp::notification::command::ubx::UbxServer;
 use crate::msnp::notification::command::usr::UsrServer;
-use crate::msnp::notification::command::uum::UumClient;
+use crate::msnp::notification::command::uum::{UbmServer, UumClient};
 use crate::msnp::notification::command::uux::UuxServer;
 use crate::msnp::notification::command::ver::VerServer;
 use crate::msnp::notification::command::xfr::{XfrClient, XfrServer};
 use crate::msnp::{error::CommandError, raw_command_parser::RawCommand};
 use crate::msnp::notification::command::fqy::{FqyClient, FqyServer};
+use crate::shared::command::nak::NakServer;
 use crate::shared::command::ok::OkCommand;
 use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 
@@ -87,8 +88,10 @@ pub enum NotificationServerCommand {
     MSG(MsgServer),
     //Timeout before the next PNG command from client
     QNG(u32),
+    NAK(NakServer),
     USR(UsrServer),
     UUX(UuxServer),
+    UBM(UbmServer),
     UBX(UbxServer),
     OK(OkCommand),
     FQY(FqyServer),
@@ -126,6 +129,7 @@ impl IntoBytes for NotificationServerCommand {
             NotificationServerCommand::QNG(timeout) => format!("QNG {}\r\n", timeout).into_bytes(),
             NotificationServerCommand::USR(command) => command.into_bytes(),
             NotificationServerCommand::OK(command) => command.into_bytes(),
+            NotificationServerCommand::UBM(command) => command.into_bytes(),
             NotificationServerCommand::UUX(command) => command.into_bytes(),
             NotificationServerCommand::CHG(command) => command.into_bytes(),
             NotificationServerCommand::BLP(command) => command.into_bytes(),
@@ -142,6 +146,7 @@ impl IntoBytes for NotificationServerCommand {
             NotificationServerCommand::RNG(content) => { content.into_bytes() }
             NotificationServerCommand::PRP(content) => { content.into_bytes() }
             NotificationServerCommand::FQY(content) => { content.into_bytes() }
+            NotificationServerCommand::NAK(content) => { content.into_bytes() }
         }
     }
 }

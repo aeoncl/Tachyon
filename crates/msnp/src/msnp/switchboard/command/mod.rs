@@ -7,4 +7,3 @@ pub mod ack;
 pub mod iro;
 pub mod joi;
 
-pub mod nak;

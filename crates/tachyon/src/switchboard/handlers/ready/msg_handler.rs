@@ -8,7 +8,7 @@ use matrix_sdk::Room;
 use msnp::msnp::switchboard::command::ack::AckServer;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::msnp::switchboard::command::msg::{MsgAcknowledgment, MsgClient, MsgPayload};
-use msnp::msnp::switchboard::command::nak::NakServer;
+use msnp::shared::command::nak::NakServer;
 use tokio::sync::mpsc::Sender;
 use msnp::shared::payload::msg::chunked_msg_payload::{ChunkMetadata, ChunkedMsgPayload, MsgChunks};
 

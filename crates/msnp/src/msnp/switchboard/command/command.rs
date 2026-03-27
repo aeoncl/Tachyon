@@ -6,7 +6,7 @@ use crate::msnp::switchboard::command::cal::{CalClient, CalServer};
 use crate::msnp::switchboard::command::iro::IroServer;
 use crate::msnp::switchboard::command::joi::JoiServer;
 use crate::msnp::switchboard::command::msg::{MsgClient, MsgServer};
-use crate::msnp::switchboard::command::nak::NakServer;
+use crate::shared::command::nak::NakServer;
 use crate::msnp::switchboard::command::usr::{UsrClient, UsrServer};
 use crate::shared::command::ok::OkCommand;
 use crate::shared::traits::{IntoBytes, TryFromRawCommand};
