@@ -9,7 +9,7 @@ pub async fn handle_uum(command: UumClient, client_data: TachyonClient, command_
     let ok_response = command.get_ok_response();
 
     match command.payload {
-        UumPayload::TextMessage(content) => {
+        UumPayload::TextPlain(content) => {
             let matrix_client = client_data.matrix_client();
 
             let room = matrix_client.find_room_from_email(&command.destination.email_addr)?;
