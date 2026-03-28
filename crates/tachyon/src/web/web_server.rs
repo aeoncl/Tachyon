@@ -22,6 +22,7 @@ use crate::web::soap::sharing_service::sharing_service::sharing_service;
 
 use crate::web::soap::rst2::rst2_handler;
 use crate::web::soap::storage_service::storage_service::storage_service;
+use crate::web::tachyon::tachyon_router;
 use crate::web::web_endpoints::{firewall_test, get_msgr_config, get_profile_pic, ppcrlcheck, ppcrlconfigsrf, sha1auth, wlidsvcconfig};
 
 pub struct WebServer;
@@ -37,6 +38,7 @@ impl WebServer {
         let app = Router::new()
             .route("/", post(firewall_test))
             .route("/Config/MsgrConfig.asmx", get(get_msgr_config))
+            .nest("/tachyon", tachyon_router(state.clone()))
             .route("/ads/banner", get(get_banner_ads))
             .route("/ads/text", get(get_text_ad))
             .route("/ads/msn-today", get(get_msn_today))
