@@ -21,6 +21,7 @@ use crate::msnp::notification::command::xfr::{XfrClient, XfrServer};
 use crate::msnp::{error::CommandError, raw_command_parser::RawCommand};
 use crate::msnp::notification::command::fqy::{FqyClient, FqyServer};
 use crate::msnp::notification::command::ubm::UbmServer;
+use crate::msnp::notification::command::url::{UrlClient, UrlServer};
 use crate::shared::command::nak::NakServer;
 use crate::shared::command::ok::OkCommand;
 use crate::shared::traits::{IntoBytes, TryFromRawCommand};
@@ -45,6 +46,7 @@ pub enum NotificationClientCommand {
     SDG(SdgClient),
     PUT(PutClient),
     XFR(XfrClient),
+    URL(UrlClient),
     OUT,
     RAW(RawCommand)
 }
@@ -71,6 +73,7 @@ impl TryFromRawCommand for NotificationClientCommand {
             "PUT" => NotificationClientCommand::PUT(PutClient::try_from_raw(raw)?),
             "XFR" => NotificationClientCommand::XFR(XfrClient::try_from_raw(raw)?),
             "OUT" => NotificationClientCommand::OUT,
+            "URL" => NotificationClientCommand::URL(UrlClient::try_from_raw(raw)?),
             _ => NotificationClientCommand::RAW(raw)
             //Err(CommandError::UnsupportedCommand { command: format!("{:?}", command) })
         };
@@ -107,6 +110,7 @@ pub enum NotificationServerCommand {
     XFR(XfrServer),
     RNG(RngServer),
     PRP(PrpServer),
+    URL(UrlServer),
     OUT,
     RAW(RawCommand)
 }
@@ -148,6 +152,7 @@ impl IntoBytes for NotificationServerCommand {
             NotificationServerCommand::PRP(content) => { content.into_bytes() }
             NotificationServerCommand::FQY(content) => { content.into_bytes() }
             NotificationServerCommand::NAK(content) => { content.into_bytes() }
+            NotificationServerCommand::URL(content) => { content.into_bytes() }
         }
     }
 }
