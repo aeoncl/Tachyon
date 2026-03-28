@@ -9,115 +9,6 @@ use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::ticket_token::TicketToken;
 use crate::shared::traits::{IntoBytes, TryFromRawCommand, TryFromSplit};
 
-
-#[cfg(test)]
-mod tests {
-    use std::str::FromStr;
-
-    use crate::msnp::raw_command_parser::RawCommand;
-    use crate::msnp::{error::CommandError, notification::command::usr::{AuthOperationTypeClient, SsoPhaseClient}};
-    use crate::shared::models::email_address::EmailAddress;
-    use crate::shared::traits::TryFromRawCommand;
-
-    use super::{AuthPolicy, OperationTypeServer, SsoPhaseServer, UsrClient, UsrServer};
-
-    #[test]
-    fn client_sso_i_des_success() {
-        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 3 SSO I login@test.com").unwrap()).unwrap();
-        assert_eq!(3, usr1.tr_id);
-
-        assert!(matches!(&usr1.auth_type, AuthOperationTypeClient::Sso(_)));
-
-        if let AuthOperationTypeClient::Sso(content) = &usr1.auth_type {
-            assert!(matches!(content, SsoPhaseClient::I { .. }));
-
-            if let SsoPhaseClient::I { email_addr } = content {
-                assert_eq!("login@test.com", email_addr.as_str());
-            }
-
-        }
-
-    }
-
-    #[test]
-    fn client_sso_i_des_failure() {
-        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 3 SSA I login@test.com").unwrap());
-        assert!(matches!(&usr1, Err(CommandError::ArgumentParseError { .. })));
-    }
-
-    #[test]
-    fn client_sso_i_des_failure_2() {
-        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 3 SSO XY login@test.com").unwrap());
-        assert!(matches!(&usr1, Err(CommandError::ArgumentParseError { .. })));
-    }
-
-    #[test]
-    fn client_sso_i_des_failure_3() {
-        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SSO S t=ssotoken ???charabia").unwrap());
-        assert!(matches!(&usr1, Err(CommandError::MissingArgument { .. })));
-    }
-
-    #[test]
-    fn client_sso_i_des_failure_invalid_ticket_token() {
-        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SSO S ssotoken ???charabia {55192CF5-588E-4ABE-9CDF-395B616ED85B}").unwrap());
-        assert!(matches!(&usr1, Err(CommandError::ArgumentParseError { .. })));
-    }
-
-    #[test]
-    fn client_sso_i_des_failure_invalid_endpoint() {
-        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SSO S t=ssotoken ???charabia 55192CF5-588E-4ABE-9CDF-395B616ED85B").unwrap());
-        assert!(matches!(&usr1, Err(CommandError::ArgumentParseError { .. })));
-    }
-
-    #[test]
-    fn client_sso_s_des_success() {
-        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SSO S t=ssotoken ???charabia {55192CF5-588E-4ABE-9CDF-395B616ED85B}").unwrap()).unwrap();
-        assert_eq!(4, usr1.tr_id);
-
-
-        assert!(matches!(&usr1.auth_type, AuthOperationTypeClient::Sso(_)));
-
-        if let AuthOperationTypeClient::Sso(content) = &usr1.auth_type {
-            assert!(matches!(content, SsoPhaseClient::S { .. }));
-
-            if let SsoPhaseClient::S { ticket_token, challenge, endpoint_guid } = content {
-                assert_eq!("t=ssotoken", ticket_token.to_string());
-                assert_eq!("???charabia", challenge);
-                assert_eq!("{55192CF5-588E-4ABE-9CDF-395B616ED85B}", endpoint_guid.to_string());
-
-            }
-
-        }
-
-    }
-
-
-
-    #[test]
-    fn client_sha_des_success() {
-        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SHA A circleticket").unwrap()).unwrap();
-        assert_eq!(4, usr1.tr_id);
-        assert!(matches!(&usr1.auth_type, AuthOperationTypeClient::Sha(_)));
-    }
-
-    #[test]
-    fn server_sso_s_ser() {
-        let usr = UsrServer { tr_id: 1, auth_type : OperationTypeServer::Sso(SsoPhaseServer::S { policy: AuthPolicy::MbiKeyOld, nonce: "n0nce".to_string() }) };
-        let ser = usr.to_string();
-        assert_eq!("USR 1 SSO S MBI_KEY_OLD n0nce\r\n", ser);
-    }
-
-    #[test]
-    fn server_ok_ser() {
-        let usr = UsrServer { tr_id: 2, auth_type : OperationTypeServer::Ok { email_addr: EmailAddress::from_str("Xx-taytay-xX@hotmail.com").unwrap(), verified: true, unknown_arg: false }};
-        let ser = usr.to_string();
-        assert_eq!("USR 2 OK Xx-taytay-xX@hotmail.com 1 0\r\n", ser);
-    }
-
-
-
-}
-
 static OPERAND: &str = "USR";
 
 
@@ -322,5 +213,113 @@ impl IntoBytes for UsrServer {
     fn into_bytes(self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
+
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use crate::msnp::raw_command_parser::RawCommand;
+    use crate::msnp::{error::CommandError, notification::command::usr::{AuthOperationTypeClient, SsoPhaseClient}};
+    use crate::shared::models::email_address::EmailAddress;
+    use crate::shared::traits::TryFromRawCommand;
+
+    use super::{AuthPolicy, OperationTypeServer, SsoPhaseServer, UsrClient, UsrServer};
+
+    #[test]
+    fn client_sso_i_des_success() {
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 3 SSO I login@test.com").unwrap()).unwrap();
+        assert_eq!(3, usr1.tr_id);
+
+        assert!(matches!(&usr1.auth_type, AuthOperationTypeClient::Sso(_)));
+
+        if let AuthOperationTypeClient::Sso(content) = &usr1.auth_type {
+            assert!(matches!(content, SsoPhaseClient::I { .. }));
+
+            if let SsoPhaseClient::I { email_addr } = content {
+                assert_eq!("login@test.com", email_addr.as_str());
+            }
+
+        }
+
+    }
+
+    #[test]
+    fn client_sso_i_des_failure() {
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 3 SSA I login@test.com").unwrap());
+        assert!(matches!(&usr1, Err(CommandError::ArgumentParseError { .. })));
+    }
+
+    #[test]
+    fn client_sso_i_des_failure_2() {
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 3 SSO XY login@test.com").unwrap());
+        assert!(matches!(&usr1, Err(CommandError::ArgumentParseError { .. })));
+    }
+
+    #[test]
+    fn client_sso_i_des_failure_3() {
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SSO S t=ssotoken ???charabia").unwrap());
+        assert!(matches!(&usr1, Err(CommandError::MissingArgument { .. })));
+    }
+
+    #[test]
+    fn client_sso_i_des_failure_invalid_ticket_token() {
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SSO S ssotoken ???charabia {55192CF5-588E-4ABE-9CDF-395B616ED85B}").unwrap());
+        assert!(matches!(&usr1, Err(CommandError::ArgumentParseError { .. })));
+    }
+
+    #[test]
+    fn client_sso_i_des_failure_invalid_endpoint() {
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SSO S t=ssotoken ???charabia 55192CF5-588E-4ABE-9CDF-395B616ED85B").unwrap());
+        assert!(matches!(&usr1, Err(CommandError::ArgumentParseError { .. })));
+    }
+
+    #[test]
+    fn client_sso_s_des_success() {
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SSO S t=ssotoken ???charabia {55192CF5-588E-4ABE-9CDF-395B616ED85B}").unwrap()).unwrap();
+        assert_eq!(4, usr1.tr_id);
+
+
+        assert!(matches!(&usr1.auth_type, AuthOperationTypeClient::Sso(_)));
+
+        if let AuthOperationTypeClient::Sso(content) = &usr1.auth_type {
+            assert!(matches!(content, SsoPhaseClient::S { .. }));
+
+            if let SsoPhaseClient::S { ticket_token, challenge, endpoint_guid } = content {
+                assert_eq!("t=ssotoken", ticket_token.to_string());
+                assert_eq!("???charabia", challenge);
+                assert_eq!("{55192CF5-588E-4ABE-9CDF-395B616ED85B}", endpoint_guid.to_string());
+
+            }
+
+        }
+
+    }
+
+
+
+    #[test]
+    fn client_sha_des_success() {
+        let usr1 = UsrClient::try_from_raw(RawCommand::from_str("USR 4 SHA A circleticket").unwrap()).unwrap();
+        assert_eq!(4, usr1.tr_id);
+        assert!(matches!(&usr1.auth_type, AuthOperationTypeClient::Sha(_)));
+    }
+
+    #[test]
+    fn server_sso_s_ser() {
+        let usr = UsrServer { tr_id: 1, auth_type : OperationTypeServer::Sso(SsoPhaseServer::S { policy: AuthPolicy::MbiKeyOld, nonce: "n0nce".to_string() }) };
+        let ser = usr.to_string();
+        assert_eq!("USR 1 SSO S MBI_KEY_OLD n0nce\r\n", ser);
+    }
+
+    #[test]
+    fn server_ok_ser() {
+        let usr = UsrServer { tr_id: 2, auth_type : OperationTypeServer::Ok { email_addr: EmailAddress::from_str("Xx-taytay-xX@hotmail.com").unwrap(), verified: true, unknown_arg: false }};
+        let ser = usr.to_string();
+        assert_eq!("USR 2 OK Xx-taytay-xX@hotmail.com 1 0\r\n", ser);
+    }
+
+
 
 }
