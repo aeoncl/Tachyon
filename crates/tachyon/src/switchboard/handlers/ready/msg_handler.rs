@@ -1,10 +1,11 @@
 use futures_util::FutureExt;
-use log::debug;
+use log::{debug, error};
 use crate::matrix::extensions::message_dedup::SendWithDedup;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::tachyon::tachyon_client::TachyonClient;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
-use matrix_sdk::Room;
+use matrix_sdk::{Error, Room};
+use matrix_sdk::room::futures::SendMessageLikeEventResult;
 use msnp::msnp::switchboard::command::ack::AckServer;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::msnp::switchboard::command::msg::{MsgAcknowledgment, MsgClient, MsgPayload};
@@ -14,35 +15,13 @@ use msnp::shared::payload::msg::chunked_msg_payload::{ChunkMetadata, ChunkedMsgP
 
 pub(super) async fn handle_msg(msg_command: MsgClient, command_sender: Sender<SwitchboardServerCommand>, tachyon_client: TachyonClient, room: Room, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
 
-    let result = if let MsgPayload::Chunked(chunk) = msg_command.payload {
-        let chunked_now_complete = handle_chunked(chunk, local_switchboard_data).await?;
-        match chunked_now_complete {
-            None => {
-                Ok(())
-            }
-            Some(complete) => {
-                handle_msg_payload(complete, &room).await
-            }
+    if let MsgPayload::Chunked(chunk) = msg_command.payload {
+        if let Some(complete) = handle_chunked(chunk, local_switchboard_data).await? {
+            handle_msg_payload_task(msg_command.tr_id, msg_command.ack_type, complete, &room, &command_sender);
         }
     } else {
-        handle_msg_payload(msg_command.payload, &room).await
+        handle_msg_payload_task(msg_command.tr_id, msg_command.ack_type, msg_command.payload, &room, &command_sender);
     };
-
-    if let Err(e) = result {
-        match msg_command.ack_type {
-            MsgAcknowledgment::AckOnFailure | MsgAcknowledgment::AckA | MsgAcknowledgment::AckD => {
-                command_sender.send(SwitchboardServerCommand::NAK(NakServer::new(msg_command.tr_id))).await?;
-            }
-            _ => {}
-        }
-    } else {
-        match msg_command.ack_type {
-            MsgAcknowledgment::AckA | MsgAcknowledgment::AckD => {
-                command_sender.send(SwitchboardServerCommand::ACK(AckServer::new(msg_command.tr_id))).await?;
-            }
-            _ => {}
-        }
-    }
 
     Ok(())
 }
@@ -66,28 +45,44 @@ pub async fn handle_chunked(chunk: ChunkedMsgPayload, local_switchboard_data: &m
     Ok(None)
 }
 
-pub async fn handle_msg_payload(payload: MsgPayload, room: &Room) -> Result<(), anyhow::Error> {
+pub fn handle_msg_payload_task(tr_id: u128, ack_type: MsgAcknowledgment, payload: MsgPayload, room: &Room, command_sender: &Sender<SwitchboardServerCommand>) {
 
-    match payload {
-        MsgPayload::Raw(_) => {
+    let room_clone = room.clone();
+    let command_sender_clone = command_sender.clone();
 
+    tokio::spawn(async move {
+        match payload {
+            MsgPayload::Raw(_) => {
+
+            }
+            MsgPayload::TextPlain(text_plain) => {
+
+                let message = RoomMessageEventContent::text_plain(text_plain.body);
+                if let Err(e) = room_clone.send_with_dedup(message).await  {
+                        error!("Could not send message {:?}", e);
+                        match ack_type {
+                            MsgAcknowledgment::AckOnFailure | MsgAcknowledgment::AckA | MsgAcknowledgment::AckD => {
+                                command_sender_clone.send(SwitchboardServerCommand::NAK(NakServer::new(tr_id))).await;
+                            }
+                            _ => {}
+                        }
+                    } else {
+                        match ack_type {
+                            MsgAcknowledgment::AckA | MsgAcknowledgment::AckD => {
+                                command_sender_clone.send(SwitchboardServerCommand::ACK(AckServer::new(tr_id))).await;
+                            }
+                            _ => {}
+                        }
+                    }
+            }
+            MsgPayload::Datacast(datacast) => {
+                debug!("received DATACAST {:?}", &datacast.get_type() );
+            }
+            MsgPayload::Control => {}
+            MsgPayload::P2P(_) => {}
+            MsgPayload::Chunked(_) => {
+            }
         }
-        MsgPayload::TextPlain(text_plain) => {
-
-            let message = RoomMessageEventContent::text_plain(text_plain.body);
-            room.send_with_dedup(message).await?;
-
-        }
-        MsgPayload::Datacast(datacast) => {
-            debug!("received DATACAST {:?}", &datacast.get_type() );
-        }
-        MsgPayload::Control => {}
-        MsgPayload::P2P(_) => {}
-        MsgPayload::Chunked(_) => {
-        }
-    }
-
-    Ok(())
-
+    });
 
 }
