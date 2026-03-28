@@ -2,7 +2,7 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use matrix_sdk::Client;
 
-use msnp::shared::models::oim::{MetaData, MetadataMessage};
+use msnp::shared::models::oim::{MailData, MailDataMessage};
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::rsi::get_metadata::request::GetMetadataMessageSoapEnvelope;
 use msnp::soap::rsi::get_metadata::response::GetMetadataResponseMessageSoapEnvelope;
@@ -14,7 +14,7 @@ use crate::web::soap::shared;
 
 pub async fn get_metadata(_request : GetMetadataMessageSoapEnvelope, _token: TicketToken, _client: Client, client_data: &mut TachyonClient) -> Result<Response, RSIError> {
 
-    let mut md = MetaData {
+    let mut md = MailData {
         ..Default::default()
     };
 
@@ -23,7 +23,7 @@ pub async fn get_metadata(_request : GetMetadataMessageSoapEnvelope, _token: Tic
         let serialized = oim.to_string();
 
         let display_name = oim.sender_display_name.as_ref().unwrap_or(&oim.sender.to_string()).to_owned();
-        let metadata_message = MetadataMessage::new(oim.recv_datetime.clone(), oim.sender.clone(), display_name, oim.message_id.clone(), serialized.len(), oim.read);
+        let metadata_message = MailDataMessage::new(oim.recv_datetime.clone(), oim.sender.clone(), display_name, oim.message_id.clone(), String::new(), serialized.len(), oim.read);
         md.messages.push(metadata_message);
     }
 

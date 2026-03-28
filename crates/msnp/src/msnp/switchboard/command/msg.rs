@@ -120,6 +120,7 @@ impl TryFromRawMsgPayload for MsgPayload {
             MsgContentType::Datacast => {Ok(MsgPayload::Datacast(DatacastMessagePayload::try_from_raw(raw_msg_payload)?))}
             MsgContentType::P2P => {Ok(MsgPayload::Raw(raw_msg_payload))}
             MsgContentType::None => {Ok(MsgPayload::Raw(raw_msg_payload))}
+            MsgContentType::MailDataNotification => {Ok(MsgPayload::Raw(raw_msg_payload))}
         }
     }
 }

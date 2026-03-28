@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use crate::matrix;
 use crate::matrix::sync::{build_sliding_sync, sync};
 use crate::tachyon::client_store::ClientStoreFacade;
@@ -13,6 +14,7 @@ use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::identifiers::MatrixIdCompatible;
 use anyhow::anyhow;
+use chrono::Local;
 use log::warn;
 use matrix_sdk_ui::sync_service::SyncService;
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
@@ -25,6 +27,8 @@ use msnp::shared::models::msn_user::MsnUser;
 use tokio::sync::mpsc::Sender;
 use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 use msnp::shared::models::display_name::DisplayName;
+use msnp::shared::models::email_address::EmailAddress;
+use msnp::shared::models::oim::{InboxMetadata, MailData, MailDataMessage};
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use crate::notification::handlers::fqy_handler::handle_fqy;
 use crate::notification::handlers::prp_handler::handle_prp;
@@ -145,6 +149,35 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                                 .await?;
 
                             sync(client_data, local_store.client_kill_snd.clone(), local_store.client_kill_recv.resubscribe());
+
+                           /* let initial_mail_data = NotificationServerCommand::MSG(MsgServer {
+                                sender: "Hotmail".to_string(),
+                                display_name: DisplayName::new_from_ref("Hotmail"),
+                                payload: MsgPayload::Raw(RawMsgPayloadFactory::get_initial_mail_data_notification(
+                                    MailData {
+                                        inbox_metadata: InboxMetadata {
+                                            inbox_count: 130,
+                                            inbox_unread: 1,
+                                            others_count: 0,
+                                            others_unread_count: 0,
+                                        },
+                                        quota: Default::default(),
+                                        messages: vec![MailDataMessage::new(Local::now().to_utc(), EmailAddress::from_str("tachyon@tachyon.internal").unwrap(), "System".into(), "msgid1".into(),"Verify your account".into(), 123, false)],
+                                    }
+                                )),
+                            });
+
+                            notif_sender.send(initial_mail_data).await?;
+                            */
+
+                            let initial_mail_data = NotificationServerCommand::MSG(MsgServer {
+                                sender: "Hotmail".to_string(),
+                                display_name: DisplayName::new_from_ref("Hotmail"),
+                                payload: MsgPayload::Raw(RawMsgPayloadFactory::get_mail_data_notification(EmailAddress::from_str("tachyon@tachyon.internal").unwrap(), "System".to_string(), "Verify your account".into())),
+                            });
+
+                            notif_sender.send(initial_mail_data).await?;
+
                         }
                     }
                 },

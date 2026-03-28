@@ -24,7 +24,7 @@ use crate::soap::traits::xml::ToXml;
 #[yaserde(
 rename = "M",
 )]
-pub struct MetadataMessage {
+pub struct MailDataMessage {
     //Type, but has only been seen set to 11
     // Speculation:
     // 11 = OIM, 12 = SMS & 13 = Federated
@@ -67,8 +67,8 @@ pub struct MetadataMessage {
     pub subject: String,
 }
 
-impl MetadataMessage {
-    pub fn new(timestamp: DateTime<Utc>, sender: EmailAddress, sender_display_name: String, message_id: String, message_size: usize, read: bool) -> Self{
+impl MailDataMessage {
+    pub fn new(timestamp: DateTime<Utc>, sender: EmailAddress, sender_display_name: String, message_id: String, subject: String, message_size: usize, read: bool) -> Self{
         //2005-11-15T22:24:27.000Z
         let ts = timestamp.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
 
@@ -84,12 +84,12 @@ impl MetadataMessage {
             message_id,
             folder_id: "00000000-0000-0000-0000-000000000009".to_string(),
             sender_display_name: encoded,
-            subject: " ".to_string(),
+            subject,
         }
     }
 }
 
-impl ToXml for MetadataMessage {
+impl ToXml for MailDataMessage {
     type Error = SoapMarshallError;
 
     fn to_xml(&self) -> Result<String, Self::Error>  {
@@ -101,18 +101,18 @@ impl ToXml for MetadataMessage {
 #[yaserde(
 rename = "Q",
 )]
-pub struct Q {
+pub struct Quota {
     #[yaserde(rename = "QTM", default)]
-    pub qtm: i32,
+    pub quota_total_max_kb: i32,
     #[yaserde(rename = "QNM", default)]
-    pub qnm: i32,
+    pub quota_now_max_kb: i32,
 }
 
-impl Default for Q {
+impl Default for Quota {
     fn default() -> Self {
         Self {
-            qtm: 409600,
-            qnm: 204800,
+            quota_total_max_kb: 409600,
+            quota_now_max_kb: 204800,
         }
     }
 }
@@ -121,43 +121,47 @@ impl Default for Q {
 #[yaserde(
 rename = "MD",
 )]
-pub struct MetaData {
+pub struct MailData {
     #[yaserde(rename = "E", default)]
-    pub e: E,
+    pub inbox_metadata: InboxMetadata,
     #[yaserde(rename = "Q", default)]
-    pub q: Q,
+    pub quota: Quota,
     #[yaserde(rename = "M", default)]
-    pub messages: Vec<MetadataMessage>
+    pub messages: Vec<MailDataMessage>
 }
 
 #[derive(Debug, YaSerialize, YaDeserialize, Clone)]
 #[yaserde(
 rename = "E",
 )]
-pub struct E {
+pub struct InboxMetadata {
     #[yaserde(rename = "I", default)]
-    pub i: i32,
+    //Inbox total
+    pub inbox_count: i32,
     #[yaserde(rename = "IU", default)]
-    pub iu: i32,
+    //Inbox unread mail
+    pub inbox_unread: i32,
     #[yaserde(rename = "O", default)]
-    pub o: i32,
+    //Sent + Junk + Drafts
+    pub others_count: i32,
     #[yaserde(rename = "OU", default)]
-    pub ou: i32
+    //Sent + Junk + Drafts Unread
+    pub others_unread_count: i32
 }
 
-impl Default for E {
+impl Default for InboxMetadata {
     fn default() -> Self {
         Self {
-            i: 0,
-            iu: 0,
-            o: 0,
-            ou: 0,
+            inbox_count: 0,
+            inbox_unread: 0,
+            others_count: 0,
+            others_unread_count: 0,
         }
     }
 }
 
 
-impl ToXml for MetaData {
+impl ToXml for MailData {
     type Error = SoapMarshallError;
 
     fn to_xml(&self) -> Result<String, Self::Error>  {
@@ -241,13 +245,13 @@ mod tests {
     use chrono::Local;
 
     use crate::shared::models::email_address::EmailAddress;
-    use crate::shared::models::oim::{MetaData, MetadataMessage};
+    use crate::shared::models::oim::{MailData, MailDataMessage};
     use crate::soap::traits::xml::ToXml;
 
     #[test]
     fn ser_metadata_message() {
 
-        let msg = MetadataMessage::new(Local::now().to_utc(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), 123, false);
+        let msg = MailDataMessage::new(Local::now().to_utc(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), 123, false);
         let str = msg.to_xml().unwrap();
         println!("{}", &str);
 
@@ -255,10 +259,10 @@ mod tests {
 
     #[test]
     fn ser_metadata() {
-        let msg = MetadataMessage::new(Local::now().to_utc(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), 123, false);
-        let msg1 = MetadataMessage::new(Local::now().to_utc(), EmailAddress::from_str("aeon2@test.com").unwrap(), "Aeon2".into(), "msgid2".into(), 123, false);
+        let msg = MailDataMessage::new(Local::now().to_utc(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), 123, false);
+        let msg1 = MailDataMessage::new(Local::now().to_utc(), EmailAddress::from_str("aeon2@test.com").unwrap(), "Aeon2".into(), "msgid2".into(), 123, false);
 
-        let metadata = MetaData {
+        let metadata = MailData {
             messages: vec![msg, msg1],
             ..Default::default()
         };

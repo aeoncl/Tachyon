@@ -83,7 +83,7 @@ pub mod request {
 pub mod response {
     use yaserde::ser::to_string;
     use yaserde_derive::{YaDeserialize, YaSerialize};
-    use crate::shared::models::oim::MetaData;
+    use crate::shared::models::oim::MailData;
     use crate::soap::error::SoapMarshallError;
     
     use crate::soap::rsi::service_header::ServiceHeader;
@@ -114,7 +114,7 @@ pub mod response {
     )]
     pub struct GetMetadataResponseType {
         #[yaserde(rename = "MD", default)]
-        pub md: MetaData,
+        pub md: MailData,
     }
 
 
@@ -142,7 +142,7 @@ pub mod response {
     }
 
     impl GetMetadataResponseMessageSoapEnvelope {
-        pub fn new(metadata: MetaData) -> Self {
+        pub fn new(metadata: MailData) -> Self {
             let response = GetMetadataResponseType {
                 md: metadata,
             };

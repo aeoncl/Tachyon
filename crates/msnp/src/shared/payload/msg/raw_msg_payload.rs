@@ -21,6 +21,9 @@ pub enum MsgContentType {
     #[strum(serialize = "text/x-msmsgsinitialmdatanotification; charset=UTF-8", ascii_case_insensitive)]
     InitialMailDataNotification,
 
+    #[strum(serialize = "text/x-msmsgsemailnotification; charset=UTF-8", ascii_case_insensitive)]
+    MailDataNotification,
+
     #[strum(serialize = "text/x-msmsgssystemmessage; charset=UTF-8", ascii_case_insensitive)]
     SystemMessage,
 
@@ -200,7 +203,7 @@ pub mod factories {
 
     use crate::shared::converters::filetime::FileTime;
     use crate::shared::models::email_address::EmailAddress;
-    use crate::shared::models::oim::MetaData;
+    use crate::shared::models::oim::MailData;
     use crate::shared::models::ticket_token::TicketToken;
     use crate::soap::traits::xml::ToXml;
     use crate::{p2p::v2::p2p_transport_packet::P2PTransportPacket, shared::models::{msn_object::MsnObject, msn_user::MsnUser, uuid::Puid}};
@@ -253,10 +256,19 @@ pub mod factories {
             return out;
         }
 
-        pub fn get_initial_mail_data_notification(mail_data: MetaData) -> RawMsgPayload {
+        pub fn get_initial_mail_data_notification(mail_data: MailData) -> RawMsgPayload {
 
             let mut out = RawMsgPayload::new(MsgContentType::InitialMailDataNotification, false);
             out.set_body_str(format!("Mail-Data: {}\r\nInbox-Unread: 0\r\nFolders-Unread: 0\r\nInbox-URL: /cgi-bin/HoTMaiL\r\nFolders-URL: /cgi-bin/folders\r\nPost-URL: http://127.0.0.1:8080/email\r\n", mail_data.to_xml().unwrap()).as_str());
+            return out;
+        }
+
+        pub fn get_mail_data_notification(sender_email: EmailAddress, sender_name: String, subject: String) -> RawMsgPayload {
+
+            let subject_encoded = crate::shared::converters::rfc2047::encode(&subject);
+
+            let mut out = RawMsgPayload::new(MsgContentType::MailDataNotification, false);
+            out.set_body_str(format!("From: {sender_name}\r\nMessage-URL: /cgi-bin/getmsg?msg=MSG1050451140.21​&start=2310&len=2059&curmbox=ACTIVE\r\nPost-URL: http://127.0.0.1:8080/email\r\nSubject: {subject}\r\nDest-Folder: ACTIVE\r\nFrom-Addr: {sender_email}\r\nid: 2\r\n", sender_name = sender_name, subject = subject_encoded, sender_email = sender_email).as_str());
             return out;
         }
 
