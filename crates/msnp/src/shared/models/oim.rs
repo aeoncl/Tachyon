@@ -251,7 +251,7 @@ mod tests {
     #[test]
     fn ser_metadata_message() {
 
-        let msg = MailDataMessage::new(Local::now().to_utc(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), 123, false);
+        let msg = MailDataMessage::new(Local::now().to_utc(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), String::new(), 123, false);
         let str = msg.to_xml().unwrap();
         println!("{}", &str);
 
@@ -259,8 +259,8 @@ mod tests {
 
     #[test]
     fn ser_metadata() {
-        let msg = MailDataMessage::new(Local::now().to_utc(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), 123, false);
-        let msg1 = MailDataMessage::new(Local::now().to_utc(), EmailAddress::from_str("aeon2@test.com").unwrap(), "Aeon2".into(), "msgid2".into(), 123, false);
+        let msg = MailDataMessage::new(Local::now().to_utc(), EmailAddress::from_str("aeon@test.com").unwrap(), "Aeon".into(), "msgid".into(), String::new(), 123, false);
+        let msg1 = MailDataMessage::new(Local::now().to_utc(), EmailAddress::from_str("aeon2@test.com").unwrap(), "Aeon2".into(), "msgid2".into(),String::new(),123, false);
 
         let metadata = MailData {
             messages: vec![msg, msg1],
