@@ -20,7 +20,7 @@ pub async fn handle_message(
     client: Client,
 ) {
 
-    if room.is_event_deduped(event.event_id.as_ref()) {
+    if room.is_event_deduped(event.event_id.as_ref()).await {
         return;
     }
 
