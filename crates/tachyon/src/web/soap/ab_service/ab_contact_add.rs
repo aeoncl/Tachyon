@@ -12,7 +12,7 @@ use tokio::task;
 use tokio::time::sleep;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::not::factories::NotificationFactory;
-use msnp::msnp::notification::command::not::{NotServer, NotificationPayload};
+use msnp::msnp::notification::command::not::{NotServer, NotificationPayload, NotificationPayloadType};
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
@@ -140,7 +140,7 @@ async fn delete_user_contact(contact_email_addr: EmailAddress, tachyon_client: T
 
     let user = tachyon_client.own_user().unwrap();
     tachyon_client.notification_handle().send(NotificationServerCommand::NOT(NotServer {
-        payload: NotificationFactory::get_abch_updated(&user.uuid, user.get_email_address()),
+        payload: NotificationPayloadType::Normal(NotificationFactory::get_abch_updated(&user.uuid, user.get_email_address())),
     })).await?;
 
     Ok(())

@@ -260,11 +260,13 @@ pub mod response {
                     "contacts.msn.com",
                     "storage.msn.com",
                     "sup.live.com",
+                    "127.0.0.1",
+                    "127.0.0.1:8080"
                 ];
                 let now = Local::now();
                 let tomorrow = now.checked_add_days(Days::new(1)).expect("day to be added");
 
-                for i in 0..6 {
+                for i in 0..addresses.len() {
                     out.push(RST2ResponseFactory::get_relevant_token(
                         ticket_token.clone(),
                         addresses[i].to_string(),

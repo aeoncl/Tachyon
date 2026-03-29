@@ -16,10 +16,8 @@ use std::str::FromStr;
  */
 
 pub struct UrlClient {
-
-    tr_id: u128,
-    url_type: UrlType
-
+    pub tr_id: u128,
+    pub url_type: UrlType
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]

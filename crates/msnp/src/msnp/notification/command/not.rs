@@ -8,7 +8,23 @@ use yaserde_derive::{YaDeserialize, YaSerialize};
 
 //NOT {payload_size}\r\n{payload}
 pub struct NotServer {
-    pub payload: NotificationPayload
+    pub payload: NotificationPayloadType
+}
+
+
+pub enum NotificationPayloadType {
+    Normal(NotificationPayload),
+    Raw(String)
+}
+
+
+impl IntoBytes for NotificationPayloadType {
+    fn into_bytes(self) -> Vec<u8> {
+        match self {
+            NotificationPayloadType::Normal(content) => { content.into_bytes() }
+            NotificationPayloadType::Raw(raw) => { raw.into_bytes() }
+        }
+    }
 }
 
 impl TryFromRawCommand for NotServer {
@@ -52,6 +68,8 @@ impl IntoBytes for NotificationPayload {
 pub struct NotificationPayload {
     #[yaserde(rename = "id", attribute)]
     id: i32,
+    #[yaserde(rename = "ver", attribute)]
+    ver: Option<i32>,
     #[yaserde(rename = "siteid", attribute)]
     site_id: i32,
     #[yaserde(rename = "siteurl", attribute)]
@@ -89,7 +107,83 @@ pub struct Message{
     #[yaserde(rename = "ACTION", default)]
     action: Url,
     #[yaserde(rename = "BODY", default)]
-    body: String
+    body: MessageBody
+}
+
+#[derive(YaSerialize, YaDeserialize)]
+#[yaserde(rename = "BODY", flatten)]
+pub enum MessageBodyContent {
+    #[yaserde(flatten)]
+    String(RawStringMessageBody),
+    #[yaserde(flatten)]
+    Text(TextMessageBody),
+    #[yaserde(flatten)]
+    TextXml(TextXmlMessageBody)
+}
+
+impl Default for MessageBodyContent {
+    fn default() -> Self {
+        Self::String(RawStringMessageBody::default())
+    }
+}
+
+#[derive(Default, YaSerialize, YaDeserialize)]
+pub struct RawStringMessageBody{
+
+    #[yaserde(text, default)]
+    content: String
+
+}
+
+impl RawStringMessageBody {
+    pub fn new(str: String) -> Self {
+        Self { content: str }
+    }
+}
+
+#[derive(Default, YaSerialize, YaDeserialize)]
+pub struct TextMessageBody{
+
+    #[yaserde(rename = "TEXT", default)]
+    content: String
+
+}
+
+impl TextMessageBody {
+    pub fn new(str: String) -> Self {
+        Self { content: str }
+    }
+}
+
+#[derive(Default, YaSerialize, YaDeserialize)]
+pub struct TextXmlMessageBody{
+
+    #[yaserde(rename = "TEXTXML", default)]
+    content: String
+
+}
+
+impl TextXmlMessageBody {
+    pub fn new(str: String) -> Self {
+        Self { content: str }
+    }
+}
+
+
+
+
+#[derive(Default, YaSerialize, YaDeserialize)]
+#[yaserde(rename = "BODY")]
+pub struct MessageBody {
+    #[yaserde(rename = "lang", attribute)]
+    lang: Option<String>,
+
+    #[yaserde(rename = "icon", attribute)]
+    icon: Option<String>,
+
+    #[yaserde(flatten, default)]
+    content: MessageBodyContent
+
 }
 
 #[derive(Default, YaSerialize, YaDeserialize)]
@@ -107,8 +201,12 @@ pub struct Recipient {
     /* recipient email */
     #[yaserde(rename = "name", attribute)]
     name: String,
+
+    #[yaserde(rename = "email", attribute)]
+    email: Option<String>,
+
     #[yaserde(rename = "VIA")]
-    via: Via
+    via: Option<Via>
 
 }
 
@@ -163,7 +261,7 @@ pub mod factories {
     use crate::shared::models::uuid::Uuid;
     use crate::soap::traits::xml::ToXml;
 
-    use super::{Message, NotificationData, NotificationPayload, Recipient, Url, Via};
+    use super::{Message, MessageBody, MessageBodyContent, NotificationData, NotificationPayload, RawStringMessageBody, Recipient, TextMessageBody, Url, Via};
 
     pub struct NotificationFactory;
 
@@ -171,7 +269,7 @@ pub mod factories {
 
         pub fn get_abch_updated(uuid: &Uuid, msn_addr: &EmailAddress) -> NotificationPayload {
             let recipient_pid = format!("0x{}:0x{}", uuid.get_least_significant_bytes_as_hex(), uuid.get_most_significant_bytes_as_hex());
-            let recipient = Recipient{ pid: recipient_pid, name: msn_addr.to_string(), via: Via{ agent: String::from("messenger") } };
+            let recipient = Recipient{ pid: recipient_pid, name: msn_addr.to_string(), email: None, via: Some(Via{ agent: String::from("messenger") }) };
     
             let now = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     
@@ -179,24 +277,85 @@ pub mod factories {
 
             let notification_data_ser = body.to_xml().unwrap();
 
-            let message = Message{ id: 0, subscriber: Url{ url: String::from("s.htm")}, action: Url{ url: String::from("a.htm")}, body: notification_data_ser };
+            let message = Message{ id: 0, subscriber: Url{ url: String::from("s.htm")}, action: Url{ url: String::from("a.htm")}, body:  MessageBody{
+                lang: None,
+                icon: None,
+                content:  MessageBodyContent::String(RawStringMessageBody::new(notification_data_ser)),
+            } };
     
-            NotificationPayload{ id: 0, site_id: 45705, site_url: String::from("http://contacts.msn.com"), to: recipient, message }
+            NotificationPayload{ id: 0, ver: None, site_id: 45705, site_url: String::from("http://contacts.msn.com"), to: recipient, message }
         }
 
         pub fn get_circle_updated(me_uuid: &Uuid, me_msn_addr: &str, circle_id: &str) -> NotificationPayload {
             let recipient_pid = format!("0x{}:0x{}", me_uuid.get_least_significant_bytes_as_hex(), me_uuid.get_most_significant_bytes_as_hex());
-            let recipient = Recipient{ pid: recipient_pid, name: me_msn_addr.to_string(), via: Via{ agent: String::from("messenger") } };
+            let recipient = Recipient{ pid: recipient_pid, name: me_msn_addr.to_string(), email: None, via: Some(Via{ agent: String::from("messenger") }) };
 
             let body = NotificationData{ service: None, cid: None, last_modified_date: None, has_new_item: true, circle_id: Some(circle_id.to_string()) };
 
             let notification_data_ser = body.to_xml().unwrap();
 
-            let message = Message{ id: 0, subscriber: Url{ url: String::from("s.htm")}, action: Url{ url: String::from("a.htm")}, body: notification_data_ser };
+            let message = Message{ id: 0, subscriber: Url{ url: String::from("s.htm")}, action: Url{ url: String::from("a.htm")}, body: MessageBody{
+                lang: None,
+                icon: None,
+                content:  MessageBodyContent::String(RawStringMessageBody::new(notification_data_ser)),
+            }  };
 
-            NotificationPayload{ id: 0, site_id: 45705, site_url: String::from("http://contacts.msn.com"), to: recipient, message }
+            NotificationPayload{ id: 0, ver: None, site_id: 45705, site_url: String::from("http://contacts.msn.com"), to: recipient, message }
 
         }
+
+        pub fn text(uuid: &Uuid, msn_addr: &str, msg: &str) -> NotificationPayload {
+            let recipient_pid = format!("0x{}:0x{}", uuid.get_least_significant_bytes_as_hex(), uuid.get_most_significant_bytes_as_hex());
+            let recipient = Recipient{ pid: recipient_pid, name: msn_addr.to_string(), email: None, via: Some(Via{ agent: String::from("messenger") }) };
+
+            let message = Message{ id: 1, subscriber: Url{ url: String::from("s.htm")}, action: Url{ url: String::from("a.htm")}, body: MessageBody{
+                lang: None,
+                icon: None,
+                content:  MessageBodyContent::String(RawStringMessageBody::new(format!("<XML>{}</XML>", msg))),
+            }     };
+
+            NotificationPayload {
+                id: 1,
+                ver: None,
+                site_id: 45705,
+                site_url: "http://alerts.msn.com".to_string(),
+                to: recipient,
+                message: message,
+            }
+        }
+
+        pub fn alert(uuid: &Uuid, msn_addr: &EmailAddress, msg: &str, site_url: &str, subscribe_url: &str, action_url: &str, icon: Option<&str>) -> NotificationPayload {
+            let recipient_pid = format!("0x{}:0x{}", uuid.get_least_significant_bytes_as_hex(), uuid.get_most_significant_bytes_as_hex());
+            let recipient = Recipient{ pid: recipient_pid, name: msn_addr.to_string(), email: None, via: None };
+
+            let message = Message{ id: 1, subscriber: Url{ url: subscribe_url.to_string()}, action: Url{ url: action_url.to_string()}, body:  MessageBody{
+                lang: Some("3076".to_string()),
+                icon: icon.map(|i| i.to_string()),
+                content:  MessageBodyContent::Text(TextMessageBody::new(msg.to_string())),
+            }
+            };
+
+            NotificationPayload {
+                id: 1342902633,
+                ver: Some(2),
+                site_id: 199999999,
+                site_url: site_url.to_string(),
+                to: recipient,
+                message,
+            }
+        }
+
+        pub fn alert_test(uuid: &Uuid, msn_addr: &str, msg: &str) -> String {
+
+            let recipient_pid = format!("0x{}:0x{}", uuid.get_least_significant_bytes_as_hex(), uuid.get_most_significant_bytes_as_hex());
+
+
+            let test = format!(r#"<NOTIFICATION id="1342902633" ver="2" siteid="199999999" siteurl="http://127.0.0.1:8080/ads"><TO pid="{pid}" name="{email}" email="{email}"/><MSG id="1"><SUBSCR url="http://127.0.0.1:8080/tachyon?s=true" /><ACTION url="http://127.0.0.1:8080/tachyon?a=true" /><BODY lang="3076" icon="spongebob-icon_32x32.png"><TEXT>{text}</TEXT></BODY></MSG></NOTIFICATION>"#, pid = recipient_pid, email = msn_addr, text=msg);
+
+
+            test
+        }
+
 
         pub fn test(uuid: &Uuid, msn_addr: &str) -> String {
             let now = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
@@ -227,9 +386,23 @@ mod tests {
     use crate::{msnp::notification::command::not::factories::NotificationFactory, shared::models::msn_user::MsnUser};
 
     #[test]
+    fn ab_alert_notification_test() {
+        let msn_user = MsnUser::without_endpoint_guid(EmailAddress::from_str("aeon.shl@shl.local").unwrap());
+        let notif = NotificationFactory::alert(&msn_user.uuid, &msn_user.endpoint_id.email_addr, "this is an alert", "http://127.0.0.1:8080/ads", "http://127.0.0.1:8080/tachyon?s=true", "http://127.0.0.1:8080/tachyon?a=true", Some("spongebob-icon_32x32.png"));
+
+        let notif_ser = notif.to_xml().unwrap();
+
+        let notif_legacy = r#"<NOTIFICATION id="1342902633" ver="2" siteid="199999999" siteurl="http://127.0.0.1:8080/ads"><TO pid="0x97f337aa885ae2bc:0x4d555fd33077064c" name="aeon.shl@shl.local" /><MSG id="1"><SUBSCR url="http://127.0.0.1:8080/tachyon?s=true" /><ACTION url="http://127.0.0.1:8080/tachyon?a=true" /><BODY lang="3076" icon="spongebob-icon_32x32.png"><TEXT>this is an alert</TEXT></BODY></MSG></NOTIFICATION>"#;
+
+        assert_eq!(&notif_ser, notif_legacy);
+    }
+
+    #[test]
     fn ab_notification_test_2() {
         let msn_user = MsnUser::without_endpoint_guid(EmailAddress::from_str("aeon.shl@shl.local").unwrap());
         let notif = NotificationFactory::get_abch_updated(&msn_user.uuid, &msn_user.endpoint_id.email_addr);
+
+        println!("{}", notif.to_xml().unwrap());
 
         let notif_legacy = NotificationFactory::test(&msn_user.uuid, &msn_user.endpoint_id.email_addr.as_str());
         assert_eq!(notif.to_xml().unwrap().as_str(), notif_legacy.replace("\r\n", ""));

@@ -7,7 +7,7 @@ use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
 use lazy_static_include::lazy_static_include_bytes;
-use maud::{html, Markup};
+use maud::{html, Markup, DOCTYPE};
 
 lazy_static_include_bytes! {
     INDEX => "./assets/web/tachyon/index.html",
@@ -27,7 +27,7 @@ pub fn tachyon_router(state: ClientStoreFacade) -> Router<ClientStoreFacade> {
 
 pub fn index_page() -> Markup {
     html! {
-        DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd";
+        (DOCTYPE)
         html {
             head {
                 title { "Tachyon" }

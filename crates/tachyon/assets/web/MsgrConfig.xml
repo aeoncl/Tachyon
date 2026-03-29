@@ -110,6 +110,10 @@
 			Management-SiteId="73625"
 			Membership="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/membership"
 			Membership-SiteId="73625"
+			Profile="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/profile"
+			Profile-SiteId="73625"
+			Calendar="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/calendar"
+			Calendar-SiteId="73625"
 			Leave="http://127.0.0.1:8080/circle/cid-$CIRCLECID$/leavegroup" Leave-SiteId="73625" />
 		<AnonymousIMSettings>
 			<SettingsPage URL="http://settings.messenger.live.com/applications/WebSettings.aspx" SiteID="76215" />
@@ -178,6 +182,24 @@
 			</SNInvites>
 			<ViewMapEnabled>true</ViewMapEnabled>
 		</Contacts>
+		<ContactCard>
+			<AddToMySpaceSiteId>73625</AddToMySpaceSiteId>
+			<AddToMySpaceUrl>http://spaces.live.com/?addblogentry=true</AddToMySpaceUrl>
+			<ContactCardDisabled>false</ContactCardDisabled>
+			<CreateSpaceSiteId>73625</CreateSpaceSiteId>
+			<CreateSpaceUrl>http://spaces.live.com</CreateSpaceUrl>
+			<GetItemVerUrl>http://storage.msn.com/storageservice/schematizedstore.asmx </GetItemVerUrl>
+			<GetXmlFeedUrl>http://cc.services.spaces.msn.com/contactcard/contactcardservice.asmx </GetXmlFeedUrl>
+			<GetXmlFeedRpsUrl>
+				http://cc.services.spaces.live.com/contactcard/contactcardservice.asmx </GetXmlFeedRpsUrl>
+			<GetXmlFeedRpsCidUrl>
+				http://cid-%1!16.16I64X!.cc.services.spaces.live.com/contactcard/contactcardservice.asmx </GetXmlFeedRpsCidUrl>
+			<MySpaceSiteId>73625</MySpaceSiteId>
+			<MySpaceUrl>http://spaces.live.com</MySpaceUrl>
+			<SpaceBaseSiteId>73625</SpaceBaseSiteId>
+			<SpaceBaseUrl>http://spaces.live.com</SpaceBaseUrl>
+			<SpaceIntegrationEnabled>true</SpaceIntegrationEnabled>
+		</ContactCard>
 		<SocialNews>
 			<EventUrl>http://127.0.0.1:8080/social/cid-%1!16.16I64X!/events</EventUrl>
 			<EventSiteID>73625</EventSiteID>

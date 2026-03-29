@@ -9,9 +9,12 @@ use yaserde::ser;
 use yaserde_derive::YaSerialize;
 
 lazy_static_include_bytes! {
+    AVATAR => "./assets/img/avatar_48x48.jpg",
     BANNER => "./assets/web/banner.html",
     TEXT_AD => "./assets/web/ads/textad.xml",
     MATRIX_ICON => "./assets/img/matrix-icon.png",
+    SPONGEBOB_ICON => "./assets/img/spongebob.png",
+    ALERT_BACKGROUND => "./assets/web/ads/alert-background.png"
 }
 
 lazy_static! {
@@ -87,6 +90,33 @@ pub async fn get_banner_ads() -> Response<Body> {
 
 pub async fn get_matrix_icon() -> Response<Body> {
     let data: &'static [u8] = *MATRIX_ICON;
+
+    axum::response::Response::builder()
+        .header(CONTENT_TYPE, "image/png")
+        .body(Body::from(data)).expect("banner ads response to be valid")
+
+}
+
+pub async fn get_avatar_jpg() -> Response<Body> {
+    let data: &'static [u8] = *AVATAR;
+
+    axum::response::Response::builder()
+        .header(CONTENT_TYPE, "image/jpg")
+        .body(Body::from(data)).expect("banner ads response to be valid")
+
+}
+
+pub async fn get_spongebob_icon() -> Response<Body> {
+    let data: &'static [u8] = *SPONGEBOB_ICON;
+
+    axum::response::Response::builder()
+        .header(CONTENT_TYPE, "image/png")
+        .body(Body::from(data)).expect("banner ads response to be valid")
+
+}
+
+pub async fn get_alert_background() -> Response<Body> {
+    let data: &'static [u8] = *ALERT_BACKGROUND;
 
     axum::response::Response::builder()
         .header(CONTENT_TYPE, "image/png")

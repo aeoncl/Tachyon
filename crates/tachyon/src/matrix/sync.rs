@@ -27,7 +27,7 @@ use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::sync::mpsc::error::SendTimeoutError;
 use msnp::msnp::notification::command::nln::NlnServer;
 use msnp::msnp::notification::command::not::factories::NotificationFactory;
-use msnp::msnp::notification::command::not::NotServer;
+use msnp::msnp::notification::command::not::{NotServer, NotificationPayloadType};
 use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::presence_status::PresenceStatus;
 
@@ -155,7 +155,7 @@ async fn handle_addressbook_notifications(client_data: &TachyonClient) -> Result
     if update_required {
         let user = client_data.own_user().unwrap();
         client_data.notification_handle().send(NotificationServerCommand::NOT(NotServer {
-            payload: NotificationFactory::get_abch_updated(&user.uuid, user.get_email_address()),
+            payload: NotificationPayloadType::Normal(NotificationFactory::get_abch_updated(&user.uuid, user.get_email_address())),
         })).await
     } else {
         Ok(())

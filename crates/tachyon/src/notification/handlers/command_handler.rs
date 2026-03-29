@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::time::Duration;
 use crate::matrix;
 use crate::matrix::sync::{build_sliding_sync, sync};
 use crate::tachyon::client_store::ClientStoreFacade;
@@ -10,12 +11,15 @@ use crate::notification::handlers::rml_handler::handle_rml;
 use crate::notification::handlers::usr_handler::handle_usr;
 use crate::notification::handlers::uum_handler::handle_uum;
 use crate::notification::handlers::uux_handler::handle_uux;
+use crate::notification::handlers::url_handler::handle_url;
+
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::identifiers::MatrixIdCompatible;
 use anyhow::anyhow;
-use chrono::Local;
+use chrono::format;
 use log::warn;
+use matrix_sdk::notification_settings::IsOneToOne::No;
 use matrix_sdk_ui::sync_service::SyncService;
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
 use msnp::msnp::notification::command::cvr::CvrServer;
@@ -25,9 +29,14 @@ use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use tokio::sync::mpsc::Sender;
+use tokio::time::sleep;
 use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
+use msnp::msnp::notification::command::not::factories::NotificationFactory;
+use msnp::msnp::notification::command::not::{NotServer, NotificationPayload, NotificationPayloadType};
+use msnp::msnp::notification::command::url::UrlClient;
 use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::email_address::EmailAddress;
+use msnp::shared::models::font_color::FontColor;
 use msnp::shared::models::oim::{InboxMetadata, MailData, MailDataMessage};
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use crate::notification::handlers::fqy_handler::handle_fqy;
@@ -150,7 +159,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
                             sync(client_data, local_store.client_kill_snd.clone(), local_store.client_kill_recv.resubscribe());
 
-                           /* let initial_mail_data = NotificationServerCommand::MSG(MsgServer {
+                            let initial_mail_data = NotificationServerCommand::MSG(MsgServer {
                                 sender: "Hotmail".to_string(),
                                 display_name: DisplayName::new_from_ref("Hotmail"),
                                 payload: MsgPayload::Raw(RawMsgPayloadFactory::get_initial_mail_data_notification(
@@ -162,21 +171,75 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                                             others_unread_count: 0,
                                         },
                                         quota: Default::default(),
-                                        messages: vec![MailDataMessage::new(Local::now().to_utc(), EmailAddress::from_str("tachyon@tachyon.internal").unwrap(), "System".into(), "msgid1".into(),"Verify your account".into(), 123, false)],
+                                        messages: vec![]
+                                      //  messages: vec![MailDataMessage::new(Local::now().to_utc(), EmailAddress::from_str("tachyon@tachyon.internal").unwrap(), "System".into(), "msgid1".into(),"Verify your account".into(), 123, false)],
                                     }
                                 )),
                             });
 
                             notif_sender.send(initial_mail_data).await?;
-                            */
 
-                            let initial_mail_data = NotificationServerCommand::MSG(MsgServer {
+
+                            /*let initial_mail_data = NotificationServerCommand::MSG(MsgServer {
                                 sender: "Hotmail".to_string(),
                                 display_name: DisplayName::new_from_ref("Hotmail"),
                                 payload: MsgPayload::Raw(RawMsgPayloadFactory::get_mail_data_notification(EmailAddress::from_str("tachyon@tachyon.internal").unwrap(), "System".to_string(), "Verify your account".into())),
                             });
 
-                            notif_sender.send(initial_mail_data).await?;
+                            notif_sender.send(initial_mail_data).await?;*/
+
+
+                            let notttt = NotificationServerCommand::NOT(NotServer {
+                                payload: NotificationPayloadType::Normal(NotificationFactory::alert(&msn_user.uuid, msn_user.get_email_address(), "Device verification required ! Verification is necessary to access encrypted messages and to stay secure.", "http://127.0.0.1:8080/tachyon", "/verify?test=1", "/verify?test=2", Some("tachyon_logo_2.png"))),
+                            });
+
+
+
+                            //notif_sender.send(notttt).await;
+
+
+                            let recipient_pid = format!("0x{}:0x{}", &msn_user.uuid.get_least_significant_bytes_as_hex(), &msn_user.uuid.get_most_significant_bytes_as_hex());
+
+                            //Icon tag needs to be present or no other images are loaded :))))))) AAAAAAAh
+                            //Icon image must be 48x48 or less, or it will be replace by a placeholder (a bell icon)
+                            //Icon image name: if it contains _32x32.png it gets replaced to _48x32.png xD
+                            //Icon url depends of the domain from the siteurl. It ignores all the path element from the siteUrl and it happens a / before
+                            // ie: siteurl = http://127.0.0.1:8080/ads. you still needs to pust icon="ads/youricon.png"
+                            // ==> it will call http://127.0.0.1:8080/ads/youricon.png
+                            // Color seems to be their weird inverted RGBA again, like text messages.
+
+                            //TODO handle alpha in FontColor
+                            let color = format!("{alpha}{bgr}", alpha = "CF", bgr = FontColor::parse_from_rgb("FF03FF").unwrap().serialize_bgr());
+
+                            let testo2 = format!(r##"<NOTIFICATION id="1" siteid="45705" siteurl="http://contacts.msn.com"  >
+  <TO pid="{pid}" name="{email}">
+    <VIA agent="messenger" />
+  </TO>
+  <MSG id="1" siteurl="http://127.0.0.1:8080/ads">
+    <SUBSCR url="http://contacts.msn.com/s.htm" />
+    <ACTION url="http://contacts.msn.com/a.htm" />
+    <WINDOW minimizeByDefault="false" />
+    <BODY icon="blahblahblah">
+      <TEXT>aeon.shl@shl.local</TEXT>
+<TEXTXML>
+  <TP ID="104" >
+     <E1 B="{color}"></E1>
+     <I1 I="http://127.0.0.1:8080/ads/alert-background.png" ></I1>
+     <L1 L="http://127.0.0.1:8080/tachyon" F="FFFFFFFF"></L1>
+     <I2 I="http://127.0.0.1:8080/ads/spongebob-icon.png" ></I2>
+     <I3 I="http://127.0.0.1:8080/ads/spongebob-icon.png" ></I3>
+     <T1 T="DEVELOPPERS DEVELOPPERS DEVELOPPERS" F="{color}"></T1>
+  </TP>
+</TEXTXML>
+    </BODY>
+  </MSG>
+</NOTIFICATION>"##, pid = recipient_pid, email = &msn_user.get_email_address(), color = color);
+
+                            let wtf2 = NotificationServerCommand::NOT(NotServer {
+                                payload: NotificationPayloadType::Raw(testo2),
+                            });
+
+                            notif_sender.send(wtf2).await;
 
                         }
                     }
@@ -221,5 +284,9 @@ async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Se
         NotificationClientCommand::CVR(_) => {Ok(())}
         NotificationClientCommand::FQY(command) => {handle_fqy(command, client_data, command_sender).await}
         NotificationClientCommand::SDG(_) => {Ok(())}
+        NotificationClientCommand::URL(command) => {
+            handle_url(command, local_store, client_data, command_sender).await
+        }
     }
     }
+
