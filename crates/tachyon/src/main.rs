@@ -1,19 +1,22 @@
-use std::fs;
-use std::fs::File;
 use chrono::Local;
 use env_logger::Builder;
 use log::{error, info, LevelFilter};
+use std::fs;
+use std::fs::File;
 use tokio::{join, signal, sync::broadcast::{self, Sender}};
 
 use crate::notification::notification_server::NotificationServer;
 use crate::switchboard::switchboard_server::SwitchboardServer;
+use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::tachyon_state::TachyonState;
+use crate::tachyon::token_validator::TokenValidator;
 use crate::web::web_server::WebServer;
+use anyhow::anyhow;
+use directories::ProjectDirs;
+use rand::{random, Rng};
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
-use anyhow::anyhow;
-use directories::ProjectDirs;
-use tachyon::client_store::{ClientStoreFacade};
 use tachyon::paths;
 use tachyon::paths::create_dirs;
 use tachyon::tachyon_config::TachyonConfig;
@@ -26,27 +29,46 @@ mod tachyon;
 
 #[tokio::main]
 async fn main() {
-    let (tachyon_path, config) = setup_config();
+
+    let tachyon_path = paths::get_tachyon_path().expect("Tachyon Path to be availlable");
+    create_dirs(&tachyon_path);
+
+    let config = setup_config(tachyon_path.config_dir().to_path_buf());
     setup_logs(tachyon_path.data_dir().to_path_buf(), &config);
+    let secret = setup_key(tachyon_path.config_dir().to_path_buf()).expect("secret key is mandatory");
 
     let (master_kill_signal,  kill_recv) = broadcast::channel::<()>(1);
 
-    let client_store_facade = ClientStoreFacade::default();
+    let tachyon_state = TachyonState::new(TokenValidator::new(&secret).expect("secret key to be valid"));
 
-    let notification_server = NotificationServer::listen("127.0.0.1", 1863, kill_recv.resubscribe(), client_store_facade.clone());
-    let switchboard_server = SwitchboardServer::listen("127.0.0.1", 1864, kill_recv.resubscribe(), client_store_facade.clone());
-    let web_server = WebServer::listen("127.0.0.1", 8080, kill_recv, client_store_facade);
+    let notification_server = NotificationServer::listen("127.0.0.1", 1863, kill_recv.resubscribe(), tachyon_state.clone());
+    let switchboard_server = SwitchboardServer::listen("127.0.0.1", 1864, kill_recv.resubscribe(), tachyon_state.clone());
+    let web_server = WebServer::listen("127.0.0.1", 8080, kill_recv, tachyon_state);
 
     let _result = join!(notification_server, switchboard_server, web_server, listen_for_stop_signal(master_kill_signal));
 
     info!("Byebye, world!");
 }
 
-fn setup_config() -> (ProjectDirs, TachyonConfig) {
-    let paths = paths::get_tachyon_path().expect("Tachyon Path to be availlable");
-    create_dirs(&paths);
+fn setup_key(config_folder_path: PathBuf) -> Result<String, anyhow::Error> {
 
-    let settings_path = paths.config_dir().join("config.json");
+    let key_path = config_folder_path.join("secret.key");
+    match fs::read_to_string(&key_path) {
+        Ok(existing_key) => {
+            Ok(existing_key.trim().to_string())
+        }
+        Err(_) => {
+            let secret_bytes: [u8; 32] = random();
+            let secret = hex::encode(secret_bytes);
+            fs::write(&key_path, secret.as_bytes())?;
+            Ok(secret)
+        }
+    }
+}
+
+fn setup_config(config_dir: PathBuf) -> TachyonConfig {
+
+    let settings_path = config_dir.join("config.json");
 
     let result : Result<TachyonConfig, anyhow::Error> = match fs::read_to_string(&settings_path) {
         Ok(content) => {
@@ -63,7 +85,7 @@ fn setup_config() -> (ProjectDirs, TachyonConfig) {
         }
     };
 
-    (paths, result.expect("default config to be here"))
+    result.expect("default config to be here")
 }
 
 fn setup_logs(path: PathBuf, config: &TachyonConfig) {

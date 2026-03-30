@@ -2,7 +2,7 @@ use std::str::from_utf8;
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, Response, StatusCode};
-use axum::http::header::{CONTENT_TYPE, LOCATION};
+use axum::http::header::{CONTENT_TYPE, LOCATION, SET_COOKIE};
 use base64::Engine;
 use base64::engine::general_purpose;
 use lazy_static::lazy_static;
@@ -11,7 +11,7 @@ use matrix_sdk::media::{MediaFormat, MediaRequestParameters, MediaThumbnailSetti
 use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::{OwnedMxcUri, UInt};
 use regex::Regex;
-use crate::tachyon::client_store::ClientStoreFacade;
+use crate::tachyon::tachyon_state::TachyonState;
 use crate::web::soap::shared::build_soap_response;
 
 lazy_static! {
@@ -43,6 +43,7 @@ pub async fn sha1auth(body: String) -> (StatusCode, HeaderMap ){
     let redirect_url = urlencoding::decode(&captures[1]).expect("Url to be correct").into_owned();
 
     let mut headers = HeaderMap::new();
+    headers.insert(SET_COOKIE, "mycookie=blahblahblah; SameSite=None; Secure".parse().unwrap());
     headers.insert(LOCATION, redirect_url.parse().expect("Redirect Url to be valid"));
     (StatusCode::FOUND, headers)
 }
@@ -73,7 +74,7 @@ pub async fn ppcrlcheck() -> Response<Body> {
 
 }
 
-pub async fn get_profile_pic(Path((image_mxid, _image_type)): Path<(String, String)>, State(state): State<ClientStoreFacade>) -> Response<Body> {
+pub async fn get_profile_pic(Path((image_mxid, _image_type)): Path<(String, String)>, State(state): State<TachyonState>) -> Response<Body> {
 
     //Todo handle errors
     let image_mxid = String::from_utf8(general_purpose::STANDARD.decode(image_mxid.as_bytes()).unwrap()).unwrap();

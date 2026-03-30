@@ -13,7 +13,7 @@ use log::{debug, info, log_enabled, warn, Level};
 use tokio::net::TcpListener;
 use tokio::sync::broadcast::Receiver;
 
-use crate::tachyon::client_store::ClientStoreFacade;
+use crate::tachyon::tachyon_state::TachyonState;
 use crate::web::ads::{get_banner_ads, get_avatar_jpg, get_matrix_icon, get_spongebob_icon, get_tab_ad, get_text_ad, get_alert_background};
 use crate::web::matrix_today::get_msn_today;
 use crate::web::soap::ab_service::ab_service::address_book_service;
@@ -29,11 +29,11 @@ pub struct WebServer;
 
 
 impl WebServer {
-    pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, client_store_facade: ClientStoreFacade) -> Result<(), anyhow::Error> {
+    pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, tachyon_state: TachyonState) -> Result<(), anyhow::Error> {
         info!("Web Server started...");
 
 
-        let state = client_store_facade;
+        let state = tachyon_state;
 
         let app = Router::new()
             .route("/", post(firewall_test))

@@ -9,14 +9,15 @@ use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::OwnedWriteH
 
 use crate::notification::handlers::command_handler::handle_command;
 use crate::notification::models::local_client_data::LocalClientData;
-use crate::tachyon::client_store::ClientStoreFacade;
+use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::tachyon_state::TachyonState;
 
 pub struct NotificationServer;
 
 
 impl NotificationServer {
 
-    pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, client_store_facade: ClientStoreFacade) -> Result<(), anyhow::Error>{
+    pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, tachyon_state: TachyonState) -> Result<(), anyhow::Error>{
         info!("TCP Server started...");
 
         let listener = TcpListener::bind(format!("{}:{}", ip_addr, port))
@@ -24,13 +25,13 @@ impl NotificationServer {
 
             loop {
                 let mut global_kill_recv = global_kill_recv.resubscribe();
-                let client_store_facade = client_store_facade.clone();
+                let tachyon_state_clone = tachyon_state.clone();
 
                 tokio::select! {
                     accepted = listener.accept() => {
                         let (socket, _addr)  = accepted.map_err(|e| anyhow!(e))?;
                         let _result = tokio::spawn(async move {
-                            handle_client(socket, global_kill_recv.resubscribe(), client_store_facade).await
+                            handle_client(socket, global_kill_recv.resubscribe(), tachyon_state_clone).await
                         }).await;
                     }
                     global_kill = global_kill_recv.recv() => {
@@ -51,7 +52,7 @@ impl NotificationServer {
 
 
 
-async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Receiver<()>, client_store_facade: ClientStoreFacade) -> Result<(), anyhow::Error> {
+async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Receiver<()>, tachyon_state: TachyonState) -> Result<(), anyhow::Error> {
     debug!("Client connected...");
 
     let (read, write) = socket.into_split();
@@ -97,7 +98,7 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
                                             debug!("{:?}", e);
                                         },
                                         Ok(notification_command) => {
-                                            let command_result = handle_command(notification_command, command_sender.clone(), &client_store_facade, &mut local_client_data).await;
+                                            let command_result = handle_command(notification_command, command_sender.clone(), &tachyon_state, &mut local_client_data).await;
 
                                             if let Err(error) = command_result {
                                                 error!("MSNP|NS: An error has occured handling a notification command: {}", &error);
@@ -127,8 +128,8 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
         error!("NS: Unable to send kill signal to client: {}", e);
     }
 
-    let removed = client_store_facade.remove_client(local_client_data.token.0.as_str());
-    if let Some((_, client_data)) = removed {
+    let removed = tachyon_state.remove_client(local_client_data.token.0.as_str());
+    if let Some(client_data) = removed {
         info!("Client data: {} removed successfully", client_data.own_user()?.get_email_address());
     } else {
         warn!("Failed to remove client data");

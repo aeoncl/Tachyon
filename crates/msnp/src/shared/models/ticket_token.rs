@@ -3,7 +3,7 @@ use std::str::FromStr;
 use anyhow::anyhow;
 use crate::msnp::error::CommandError;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct TicketToken(pub String);
 
 impl TicketToken {
@@ -29,24 +29,20 @@ impl FromStr  for TicketToken {
 }
 
 
-
+impl PartialEq<&str> for TicketToken {
+    fn eq(&self, other: &&str) -> bool {
+        &self.0 == other
+    }
+}
 impl PartialEq<str> for TicketToken {
     fn eq(&self, other: &str) -> bool {
         &self.0 == other
-    }
-
-    fn ne(&self, other: &str) -> bool {
-        &self.0 != other
     }
 }
 
 impl PartialEq<String> for TicketToken {
     fn eq(&self, other: &String) -> bool {
         &self.0 == other
-    }
-
-    fn ne(&self, other: &String) -> bool {
-        &self.0 != other
     }
 }
 

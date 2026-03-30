@@ -1,21 +1,25 @@
-use std::str::FromStr;
-use std::time::Duration;
 use crate::matrix;
 use crate::matrix::sync::{build_sliding_sync, sync};
-use crate::tachyon::client_store::ClientStoreFacade;
 use crate::notification::handlers::adl_handler::handle_adl;
 use crate::notification::handlers::chg_handler::handle_chg;
 use crate::notification::handlers::png_handler::handle_png;
 use crate::notification::handlers::put_handler::handle_put;
 use crate::notification::handlers::rml_handler::handle_rml;
+use crate::notification::handlers::url_handler::handle_url;
 use crate::notification::handlers::usr_handler::handle_usr;
 use crate::notification::handlers::uum_handler::handle_uum;
 use crate::notification::handlers::uux_handler::handle_uux;
-use crate::notification::handlers::url_handler::handle_url;
+use std::str::FromStr;
+use std::time::Duration;
 
+use crate::notification::handlers::fqy_handler::handle_fqy;
+use crate::notification::handlers::prp_handler::handle_prp;
+use crate::notification::handlers::xfr_handler::handle_xfr;
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::identifiers::MatrixIdCompatible;
+use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::tachyon_state::TachyonState;
 use anyhow::anyhow;
 use chrono::format;
 use log::warn;
@@ -23,28 +27,24 @@ use matrix_sdk::notification_settings::IsOneToOne::No;
 use matrix_sdk_ui::sync_service::SyncService;
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
 use msnp::msnp::notification::command::cvr::CvrServer;
-use msnp::msnp::notification::command::usr::{AuthOperationTypeClient, AuthPolicy, OperationTypeServer, SsoPhaseClient, SsoPhaseServer, UsrServer};
-use msnp::msnp::notification::models::msnp_version::MsnpVersion::MSNP18;
-use msnp::msnp::raw_command_parser::RawCommand;
-use msnp::shared::models::endpoint_id::EndpointId;
-use msnp::shared::models::msn_user::MsnUser;
-use tokio::sync::mpsc::Sender;
-use tokio::time::sleep;
 use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::notification::command::not::factories::NotificationFactory;
 use msnp::msnp::notification::command::not::{NotServer, NotificationPayload, NotificationPayloadType};
 use msnp::msnp::notification::command::url::UrlClient;
+use msnp::msnp::notification::command::usr::{AuthOperationTypeClient, AuthPolicy, OperationTypeServer, SsoPhaseClient, SsoPhaseServer, UsrServer};
+use msnp::msnp::notification::models::msnp_version::MsnpVersion::MSNP18;
+use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::email_address::EmailAddress;
+use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::font_color::FontColor;
+use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::oim::{InboxMetadata, MailData, MailDataMessage};
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
-use crate::notification::handlers::fqy_handler::handle_fqy;
-use crate::notification::handlers::prp_handler::handle_prp;
-use crate::notification::handlers::xfr_handler::handle_xfr;
-use crate::tachyon::tachyon_client::TachyonClient;
+use tokio::sync::mpsc::Sender;
+use tokio::time::sleep;
 
-pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, client_store: &ClientStoreFacade, local_client_data: &mut LocalClientData) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, client_store: &TachyonState, local_client_data: &mut LocalClientData) -> Result<(), anyhow::Error> {
 
     let _command_result = match &local_client_data.phase {
         ConnectionPhase::Negotiating => {
@@ -89,7 +89,7 @@ pub(crate) async fn handle_negotiation(raw_command: NotificationClientCommand, n
 
 
 const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"1000\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"100\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
-pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, client_store: &ClientStoreFacade, local_store: &mut LocalClientData) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, tachyon_state: &TachyonState, local_store: &mut LocalClientData) -> Result<(), anyhow::Error> {
     match command {
         NotificationClientCommand::USR(command) => {
             match command.auth_type {
@@ -116,7 +116,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
 
                             let client_data = TachyonClient::new(msn_user.clone(), ticket_token.clone(), notif_sender.clone(), matrix_client.clone(), sliding_sync);
-                            client_store.insert_client(ticket_token.as_str().to_owned(), client_data.clone());
+                            tachyon_state.insert_client(ticket_token.as_str().to_owned(), client_data.clone());
 
                             local_store.token = ticket_token.clone();
                             local_store.client_data = Some(client_data.clone());
@@ -156,6 +156,8 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                                     endpoint_data.to_vec(),
                                 )))
                                 .await?;
+
+                            //Todo check the device state before we sync
 
                             sync(client_data, local_store.client_kill_snd.clone(), local_store.client_kill_recv.resubscribe());
 

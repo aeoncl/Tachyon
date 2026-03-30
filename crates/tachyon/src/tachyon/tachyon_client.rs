@@ -2,7 +2,6 @@ use crate::notification::circle_store::CircleStore;
 use crate::notification::models::notification_handle::NotificationHandle;
 use crate::notification::models::soap_holder::SoapHolder;
 use crate::switchboard::models::switchboard_handle::SwitchboardHandle;
-use crate::tachyon::client_store::ClientStoreError;
 use crate::tachyon::switchboard_service::SwitchboardService;
 use anyhow::anyhow;
 use dashmap::DashMap;
@@ -59,19 +58,16 @@ impl TachyonClient {
         SwitchboardService::new(self.clone())
     }
 
-    pub fn own_user(&self) -> Result<MsnUser, ClientStoreError> {
+    pub fn own_user(&self) -> Result<MsnUser, anyhow::Error> {
         Ok(self.own_user_mut()?.clone())
     }
 
-    pub fn own_user_mut(&self) -> Result<MutexGuard<'_, MsnUser>, ClientStoreError> {
+    pub fn own_user_mut(&self) -> Result<MutexGuard<'_, MsnUser>,  anyhow::Error> {
         Ok(self
             .inner
             .own_user
             .lock()
-            .map_err(|e| ClientStoreError::PoisonnedLockError {
-                name: "User".into(),
-                source: anyhow!(e.to_string()),
-            })?)
+            .map_err(|e| anyhow!("Failed to acquire own_msn_user lock"))?)
     }
 
     pub fn soap_holder(&self) -> &SoapHolder {

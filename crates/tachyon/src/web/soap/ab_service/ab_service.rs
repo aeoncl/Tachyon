@@ -13,14 +13,14 @@ use msnp::soap::abch::ab_service::ab_find_contacts_paged::request::AbfindContact
 use msnp::soap::abch::ab_service::ab_group_add::request::AbgroupAddMessageSoapEnvelope;
 use msnp::soap::abch::request_header::AuthHeaderSoapEnvelope;
 use msnp::soap::traits::xml::TryFromXml;
-use crate::tachyon::client_store::ClientStoreFacade;
+use crate::tachyon::tachyon_state::TachyonState;
 use crate::web::soap::ab_service::ab_contact_add::ab_contact_add;
 use crate::web::soap::ab_service::ab_contact_delete::ab_contact_delete;
 use crate::web::soap::ab_service::ab_contact_update::ab_contact_update;
 use crate::web::soap::ab_service::ab_find_contacts_paged::ab_find_contacts_paged;
 use crate::web::soap::error::ABError;
 #[debug_handler]
-pub async fn address_book_service(headers: HeaderMap, State(state): State<ClientStoreFacade>, body: String) -> Result<Response, ABError> {
+pub async fn address_book_service(headers: HeaderMap, State(state): State<TachyonState>, body: String) -> Result<Response, ABError> {
 
     let soap_action = headers.get("SOAPAction").ok_or(ABError::MissingHeader("SOAPAction".into()))?.to_str()?.trim_start_matches("\"").trim_end_matches("\"");
 

@@ -1,4 +1,4 @@
-use crate::tachyon::client_store::ClientStoreFacade;
+use crate::tachyon::tachyon_state::TachyonState;
 use axum::body::Body;
 use axum::extract::Path;
 use axum::http::header::CONTENT_TYPE;
@@ -18,7 +18,7 @@ lazy_static_include_bytes! {
     INTERCOOLER => "./assets/web/tachyon/intercooler-1.2.4.min.js",
     JQUERY => "./assets/web/tachyon/jquery-1.10.0.min.js"
 }
-pub fn tachyon_router(state: ClientStoreFacade) -> Router<ClientStoreFacade> {
+pub fn tachyon_router(state: TachyonState) -> Router<TachyonState> {
     Router::new()
         .route("/", get(serve_index))
         .route("/{file}", get(serve_static))

@@ -18,17 +18,15 @@ use msnp::shared::models::oim::OIM;
 use msnp::shared::models::uuid::Uuid;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use msnp::shared::payload::msg::raw_msg_payload::MsgContentType;
-use crate::tachyon::client_store::ClientStoreError;
 use crate::tachyon::tachyon_client::TachyonClient;
 use crate::tachyon::identifiers::MatrixIdCompatible;
 
 #[derive(Error, Debug)]
 pub enum OIMError {
-
-    #[error("Logged-in User missing from Cient Store")]
-    ClientStoreError(#[from] ClientStoreError),
     #[error(transparent)]
     MatrixSdkError(#[from] matrix_sdk::Error),
+    #[error(transparent)]
+    Any(#[from] anyhow::Error),
     #[error("Couldn't send OIM notification message")]
     NotificationSenderError(#[from] tokio::sync::mpsc::error::SendError<NotificationServerCommand>),
     #[error("Couldn't convert Event timestamp: {} to NaiveDateTime", .event_ts)]

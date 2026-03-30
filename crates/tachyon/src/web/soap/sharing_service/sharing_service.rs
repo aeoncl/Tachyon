@@ -1,4 +1,8 @@
-use std::str::FromStr;
+use crate::tachyon::tachyon_state::TachyonState;
+use crate::web::soap::error::ABError;
+use crate::web::soap::sharing_service::add_member::add_member;
+use crate::web::soap::sharing_service::delete_member::delete_member;
+use crate::web::soap::sharing_service::find_membership::find_membership;
 use anyhow::anyhow;
 use axum::extract::State;
 use axum::http::HeaderMap;
@@ -10,23 +14,19 @@ use msnp::soap::abch::sharing_service::add_member::request::AddMemberMessageSoap
 use msnp::soap::abch::sharing_service::delete_member::request::DeleteMemberMessageSoapEnvelope;
 use msnp::soap::abch::sharing_service::find_membership::request::FindMembershipRequestSoapEnvelope;
 use msnp::soap::traits::xml::TryFromXml;
-use crate::tachyon::client_store::ClientStoreFacade;
-use crate::web::soap::error::ABError;
-use crate::web::soap::sharing_service::add_member::add_member;
-use crate::web::soap::sharing_service::delete_member::delete_member;
-use crate::web::soap::sharing_service::find_membership::find_membership;
+use std::str::FromStr;
 
-pub async fn sharing_service(headers: HeaderMap, State(state): State<ClientStoreFacade>, body: String) -> Result<Response, ABError> {
+pub async fn sharing_service(headers: HeaderMap, State(state): State<TachyonState>, body: String) -> Result<Response, ABError> {
 
     let soap_action = headers.get("SOAPAction").ok_or(ABError::MissingHeader("SOAPAction".into()))?.to_str()?.trim_start_matches("\"").trim_end_matches("\"");
 
     let header_env = AuthHeaderSoapEnvelope::try_from_xml(&body)?;
     let token = TicketToken::from_str(&header_env.header.ab_auth_header.ticket_token).unwrap();
 
+
     let client_data = state.get_client(&token.0).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Client Data to be present in client Store")})?;
 
     let client = client_data.matrix_client();
-
     let client_token = client.access_token().ok_or(ABError::AuthenticationFailed {source: anyhow!("No Token present in Matrix Client")})?;
 
     if token != client_token {

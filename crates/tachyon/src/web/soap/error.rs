@@ -8,7 +8,6 @@ use msnp::shared::errors::IdentifierError;
 use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::passport::rst2::response::factory::RST2ResponseFactory;
 use msnp::soap::traits::xml::ToXml;
-use crate::tachyon::client_store::ClientStoreError;
 use crate::tachyon::error::{MatrixConversionError, TachyonError};
 use crate::web::soap::error::ABError::InternalServerError;
 use crate::web::soap::shared;
@@ -19,8 +18,6 @@ use crate::web::soap::shared::build_soap_response;
 pub enum ABError {
     #[error("Couldn't authenticate client")]
     AuthenticationFailed {source: anyhow::Error},
-    #[error(transparent)]
-    ClientStoreError(#[from] ClientStoreError),
     #[error("Mandatory header: {} was missing from request.", .0)]
     MissingHeader(String),
     #[error(transparent)]
@@ -58,9 +55,6 @@ impl IntoResponse for ABError {
         let body = match self {
             ABError::AuthenticationFailed { .. } => {
                 SoapFaultResponseEnvelope::new_generic("Authentication failed".into())
-            }
-            ABError::ClientStoreError(_) => {
-                SoapFaultResponseEnvelope::new_generic("Error with the client store".into())
             }
             ABError::MissingHeader(header) => {
                 SoapFaultResponseEnvelope::new_generic(format!("Missing header in request: {}", header))

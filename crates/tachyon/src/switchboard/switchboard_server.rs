@@ -1,6 +1,7 @@
 use crate::switchboard::handlers::handle_command;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
-use crate::tachyon::client_store::ClientStoreFacade;
+use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::tachyon_state::TachyonState;
 use anyhow::anyhow;
 use log::{debug, error, info};
 use msnp::msnp::notification::command::command::NotificationServerCommand;
@@ -19,7 +20,7 @@ pub struct SwitchboardServer;
 
 
 impl SwitchboardServer {
-    pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, client_store_facade: ClientStoreFacade) -> Result<(), anyhow::Error> {
+    pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, tachyon_state: TachyonState) -> Result<(), anyhow::Error> {
         info!("Switchboard Server started...");
 
         let listener = TcpListener::bind(format!("{}:{}", ip_addr, port))
@@ -27,13 +28,13 @@ impl SwitchboardServer {
 
         loop {
             let mut global_kill_recv = global_kill_recv.resubscribe();
-            let client_store_facade = client_store_facade.clone();
+            let tachyon_state_clone = tachyon_state.clone();
 
             tokio::select! {
                     accepted = listener.accept() => {
                         let (socket, _addr)  = accepted.map_err(|e| anyhow!(e))?;
                         let _result = tokio::spawn(async move {
-                            handle_client(socket, global_kill_recv.resubscribe(), client_store_facade).await
+                            handle_client(socket, global_kill_recv.resubscribe(), tachyon_state_clone).await
                         });
                     }
                     global_kill = global_kill_recv.recv() => {
@@ -50,7 +51,7 @@ impl SwitchboardServer {
     }
 }
 
-async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Receiver<()>, client_store_facade: ClientStoreFacade) -> Result<(), anyhow::Error> {
+async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Receiver<()>, tachyon_state: TachyonState) -> Result<(), anyhow::Error> {
     debug!("Switchboard Client connected...");
 
     let (read, write) = socket.into_split();
@@ -98,7 +99,7 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
                                             debug!("{:?}", e);
                                         },
                                         Ok(notification_command) => {
-                                            let command_result = handle_command(notification_command, command_sender.clone(), &client_store_facade, &mut local_switchboard_data).await;
+                                            let command_result = handle_command(notification_command, command_sender.clone(), &tachyon_state, &mut local_switchboard_data).await;
 
                                             if let Err(error) = command_result {
                                                 error!("MSNP|SB: An error has occured handling a notification command: {}", &error);

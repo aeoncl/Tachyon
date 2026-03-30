@@ -21,13 +21,13 @@ use msnp::soap::storage_service::upate_document::response::UpdateDocumentRespons
 use msnp::soap::storage_service::update_profile::request::UpdateProfileMessageSoapEnvelope;
 use msnp::soap::storage_service::update_profile::response::UpdateProfileResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::{ToXml, TryFromXml};
-use crate::tachyon::client_store::ClientStoreFacade;
 use crate::tachyon::identifiers::MatrixIdCompatible;
+use crate::tachyon::tachyon_state::TachyonState;
 use crate::tachyon::traits::ToUuid;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 use crate::web::web_endpoints::DEFAULT_CACHE_KEY;
-pub async fn storage_service(headers: HeaderMap, State(state): State<ClientStoreFacade>, body: String) -> Result<Response, ABError> {
+pub async fn storage_service(headers: HeaderMap, State(state): State<TachyonState>, body: String) -> Result<Response, ABError> {
 
     let soap_action = headers.get("SOAPAction").ok_or(ABError::MissingHeader("SOAPAction".into()))?.to_str()?.trim_start_matches("\"").trim_end_matches("\"");
 

@@ -6,7 +6,6 @@ use thiserror::Error;
 use msnp::soap::rsi::faults::SoapFaultResponseEnvelope;
 use msnp::soap::error::SoapMarshallError;
 use msnp::soap::traits::xml::ToXml;
-use crate::tachyon::client_store::ClientStoreError;
 use crate::tachyon::error::MatrixConversionError;
 use crate::web::soap::shared::build_soap_response;
 
@@ -16,8 +15,6 @@ pub enum RSIError {
     
     #[error("Couldn't authenticate client")]
     AuthenticationFailed {source: anyhow::Error, service_url: String},
-    #[error(transparent)]
-    ClientStoreError(#[from] ClientStoreError),
     #[error("Mandatory header: {} was missing from request.", .0)]
     MissingHeader(String),
     #[error(transparent)]

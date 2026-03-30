@@ -6,7 +6,6 @@ use crate::switchboard::models::connection_phase::ConnectionPhase;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::switchboard::models::switchboard_handle::{SwitchboardHandle, SwitchboardState};
 use crate::switchboard::models::switchboard_token::SwitchboardToken;
-use crate::tachyon::client_store::ClientStoreFacade;
 use crate::tachyon::tachyon_client::TachyonClient;
 use matrix_sdk::{Room, RoomMemberships};
 use msnp::msnp::switchboard::command::cal::{CalServer, CalServerFunction};
@@ -24,10 +23,11 @@ use std::str::FromStr;
 use tokio::sync::mpsc::Sender;
 use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::payload::msg::datacast_msg::{Datacast, DatacastMessagePayload};
+use crate::tachyon::tachyon_state::TachyonState;
 
 const ROOM_USER_PORTAL_MODE: bool = true;
 
-pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, client_store: &ClientStoreFacade, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, client_store: &TachyonState, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
 
     match command {
         SwitchboardClientCommand::ANS(ans_command) => {
