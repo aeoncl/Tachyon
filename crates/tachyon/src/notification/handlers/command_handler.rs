@@ -108,7 +108,8 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
                             let user_id = local_store.email_addr.to_owned_user_id();
 
-                            let matrix_client = matrix::login::login_with_token(user_id.clone(), ticket_token.clone(), true).await?;
+                            let matrix_token = tachyon_state.secret_encryptor().decrypt(ticket_token.as_str())?;
+                            let matrix_client = matrix::login::login_with_token(user_id.clone(), matrix_token, true).await?;
                             let sliding_sync = build_sliding_sync(&matrix_client).await?;
 
                             let endpoint_id = EndpointId::new(local_store.email_addr.clone(), Some(endpoint_guid));
@@ -128,8 +129,9 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                                 unknown_arg: false,
                             });
 
-                            notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
 
+
+                            notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
 
 
                             notif_sender.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await?;

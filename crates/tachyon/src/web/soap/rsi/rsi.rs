@@ -25,14 +25,9 @@ pub async fn rsi(headers: HeaderMap, State(state): State<TachyonState>, body: St
     let header_env = RSIAuthSoapEnvelope::try_from_xml(&body)?;
     let token = TicketToken(header_env.header.ok_or(RSIError::AuthenticationFailed {source: anyhow!("Missing Soap Header", ), service_url: "https://rsi.hotmail.com/rsi/rsi.asmx".to_string() })?.passport_cookie.t);
 
-    let mut client_data = state.get_client(&token.0).ok_or(RSIError::AuthenticationFailed {source: anyhow!("Missing Client Data in client store"), service_url: "https://rsi.hotmail.com/rsi/rsi.asmx".to_string() })?;
+    let mut client_data = state.get_client(token.as_str()).ok_or(RSIError::AuthenticationFailed {source: anyhow!("Missing Client Data in client store"), service_url: "https://rsi.hotmail.com/rsi/rsi.asmx".to_string() })?;
 
     let client = client_data.matrix_client();
-
-    let client_token = client.access_token().ok_or(RSIError::AuthenticationFailed {source: anyhow!("No Token present in Matrix Client"), service_url: "https://rsi.hotmail.com/rsi/rsi.asmx".to_string() })?;
-    if token != client_token {
-        return Err(RSIError::AuthenticationFailed { source: anyhow!("Supplied Token & Matrix Token don't match: {} == {}", &token.0, &client_token), service_url: "https://rsi.hotmail.com/rsi/rsi.asmx".to_string() });
-    }
 
     match soap_action {
 

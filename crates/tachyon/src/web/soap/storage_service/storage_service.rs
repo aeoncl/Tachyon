@@ -34,15 +34,9 @@ pub async fn storage_service(headers: HeaderMap, State(state): State<TachyonStat
     let header_env = StorageServiceRequestSoapEnvelope::try_from_xml(&body)?;
     let token = TicketToken::from_str(&header_env.header.storage_user.unwrap().ticket_token).unwrap();
 
-    let client_data = state.get_client(&token.0).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Client Data to be present in client Store")})?;
-
+    let client_data = state.get_client(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Client Data to be present in client Store")})?;
     let client = client_data.matrix_client();
     
-    let client_token = client.access_token().ok_or(ABError::AuthenticationFailed {source: anyhow!("No Token present in Matrix Client")})?;
-    if token != client_token {
-        return Err(ABError::AuthenticationFailed { source: anyhow!("Supplied Token & Matrix Token don't match: {} == {}", &token.0, &client_token) });
-    }
-
     match soap_action {
         "http://www.msn.com/webservices/storage/2008/GetProfile" => {
             get_profile(GetProfileMessageSoapEnvelope::try_from_xml(&body)?, token, client).await

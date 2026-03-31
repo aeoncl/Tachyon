@@ -5,5 +5,6 @@ pub mod paths;
 pub mod error;
 pub mod traits;
 pub mod identifiers;
-pub mod token_validator;
+pub mod secret_encryptor;
 pub(crate) mod tachyon_state;
+mod tachyon_secret;

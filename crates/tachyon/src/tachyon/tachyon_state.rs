@@ -1,11 +1,11 @@
 use crate::tachyon::tachyon_client::TachyonClient;
-use crate::tachyon::token_validator::TokenValidator;
+use crate::tachyon::secret_encryptor::SecretEncryptor;
 use dashmap::DashMap;
 use std::sync::Arc;
 
 pub struct TachyonStateInner {
     clients: DashMap<String, TachyonClient>,
-    token_validator: TokenValidator,
+    token_validator: SecretEncryptor,
 
 }
 
@@ -16,7 +16,7 @@ pub struct TachyonState {
 
 impl TachyonState {
 
-    pub fn new(token_validator: TokenValidator) -> Self {
+    pub fn new(token_validator: SecretEncryptor) -> Self {
         Self {
             inner: Arc::new(TachyonStateInner {
                 clients: DashMap::new(),
@@ -48,7 +48,7 @@ impl TachyonState {
     pub fn remove_client(&self, key: &str) -> Option<TachyonClient> {
         self.inner.clients.remove(key).map(|(_, client)| client)
     }
-    pub fn token_validator(&self) -> &TokenValidator {
+    pub fn secret_encryptor(&self) -> &SecretEncryptor {
         &self.inner.token_validator
     }
 

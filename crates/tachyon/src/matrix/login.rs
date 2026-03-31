@@ -41,7 +41,7 @@ pub fn get_matrix_client_builder(server_name: &ServerName, homeserver_url: Optio
 }
 
 // FIXME: SSL should be a config option
-pub async fn login_with_token(matrix_id: OwnedUserId, token: TicketToken, disable_ssl: bool) -> Result<Client, TachyonError> {
+pub async fn login_with_token(matrix_id: OwnedUserId, token: String, disable_ssl: bool) -> Result<Client, TachyonError> {
     let device_id_str = get_device_id()?.to_string();
     let device_id = device_id!(device_id_str.as_str()).to_owned();
 
@@ -58,15 +58,15 @@ pub async fn login_with_token(matrix_id: OwnedUserId, token: TicketToken, disabl
     
     client.restore_session(AuthSession::Matrix(MatrixSession {
         meta: matrix_sdk::SessionMeta { user_id: matrix_id, device_id },
-        tokens: SessionTokens { access_token: token.0, refresh_token: None },
+        tokens: SessionTokens { access_token: token, refresh_token: None },
     })).await?;
 
     client.whoami().await?;
     Ok(client)
 }
 
-pub async fn login_with_password(matrix_id: OwnedUserId, password: &str, _disable_ssl: bool) -> Result<(String, Client), TachyonError> {
-    let client = get_matrix_client_builder(matrix_id.server_name(), None, true).build().await?;
+pub async fn login_with_password(matrix_id: OwnedUserId, password: &str, disable_ssl: bool) -> Result<(String, Client), TachyonError> {
+    let client = get_matrix_client_builder(matrix_id.server_name(), None, disable_ssl).build().await?;
 
     let device_id = get_device_id()?;
     let device_id_as_str = device_id.to_string();

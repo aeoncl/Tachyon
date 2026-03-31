@@ -9,7 +9,7 @@ use crate::notification::notification_server::NotificationServer;
 use crate::switchboard::switchboard_server::SwitchboardServer;
 use crate::tachyon::tachyon_client::TachyonClient;
 use crate::tachyon::tachyon_state::TachyonState;
-use crate::tachyon::token_validator::TokenValidator;
+use crate::tachyon::secret_encryptor::SecretEncryptor;
 use crate::web::web_server::WebServer;
 use anyhow::anyhow;
 use directories::ProjectDirs;
@@ -35,11 +35,11 @@ async fn main() {
 
     let config = setup_config(tachyon_path.config_dir().to_path_buf());
     setup_logs(tachyon_path.data_dir().to_path_buf(), &config);
-    let secret = setup_key(tachyon_path.config_dir().to_path_buf()).expect("secret key is mandatory");
+    let secret = setup_key(tachyon_path.data_local_dir().to_path_buf()).expect("secret key is mandatory");
 
     let (master_kill_signal,  kill_recv) = broadcast::channel::<()>(1);
 
-    let tachyon_state = TachyonState::new(TokenValidator::new(&secret).expect("secret key to be valid"));
+    let tachyon_state = TachyonState::new(SecretEncryptor::new(&secret).expect("secret key to be valid"));
 
     let notification_server = NotificationServer::listen("127.0.0.1", 1863, kill_recv.resubscribe(), tachyon_state.clone());
     let switchboard_server = SwitchboardServer::listen("127.0.0.1", 1864, kill_recv.resubscribe(), tachyon_state.clone());
@@ -50,18 +50,17 @@ async fn main() {
     info!("Byebye, world!");
 }
 
-fn setup_key(config_folder_path: PathBuf) -> Result<String, anyhow::Error> {
+fn setup_key(config_folder_path: PathBuf) -> Result<Vec<u8>, anyhow::Error> {
 
-    let key_path = config_folder_path.join("secret.key");
-    match fs::read_to_string(&key_path) {
+    let key_path = config_folder_path.join("local.key");
+    match fs::read(&key_path) {
         Ok(existing_key) => {
-            Ok(existing_key.trim().to_string())
+            Ok(existing_key)
         }
         Err(_) => {
             let secret_bytes: [u8; 32] = random();
-            let secret = hex::encode(secret_bytes);
-            fs::write(&key_path, secret.as_bytes())?;
-            Ok(secret)
+            fs::write(&key_path, secret_bytes)?;
+            Ok(secret_bytes.to_vec())
         }
     }
 }
