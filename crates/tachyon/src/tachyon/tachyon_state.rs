@@ -1,11 +1,14 @@
-use crate::tachyon::tachyon_client::TachyonClient;
 use crate::tachyon::secret_encryptor::SecretEncryptor;
+use crate::tachyon::tachyon_client::TachyonClient;
 use dashmap::DashMap;
+use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::Arc;
 
 pub struct TachyonStateInner {
     clients: DashMap<String, TachyonClient>,
     token_validator: SecretEncryptor,
+    pending_ticket: DashMap<String, TicketToken>,
+
 
 }
 
@@ -21,6 +24,7 @@ impl TachyonState {
             inner: Arc::new(TachyonStateInner {
                 clients: DashMap::new(),
                 token_validator,
+                pending_ticket: DashMap::new(),
             })
         }
     }
@@ -48,6 +52,15 @@ impl TachyonState {
     pub fn remove_client(&self, key: &str) -> Option<TachyonClient> {
         self.inner.clients.remove(key).map(|(_, client)| client)
     }
+
+    pub fn store_pending_ticket(&self, key: String,  ticket: TicketToken) {
+        self.inner.pending_ticket.insert(key, ticket);
+    }
+
+    pub fn take_pending_ticket(&self, key: &str) -> Option<TicketToken> {
+        self.inner.pending_ticket.remove(key).map(|(_, ticket)| ticket)
+    }
+
     pub fn secret_encryptor(&self) -> &SecretEncryptor {
         &self.inner.token_validator
     }

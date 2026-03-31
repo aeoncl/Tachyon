@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 use dashmap::DashMap;
 use msnp::shared::models::oim::OIM;
+use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::CircleData;
 use msnp::soap::abch::msnab_datatypes::{BaseMember, ContactType};
 
