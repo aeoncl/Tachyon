@@ -17,7 +17,7 @@ pub async fn handle_prp(command: PrpClient, local_store: &mut LocalClientData, c
                 Some(display_name.as_str())
             };
 
-            client_data.own_user_mut()?.display_name = to_set.map(|n| n.to_owned());
+            client_data.own_user_mut().display_name = to_set.map(|n| n.to_owned());
             command_sender.send(NotificationServerCommand::PRP(command)).await?;
         }
     }

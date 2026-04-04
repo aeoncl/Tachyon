@@ -152,7 +152,7 @@ async fn handle_addressbook_notifications(client_data: &TachyonClient) -> Result
     };
 
     if update_required {
-        let user = client_data.own_user().unwrap();
+        let user = client_data.own_user();
         client_data.notification_handle().send(NotificationServerCommand::NOT(NotServer {
             payload: NotificationPayloadType::Normal(NotificationFactory::get_abch_updated(&user.uuid, user.get_email_address())),
         })).await
@@ -162,7 +162,7 @@ async fn handle_addressbook_notifications(client_data: &TachyonClient) -> Result
 }
 
 async fn handle_first_sync(client_data: &TachyonClient) -> Result<(), anyhow::Error> {
-    let me = client_data.own_user()?;
+    let me = client_data.own_user();
     let ticket_token = client_data.ticket_token();
     let notification_handle = client_data.notification_handle();
 

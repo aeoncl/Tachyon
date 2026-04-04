@@ -40,7 +40,7 @@ pub async fn handle_message(
         }
 
     } else {
-        let mut own_user = context.tachyon_client.own_user().unwrap();
+        let mut own_user = context.tachyon_client.own_user();
         own_user.endpoint_id = EndpointId::from_email_addr(own_user.get_email_address().clone());
         own_user
     };

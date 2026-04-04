@@ -22,7 +22,7 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token
 
 
     let deltas_only = request.body.request.deltas_only.unwrap_or(false);
-    let own_user = client_data.own_user().unwrap();
+    let own_user = client_data.own_user();
 
     if deltas_only {
         let members= get_delta_sync(&mut client_data)?;

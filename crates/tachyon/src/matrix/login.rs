@@ -4,6 +4,8 @@ use log::debug;
 use matrix_sdk::{AuthSession, Client, ClientBuilder, ServerName, SessionTokens};
 use matrix_sdk::authentication::matrix::MatrixSession;
 use matrix_sdk::ruma::{device_id, OwnedUserId};
+use matrix_sdk::ruma::api::client::uiaa;
+use matrix_sdk::ruma::api::client::uiaa::AuthData;
 use matrix_sdk_ui::sync_service::SyncService;
 use msnp::shared::models::ticket_token::TicketToken;
 
@@ -77,6 +79,24 @@ pub async fn login_with_password(matrix_id: OwnedUserId, password: &str, disable
         .initial_device_display_name(get_device_display_name(&device_id).as_str())
         .send()
         .await?;
+
+    if let Err(e) = client.encryption().bootstrap_cross_signing_if_needed(None).await {
+        if let Some(response) = e.as_uiaa_response() {
+            let mut password = uiaa::Password::new(
+                uiaa::UserIdentifier::UserIdOrLocalpart(matrix_id.to_string()),
+                password.to_string(),
+            );
+            password.session = response.session.clone();
+
+            client
+                .encryption()
+                .bootstrap_cross_signing(Some(uiaa::AuthData::Password(password)))
+                .await
+                .expect("Couldn't bootstrap cross signing")
+        } else {
+            panic!("Error during cross signing bootstrap {:#?}", e);
+        }
+    }
 
     Ok((result.access_token, client))
 }

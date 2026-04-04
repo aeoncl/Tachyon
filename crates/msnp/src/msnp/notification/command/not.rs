@@ -324,19 +324,19 @@ pub mod factories {
             }
         }
 
-        pub fn alert(uuid: &Uuid, msn_addr: &EmailAddress, msg: &str, site_url: &str, subscribe_url: &str, action_url: &str, icon: Option<&str>) -> NotificationPayload {
+        pub fn alert(uuid: &Uuid, msn_addr: &EmailAddress, msg: &str, site_url: &str, subscribe_url: &str, action_url: &str, icon: Option<&str>, id: i32) -> NotificationPayload {
             let recipient_pid = format!("0x{}:0x{}", uuid.get_least_significant_bytes_as_hex(), uuid.get_most_significant_bytes_as_hex());
             let recipient = Recipient{ pid: recipient_pid, name: msn_addr.to_string(), email: None, via: None };
 
             let message = Message{ id: 1, subscriber: Url{ url: subscribe_url.to_string()}, action: Url{ url: action_url.to_string()}, body:  MessageBody{
                 lang: Some("3076".to_string()),
-                icon: icon.map(|i| i.to_string()),
+                icon: icon.or(Some("")).map(|s| s.to_string()),
                 content:  MessageBodyContent::Text(TextMessageBody::new(msg.to_string())),
             }
             };
 
             NotificationPayload {
-                id: 1342902633,
+                id,
                 ver: Some(2),
                 site_id: 199999999,
                 site_url: site_url.to_string(),

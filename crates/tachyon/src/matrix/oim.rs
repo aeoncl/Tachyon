@@ -36,7 +36,7 @@ pub enum OIMError {
 }
 
 pub async fn handle_oims(client: Client, response: SyncResponse, mut client_data: TachyonClient, notif_sender: Sender<NotificationServerCommand>, first_sync_token: Option<String>) -> Result<(), OIMError>{
-    let me_email_addr = client_data.own_user()?.endpoint_id.email_addr;
+    let me_email_addr = client_data.own_user().get_email_address().clone();
 
     for (room_id, room) in &response.rooms.joined {
         let room_uuid = Uuid::from_seed(room_id.to_string().as_str());

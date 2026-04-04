@@ -138,7 +138,7 @@ async fn delete_user_contact(contact_email_addr: EmailAddress, tachyon_client: T
 
 
 
-    let user = tachyon_client.own_user().unwrap();
+    let user = tachyon_client.own_user();
     tachyon_client.notification_handle().send(NotificationServerCommand::NOT(NotServer {
         payload: NotificationPayloadType::Normal(NotificationFactory::get_abch_updated(&user.uuid, user.get_email_address())),
     })).await?;

@@ -70,7 +70,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
                             command_sender.send(SwitchboardServerCommand::OK(ans_command.get_ok_response())).await?;
 
                             //Send me joined
-                            let me = tachyon_client.own_user()?;
+                            let me = tachyon_client.own_user();
                             send_initial_joined_member(me, &command_sender).await?;
 
                             if ROOM_USER_PORTAL_MODE {
@@ -150,7 +150,7 @@ pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sende
 
             if email == local_switchboard_data.email_addr {
                 // It's me !
-                let me = tachyon_client.own_user().unwrap();
+                let me = tachyon_client.own_user();
                 send_initial_joined_member(me, &command_sender).await?;
             } else {
                 let maybe_found = matrix_client.find_room_from_email(&email).unwrap();

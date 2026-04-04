@@ -130,7 +130,7 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
 
     let removed = tachyon_state.tachyon_clients().remove(local_client_data.token.0.as_str());
     if let Some(client_data) = removed {
-        info!("Tachyon Client: {} removed successfully", client_data.own_user()?.get_email_address());
+        info!("Tachyon Client: {} removed successfully", client_data.own_user().get_email_address());
     } else {
         warn!("Failed to remove client data");
     }

@@ -1,23 +1,26 @@
-use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
-use tokio::sync::mpsc::Sender;
-use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
-use msnp::msnp::notification::command::not::{NotServer, NotificationPayloadType};
-use msnp::msnp::notification::command::not::factories::NotificationFactory;
-use msnp::msnp::notification::command::usr::{AuthOperationTypeClient, AuthPolicy, OperationTypeServer, SsoPhaseClient, SsoPhaseServer, UsrServer};
-use msnp::msnp::raw_command_parser::RawCommand;
-use msnp::shared::models::display_name::DisplayName;
-use msnp::shared::models::endpoint_id::EndpointId;
-use msnp::shared::models::font_color::FontColor;
-use msnp::shared::models::msn_user::MsnUser;
-use msnp::shared::models::oim::{InboxMetadata, MailData};
-use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
+use anyhow::Error;
+use matrix_sdk::Client;
+use matrix_sdk::encryption::recovery::RecoveryState;
 use crate::matrix;
 use crate::matrix::sync::sync;
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::identifiers::MatrixIdCompatible;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::tachyon_client::{Alert, AlertResult, AlertType, TachyonClient};
 use crate::tachyon::tachyon_state::{Repository, TachyonState};
+use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
+use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
+use msnp::msnp::notification::command::usr::{AuthOperationTypeClient, AuthPolicy, OperationTypeServer, SsoPhaseClient, SsoPhaseServer, UsrServer};
+use msnp::msnp::raw_command_parser::RawCommand;
+use msnp::shared::models::display_name::DisplayName;
+use msnp::shared::models::endpoint_id::EndpointId;
+use msnp::shared::models::msn_user::MsnUser;
+use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
+use tokio::sync::mpsc::Sender;
+use tokio::task;
+use msnp::msnp::notification::command::not::{NotServer, NotificationPayloadType};
+use msnp::msnp::notification::command::not::factories::NotificationFactory;
+use msnp::shared::models::ticket_token::TicketToken;
 
 const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"1000\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"100\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
 
@@ -56,53 +59,15 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             local_store.matrix_client = Some(matrix_client.clone());
                             local_store.phase = ConnectionPhase::Ready;
 
+                            connect_to_server_task(&notif_sender, local_store, &ticket_token, &matrix_client, &msn_user, client_data)?;
+
                             let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
                                 email_addr: local_store.email_addr.clone(),
                                 verified: true,
                                 unknown_arg: false,
                             });
-
-
-
                             notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
 
-
-                            notif_sender.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await?;
-
-                            //TODO initial sync only and synchronous before anything else;
-
-                            let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
-                                sender: "Hotmail".to_string(),
-                                display_name: DisplayName::new_from_ref("Hotmail"),
-                                payload: MsgPayload::Raw(RawMsgPayloadFactory::get_msmsgs_profile(
-                                    &msn_user.uuid.get_puid(),
-                                    msn_user.get_email_address(),
-                                    &ticket_token,
-                                )),
-                            });
-
-                            notif_sender.send(initial_profile_msg).await?;
-
-                            //Todo fetch endpoint data
-                            let endpoint_data = b"<Data></Data>";
-                            notif_sender
-                                .send(NotificationServerCommand::RAW(RawCommand::with_payload(
-                                    &format!("UBX 1:{}", &msn_user.get_email_address().as_str()),
-                                    endpoint_data.to_vec(),
-                                )))
-                                .await?;
-
-                            //Todo check the device state before we sync
-
-                            sync(client_data, matrix_client, local_store.client_kill_snd.clone(), local_store.client_kill_recv.resubscribe()).await;
-
-                            let initial_mail_data = NotificationServerCommand::MSG(MsgServer {
-                                sender: "Hotmail".to_string(),
-                                display_name: DisplayName::new_from_ref("Hotmail"),
-                                payload: MsgPayload::Raw(RawMsgPayloadFactory::get_initial_mail_data_empty_notification()),
-                            });
-
-                            notif_sender.send(initial_mail_data).await?;
 
                             /*let initial_mail_data = NotificationServerCommand::MSG(MsgServer {
                                 sender: "Hotmail".to_string(),
@@ -127,4 +92,90 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
         _ => {todo!()}
     }
 
+}
+
+fn connect_to_server_task(notif_sender: &Sender<NotificationServerCommand>, local_store: &LocalClientData, ticket_token: &TicketToken, matrix_client: &Client, msn_user: &MsnUser, tachyon_client: TachyonClient) -> Result<(), Error> {
+    let msn_user_clone = msn_user.clone();
+    let matrix_client_clone = matrix_client.clone();
+    let notif_sender_clone = notif_sender.clone();
+    let ticket_token_clone = ticket_token.clone();
+
+    let client_kill_snd = local_store.client_kill_snd.clone();
+    let client_kill_recv = local_store.client_kill_recv.resubscribe();
+
+    task::spawn(async move {
+        let encryption = matrix_client_clone.encryption();
+
+        if !encryption.get_own_device().await.unwrap().unwrap().is_verified_with_cross_signing() {
+
+            let notification_id = rand::random::<i32>();
+
+            let verif_not = NotificationServerCommand::NOT(NotServer {
+                payload: NotificationPayloadType::Normal(NotificationFactory::alert(&msn_user_clone.uuid, msn_user_clone.get_email_address(), "Your device is not verified, please do so before proceeding.", "http://127.0.0.1:8080/tachyon", format!("http://127.0.0.1:8080/tachyon/verify?t={}", &ticket_token_clone.as_str()).as_str(), format!("http://127.0.0.1:8080/tachyon/verify?t={}", &ticket_token_clone.as_str()).as_str(), None, notification_id)),
+            });
+
+            let (alert, recv) = Alert::new(AlertType::CrossSignRequest);
+            tachyon_client.alerts().insert(notification_id, alert);
+
+            notif_sender_clone.send(verif_not).await;
+
+            let recv = recv.await;
+            if let Ok(alert_result) = recv {
+                match alert_result {
+                    AlertResult::AlertSuccess => {
+
+                    }
+                    AlertResult::AlertFailure => {
+
+                    }
+                }
+            }
+        }
+
+        if let RecoveryState::Enabled = encryption.recovery().state() {
+            //Setup recovery
+            let secret_not = NotificationServerCommand::NOT(NotServer {
+                payload: NotificationPayloadType::Normal(NotificationFactory::alert(&msn_user_clone.uuid, msn_user_clone.get_email_address(), "You don't have a recuperation key ! It's advised to set one up to restore your encrypted messages", "http://127.0.0.1:8080/tachyon", "http://127.0.0.1:8080/tachyon/secret", "http://127.0.0.1:8080/tachyon/secret", None, 1)),
+            });
+
+            notif_sender_clone.send(secret_not).await;
+        }
+
+        notif_sender_clone.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await;
+
+        //This makes the client login to succeed.
+        let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
+            sender: "Hotmail".to_string(),
+            display_name: DisplayName::new_from_ref("Hotmail"),
+            payload: MsgPayload::Raw(RawMsgPayloadFactory::get_msmsgs_profile(
+                &msn_user_clone.uuid.get_puid(),
+                msn_user_clone.get_email_address(),
+                &ticket_token_clone,
+            )),
+        });
+
+        notif_sender_clone.send(initial_profile_msg).await;
+
+        //Todo fetch endpoint data
+        let endpoint_data = b"<Data></Data>";
+        notif_sender_clone
+            .send(NotificationServerCommand::RAW(RawCommand::with_payload(
+                &format!("UBX 1:{}", &msn_user_clone.get_email_address().as_str()),
+                endpoint_data.to_vec(),
+            )))
+            .await;
+
+        //Todo check the device state before we sync
+
+        sync(tachyon_client, matrix_client_clone, client_kill_snd, client_kill_recv).await;
+
+        let initial_mail_data = NotificationServerCommand::MSG(MsgServer {
+            sender: "Hotmail".to_string(),
+            display_name: DisplayName::new_from_ref("Hotmail"),
+            payload: MsgPayload::Raw(RawMsgPayloadFactory::get_initial_mail_data_empty_notification()),
+        });
+
+        notif_sender_clone.send(initial_mail_data).await;
+    });
+    Ok(())
 }

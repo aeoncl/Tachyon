@@ -45,7 +45,7 @@ pub(super) async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageS
 async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelope, client: Client, client_data: &mut TachyonClient) -> Result<Response, ABError> {
     let body = request.body.body;
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or(Uuid::new().to_string());
-    let me_user = client_data.own_user()?;
+    let me_user = client_data.own_user();
     let _uuid = &me_user.uuid;
     let _msn_addr = me_user.get_email_address();
 

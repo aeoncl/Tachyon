@@ -10,15 +10,58 @@ use msnp::msnp::models::contact_list::ContactList;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
-use std::sync::{Arc, Mutex, MutexGuard};
-use tokio::sync::mpsc;
+use std::sync::{Arc, Mutex, MutexGuard, RwLockWriteGuard};
+use matrix_sdk::locks::RwLock;
+use tokio::sync::{mpsc, oneshot};
+use yaserde_derive::{YaDeserialize, YaSerialize};
+use msnp::shared::models::email_address::EmailAddress;
+
+pub struct Alert {
+    alert_type: AlertType,
+    channel: oneshot::Sender<AlertResult>
+}
+
+pub enum AlertResult {
+    AlertSuccess,
+    AlertFailure,
+}
+
+impl Alert {
+
+    pub fn new(alert_type: AlertType) -> (Self, oneshot::Receiver<AlertResult>) {
+        let (sender, receiver) = oneshot::channel();
+        (Alert {
+            alert_type,
+            channel: sender
+        }, receiver)
+    }
+    pub fn alert_type(&self) -> AlertType {
+        self.alert_type.clone()
+    }
+
+    pub fn notify_success(mut self) {
+        let _ = self.channel.send(AlertResult::AlertSuccess);
+    }
+
+    pub fn notify_failure(mut self) {
+        let _ = self.channel.send(AlertResult::AlertFailure);
+    }
+}
+
+#[derive(Clone)]
+pub enum AlertType {
+    CrossSignRequest,
+    WebLoginRequest,
+}
+
 
 pub struct TachyonClientInner {
-    pub own_user: Mutex<MsnUser>,
+    pub own_user: RwLock<MsnUser>,
     pub ticket_token: TicketToken,
     pub contact_list: Mutex<ContactList>,
     pub soap_holder: SoapHolder,
     pub switchboards: DashMap<OwnedRoomId, SwitchboardHandle>,
+    pub alerts: DashMap<i32, Alert>,
     pub circle_store: CircleStore,
     pub notification_handle: NotificationHandle,
 }
@@ -36,11 +79,12 @@ impl TachyonClient {
     ) -> TachyonClient {
         TachyonClient {
             inner: Arc::new(TachyonClientInner {
-                own_user: Mutex::new(user),
+                own_user: RwLock::new(user),
                 ticket_token: token,
                 contact_list: Default::default(),
                 soap_holder: Default::default(),
                 switchboards: Default::default(),
+                alerts: Default::default(),
                 circle_store: CircleStore::new(),
                 notification_handle: NotificationHandle::new(notification_sender),
             })
@@ -51,16 +95,16 @@ impl TachyonClient {
         SwitchboardService::new(self.clone())
     }
 
-    pub fn own_user(&self) -> Result<MsnUser, anyhow::Error> {
-        Ok(self.own_user_mut()?.clone())
+    pub fn alerts(&self) -> &DashMap<i32, Alert> {
+        &self.inner.alerts
     }
 
-    pub fn own_user_mut(&self) -> Result<MutexGuard<'_, MsnUser>,  anyhow::Error> {
-        Ok(self
-            .inner
-            .own_user
-            .lock()
-            .map_err(|e| anyhow!("Failed to acquire own_msn_user lock"))?)
+    pub fn own_user(&self) -> MsnUser {
+        self.inner.own_user.read().clone()
+    }
+
+    pub fn own_user_mut(&self) -> RwLockWriteGuard<'_, MsnUser> {
+        self.inner.own_user.write()
     }
 
     pub fn soap_holder(&self) -> &SoapHolder {
