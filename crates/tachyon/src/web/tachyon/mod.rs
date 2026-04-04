@@ -204,15 +204,15 @@ async fn is_authenticated(
 async fn extract_token(req: Request<Body>, next: Next) -> impl IntoResponse {
     let mut req = req;
 
-    // Try cookie first, fall back to query param
-    let from_cookie = extract_token_from_cookie(&req);
-    let from_query = extract_token_from_query(&req);
+    let mut token = None;
+    let mut should_set_cookie = false;
 
-    let (token, should_set_cookie) = match (from_cookie, from_query) {
-        (Some(t), _) => (Some(t), false),
-        (None, Some(t)) => (Some(t), true),
-        _ => (None, false),
-    };
+    if let Some(t) = extract_token_from_query(&req) {
+        token = Some(t);
+        should_set_cookie = true;
+    } else if let Some(t) = extract_token_from_cookie(&req) {
+        token = Some(t);
+    }
 
     if let Some(token_value) = token {
         req.extensions_mut().insert(token_value.clone());
