@@ -22,7 +22,7 @@ use msnp::soap::storage_service::update_profile::request::UpdateProfileMessageSo
 use msnp::soap::storage_service::update_profile::response::UpdateProfileResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::{ToXml, TryFromXml};
 use crate::tachyon::identifiers::MatrixIdCompatible;
-use crate::tachyon::tachyon_state::TachyonState;
+use crate::tachyon::tachyon_state::{Repository, TachyonState};
 use crate::tachyon::traits::ToUuid;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
@@ -34,9 +34,9 @@ pub async fn storage_service(headers: HeaderMap, State(state): State<TachyonStat
     let header_env = StorageServiceRequestSoapEnvelope::try_from_xml(&body)?;
     let token = TicketToken::from_str(&header_env.header.storage_user.unwrap().ticket_token).unwrap();
 
-    let client_data = state.get_client(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Client Data to be present in client Store")})?;
-    let client = client_data.matrix_client();
-    
+    let tachyon_client = state.tachyon_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")})?;
+    let client = state.matrix_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Matrix Client to be present in client Store")})?;
+
     match soap_action {
         "http://www.msn.com/webservices/storage/2008/GetProfile" => {
             get_profile(GetProfileMessageSoapEnvelope::try_from_xml(&body)?, token, client).await

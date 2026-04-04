@@ -1,17 +1,15 @@
-use std::net::Ipv4Addr;
+use crate::switchboard::models::switchboard_handle::{SwitchboardHandle, SwitchboardState};
+use crate::switchboard::models::switchboard_token::SwitchboardToken;
+use crate::tachyon::tachyon_client::TachyonClient;
+use anyhow::anyhow;
 use matrix_sdk::ruma::RoomId;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::rng::RngServer;
 use msnp::msnp::notification::models::ip_address::IpAddress;
 use msnp::msnp::switchboard::models::session_id::SessionId;
 use msnp::shared::models::msn_user::MsnUser;
-use tokio_retry2::strategy::{ExponentialBackoff, MaxInterval};
-use tokio_retry2::{Retry, RetryError};
-use log::{debug, error, trace};
-use anyhow::anyhow;
-use crate::switchboard::models::switchboard_handle::{SwitchboardHandle, SwitchboardState};
-use crate::switchboard::models::switchboard_token::SwitchboardToken;
-use crate::tachyon::tachyon_client::TachyonClient;
+use std::net::Ipv4Addr;
+use tokio_retry2::RetryError;
 
 #[derive(Clone)]
 pub struct SwitchboardService {

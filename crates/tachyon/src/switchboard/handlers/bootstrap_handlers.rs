@@ -7,7 +7,7 @@ use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::switchboard::models::switchboard_handle::{SwitchboardHandle, SwitchboardState};
 use crate::switchboard::models::switchboard_token::SwitchboardToken;
 use crate::tachyon::tachyon_client::TachyonClient;
-use matrix_sdk::{Room, RoomMemberships};
+use matrix_sdk::{Client, Room, RoomMemberships};
 use msnp::msnp::switchboard::command::cal::{CalServer, CalServerFunction};
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
 use msnp::msnp::switchboard::command::iro::IroServer;
@@ -23,20 +23,21 @@ use std::str::FromStr;
 use tokio::sync::mpsc::Sender;
 use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::payload::msg::datacast_msg::{Datacast, DatacastMessagePayload};
-use crate::tachyon::tachyon_state::TachyonState;
+use crate::tachyon::tachyon_state::{Repository, TachyonState};
 
 const ROOM_USER_PORTAL_MODE: bool = true;
 
-pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, client_store: &TachyonState, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, tachyon_state: &TachyonState, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
 
     match command {
         SwitchboardClientCommand::ANS(ans_command) => {
             let token = SwitchboardToken::try_from(ans_command.token.clone())?;
 
-            match client_store.get_client(&token.matrix_token) {
+            match tachyon_state.tachyon_clients().get(&token.matrix_token) {
                 None => {}
                 Some(tachyon_client) => {
-                    let matrix_client = tachyon_client.matrix_client();
+
+                    let matrix_client = tachyon_state.matrix_clients().get(&token.matrix_token).unwrap();
                     match matrix_client.get_room(token.room_id.as_ref()) {
                         None => {}
                         Some(room) => {
@@ -46,6 +47,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
                             local_switchboard_data.email_addr = room_msn_user.get_email_address().clone();
                             local_switchboard_data.endpoint_guid = room_msn_user.endpoint_id.endpoint_guid.clone();
                             local_switchboard_data.tachyon_client = Some(tachyon_client.clone());
+                            local_switchboard_data.matrix_client = Some(matrix_client.clone());
                             local_switchboard_data.room_id = Some(room.room_id().to_owned());
                             local_switchboard_data.room = Some(room.clone());
                             local_switchboard_data.phase = ConnectionPhase::Initializing;
@@ -100,15 +102,18 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
 
             let token = TicketToken::from_str(&usr_command.token).unwrap();
 
-            match client_store.get_client(token.as_str()) {
+            match tachyon_state.tachyon_clients().get(token.as_str()) {
                 None => {
                     //TODO AUTH error
                 }
                 Some(client_data) => {
+                    let matrix_client = tachyon_state.matrix_clients().get(token.as_str()).unwrap();
+
                     local_switchboard_data.email_addr = usr_command.endpoint_id.email_addr.clone();
                     local_switchboard_data.endpoint_guid = usr_command.endpoint_id.endpoint_guid.clone();
                     local_switchboard_data.token = token;
                     local_switchboard_data.tachyon_client = Some(client_data);
+                    local_switchboard_data.matrix_client = Some(matrix_client);
                     local_switchboard_data.session_id = SessionId::random();
                     local_switchboard_data.phase = ConnectionPhase::Initializing;
                     let email = &local_switchboard_data.email_addr;
@@ -127,7 +132,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
 }
 
 
-pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, tachyon_client: TachyonClient, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, tachyon_client: TachyonClient, matrix_client: Client, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
     match command {
         SwitchboardClientCommand::ANS(_) => {}
         SwitchboardClientCommand::USR(_) => {}
@@ -148,7 +153,6 @@ pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sende
                 let me = tachyon_client.own_user().unwrap();
                 send_initial_joined_member(me, &command_sender).await?;
             } else {
-                let matrix_client = tachyon_client.matrix_client();
                 let maybe_found = matrix_client.find_room_from_email(&email).unwrap();
                 if let Some(room) = maybe_found {
                     let target_room_user = room.to_msn_user_lazy().await?;

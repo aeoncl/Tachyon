@@ -1,7 +1,8 @@
-use std::time::Duration;
+use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
+use crate::tachyon::identifiers::IsSha1;
+use crate::tachyon::tachyon_client::TachyonClient;
 use log::debug;
-use tokio::sync::mpsc::Sender;
-use tokio::time::sleep;
+use matrix_sdk::Client;
 use msnp::msnp::notification::command::adl::AdlClient;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::iln::IlnServer;
@@ -10,11 +11,11 @@ use msnp::msnp::notification::command::ubx::{ExtendedPresenceContent, UbxPayload
 use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::network_id_email::NetworkIdEmail;
 use msnp::shared::models::presence_status::PresenceStatus;
-use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
-use crate::tachyon::identifiers::IsSha1;
-use crate::tachyon::tachyon_client::TachyonClient;
+use std::time::Duration;
+use tokio::sync::mpsc::Sender;
+use tokio::time::sleep;
 
-pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
+pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, matrix_client: Client, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     debug!("ADL: {:?}", &command);
 
     let contacts = command.payload.get_contacts()?;
@@ -26,8 +27,6 @@ pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, comma
 
     command_sender.send(NotificationServerCommand::OK(command.get_ok_response("ADL"))).await?;
 
-
-    let matrix_client = tachyon_client.matrix_client();
     tokio::spawn( async move {
 
         sleep(Duration::from_millis(1000)).await;

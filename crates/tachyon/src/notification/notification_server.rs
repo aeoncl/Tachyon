@@ -10,7 +10,7 @@ use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::OwnedWriteH
 use crate::notification::handlers::command_handler::handle_command;
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::tachyon_client::TachyonClient;
-use crate::tachyon::tachyon_state::TachyonState;
+use crate::tachyon::tachyon_state::{Repository, TachyonState};
 
 pub struct NotificationServer;
 
@@ -128,9 +128,16 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
         error!("NS: Unable to send kill signal to client: {}", e);
     }
 
-    let removed = tachyon_state.remove_client(local_client_data.token.0.as_str());
+    let removed = tachyon_state.tachyon_clients().remove(local_client_data.token.0.as_str());
     if let Some(client_data) = removed {
-        info!("Client data: {} removed successfully", client_data.own_user()?.get_email_address());
+        info!("Tachyon Client: {} removed successfully", client_data.own_user()?.get_email_address());
+    } else {
+        warn!("Failed to remove client data");
+    }
+
+    let removed = tachyon_state.matrix_clients().remove(local_client_data.token.0.as_str());
+    if let Some(client_data) = removed {
+        info!("Matrix Client: {} removed successfully", local_client_data.email_addr.as_str());
     } else {
         warn!("Failed to remove client data");
     }

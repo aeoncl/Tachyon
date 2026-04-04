@@ -13,7 +13,7 @@ use msnp::soap::abch::ab_service::ab_find_contacts_paged::request::AbfindContact
 use msnp::soap::abch::ab_service::ab_group_add::request::AbgroupAddMessageSoapEnvelope;
 use msnp::soap::abch::request_header::AuthHeaderSoapEnvelope;
 use msnp::soap::traits::xml::TryFromXml;
-use crate::tachyon::tachyon_state::TachyonState;
+use crate::tachyon::tachyon_state::{Repository, TachyonState};
 use crate::web::soap::ab_service::ab_contact_add::ab_contact_add;
 use crate::web::soap::ab_service::ab_contact_delete::ab_contact_delete;
 use crate::web::soap::ab_service::ab_contact_update::ab_contact_update;
@@ -27,9 +27,8 @@ pub async fn address_book_service(headers: HeaderMap, State(state): State<Tachyo
     let header_env = AuthHeaderSoapEnvelope::try_from_xml(&body)?;
     let token = TicketToken::from_str(&header_env.header.ab_auth_header.ticket_token).unwrap();
 
-    let tachyon_client = state.get_client(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Client Data to be present in client Store")})?;
-
-    let client = tachyon_client.matrix_client();
+    let tachyon_client = state.tachyon_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")})?;
+    let client = state.matrix_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Matrix Client to be present in client Store")})?;
 
     match soap_action {
         "http://www.msn.com/webservices/AddressBook/ABFindContactsPaged" => {

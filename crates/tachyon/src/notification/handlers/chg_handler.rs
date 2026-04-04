@@ -1,3 +1,4 @@
+use matrix_sdk::Client;
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::tachyon_client::TachyonClient;
@@ -11,7 +12,7 @@ use msnp::shared::models::presence_status::PresenceStatus;
 use tokio::sync::mpsc::Sender;
 use crate::tachyon::identifiers::IsSha1;
 
-pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, client_data: TachyonClient, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
+pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, client_data: TachyonClient, matrix_client: Client, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     command_sender.send(NotificationServerCommand::CHG(command.clone())).await?;
 
     let client_data = client_data.clone();
@@ -21,8 +22,6 @@ pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, c
         local_store.needs_initial_presence = false;
 
         tokio::spawn( async move {
-            
-            let matrix_client = client_data.matrix_client();
 
             let contacts = {
                 client_data.get_contact_list().lock().unwrap().get_forward_list()

@@ -65,16 +65,16 @@ pub async fn build_sliding_sync(matrix_client: &Client) -> Result<SlidingSync, a
     Ok(sliding_sync_builder.build().await?)
 }
 
-pub fn sync(client_data: TachyonClient, kill_signal_snd: Sender<()>, kill_signal_rcv: Receiver<()>) {
-    let client = client_data.matrix_client();
-    let sliding_sync = client_data.sliding_sync();
-    let updates_recv = client.subscribe_to_all_room_updates();
+pub async fn sync(tachyon_client: TachyonClient, matrix_client: Client, kill_signal_snd: Sender<()>, kill_signal_rcv: Receiver<()>) {
+    let sliding_sync = build_sliding_sync(&matrix_client).await.unwrap();
+    let updates_recv = matrix_client.subscribe_to_all_room_updates();
 
-    spawn_sync_task(client_data, sliding_sync, updates_recv, kill_signal_snd, kill_signal_rcv, true);
+    spawn_sync_task(tachyon_client, matrix_client, sliding_sync, updates_recv, kill_signal_snd, kill_signal_rcv, true);
 }
 
 fn spawn_sync_task(
-    client_data: TachyonClient,
+    tachyon_client: TachyonClient,
+    matrix_client: Client,
     sliding_sync: SlidingSync,
     mut updates_recv: Receiver<RoomUpdates>,
     kill_signal_snd: Sender<()>,
@@ -83,8 +83,7 @@ fn spawn_sync_task(
 ) {
     tokio::spawn(async move {
         info!("Initializing Sliding Sync...");
-        let matrix_client = client_data.matrix_client();
-        register_event_handlers(&matrix_client, client_data.clone());
+        register_event_handlers(&matrix_client, tachyon_client.clone());
 
         let mut initial_sync = true;
 
@@ -109,7 +108,7 @@ fn spawn_sync_task(
                                     println!("{:?}", &room_updates);
                                     if first_sync_of_session  {
                                         first_sync_of_session = false;
-                                        handle_first_sync(&client_data).await.unwrap();
+                                        handle_first_sync(&tachyon_client).await.unwrap();
                                     }
                                     
                                 }
@@ -118,13 +117,13 @@ fn spawn_sync_task(
                                 }
                             }
 
-                            handle_addressbook_notifications(&client_data).await.unwrap();
+                            handle_addressbook_notifications(&tachyon_client).await.unwrap();
                             initial_sync = false
                         }
                         Some(Err(err)) => {
                             if err.client_api_error_kind() == Some(&ErrorKind::UnknownPos) {
                                 info!("Unknown pos, re-syncing...");
-                                spawn_sync_task(client_data, sliding_sync.clone(), updates_recv, kill_signal_snd, kill_signal_rcv, first_sync_of_session);
+                                spawn_sync_task(tachyon_client, matrix_client, sliding_sync.clone(), updates_recv, kill_signal_snd, kill_signal_rcv, first_sync_of_session);
                                 break 'main;
                             } else {
                                 error!("Error in sync stream: {:?}", err);

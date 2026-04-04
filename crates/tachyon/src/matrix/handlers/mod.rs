@@ -19,9 +19,11 @@ mod request_verification_handlers;
 
 pub(super) fn register_event_handlers(matrix_client: &Client, client_data: TachyonClient) {
 
+
     matrix_client.add_event_handler_context(TachyonContext {
         tachyon_client: client_data,
     });
+
 
     matrix_client.add_event_handler(
         |event: SyncRoomMemberEvent,

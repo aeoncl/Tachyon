@@ -1,4 +1,4 @@
-use crate::tachyon::tachyon_state::TachyonState;
+use crate::tachyon::tachyon_state::{Repository, TachyonState};
 use crate::web::soap::error::ABError;
 use crate::web::soap::sharing_service::add_member::add_member;
 use crate::web::soap::sharing_service::delete_member::delete_member;
@@ -24,19 +24,18 @@ pub async fn sharing_service(headers: HeaderMap, State(state): State<TachyonStat
     let token = TicketToken::from_str(&header_env.header.ab_auth_header.ticket_token).unwrap();
 
 
-    let client_data = state.get_client(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Client Data to be present in client Store")})?;
-
-    let client = client_data.matrix_client();
+    let tachyon_client = state.tachyon_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")})?;
+    let client = state.matrix_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Matrix Client to be present in client Store")})?;
 
     match soap_action {
         "http://www.msn.com/webservices/AddressBook/FindMembership" => {
-            find_membership(FindMembershipRequestSoapEnvelope::try_from_xml(&body)?, token, client, client_data).await
+            find_membership(FindMembershipRequestSoapEnvelope::try_from_xml(&body)?, token, client, tachyon_client).await
         },
         "http://www.msn.com/webservices/AddressBook/AddMember" => {
-            add_member(AddMemberMessageSoapEnvelope::try_from_xml(&body)?, token, client, client_data).await
+            add_member(AddMemberMessageSoapEnvelope::try_from_xml(&body)?, token, client, tachyon_client).await
         },
         "http://www.msn.com/webservices/AddressBook/DeleteMember" => {
-            delete_member(DeleteMemberMessageSoapEnvelope::try_from_xml(&body)?, token, client, client_data).await
+            delete_member(DeleteMemberMessageSoapEnvelope::try_from_xml(&body)?, token, client, tachyon_client).await
         },
         _ => {
             error!("SOAP|ABCH: Unsupported soap action: {}", &soap_action);

@@ -6,7 +6,6 @@ use crate::tachyon::switchboard_service::SwitchboardService;
 use anyhow::anyhow;
 use dashmap::DashMap;
 use matrix_sdk::ruma::OwnedRoomId;
-use matrix_sdk::{Client, SlidingSync};
 use msnp::msnp::models::contact_list::ContactList;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::shared::models::msn_user::MsnUser;
@@ -17,8 +16,6 @@ use tokio::sync::mpsc;
 pub struct TachyonClientInner {
     pub own_user: Mutex<MsnUser>,
     pub ticket_token: TicketToken,
-    pub matrix_client: Client,
-    pub sliding_sync: SlidingSync,
     pub contact_list: Mutex<ContactList>,
     pub soap_holder: SoapHolder,
     pub switchboards: DashMap<OwnedRoomId, SwitchboardHandle>,
@@ -35,16 +32,12 @@ impl TachyonClient {
     pub fn new(
         user: MsnUser,
         token: TicketToken,
-        notification_sender: mpsc::Sender<NotificationServerCommand>,
-        matrix_client: Client,
-        sliding_sync: SlidingSync,
+        notification_sender: mpsc::Sender<NotificationServerCommand>
     ) -> TachyonClient {
         TachyonClient {
             inner: Arc::new(TachyonClientInner {
                 own_user: Mutex::new(user),
                 ticket_token: token,
-                matrix_client,
-                sliding_sync,
                 contact_list: Default::default(),
                 soap_holder: Default::default(),
                 switchboards: Default::default(),
@@ -84,14 +77,6 @@ impl TachyonClient {
 
     pub fn ticket_token(&self) -> TicketToken {
         self.inner.ticket_token.clone()
-    }
-
-    pub fn matrix_client(&self) -> Client {
-        self.inner.matrix_client.clone()
-    }
-
-    pub fn sliding_sync(&self) -> SlidingSync {
-        self.inner.sliding_sync.clone()
     }
 
     pub fn notification_handle(&self) -> NotificationHandle {

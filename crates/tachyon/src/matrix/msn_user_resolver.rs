@@ -1,23 +1,14 @@
 use anyhow::anyhow;
 use base64::engine::general_purpose;
 use base64::Engine;
-use log::warn;
 
 use matrix_sdk::media::{MediaFormat, MediaRequestParameters, MediaThumbnailSettings};
-use matrix_sdk::room::RoomMember;
-use matrix_sdk::ruma::api::client::profile::{AvatarUrl, DisplayName};
-use matrix_sdk::ruma::events::presence::PresenceEvent;
 use matrix_sdk::ruma::events::room::MediaSource;
-use matrix_sdk::ruma::{MxcUri, UInt, UserId};
-use matrix_sdk::{Client, Room};
+use matrix_sdk::ruma::{MxcUri, UInt};
+use matrix_sdk::Client;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_object::{FriendlyName, MSNObjectFactory, MsnObject};
-use msnp::shared::models::msn_user::MsnUser;
-use msnp::shared::models::presence_status::PresenceStatus;
 
-use crate::tachyon::tachyon_client::TachyonClient;
-use crate::tachyon::identifiers::MatrixIdCompatible;
-use crate::tachyon::traits::PresenceStateCompatible;
 pub async fn avatar_mxid_to_msn_object(client: &Client, email_address: &EmailAddress, avatar_mxc: &MxcUri) -> Result<MsnObject, anyhow::Error> {
     match get_avatar_bytes(client, &avatar_mxc).await {
         Ok(avatar_bytes) => {

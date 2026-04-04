@@ -3,9 +3,68 @@ use crate::tachyon::tachyon_client::TachyonClient;
 use dashmap::DashMap;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::Arc;
+use matrix_sdk::Client;
+
+pub trait Repository<T> {
+    fn get(&self, key: &str) -> Option<T>;
+    fn insert(&self, key: String, value: T);
+    fn remove(&self, key: &str) -> Option<T>;
+}
+
+#[derive(Default)]
+pub struct TachyonClientRepository {
+    clients: DashMap<String, TachyonClient>,
+}
+
+impl TachyonClientRepository {
+    fn single(&self) -> Option<TachyonClient> {
+
+        if self.clients.len() > 1 {
+            return None;
+        }
+
+        self.clients.iter().next().map(|x| x.value().clone())
+    }
+}
+
+impl Repository<TachyonClient> for TachyonClientRepository {
+    fn get(&self, key: &str) -> Option<TachyonClient> {
+        self.clients.get(key).map(|x| x.value().clone())
+    }
+
+    fn insert(&self, key: String, value: TachyonClient) {
+        self.clients.insert(key, value);
+    }
+
+    fn remove(&self, key: &str) -> Option<TachyonClient> {
+        self.clients.remove(key).map(|(_, client)| client)
+    }
+}
+
+#[derive(Default)]
+pub struct MatrixClientRepository {
+    clients: DashMap<String, Client>
+}
+
+impl Repository<Client> for MatrixClientRepository {
+
+    fn get(&self, key: &str) -> Option<Client> {
+        self.clients.get(key).map(|x| x.value().clone())
+    }
+
+    fn insert(&self, key: String, value: Client) {
+        self.clients.insert(key, value);
+    }
+
+    fn remove(&self, key: &str) -> Option<Client> {
+        self.clients.remove(key).map(|(_, client)| client)
+    }
+}
+
 
 pub struct TachyonStateInner {
-    clients: DashMap<String, TachyonClient>,
+    tachyon_clients: TachyonClientRepository,
+    matrix_clients: MatrixClientRepository,
     token_validator: SecretEncryptor,
     pending_ticket: DashMap<String, TicketToken>,
 
@@ -22,7 +81,8 @@ impl TachyonState {
     pub fn new(token_validator: SecretEncryptor) -> Self {
         Self {
             inner: Arc::new(TachyonStateInner {
-                clients: DashMap::new(),
+                tachyon_clients: Default::default(),
+                matrix_clients: Default::default(),
                 token_validator,
                 pending_ticket: DashMap::new(),
             })
@@ -31,26 +91,15 @@ impl TachyonState {
 
     //FIXME: remove this and fix everywhere it's called to get the client using the key.
     pub fn get_single_client(&self) -> Option<TachyonClient> {
-        if self.inner.clients.len() > 1 {
-            return None;
-        }
-
-        self.inner.clients.iter().next().map(|x| x.value().clone())
+        self.tachyon_clients().single()
     }
 
-    pub fn insert_client(&self, key: String, client: TachyonClient) {
-        self.inner.clients.insert(key, client);
+    pub fn tachyon_clients(&self) -> &TachyonClientRepository {
+        &self.inner.tachyon_clients
     }
 
-    pub fn get_client(&self, key: &str) -> Option<TachyonClient> {
-        match self.inner.clients.get(key) {
-            None => None,
-            Some(found) => Some(found.value().clone()),
-        }
-    }
-
-    pub fn remove_client(&self, key: &str) -> Option<TachyonClient> {
-        self.inner.clients.remove(key).map(|(_, client)| client)
+    pub fn matrix_clients(&self) -> &MatrixClientRepository {
+        &self.inner.matrix_clients
     }
 
     pub fn store_pending_ticket(&self, key: String,  ticket: TicketToken) {

@@ -19,10 +19,11 @@ use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::identifiers::MatrixIdCompatible;
 use crate::tachyon::tachyon_client::TachyonClient;
-use crate::tachyon::tachyon_state::TachyonState;
+use crate::tachyon::tachyon_state::{Repository, TachyonState};
 use anyhow::anyhow;
 use chrono::format;
 use log::warn;
+use matrix_sdk::Client;
 use matrix_sdk::notification_settings::IsOneToOne::No;
 use matrix_sdk_ui::sync_service::SyncService;
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
@@ -44,18 +45,19 @@ use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory
 use tokio::sync::mpsc::Sender;
 use tokio::time::sleep;
 
-pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, client_store: &TachyonState, local_client_data: &mut LocalClientData) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, tachyon_state: &TachyonState, local_client_data: &mut LocalClientData) -> Result<(), anyhow::Error> {
 
     let _command_result = match &local_client_data.phase {
         ConnectionPhase::Negotiating => {
             handle_negotiation(command, command_sender, local_client_data).await
         },
         ConnectionPhase::Authenticating  => {
-            handle_auth(command, command_sender, &client_store, local_client_data).await
+            handle_auth(command, command_sender, &tachyon_state, local_client_data).await
         },
         ConnectionPhase::Ready => {
-            let client_data = local_client_data.client_data.as_ref().ok_or(anyhow!("Client Data should be here by now"))?.clone();
-            handle_ready(command, command_sender, client_data, local_client_data).await
+            let matrix_client = local_client_data.matrix_client.as_ref().ok_or(anyhow!("Matrix Client should be here by now"))?.clone();
+            let tachyon_client = local_client_data.tachyon_client.as_ref().ok_or(anyhow!("Tachyon Client should be here by now"))?.clone();
+            handle_ready(command, command_sender, tachyon_client, matrix_client, local_client_data).await
         }
     };
     
@@ -110,17 +112,18 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
                             let matrix_token = tachyon_state.secret_encryptor().decrypt(ticket_token.as_str())?;
                             let matrix_client = matrix::login::login_with_token(user_id.clone(), matrix_token, true).await?;
-                            let sliding_sync = build_sliding_sync(&matrix_client).await?;
 
                             let endpoint_id = EndpointId::new(local_store.email_addr.clone(), Some(endpoint_guid));
                             let msn_user = MsnUser::new(endpoint_id);
 
 
-                            let client_data = TachyonClient::new(msn_user.clone(), ticket_token.clone(), notif_sender.clone(), matrix_client.clone(), sliding_sync);
-                            tachyon_state.insert_client(ticket_token.as_str().to_owned(), client_data.clone());
+                            let client_data = TachyonClient::new(msn_user.clone(), ticket_token.clone(), notif_sender.clone());
+                            tachyon_state.tachyon_clients().insert(ticket_token.as_str().to_owned(), client_data.clone());
+                            tachyon_state.matrix_clients().insert(ticket_token.as_str().to_owned(), matrix_client.clone());
 
                             local_store.token = ticket_token.clone();
-                            local_store.client_data = Some(client_data.clone());
+                            local_store.tachyon_client = Some(client_data.clone());
+                            local_store.matrix_client = Some(matrix_client.clone());
                             local_store.phase = ConnectionPhase::Ready;
 
                             let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
@@ -161,7 +164,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
                             //Todo check the device state before we sync
 
-                            sync(client_data, local_store.client_kill_snd.clone(), local_store.client_kill_recv.resubscribe());
+                            sync(client_data, matrix_client, local_store.client_kill_snd.clone(), local_store.client_kill_recv.resubscribe()).await;
 
                             let initial_mail_data = NotificationServerCommand::MSG(MsgServer {
                                 sender: "Hotmail".to_string(),
@@ -262,34 +265,34 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
 }
 
-async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, client_data: TachyonClient, local_store: &mut LocalClientData) -> Result<(), anyhow::Error> {
+async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, tachyon_client: TachyonClient, matrix_client: Client, local_store: &mut LocalClientData) -> Result<(), anyhow::Error> {
     match raw_command {
         NotificationClientCommand::USR(command) => handle_usr(command, local_store.email_addr.clone(), command_sender).await,
         NotificationClientCommand::PNG => handle_png(command_sender).await,
-        NotificationClientCommand::ADL(command) => handle_adl(command, client_data, command_sender).await,
-        NotificationClientCommand::RML(command) => handle_rml(command, client_data, command_sender).await,
+        NotificationClientCommand::ADL(command) => handle_adl(command, tachyon_client, matrix_client, command_sender).await,
+        NotificationClientCommand::RML(command) => handle_rml(command, tachyon_client, command_sender).await,
         NotificationClientCommand::UUX(command) => handle_uux(command, local_store, command_sender).await,
-        NotificationClientCommand::UUM(command) => handle_uum(command, client_data, command_sender).await,
+        NotificationClientCommand::UUM(command) => handle_uum(command, tachyon_client, matrix_client, command_sender).await,
         NotificationClientCommand::XFR(command) => handle_xfr(command, local_store, command_sender).await,
         NotificationClientCommand::BLP(command) => {
             command_sender.send(NotificationServerCommand::BLP(command)).await?;
             Ok(())
         }
-        NotificationClientCommand::CHG(command) => handle_chg(command, local_store, client_data, command_sender).await,
-        NotificationClientCommand::PRP(command) => handle_prp(command, local_store, client_data, command_sender).await,
+        NotificationClientCommand::CHG(command) => handle_chg(command, local_store, tachyon_client, matrix_client, command_sender).await,
+        NotificationClientCommand::PRP(command) => handle_prp(command, local_store, tachyon_client, command_sender).await,
         NotificationClientCommand::UUN(_command) => {Ok(())},
         NotificationClientCommand::RAW(command) => {
             warn!("Received RAW command: {:?}", command);
             Ok(())
         },
-        NotificationClientCommand::PUT(command) => handle_put(command, local_store, client_data, command_sender).await,
+        NotificationClientCommand::PUT(command) => handle_put(command, local_store, tachyon_client, command_sender).await,
         NotificationClientCommand::OUT => {Ok(())}
         NotificationClientCommand::VER(_) => {Ok(())}
         NotificationClientCommand::CVR(_) => {Ok(())}
-        NotificationClientCommand::FQY(command) => {handle_fqy(command, client_data, command_sender).await}
+        NotificationClientCommand::FQY(command) => {handle_fqy(command, tachyon_client, command_sender).await}
         NotificationClientCommand::SDG(_) => {Ok(())}
         NotificationClientCommand::URL(command) => {
-            handle_url(command, local_store, client_data, command_sender).await
+            handle_url(command, local_store, tachyon_client, command_sender).await
         }
     }
     }

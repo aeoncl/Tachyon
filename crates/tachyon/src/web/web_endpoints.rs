@@ -11,7 +11,7 @@ use matrix_sdk::media::{MediaFormat, MediaRequestParameters, MediaThumbnailSetti
 use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::{OwnedMxcUri, UInt};
 use regex::Regex;
-use crate::tachyon::tachyon_state::TachyonState;
+use crate::tachyon::tachyon_state::{Repository, TachyonState};
 use crate::web::soap::shared::build_soap_response;
 
 lazy_static! {
@@ -82,7 +82,7 @@ pub async fn get_profile_pic(Path((image_mxid, _image_type)): Path<(String, Stri
 
     let client_data = state.get_single_client().unwrap();
 
-    let client= client_data.matrix_client();
+    let client= state.matrix_clients().get(client_data.ticket_token().as_str()).unwrap();
 
 
     let thumbnail_settings = MediaThumbnailSettings::new(UInt::new(200).unwrap(), UInt::new(200).unwrap() );
