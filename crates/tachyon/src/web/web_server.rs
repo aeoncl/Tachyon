@@ -14,7 +14,7 @@ use tokio::net::TcpListener;
 use tokio::sync::broadcast::Receiver;
 
 use crate::tachyon::tachyon_state::TachyonState;
-use crate::web::ads::{get_banner_ads, get_avatar_jpg, get_matrix_icon, get_spongebob_icon, get_tab_ad, get_text_ad, get_alert_background};
+use crate::web::ads::{ads_router, get_alert_background, get_avatar_jpg, get_banner_ads, get_matrix_icon, get_spongebob_icon, get_tab_ad, get_text_ad};
 use crate::web::matrix_today::get_msn_today;
 use crate::web::soap::ab_service::ab_service::address_book_service;
 use crate::web::soap::rsi::rsi::rsi;
@@ -39,17 +39,7 @@ impl WebServer {
             .route("/", post(firewall_test))
             .route("/Config/MsgrConfig.asmx", get(get_msgr_config))
             .nest("/tachyon", tachyon_router(state.clone()))
-            .route("/ads/banner", get(get_banner_ads))
-            .route("/ads/avatar.jpg", get(get_avatar_jpg))
-            .route("/ads/text", get(get_text_ad))
-            .route("/ads/msn-today", get(get_msn_today))
-            .route("/ads/tabad/{tab_index}", get(get_tab_ad))
-            .route("/ads/matrix-icon.png", get(get_matrix_icon))
-            .route("/ads/matrix-icon_32x32.png", get(get_matrix_icon))
-            .route("/ads/spongebob-icon_48x32.png", get(get_spongebob_icon))
-            .route("/ads/spongebob-icon.png", get(get_spongebob_icon))
-            .route("/ads/alert-background.png", get(get_alert_background))
-
+            .nest("/ads", ads_router(state.clone()))
             .route("/ppsecure/sha1auth.srf", post(sha1auth))
             .route("/ppcrlconfig.srf", get(ppcrlconfigsrf))
             .route("/ppcrlconfig.bin", get(ppcrlconfigsrf))

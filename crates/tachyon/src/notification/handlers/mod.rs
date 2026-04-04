@@ -1,13 +1,5 @@
 pub(crate) mod command_handler;
-mod usr_handler;
-mod png_handler;
-mod adl_handler;
-mod rml_handler;
-mod uux_handler;
-mod uum_handler;
-mod chg_handler;
-mod put_handler;
-mod xfr_handler;
-mod prp_handler;
-mod fqy_handler;
-mod url_handler;
+mod ready;
+mod auth;
+mod negotiation;
+

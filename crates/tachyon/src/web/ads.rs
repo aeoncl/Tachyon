@@ -2,11 +2,15 @@ use axum::body::Body;
 use axum::extract::Path;
 use axum::http::header::CONTENT_TYPE;
 use axum::http::Response;
+use axum::Router;
+use axum::routing::{get, post};
 use lazy_static::lazy_static;
 use lazy_static_include::lazy_static_include_bytes;
 use reqwest::StatusCode;
 use yaserde::ser;
 use yaserde_derive::YaSerialize;
+use crate::tachyon::tachyon_state::TachyonState;
+use crate::web::matrix_today::get_msn_today;
 
 lazy_static_include_bytes! {
     AVATAR => "./assets/img/avatar_48x48.jpg",
@@ -36,6 +40,20 @@ lazy_static! {
         ];
 }
 
+pub fn ads_router(state: TachyonState) -> Router<TachyonState> {
+    Router::new()
+        .route("/banner", get(get_banner_ads))
+        .route("/avatar.jpg", get(get_avatar_jpg))
+        .route("/text", get(get_text_ad))
+        .route("/msn-today", get(get_msn_today))
+        .route("/tabad/{tab_index}", get(get_tab_ad))
+        .route("/matrix-icon.png", get(get_matrix_icon))
+        .route("/matrix-icon_32x32.png", get(get_matrix_icon))
+        .route("/spongebob-icon_48x32.png", get(get_spongebob_icon))
+        .route("/spongebob-icon.png", get(get_spongebob_icon))
+        .route("/alert-background.png", get(get_alert_background))
+        .with_state(state)
+}
 
 #[derive(Debug, Default, YaSerialize)]
 #[yaserde(rename = "tabad")]

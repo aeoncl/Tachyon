@@ -1,0 +1,130 @@
+use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
+use tokio::sync::mpsc::Sender;
+use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
+use msnp::msnp::notification::command::not::{NotServer, NotificationPayloadType};
+use msnp::msnp::notification::command::not::factories::NotificationFactory;
+use msnp::msnp::notification::command::usr::{AuthOperationTypeClient, AuthPolicy, OperationTypeServer, SsoPhaseClient, SsoPhaseServer, UsrServer};
+use msnp::msnp::raw_command_parser::RawCommand;
+use msnp::shared::models::display_name::DisplayName;
+use msnp::shared::models::endpoint_id::EndpointId;
+use msnp::shared::models::font_color::FontColor;
+use msnp::shared::models::msn_user::MsnUser;
+use msnp::shared::models::oim::{InboxMetadata, MailData};
+use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
+use crate::matrix;
+use crate::matrix::sync::sync;
+use crate::notification::models::connection_phase::ConnectionPhase;
+use crate::notification::models::local_client_data::LocalClientData;
+use crate::tachyon::identifiers::MatrixIdCompatible;
+use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::tachyon_state::{Repository, TachyonState};
+
+const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"1000\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"100\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
+
+pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, tachyon_state: &TachyonState, local_store: &mut LocalClientData) -> Result<(), anyhow::Error> {
+    match command {
+        NotificationClientCommand::USR(command) => {
+            match command.auth_type {
+                AuthOperationTypeClient::Sso(content) => {
+                    match content {
+                        SsoPhaseClient::I { email_addr } => {
+                            local_store.email_addr = email_addr;
+                            let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Sso(SsoPhaseServer::S { policy: AuthPolicy::MbiKeyOld, nonce: "LAhAAUzdC+JvuB33nooLSa6Oh0oDFCbKrN57EVTY0Dmca8Reb3C1S1czlP12N8VU".to_string() }));
+                            let gcf_response = RawCommand::with_payload("GCF 0", SHIELDS_PAYLOAD.as_bytes().to_vec());
+
+                            notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
+                            notif_sender.send(NotificationServerCommand::RAW(gcf_response)).await?;
+                        },
+
+                        SsoPhaseClient::S { ticket_token, challenge: _, endpoint_guid } => {
+
+                            let user_id = local_store.email_addr.to_owned_user_id();
+
+                            let matrix_token = tachyon_state.secret_encryptor().decrypt(ticket_token.as_str())?;
+                            let matrix_client = matrix::login::login_with_token(user_id.clone(), matrix_token, true).await?;
+
+                            let endpoint_id = EndpointId::new(local_store.email_addr.clone(), Some(endpoint_guid));
+                            let msn_user = MsnUser::new(endpoint_id);
+
+
+                            let client_data = TachyonClient::new(msn_user.clone(), ticket_token.clone(), notif_sender.clone());
+                            tachyon_state.tachyon_clients().insert(ticket_token.as_str().to_owned(), client_data.clone());
+                            tachyon_state.matrix_clients().insert(ticket_token.as_str().to_owned(), matrix_client.clone());
+
+                            local_store.token = ticket_token.clone();
+                            local_store.tachyon_client = Some(client_data.clone());
+                            local_store.matrix_client = Some(matrix_client.clone());
+                            local_store.phase = ConnectionPhase::Ready;
+
+                            let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
+                                email_addr: local_store.email_addr.clone(),
+                                verified: true,
+                                unknown_arg: false,
+                            });
+
+
+
+                            notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
+
+
+                            notif_sender.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await?;
+
+                            //TODO initial sync only and synchronous before anything else;
+
+                            let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
+                                sender: "Hotmail".to_string(),
+                                display_name: DisplayName::new_from_ref("Hotmail"),
+                                payload: MsgPayload::Raw(RawMsgPayloadFactory::get_msmsgs_profile(
+                                    &msn_user.uuid.get_puid(),
+                                    msn_user.get_email_address(),
+                                    &ticket_token,
+                                )),
+                            });
+
+                            notif_sender.send(initial_profile_msg).await?;
+
+                            //Todo fetch endpoint data
+                            let endpoint_data = b"<Data></Data>";
+                            notif_sender
+                                .send(NotificationServerCommand::RAW(RawCommand::with_payload(
+                                    &format!("UBX 1:{}", &msn_user.get_email_address().as_str()),
+                                    endpoint_data.to_vec(),
+                                )))
+                                .await?;
+
+                            //Todo check the device state before we sync
+
+                            sync(client_data, matrix_client, local_store.client_kill_snd.clone(), local_store.client_kill_recv.resubscribe()).await;
+
+                            let initial_mail_data = NotificationServerCommand::MSG(MsgServer {
+                                sender: "Hotmail".to_string(),
+                                display_name: DisplayName::new_from_ref("Hotmail"),
+                                payload: MsgPayload::Raw(RawMsgPayloadFactory::get_initial_mail_data_empty_notification()),
+                            });
+
+                            notif_sender.send(initial_mail_data).await?;
+
+                            /*let initial_mail_data = NotificationServerCommand::MSG(MsgServer {
+                                sender: "Hotmail".to_string(),
+                                display_name: DisplayName::new_from_ref("Hotmail"),
+                                payload: MsgPayload::Raw(RawMsgPayloadFactory::get_mail_data_notification(EmailAddress::from_str("tachyon@tachyon.internal").unwrap(), "System".to_string(), "Verify your account".into())),
+                            });
+
+                            notif_sender.send(initial_mail_data).await?;*/
+
+                        }
+                    }
+                },
+                _ => {
+                    //return unauth error
+                    todo!()
+                }
+
+            }
+            Ok(())
+        },
+
+        _ => {todo!()}
+    }
+
+}
