@@ -136,7 +136,7 @@ fn restore_device_content(notification_id: i32) -> Markup {
                 }
             }
 
-            form action="/tachyon/verify_device/restore" method="POST" ic-post-to="/tachyon/verify_device/restore" ic-target=".content" ic-on-beforeSend="if (!validateForm()) { settings.cancel = true; }" {
+            form action="/tachyon/verify_device/restore" method="POST" ic-post-to="/tachyon/verify_device/restore" ic-target=".content" ic-on-beforeSend="if (!validateForm()) { settings.cancel = true; return false;}" {
                 div id="error-message" style="display:none;" {}
 
                 table class="restore-options" cellspacing="0" cellpadding="0" {

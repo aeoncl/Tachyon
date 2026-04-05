@@ -99,7 +99,7 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
                                             debug!("{:?}", e);
                                         },
                                         Ok(notification_command) => {
-                                            let command_result = handle_command(notification_command, command_sender.clone(), &tachyon_state, &mut local_client_data).await;
+                                            let command_result = handle_command(notification_command, command_sender.clone(), &tachyon_state, &mut local_client_data, client_kill_snd.clone()).await;
 
                                             if let Err(error) = command_result {
                                                 error!("MSNP|NS: An error has occured handling a notification command: {}", &error);

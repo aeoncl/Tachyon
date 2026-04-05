@@ -28,6 +28,7 @@ lazy_static_include_bytes! {
     JQUERY => "./assets/web/tachyon/jquery-1.10.0.min.js",
     SHIELD_VERIFY => "./assets/web/tachyon/shield_verify.png",
     VERIFY_SCRIPT => "./assets/web/tachyon/verify.js",
+    TREMOVE_SCRIPT => "./assets/web/tachyon/tremove.js",
 }
 
 
@@ -74,6 +75,7 @@ async fn serve_static(Path(file): Path<String>) -> Response<Body> {
         "intercooler-1.2.4.min.js" => (*INTERCOOLER, "text/javascript"),
         "jquery-1.10.0.min.js" => (*JQUERY, "text/javascript"),
         "verify.js" => (*VERIFY_SCRIPT, "text/javascript"),
+        "tremove.js" => (*TREMOVE_SCRIPT, "text/javascript"),
         _ => {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)

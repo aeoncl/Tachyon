@@ -364,7 +364,6 @@ input[type="file"] {
     text-align: center;
     font-size: 16px;
     font-family: monospace;
-    text-transform: uppercase;
     border: 1px solid #ccc;
 }
 
