@@ -1,0 +1,216 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<head>
+    <title>Tachyon</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="stylesheet" href="style.css" />
+    <script type="text/javascript" src="jquery-1.10.0.min.js"></script>
+    <script type="text/javascript" src="intercooler-1.2.4.min.js"></script>
+</head>
+<body>
+    <div class="header">
+        <div class="bg">
+            <div class="bg-content">
+                <img class="logo" src="tachyon_logo_2.png" />
+                <div class="title">
+                    <h1>Tachyon</h1>
+                    <h2>Welcome to Tachyon</h2>
+                </div>
+
+                <div class="menu">
+                    <ul>
+                        <li><a href="#">Home</a></li>
+                        <li><a href="#">Profile</a></li>
+                        <li><a href="#">People</a></li>
+                    </ul>
+                </div>
+
+                <div class="signin">
+                    <h2>Log-on</h2>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="content">
+
+        <table class="hero-table" cellspacing="0" cellpadding="0" border="0">
+            <tr>
+                <td class="hero-text" valign="middle">
+                    <h2>Restore this device</h2>
+                    <p>Please fill in your recovery key or passphrase</p>
+                </td>
+            </tr>
+        </table>
+
+        <div class="sep"></div>
+
+        <form action="">
+            <div id="error-message" style="display:none;"></div>
+
+            <label>Restore with:</label>
+            <table cellspacing="0" cellpadding="5">
+                <tr>
+                    <td><input type="radio" name="restore-method" id="use-recovery-key" value="recovery-key" checked /></td>
+                    <td><label for="use-recovery-key">Recovery Key</label></td>
+                </tr>
+                <tr>
+                    <td><input type="radio" name="restore-method" id="use-passphrase" value="passphrase" /></td>
+                    <td><label for="use-passphrase">Passphrase</label></td>
+                </tr>
+            </table>
+
+            <div id="recovery-key-section">
+                <label>Recovery Key</label>
+                <!-- CD Key Style Input -->
+                <table class="cd-key-container" cellspacing="0" cellpadding="0">
+                    <tr>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="0" /></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="1" /></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="2" /></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="3" /></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="4" /></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="5" /></td>
+                    </tr>
+                    <tr>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="6" /></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="7" /></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="8" /></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="9" /></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="10" /></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="11" /></td>
+                    </tr>
+                </table>
+                <input type="hidden" id="recover-key-full" name="recover-key-full">
+            </div>
+
+            <div id="passphrase-section" style="display:none;">
+                <label for="passphrase">Passphrase</label>
+                <input type="password" id="passphrase" name="passphrase">
+
+            </div>
+
+            <button type="submit" class="btn btn-primary"><span class="btn-shine"></span><span class="btn-label">Restore device</span></button>
+        </form>
+
+
+        <script type="text/javascript">
+            $(document).ready(function() {
+                var blocks = $('.cd-key-block');
+                var totalBlocks = blocks.length;
+
+                updateHiddenField();
+
+
+                $('input[name="restore-method"]').on('click', function() {
+                    var method = $(this).val();
+                    if (method === 'recovery-key') {
+                        $('#recovery-key-section').show();
+                        $('#passphrase-section').hide();
+                    } else if (method === 'passphrase') {
+                        $('#recovery-key-section').hide();
+                        $('#passphrase-section').show();
+                    }
+                });
+
+                // Auto-advance on input
+                blocks.on('input', function() {
+                    var currentIndex = parseInt($(this).attr('data-index'));
+                    var value = $(this).val();
+
+                    // Auto-advance when filled
+                    if (value.length === parseInt($(this).attr('maxlength'))) {
+                        if (currentIndex < totalBlocks - 1) {
+                            blocks.eq(currentIndex + 1).focus();
+                        }
+                    }
+
+                    // Update hidden field with combined value
+                    updateHiddenField();
+                });
+
+                // Handle backspace to go to previous block
+                blocks.on('keydown', function(e) {
+                    var currentIndex = parseInt($(this).attr('data-index'));
+
+                    if (e.keyCode === 8 && $(this).val().length === 0 && currentIndex > 0) {
+                        focusAndMoveCursorToEnd(blocks.eq(currentIndex - 1));
+                    }
+                });
+
+                // Handle paste across all blocks
+                blocks.on('paste', function(e) {
+                    e.preventDefault();
+                    var pasteData = getClipboardData(e);
+                    if (!pasteData) return;
+
+                    var cleanData = pasteData.replace(/[\s\-]/g, '');
+                    var blockSize = parseInt($(this).attr('maxlength'));
+
+                    blocks.each(function(index) {
+                        var start = index * blockSize;
+                        var chunk = cleanData.substring(start, start + blockSize);
+                        $(this).val(chunk);
+                    });
+
+                    updateHiddenField();
+
+                    // Focus last filled block or last block
+                    var lastFilledIndex = Math.min(Math.floor(cleanData.length / blockSize), totalBlocks - 1);
+                    blocks.eq(lastFilledIndex).focus();
+                });
+
+                // Update the hidden passphrase field
+                function updateHiddenField() {
+                    var values = [];
+                    blocks.each(function() {
+                        values.push($(this).val());
+                    });
+                    $('#cd-key-full').val(values.join(""));
+                }
+
+                function getClipboardData(e) {
+                    if (window.clipboardData && window.clipboardData.getData) {
+                        // IE6/7/8
+                        return window.clipboardData.getData('Text');
+                    } else if (e.originalEvent && e.originalEvent.clipboardData) {
+                        // Modern browsers (with jQuery)
+                        return e.originalEvent.clipboardData.getData('text');
+                    } else if (e.clipboardData) {
+                        // Fallback
+                        return e.clipboardData.getData('text');
+                    }
+                    return null;
+                }
+
+                function focusAndMoveCursorToEnd(input) {
+                    input.focus();
+
+                    // Move cursor to end
+                    if (input[0].createTextRange) {
+                        // IE6/7/8
+                        var range = input[0].createTextRange();
+                        range.collapse(false);
+                        range.select();
+                    } else if (input[0].setSelectionRange) {
+                        // Modern browsers
+                        var len = input.val().length;
+                        input[0].setSelectionRange(len, len);
+                    }
+                }
+            });
+        </script>
+
+    </div>
+
+</body>
