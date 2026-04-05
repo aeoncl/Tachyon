@@ -75,7 +75,9 @@ h2{
 }
 
 .content {
-    padding: 48px;
+    padding-top: 48px;
+    padding-left: 12px;
+
     width: 987px;
     margin: 0 auto;
 }
