@@ -6,3 +6,4 @@ pub mod oim;
 pub mod sync;
 mod utils;
 mod errors;
+pub mod cross_signing;

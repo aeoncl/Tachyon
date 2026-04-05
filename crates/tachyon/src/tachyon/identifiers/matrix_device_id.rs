@@ -14,7 +14,7 @@ impl MatrixDeviceId {
             })?
             .to_string();
 
-        Ok(MatrixDeviceId(device_id))
+        Ok(MatrixDeviceId(format!("TAK-{}", device_id)))
     }
 }
 

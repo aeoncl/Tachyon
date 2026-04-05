@@ -36,6 +36,8 @@ pub enum Alert {
 
 pub struct CrossSignAlertContent {
     sender: oneshot::Sender<Result<(), AlertError>>,
+    creation_time: std::time::Instant,
+    expiration_time: std::time::Instant,
 }
 
 pub struct WebLoginAlertContent {
@@ -144,10 +146,13 @@ impl Alert {
         )
     }
 
-    pub fn new_crosssign() -> (Self, AlertReceiver) {
+    pub fn new_crosssign(expiration_duration: std::time::Duration) -> (Self, AlertReceiver) {
+        let creation_time = std::time::Instant::now();
+        let expiration_time = creation_time + expiration_duration;
+
         let (sender, receiver) = oneshot::channel();
         (
-            Alert::CrossSign(CrossSignAlertContent { sender }),
+            Alert::CrossSign(CrossSignAlertContent { sender, creation_time, expiration_time }),
             AlertReceiver::Unit(receiver),
         )
     }

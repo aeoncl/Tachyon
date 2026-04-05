@@ -1,4 +1,6 @@
+use std::time::Duration;
 use crate::matrix;
+use crate::matrix::cross_signing::{ check_device_is_crossed_signed, check_secret_storage_state};
 use crate::matrix::sync::sync;
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
@@ -8,7 +10,7 @@ use crate::tachyon::global_state::GlobalState;
 use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
 use crate::tachyon::repository::RepositoryStr;
 use anyhow::Error;
-use matrix_sdk::encryption::recovery::RecoveryState;
+use log::debug;
 use matrix_sdk::Client;
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
 use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
@@ -41,11 +43,13 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             notif_sender.send(NotificationServerCommand::RAW(gcf_response)).await?;
                         },
 
-                        SsoPhaseClient::S { ticket_token, challenge: _, endpoint_guid } => {
+                        SsoPhaseClient::S { ticket_token: ticket_token, challenge: _, endpoint_guid } => {
 
                             let user_id = local_store.email_addr.to_owned_user_id();
 
                             let matrix_token = tachyon_state.secret_encryptor().decrypt(ticket_token.as_str())?;
+
+                            debug!("matrix_token: {}", matrix_token);
                             let matrix_client = matrix::login::login_with_token(user_id.clone(), matrix_token, true).await?;
 
                             let endpoint_id = EndpointId::new(local_store.email_addr.clone(), Some(endpoint_guid));
@@ -61,7 +65,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             local_store.matrix_client = Some(matrix_client.clone());
                             local_store.phase = ConnectionPhase::Ready;
 
-                            connect_to_server_task(&notif_sender, local_store, &ticket_token, &matrix_client, &msn_user, client_data)?;
+                            sync_with_server_task(&notif_sender, local_store, &ticket_token, &matrix_client, &msn_user, client_data)?;
 
                             let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
                                 email_addr: local_store.email_addr.clone(),
@@ -96,7 +100,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
 }
 
-fn connect_to_server_task(notif_sender: &Sender<NotificationServerCommand>, local_store: &LocalClientData, ticket_token: &TicketToken, matrix_client: &Client, msn_user: &MsnUser, tachyon_client: TachyonClient) -> Result<(), Error> {
+fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local_store: &LocalClientData, ticket_token: &TicketToken, matrix_client: &Client, msn_user: &MsnUser, tachyon_client: TachyonClient) -> Result<(), Error> {
     let msn_user_clone = msn_user.clone();
     let matrix_client_clone = matrix_client.clone();
     let notif_sender_clone = notif_sender.clone();
@@ -106,17 +110,16 @@ fn connect_to_server_task(notif_sender: &Sender<NotificationServerCommand>, loca
     let client_kill_recv = local_store.client_kill_recv.resubscribe();
 
     task::spawn(async move {
-        let encryption = matrix_client_clone.encryption();
+        let cross_signed = check_device_is_crossed_signed(&matrix_client_clone).await.unwrap();
 
-        if !encryption.get_own_device().await.unwrap().unwrap().is_verified_with_cross_signing() {
-
+        if !cross_signed {
             let notification_id = rand::random::<i32>();
 
             let verif_not = NotificationServerCommand::NOT(NotServer {
-                payload: NotificationPayloadType::Normal(NotificationFactory::alert(&msn_user_clone.uuid, msn_user_clone.get_email_address(), "Your device is not verified, please do so before proceeding.", "http://127.0.0.1:8080/tachyon", format!("http://127.0.0.1:8080/tachyon/verify?t={}", &ticket_token_clone.as_str()).as_str(), format!("http://127.0.0.1:8080/tachyon/verify?t={}", &ticket_token_clone.as_str()).as_str(), None, notification_id)),
+                payload: NotificationPayloadType::Normal(NotificationFactory::alert(&msn_user_clone.uuid, msn_user_clone.get_email_address(), "Oops ! Your device is not verified yet ! Click here to verify.", "http://127.0.0.1:8080/tachyon", format!("http://127.0.0.1:8080/tachyon/verify_device?t={}", &ticket_token_clone.as_str()).as_str(), format!("http://127.0.0.1:8080/tachyon/verify_device?t={}", &ticket_token_clone.as_str()).as_str(), None, notification_id)),
             });
 
-            let (alert, receiver) = Alert::new_crosssign();
+            let (alert, receiver) = Alert::new_crosssign(Duration::from_mins(5));
             tachyon_client.alerts().insert(notification_id, alert);
 
             notif_sender_clone.send(verif_not).await;
@@ -125,14 +128,21 @@ fn connect_to_server_task(notif_sender: &Sender<NotificationServerCommand>, loca
             //TODO: error handling
         }
 
-        if let RecoveryState::Enabled = encryption.recovery().state() {
-            //Setup recovery
-            let secret_not = NotificationServerCommand::NOT(NotServer {
-                payload: NotificationPayloadType::Normal(NotificationFactory::alert(&msn_user_clone.uuid, msn_user_clone.get_email_address(), "You don't have a recuperation key ! It's advised to set one up to restore your encrypted messages", "http://127.0.0.1:8080/tachyon", "http://127.0.0.1:8080/tachyon/secret", "http://127.0.0.1:8080/tachyon/secret", None, 1)),
+        let secret_storage_enabled = check_secret_storage_state(&matrix_client_clone).await.unwrap();
+
+        if !secret_storage_enabled {
+
+            let notification_id = rand::random::<i32>();
+
+
+            let backup_not = NotificationServerCommand::NOT(NotServer {
+                payload: NotificationPayloadType::Normal(NotificationFactory::alert(&msn_user_clone.uuid, msn_user_clone.get_email_address(), "Account backup is disabled. Click here to set it up !", "http://127.0.0.1:8080/tachyon", format!("http://127.0.0.1:8080/tachyon/backup?t={}", &ticket_token_clone.as_str()).as_str(), format!("http://127.0.0.1:8080/tachyon/backup?t={}", &ticket_token_clone.as_str()).as_str(), None, notification_id)),
             });
 
-            notif_sender_clone.send(secret_not).await;
+            notif_sender_clone.send(backup_not).await;
+
         }
+
 
         notif_sender_clone.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await;
 

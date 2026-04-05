@@ -27,9 +27,9 @@ fn page_header(show_nav: bool) -> Markup {
                     @if show_nav {
                         div class="menu" {
                             ul {
-                                li { "Home" }
-                                li { "Profile" }
-                                li { "People" }
+                                li {
+                                    a href="/tachyon" { "Home" }
+                                }
                             }
                         }
                         div class="signin" {

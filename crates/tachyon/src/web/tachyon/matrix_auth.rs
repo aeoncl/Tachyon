@@ -11,7 +11,9 @@ use msnp::shared::models::ticket_token::TicketToken;
 use std::str::FromStr;
 use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
 
-pub async fn get_auth(axum::extract::Query(params): axum::extract::Query<Params>) -> Html<String> {
+pub async fn get_auth(
+    axum::extract::Query(params): axum::extract::Query<Params>
+) -> Html<String> {
 
     let username = params.get("username").map(|s| s.as_str()).unwrap_or_default();
 
