@@ -159,16 +159,39 @@ h2 {
 }
 
 .option {
-    padding: 0 24px 24px 0;
+    padding: 0 24px 0 24px;
 }
 
 .option-primary {
     width: 50%;
-    padding-right: 48px;
 }
 
 .option-secondary {
     width: 50%;
+}
+
+.option.clickable-option {
+    cursor: pointer;
+    border: 2px solid transparent;
+}
+
+.option.clickable-option:hover {
+    border-color: #AAAAAA;
+}
+
+.option.clickable-option.selected {
+    border-color: #0066CC;
+    background-color: #F0F8FF;
+}
+
+.option.clickable-option input[type="radio"] {
+    display: none;
+}
+
+.restore-options {
+    width: 100%;
+    margin: 10px auto;
+    border-spacing: 10px;
 }
 
 /* ── Typography ─────────────────────────────────── */
@@ -201,6 +224,8 @@ h2 {
     line-height: 1.6;
     margin-bottom: 12px;
 }
+
+
 
 /* ── Glossy Buttons (IE6 compatible) ────────────── */
 
@@ -339,11 +364,8 @@ input[type="file"] {
     text-align: center;
     font-size: 16px;
     font-family: monospace;
+    text-transform: uppercase;
     border: 1px solid #ccc;
-}
-
-.cd-key-block {
-    width: 30px;
 }
 
 .cd-key-separator {

@@ -43,25 +43,29 @@
             </tr>
         </table>
 
-        <div class="sep"></div>
 
         <form action="">
             <div id="error-message" style="display:none;"></div>
-
-            <label>Restore with:</label>
-            <table cellspacing="0" cellpadding="5">
+            <table class="restore-options" cellspacing="0" cellpadding="0">
                 <tr>
-                    <td><input type="radio" name="restore-method" id="use-recovery-key" value="recovery-key" checked /></td>
-                    <td><label for="use-recovery-key">Recovery Key</label></td>
-                </tr>
-                <tr>
-                    <td><input type="radio" name="restore-method" id="use-passphrase" value="passphrase" /></td>
-                    <td><label for="use-passphrase">Passphrase</label></td>
+                    <td class="option option-primary clickable-option" id="card-recovery-key">
+                        <input type="radio" name="restore-method" id="use-recovery-key" value="recovery-key" checked />
+                        <h3><label for="use-recovery-key">Recovery Key</label></h3>
+                        <p>Use your 48-character recovery key to restore access to your encrypted messages.</p>
+                    </td>
+                    <td class="option option-secondary clickable-option" id="card-passphrase">
+                        <input type="radio" name="restore-method" id="use-passphrase" value="passphrase" />
+                        <h3><label for="use-passphrase">Passphrase</label></h3>
+                        <p>Use your security passphrase if you set one up during recovery key creation.</p>
+                    </td>
                 </tr>
             </table>
 
+            <div class="sep"></div>
+
             <div id="recovery-key-section">
-                <label>Recovery Key</label>
+                <label>Enter your Recovery Key</label>
+
                 <!-- CD Key Style Input -->
                 <table class="cd-key-container" cellspacing="0" cellpadding="0">
                     <tr>
@@ -91,18 +95,16 @@
                         <td><input type="text" class="cd-key-block" maxlength="4" data-index="11" /></td>
                     </tr>
                 </table>
-                <input type="hidden" id="recover-key-full" name="recover-key-full">
+                <input type="hidden" id="recovery-key-full" name="recovery-key-full">
             </div>
 
             <div id="passphrase-section" style="display:none;">
-                <label for="passphrase">Passphrase</label>
-                <input type="password" id="passphrase" name="passphrase">
-
+                <label for="passphrase">Enter your Passphrase</label>
+                <input type="password" id="passphrase" name="passphrase" style="width: 300px;">
             </div>
 
             <button type="submit" class="btn btn-primary"><span class="btn-shine"></span><span class="btn-label">Restore device</span></button>
         </form>
-
 
         <script type="text/javascript">
             $(document).ready(function() {
@@ -112,8 +114,24 @@
                 updateHiddenField();
 
 
+                // Handle option selection visual state
+                function updateOptionSelection(selectedValue) {
+                    $('.clickable-option').removeClass('selected');
+                    if (selectedValue === 'recovery-key') {
+                        $('#card-recovery-key').addClass('selected');
+                    } else if (selectedValue === 'passphrase') {
+                        $('#card-passphrase').addClass('selected');
+                    }
+                }
+
+                // Initialize with recovery-key selected
+                updateOptionSelection('recovery-key');
+
+                // Handle restore method toggle
                 $('input[name="restore-method"]').on('click', function() {
                     var method = $(this).val();
+                    updateOptionSelection(method);
+
                     if (method === 'recovery-key') {
                         $('#recovery-key-section').show();
                         $('#passphrase-section').hide();
@@ -123,6 +141,29 @@
                     }
                 });
 
+                $('.clickable-option').on('click', function(e) {
+                    // Prevent double-firing on IE when clicking the radio directly
+                    if (e.target.type === 'radio') {
+                        return;
+                    }
+
+                    var radio = $(this).find('input[type="radio"]');
+                    var method = radio.val();
+
+                    // Set radio state directly
+                    radio.prop('checked', true);
+
+                    // Update UI directly without triggering another click
+                    updateOptionSelection(method);
+
+                    if (method === 'recovery-key') {
+                        $('#recovery-key-section').show();
+                        $('#passphrase-section').hide();
+                    } else if (method === 'passphrase') {
+                        $('#recovery-key-section').hide();
+                        $('#passphrase-section').show();
+                    }
+                });
                 // Auto-advance on input
                 blocks.on('input', function() {
                     var currentIndex = parseInt($(this).attr('data-index'));
@@ -176,7 +217,7 @@
                     blocks.each(function() {
                         values.push($(this).val());
                     });
-                    $('#cd-key-full').val(values.join(""));
+                    $('#recovery-key-full').val(values.join(""));
                 }
 
                 function getClipboardData(e) {

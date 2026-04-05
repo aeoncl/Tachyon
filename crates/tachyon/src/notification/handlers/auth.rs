@@ -4,7 +4,7 @@ use crate::matrix::cross_signing::{ check_device_is_crossed_signed, check_secret
 use crate::matrix::sync::sync;
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
-use crate::tachyon::alert::Alert;
+use crate::tachyon::alert::{Alert, AlertError, AlertSuccess};
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::global_state::GlobalState;
 use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
@@ -125,6 +125,15 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
             notif_sender_clone.send(verif_not).await;
 
             let recv = receiver.recv().await;
+            match recv {
+                Ok(success) => {
+
+                }
+                Err(err) => {
+                    //TODO: send kill signal
+                    return;
+                }
+            }
             //TODO: error handling
         }
 

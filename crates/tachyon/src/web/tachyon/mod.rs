@@ -25,7 +25,9 @@ lazy_static_include_bytes! {
     LOGO => "./assets/web/tachyon/tachyon_logo.png",
     LOGO_2 => "./assets/web/tachyon/tachyon_logo_2.png",
     INTERCOOLER => "./assets/web/tachyon/intercooler-1.2.4.min.js",
-    JQUERY => "./assets/web/tachyon/jquery-1.10.0.min.js"
+    JQUERY => "./assets/web/tachyon/jquery-1.10.0.min.js",
+    SHIELD_VERIFY => "./assets/web/tachyon/shield_verify.png",
+    VERIFY_SCRIPT => "./assets/web/tachyon/verify.js",
 }
 
 
@@ -35,7 +37,8 @@ pub fn tachyon_router(state: GlobalState) -> Router<GlobalState> {
         .route("/test", get(serve_index))
         .route("/verify_device", get(verify_device::get_verify))
         .route("/verify_device/reset-identity", post(verify_device::post_reset_identity))
-        .route("/verify_device/recovery_key", post(verify_device::post_verify_recovery_key))
+        .route("/verify_device/restore", get(verify_device::get_restore))
+        .route("/verify_device/restore", post(verify_device::post_restore))
         .route("/login/nfy", get(login::get_login_nfy))
         .layer(from_fn_with_state(state.clone(), middleware::is_authenticated))
         //Unsecured v
@@ -67,8 +70,10 @@ async fn serve_static(Path(file): Path<String>) -> Response<Body> {
         "style.css" => (*STYLE, "text/css"),
         "tachyon_logo.png" => (*LOGO, "image/png"),
         "tachyon_logo_2.png" => (*LOGO_2, "image/png"),
+        "shield_verify.png" => (*SHIELD_VERIFY, "image/png"),
         "intercooler-1.2.4.min.js" => (*INTERCOOLER, "text/javascript"),
         "jquery-1.10.0.min.js" => (*JQUERY, "text/javascript"),
+        "verify.js" => (*VERIFY_SCRIPT, "text/javascript"),
         _ => {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)

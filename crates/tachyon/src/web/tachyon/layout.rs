@@ -9,6 +9,7 @@ fn page_head() -> Markup {
             link rel="stylesheet" href="style.css";
             script type="text/javascript" src="jquery-1.10.0.min.js" {}
             script type="text/javascript" src="intercooler-1.2.4.min.js" {}
+            script type="text/javascript" src="verify.js" {}
         }
     }
 }
