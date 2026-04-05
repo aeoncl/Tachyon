@@ -1,7 +1,7 @@
 use matrix_sdk::Client;
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
 use crate::notification::models::local_client_data::LocalClientData;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use msnp::msnp::notification::command::chg::ChgClient;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::iln::IlnServer;
@@ -10,7 +10,7 @@ use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::network_id_email::NetworkIdEmail;
 use msnp::shared::models::presence_status::PresenceStatus;
 use tokio::sync::mpsc::Sender;
-use crate::tachyon::identifiers::IsSha1;
+use crate::tachyon::identifiers::is_sha1::IsSha1;
 
 pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, client_data: TachyonClient, matrix_client: Client, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     command_sender.send(NotificationServerCommand::CHG(command.clone())).await?;

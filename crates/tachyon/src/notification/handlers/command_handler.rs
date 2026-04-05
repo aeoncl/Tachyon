@@ -5,9 +5,9 @@ use crate::notification::handlers::{auth, negotiation};
 use crate::notification::handlers::ready::handle_ready;
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
-use crate::tachyon::tachyon_state::TachyonState;
+use crate::tachyon::global_state::GlobalState;
 
-pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, tachyon_state: &TachyonState, local_client_data: &mut LocalClientData) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, tachyon_state: &GlobalState, local_client_data: &mut LocalClientData) -> Result<(), anyhow::Error> {
 
     let _command_result = match &local_client_data.phase {
         ConnectionPhase::Negotiating => {

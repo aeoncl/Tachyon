@@ -1,5 +1,5 @@
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use matrix_sdk::deserialized_responses::RawSyncOrStrippedState;
 use matrix_sdk::ruma::events::room::member::{MembershipState, RoomMemberEventContent};
 use matrix_sdk::ruma::room::RoomType;

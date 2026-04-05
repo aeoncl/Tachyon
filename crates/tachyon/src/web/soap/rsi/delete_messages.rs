@@ -5,7 +5,7 @@ use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::rsi::delete_messages::request::DeleteMessagesSoapEnvelope;
 use msnp::soap::rsi::delete_messages::response::DeleteMessagesResponseSoapEnvelope;
 use msnp::soap::traits::xml::ToXml;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::web::soap::rsi::error::RSIError;
 use crate::web::soap::shared;
 

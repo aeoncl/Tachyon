@@ -1,5 +1,5 @@
 use crate::notification::models::local_client_data::LocalClientData;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::prp::{PrpClient, PrpOperation};
 use tokio::sync::mpsc::Sender;

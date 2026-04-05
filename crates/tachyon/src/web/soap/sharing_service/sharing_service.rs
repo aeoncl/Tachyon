@@ -1,4 +1,4 @@
-use crate::tachyon::tachyon_state::{Repository, TachyonState};
+use crate::tachyon::global_state::GlobalState;
 use crate::web::soap::error::ABError;
 use crate::web::soap::sharing_service::add_member::add_member;
 use crate::web::soap::sharing_service::delete_member::delete_member;
@@ -15,8 +15,9 @@ use msnp::soap::abch::sharing_service::delete_member::request::DeleteMemberMessa
 use msnp::soap::abch::sharing_service::find_membership::request::FindMembershipRequestSoapEnvelope;
 use msnp::soap::traits::xml::TryFromXml;
 use std::str::FromStr;
+use crate::tachyon::repository::RepositoryStr;
 
-pub async fn sharing_service(headers: HeaderMap, State(state): State<TachyonState>, body: String) -> Result<Response, ABError> {
+pub async fn sharing_service(headers: HeaderMap, State(state): State<GlobalState>, body: String) -> Result<Response, ABError> {
 
     let soap_action = headers.get("SOAPAction").ok_or(ABError::MissingHeader("SOAPAction".into()))?.to_str()?.trim_start_matches("\"").trim_end_matches("\"");
 

@@ -1,12 +1,11 @@
 use crate::matrix::extensions::direct::DirectRoom;
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
-use crate::tachyon::identifiers::MatrixIdCompatible;
 use crate::switchboard::extensions::CustomStyles;
 use crate::switchboard::models::connection_phase::ConnectionPhase;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::switchboard::models::switchboard_handle::{SwitchboardHandle, SwitchboardState};
 use crate::switchboard::models::switchboard_token::SwitchboardToken;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use matrix_sdk::{Client, Room, RoomMemberships};
 use msnp::msnp::switchboard::command::cal::{CalServer, CalServerFunction};
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
@@ -22,12 +21,13 @@ use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use std::str::FromStr;
 use tokio::sync::mpsc::Sender;
 use msnp::shared::models::display_name::DisplayName;
-use msnp::shared::payload::msg::datacast_msg::{Datacast, DatacastMessagePayload};
-use crate::tachyon::tachyon_state::{Repository, TachyonState};
+use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
+use crate::tachyon::repository::RepositoryStr;
 
 const ROOM_USER_PORTAL_MODE: bool = true;
 
-pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, tachyon_state: &TachyonState, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, tachyon_state: &GlobalState, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
 
     match command {
         SwitchboardClientCommand::ANS(ans_command) => {

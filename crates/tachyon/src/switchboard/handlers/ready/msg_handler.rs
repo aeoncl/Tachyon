@@ -2,7 +2,7 @@ use futures_util::FutureExt;
 use log::{debug, error};
 use crate::matrix::extensions::message_dedup::SendWithDedup;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use matrix_sdk::{Client, Error, Room};
 use matrix_sdk::room::futures::SendMessageLikeEventResult;

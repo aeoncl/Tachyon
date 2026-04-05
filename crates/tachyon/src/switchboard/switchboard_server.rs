@@ -1,7 +1,7 @@
 use crate::switchboard::handlers::handle_command;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
-use crate::tachyon::tachyon_client::TachyonClient;
-use crate::tachyon::tachyon_state::TachyonState;
+use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::global_state::GlobalState;
 use anyhow::anyhow;
 use log::{debug, error, info};
 use msnp::msnp::notification::command::command::NotificationServerCommand;
@@ -20,7 +20,7 @@ pub struct SwitchboardServer;
 
 
 impl SwitchboardServer {
-    pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, tachyon_state: TachyonState) -> Result<(), anyhow::Error> {
+    pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, tachyon_state: GlobalState) -> Result<(), anyhow::Error> {
         info!("Switchboard Server started...");
 
         let listener = TcpListener::bind(format!("{}:{}", ip_addr, port))
@@ -51,7 +51,7 @@ impl SwitchboardServer {
     }
 }
 
-async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Receiver<()>, tachyon_state: TachyonState) -> Result<(), anyhow::Error> {
+async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Receiver<()>, tachyon_state: GlobalState) -> Result<(), anyhow::Error> {
     debug!("Switchboard Client connected...");
 
     let (read, write) = socket.into_split();

@@ -1,4 +1,3 @@
-use crate::tachyon::identifiers::MatrixIdCompatible;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 use anyhow::anyhow;
@@ -16,8 +15,9 @@ use msnp::soap::abch::msnab_datatypes::{CircleRelationshipRole, ContactType, Con
 use msnp::soap::traits::xml::ToXml;
 use std::str::FromStr;
 use crate::matrix::handlers::contact_handlers::{compute_all_contacts};
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::notification::models::soap_holder::AddressBookContact;
+use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
 
 pub(super) async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, _token: TicketToken, client: Client, mut tachyon_client: TachyonClient) -> Result<Response, ABError> {
     let body = &request.body.body;

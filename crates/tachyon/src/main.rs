@@ -7,9 +7,8 @@ use tokio::{join, signal, sync::broadcast::{self, Sender}};
 
 use crate::notification::notification_server::NotificationServer;
 use crate::switchboard::switchboard_server::SwitchboardServer;
-use crate::tachyon::tachyon_client::TachyonClient;
-use crate::tachyon::tachyon_state::TachyonState;
-use crate::tachyon::secret_encryptor::SecretEncryptor;
+use crate::tachyon::global_state::GlobalState;
+use self::tachyon::config::secret_encryptor::SecretEncryptor;
 use crate::web::web_server::WebServer;
 use anyhow::anyhow;
 use directories::ProjectDirs;
@@ -17,9 +16,9 @@ use rand::{random, Rng};
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
-use tachyon::paths;
-use tachyon::paths::create_dirs;
-use tachyon::tachyon_config::TachyonConfig;
+use self::tachyon::config::paths;
+use self::tachyon::config::paths::create_dirs;
+use self::tachyon::config::tachyon_config::TachyonConfig;
 
 mod notification;
 mod web;
@@ -39,11 +38,11 @@ async fn main() {
 
     let (master_kill_signal,  kill_recv) = broadcast::channel::<()>(1);
 
-    let tachyon_state = TachyonState::new(SecretEncryptor::new(&secret).expect("secret key to be valid"));
+    let global_state = GlobalState::new(SecretEncryptor::new(&secret).expect("secret key to be valid"));
 
-    let notification_server = NotificationServer::listen("127.0.0.1", 1863, kill_recv.resubscribe(), tachyon_state.clone());
-    let switchboard_server = SwitchboardServer::listen("127.0.0.1", 1864, kill_recv.resubscribe(), tachyon_state.clone());
-    let web_server = WebServer::listen("127.0.0.1", 8080, kill_recv, tachyon_state);
+    let notification_server = NotificationServer::listen("127.0.0.1", 1863, kill_recv.resubscribe(), global_state.clone());
+    let switchboard_server = SwitchboardServer::listen("127.0.0.1", 1864, kill_recv.resubscribe(), global_state.clone());
+    let web_server = WebServer::listen("127.0.0.1", 8080, kill_recv, global_state);
 
     let _result = join!(notification_server, switchboard_server, web_server, listen_for_stop_signal(master_kill_signal));
 

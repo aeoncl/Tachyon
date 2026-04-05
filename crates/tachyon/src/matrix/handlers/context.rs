@@ -1,4 +1,4 @@
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 
 #[derive(Clone)]
 pub struct TachyonContext {

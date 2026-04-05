@@ -1,6 +1,6 @@
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
-use crate::tachyon::identifiers::IsSha1;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::identifiers::is_sha1::IsSha1;
 use log::debug;
 use matrix_sdk::Client;
 use msnp::msnp::notification::command::adl::AdlClient;

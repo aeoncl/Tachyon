@@ -1,5 +1,5 @@
 use crate::matrix::extensions::msn_user_resolver::FindRoomFromEmail;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 use anyhow::anyhow;

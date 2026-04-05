@@ -2,7 +2,7 @@ use tokio::sync::broadcast::{Receiver, Sender};
 use msnp::msnp::notification::models::endpoint_data::PrivateEndpointData;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::notification::models::connection_phase::ConnectionPhase;
 
 pub(crate) struct LocalClientData {

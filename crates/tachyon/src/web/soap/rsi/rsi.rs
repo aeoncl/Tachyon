@@ -11,13 +11,14 @@ use msnp::soap::rsi::get_metadata::request::GetMetadataMessageSoapEnvelope;
 use msnp::soap::rsi::service_header::RSIAuthSoapEnvelope;
 use msnp::soap::traits::xml::TryFromXml;
 
-use crate::tachyon::tachyon_state::{Repository, TachyonState};
+use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::repository::RepositoryStr;
 use crate::web::soap::rsi::delete_messages::delete_messages;
 use crate::web::soap::rsi::error::RSIError;
 use crate::web::soap::rsi::get_message::get_message;
 use crate::web::soap::rsi::get_metadata::get_metadata;
 
-pub async fn rsi(headers: HeaderMap, State(state): State<TachyonState>, body: String) -> Result<Response, RSIError> {
+pub async fn rsi(headers: HeaderMap, State(state): State<GlobalState>, body: String) -> Result<Response, RSIError> {
 
 
     let soap_action = headers.get("SOAPAction").ok_or(RSIError::MissingHeader("SOAPAction".into()))?.to_str()?.trim_start_matches("\"").trim_end_matches("\"");

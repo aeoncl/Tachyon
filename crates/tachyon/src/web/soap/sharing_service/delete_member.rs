@@ -8,7 +8,7 @@ use msnp::soap::abch::sharing_service::delete_member::request::DeleteMemberMessa
 use msnp::soap::abch::sharing_service::delete_member::response::DeleteMemberResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::ToXml;
 
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 

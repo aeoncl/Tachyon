@@ -2,58 +2,17 @@ use crate::notification::circle_store::CircleStore;
 use crate::notification::models::notification_handle::NotificationHandle;
 use crate::notification::models::soap_holder::SoapHolder;
 use crate::switchboard::models::switchboard_handle::SwitchboardHandle;
+use crate::tachyon::alert::Alert;
 use crate::tachyon::switchboard_service::SwitchboardService;
-use anyhow::anyhow;
 use dashmap::DashMap;
+use matrix_sdk::locks::RwLock;
 use matrix_sdk::ruma::OwnedRoomId;
 use msnp::msnp::models::contact_list::ContactList;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
-use std::sync::{Arc, Mutex, MutexGuard, RwLockWriteGuard};
-use matrix_sdk::locks::RwLock;
-use tokio::sync::{mpsc, oneshot};
-use yaserde_derive::{YaDeserialize, YaSerialize};
-use msnp::shared::models::email_address::EmailAddress;
-
-pub struct Alert {
-    alert_type: AlertType,
-    channel: oneshot::Sender<AlertResult>
-}
-
-pub enum AlertResult {
-    AlertSuccess,
-    AlertFailure,
-}
-
-impl Alert {
-
-    pub fn new(alert_type: AlertType) -> (Self, oneshot::Receiver<AlertResult>) {
-        let (sender, receiver) = oneshot::channel();
-        (Alert {
-            alert_type,
-            channel: sender
-        }, receiver)
-    }
-    pub fn alert_type(&self) -> AlertType {
-        self.alert_type.clone()
-    }
-
-    pub fn notify_success(mut self) {
-        let _ = self.channel.send(AlertResult::AlertSuccess);
-    }
-
-    pub fn notify_failure(mut self) {
-        let _ = self.channel.send(AlertResult::AlertFailure);
-    }
-}
-
-#[derive(Clone)]
-pub enum AlertType {
-    CrossSignRequest,
-    WebLoginRequest,
-}
-
+use std::sync::{Arc, Mutex, RwLockWriteGuard};
+use tokio::sync::mpsc;
 
 pub struct TachyonClientInner {
     pub own_user: RwLock<MsnUser>,

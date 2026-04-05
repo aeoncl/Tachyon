@@ -1,35 +1,7 @@
-use crate::tachyon::error::MatrixConversionError;
-use anyhow::anyhow;
-use matrix_sdk::ruma::{OwnedRoomId, OwnedUserId, UserId};
+use std::str::FromStr;
+use matrix_sdk::ruma::{OwnedUserId, UserId};
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_user::MsnUser;
-use ruma::RoomId;
-use std::fmt::{Display, Formatter};
-use std::str::FromStr;
-use lazy_static::lazy_static;
-use regex::Regex;
-
-pub struct MatrixDeviceId(String);
-
-impl MatrixDeviceId {
-    pub fn from_hostname() -> Result<Self, MatrixConversionError> {
-        let device_id = hostname::get()
-            .map_err(|e| MatrixConversionError::DeviceIdGeneration { source: e.into() })?
-            .to_str()
-            .ok_or(MatrixConversionError::DeviceIdGeneration {
-                source: anyhow!("Could'nt parse OString to &str"),
-            })?
-            .to_string();
-
-        Ok(MatrixDeviceId(device_id))
-    }
-}
-
-impl Display for MatrixDeviceId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
 
 pub trait MatrixIdCompatible {
     fn from_owned_user_id(value: OwnedUserId) -> Self;
@@ -66,25 +38,10 @@ impl MatrixIdCompatible for EmailAddress {
         let domain = value.server_name().as_str();
         EmailAddress::from_str(&format!("{}@{}", name, domain)).expect("UserId to be valid")
     }
-    
+
     fn to_owned_user_id(&self) -> OwnedUserId {
         let as_str = self.as_str();
         let (name, domain) = as_str.split_once("@").expect("Email to contain @");
         OwnedUserId::from_str(&format!("@{}:{}", name, domain)).expect("OwnedUserId to be valid")
-    }
-}
-
-pub trait IsSha1 {
-    fn is_sha1_imprecise(&self) -> bool;
-}
-
-lazy_static! {
-    static ref SHA1_REGEX: Regex = Regex::new("^[0-9a-f]{40}$").unwrap();
-}
-
-impl IsSha1 for EmailAddress {
-    fn is_sha1_imprecise(&self) -> bool {
-        let (local_part, _domain) = self.crack();
-        local_part.len() == 40 && SHA1_REGEX.is_match(local_part)
     }
 }

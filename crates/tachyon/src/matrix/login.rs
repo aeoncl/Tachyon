@@ -10,8 +10,8 @@ use matrix_sdk_ui::sync_service::SyncService;
 use msnp::shared::models::ticket_token::TicketToken;
 
 use crate::tachyon::error::{MatrixConversionError, TachyonError};
-use crate::tachyon::identifiers::MatrixDeviceId;
-use crate::tachyon::paths::get_store_path;
+use crate::tachyon::config::paths::get_store_path;
+use crate::tachyon::identifiers::matrix_device_id::MatrixDeviceId;
 
 fn get_device_id() -> Result<MatrixDeviceId, MatrixConversionError> {
     MatrixDeviceId::from_hostname()

@@ -2,15 +2,16 @@ use crate::switchboard::handlers::bootstrap_handlers::{handle_auth, handle_init}
 use crate::switchboard::handlers::ready::handle_ready;
 use crate::switchboard::models::connection_phase::ConnectionPhase;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
-use crate::tachyon::tachyon_state::{Repository, TachyonState};
+use crate::tachyon::global_state::GlobalState;
 use anyhow::anyhow;
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
 use tokio::sync::mpsc::Sender;
+use crate::tachyon::repository::RepositoryStr;
 
 mod bootstrap_handlers;
 mod ready;
 
-pub(crate) async fn handle_command(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, tachyon_state: &TachyonState, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_command(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, tachyon_state: &GlobalState, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
 
     match local_switchboard_data.phase {
         ConnectionPhase::Authenticating => {

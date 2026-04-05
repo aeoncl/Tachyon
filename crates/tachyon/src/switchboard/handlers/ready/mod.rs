@@ -2,7 +2,7 @@ mod msg_handler;
 
 use crate::switchboard::handlers::ready::msg_handler::handle_msg;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use matrix_sdk::{Client, Room};
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
 use tokio::sync::mpsc::Sender;

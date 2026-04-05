@@ -18,8 +18,8 @@ use msnp::shared::models::oim::OIM;
 use msnp::shared::models::uuid::Uuid;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use msnp::shared::payload::msg::raw_msg_payload::MsgContentType;
-use crate::tachyon::tachyon_client::TachyonClient;
-use crate::tachyon::identifiers::MatrixIdCompatible;
+use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
 
 #[derive(Error, Debug)]
 pub enum OIMError {

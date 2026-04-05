@@ -9,15 +9,16 @@ use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::OwnedWriteH
 
 use crate::notification::handlers::command_handler::handle_command;
 use crate::notification::models::local_client_data::LocalClientData;
-use crate::tachyon::tachyon_client::TachyonClient;
-use crate::tachyon::tachyon_state::{Repository, TachyonState};
+use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::repository::RepositoryStr;
 
 pub struct NotificationServer;
 
 
 impl NotificationServer {
 
-    pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, tachyon_state: TachyonState) -> Result<(), anyhow::Error>{
+    pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, tachyon_state: GlobalState) -> Result<(), anyhow::Error>{
         info!("TCP Server started...");
 
         let listener = TcpListener::bind(format!("{}:{}", ip_addr, port))
@@ -52,7 +53,7 @@ impl NotificationServer {
 
 
 
-async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Receiver<()>, tachyon_state: TachyonState) -> Result<(), anyhow::Error> {
+async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Receiver<()>, tachyon_state: GlobalState) -> Result<(), anyhow::Error> {
     debug!("Client connected...");
 
     let (read, write) = socket.into_split();

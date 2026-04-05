@@ -6,7 +6,7 @@ use msnp::shared::models::ticket_token::TicketToken;
 use msnp::soap::abch::sharing_service::add_member::request::AddMemberMessageSoapEnvelope;
 use msnp::soap::abch::sharing_service::add_member::response::AddMemberResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::ToXml;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 

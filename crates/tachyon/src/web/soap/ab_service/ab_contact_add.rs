@@ -27,9 +27,9 @@ use crate::matrix::extensions::direct::DirectRoom;
 use crate::matrix::extensions::message_dedup::SendWithDedup;
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToEmailAddress, ToMsnUser};
 use crate::notification::models::soap_holder::AddressBookContact;
-use crate::tachyon::identifiers::MatrixIdCompatible;
-use crate::tachyon::traits::ToUuid;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::identifiers::to_uuid::ToUuid;
+use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 

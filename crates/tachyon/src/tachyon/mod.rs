@@ -1,10 +1,10 @@
-pub mod tachyon_client;
-mod switchboard_service;
-pub mod tachyon_config;
-pub mod paths;
 pub mod error;
-pub mod traits;
+pub mod repository;
 pub mod identifiers;
-pub mod secret_encryptor;
-pub(crate) mod tachyon_state;
-mod tachyon_secret;
+pub(crate) mod global_state;
+pub mod alert;
+mod matrix_client_repository;
+mod mappers;
+pub mod switchboard_service;
+pub mod client;
+pub mod config;

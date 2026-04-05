@@ -11,15 +11,15 @@ use reqwest::Url;
 use std::str::FromStr;
 
 use crate::matrix::login::login_with_password;
-use crate::tachyon::identifiers::MatrixIdCompatible;
-use crate::tachyon::tachyon_state::TachyonState;
-use crate::tachyon::traits::ToUuid;
+use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
+use crate::tachyon::identifiers::to_uuid::ToUuid;
 use crate::web::soap::error::RST2Error;
 use crate::web::soap::shared;
 
 pub const MAGIC_PASSWORD: &str ="tachyon";
 
-pub async fn rst2_handler(headers: HeaderMap, State(state): State<TachyonState>, body: String) -> Result<Response, RST2Error> {
+pub async fn rst2_handler(headers: HeaderMap, State(state): State<GlobalState>, body: String) -> Result<Response, RST2Error> {
 
 
      let request = RST2RequestMessageSoapEnvelope::try_from_xml(&body)?;

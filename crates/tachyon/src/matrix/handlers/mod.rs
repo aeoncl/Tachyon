@@ -1,6 +1,6 @@
 use crate::matrix::handlers;
 use crate::matrix::handlers::context::TachyonContext;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::{Client, Room};

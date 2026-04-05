@@ -1,6 +1,6 @@
 use crate::matrix::handlers::context::TachyonContext;
 use crate::matrix::handlers::{self, register_event_handlers};
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use futures::StreamExt;
 use log::{debug, error, info};
 use matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState;

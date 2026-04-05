@@ -3,7 +3,7 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use matrix_sdk::Client;
 
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::Ab;

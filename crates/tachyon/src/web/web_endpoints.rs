@@ -11,7 +11,8 @@ use matrix_sdk::media::{MediaFormat, MediaRequestParameters, MediaThumbnailSetti
 use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::{OwnedMxcUri, UInt};
 use regex::Regex;
-use crate::tachyon::tachyon_state::{Repository, TachyonState};
+use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::repository::RepositoryStr;
 use crate::web::soap::shared::build_soap_response;
 
 lazy_static! {
@@ -74,7 +75,7 @@ pub async fn ppcrlcheck() -> Response<Body> {
 
 }
 
-pub async fn get_profile_pic(Path((image_mxid, _image_type)): Path<(String, String)>, State(state): State<TachyonState>) -> Response<Body> {
+pub async fn get_profile_pic(Path((image_mxid, _image_type)): Path<(String, String)>, State(state): State<GlobalState>) -> Response<Body> {
 
     //Todo handle errors
     let image_mxid = String::from_utf8(general_purpose::STANDARD.decode(image_mxid.as_bytes()).unwrap()).unwrap();

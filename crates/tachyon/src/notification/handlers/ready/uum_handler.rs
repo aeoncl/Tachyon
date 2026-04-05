@@ -1,6 +1,6 @@
 use std::str::FromStr;
 use matrix_sdk::Client;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::uum::{UumClient, UumPayload};
@@ -8,7 +8,6 @@ use msnp::shared::models::font_style::FontStyle;
 use tokio::sync::mpsc::Sender;
 use msnp::shared::models::email_address::EmailAddress;
 use crate::matrix::extensions::msn_user_resolver::FindRoomFromEmail;
-use crate::tachyon::tachyon_state::MatrixClientRepository;
 
 pub async fn handle_uum(command: UumClient, client_data: TachyonClient, matrix_client: Client, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     let ok_response = command.get_ok_response();

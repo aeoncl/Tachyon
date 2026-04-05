@@ -1,10 +1,17 @@
-use std::str::FromStr;
+use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::identifiers::matrix_id_compatible;
+use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
+use crate::tachyon::identifiers::to_uuid::ToUuid;
+use crate::tachyon::repository::RepositoryStr;
+use crate::web::soap::error::ABError;
+use crate::web::soap::shared;
+use crate::web::web_endpoints::DEFAULT_CACHE_KEY;
 use anyhow::anyhow;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
-use base64::Engine;
 use base64::engine::general_purpose;
+use base64::Engine;
 use log::error;
 use matrix_sdk::Client;
 use mime::Mime;
@@ -21,13 +28,8 @@ use msnp::soap::storage_service::upate_document::response::UpdateDocumentRespons
 use msnp::soap::storage_service::update_profile::request::UpdateProfileMessageSoapEnvelope;
 use msnp::soap::storage_service::update_profile::response::UpdateProfileResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::{ToXml, TryFromXml};
-use crate::tachyon::identifiers::MatrixIdCompatible;
-use crate::tachyon::tachyon_state::{Repository, TachyonState};
-use crate::tachyon::traits::ToUuid;
-use crate::web::soap::error::ABError;
-use crate::web::soap::shared;
-use crate::web::web_endpoints::DEFAULT_CACHE_KEY;
-pub async fn storage_service(headers: HeaderMap, State(state): State<TachyonState>, body: String) -> Result<Response, ABError> {
+use std::str::FromStr;
+pub async fn storage_service(headers: HeaderMap, State(state): State<GlobalState>, body: String) -> Result<Response, ABError> {
 
     let soap_action = headers.get("SOAPAction").ok_or(ABError::MissingHeader("SOAPAction".into()))?.to_str()?.trim_start_matches("\"").trim_end_matches("\"");
 

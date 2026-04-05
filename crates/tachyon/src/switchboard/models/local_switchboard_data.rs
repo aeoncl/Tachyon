@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use crate::switchboard::models::connection_phase::ConnectionPhase;
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use matrix_sdk::ruma::OwnedRoomId;
 use matrix_sdk::Room;
 use msnp::msnp::notification::models::endpoint_guid::EndpointGuid;

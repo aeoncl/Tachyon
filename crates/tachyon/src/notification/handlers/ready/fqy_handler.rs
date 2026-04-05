@@ -1,4 +1,4 @@
-use crate::tachyon::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::fqy::{FqyClient, FqyServer};
 use tokio::sync::mpsc::Sender;

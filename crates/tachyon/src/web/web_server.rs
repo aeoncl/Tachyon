@@ -13,7 +13,7 @@ use log::{debug, info, log_enabled, warn, Level};
 use tokio::net::TcpListener;
 use tokio::sync::broadcast::Receiver;
 
-use crate::tachyon::tachyon_state::TachyonState;
+use crate::tachyon::global_state::GlobalState;
 use crate::web::ads::{ads_router, get_alert_background, get_avatar_jpg, get_banner_ads, get_matrix_icon, get_spongebob_icon, get_tab_ad, get_text_ad};
 use crate::web::matrix_today::get_msn_today;
 use crate::web::soap::ab_service::ab_service::address_book_service;
@@ -29,7 +29,7 @@ pub struct WebServer;
 
 
 impl WebServer {
-    pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, tachyon_state: TachyonState) -> Result<(), anyhow::Error> {
+    pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, tachyon_state: GlobalState) -> Result<(), anyhow::Error> {
         info!("Web Server started...");
 
 
