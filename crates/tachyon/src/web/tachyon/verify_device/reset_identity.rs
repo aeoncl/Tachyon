@@ -31,7 +31,6 @@ pub async fn post_reset_identity(
         handle.reset(Some(AuthData::Password(Password::new(UserIdentifier::UserIdOrLocalpart(own_user.to_string()), password.to_string())))).await.unwrap();
     }
 
-
     let secret_storage_key = matrix_client.encryption()
         .recovery()
         .enable()
@@ -74,4 +73,29 @@ pub async fn post_reset_identity(
     };
 
     Html(page.into_string())
+}
+
+pub async fn get_reset_identity(
+    State(state): State<GlobalState>,
+    axum::extract::Extension(token): axum::extract::Extension<String>,
+    axum::extract::Query(params): axum::extract::Query<Params>,
+) -> Html<String> {
+
+    let notification_id_str = params.get("notification_id").map(|s| s.as_str()).unwrap_or_default();
+    let notification_id = i32::from_str(notification_id_str).map_err(|e| format!("Invalid notification_id: {}", e)).unwrap();
+
+    let page = html! {
+        form action="/tachyon/verify_device/reset_identity" method="POST" ic-post-to="/tachyon/verify_device/reset_identity" ic-target=".content" {
+            div id="error-message" style="display:none;" {}
+            input type="password" name="password" id="password" {}
+            input type="hidden" name="notification_id" value=(notification_id) {}
+            button type="submit" class="btn btn-primary" {
+                span class="btn-shine" {}
+                span class="btn-label" { "Reset Identity" }
+            }
+        }
+    };
+
+    Html(page.into_string())
+
 }

@@ -61,7 +61,7 @@ fn device_verification_page(notification_id: i32, secret_store_enabled: bool) ->
                             p {
                                 "Use your existing recovery key or passphrase to verify this device and restore access to all your messages and backups. "
                                 br;
-                                " This is the recommended option."
+                                "This is the recommended option."
                             }
                             a href=(restore_url) ic-get-from=(restore_url) ic-target=".content" ic-push-url="true" class="btn btn-primary" {
                                 span class="btn-shine" {}
@@ -75,7 +75,7 @@ fn device_verification_page(notification_id: i32, secret_store_enabled: bool) ->
                         p {
                             "Start fresh by resetting your account. All previously verified sessions will be invalidated. You will lose access to your encrypted message history."
                             br;
-                            " This action cannot be undone."
+                            "This action cannot be undone."
                         }
                         a href=(reset_url) ic-get-from=(reset_url) ic-target=".content" ic-push-url="true" class="btn btn-danger" {
                             span class="btn-shine" {}

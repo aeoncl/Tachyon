@@ -39,7 +39,8 @@ pub fn tachyon_router(state: GlobalState) -> Router<GlobalState> {
         //Secured v
         .route("/test", get(serve_index))
         .route("/verify_device", get(verify::get_verify))
-        .route("/verify_device/reset-identity", post(reset_identity::post_reset_identity))
+        .route("/verify_device/reset_identity", post(reset_identity::post_reset_identity))
+        .route("/verify_device/reset_identity", get(reset_identity::get_reset_identity))
         .route("/verify_device/restore", get(restore::get_restore))
         .route("/verify_device/restore", post(restore::post_restore))
         .route("/login/nfy", get(login::get_login_nfy))
