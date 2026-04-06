@@ -7,7 +7,7 @@ use ruma::events::presence::PresenceEvent;
 use tokio::time::sleep;
 use crate::matrix::handlers::context::TachyonContext;
 
-pub(super) async fn request_verification_handler(client: Client, request: VerificationRequest) {
+pub async fn request_verification_handler(client: Client, request: VerificationRequest) {
     println!("Accepting verification request from {}", request.other_user_id());
 
 

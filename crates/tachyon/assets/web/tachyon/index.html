@@ -2,65 +2,108 @@
 <head>
     <title>Tachyon</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style_fiddle.css" />
     <script type="text/javascript" src="jquery-1.10.0.min.js"></script>
     <script type="text/javascript" src="intercooler-1.2.4.min.js"></script>
 </head>
 <body>
-    <div class="header">
-        <div class="bg">
-            <div class="bg-content">
-                <img class="logo" src="tachyon_logo_2.png" />
-                <div class="title">
+<div class="header">
+    <div class="bg">
+        <table class="header-table" cellspacing="0" cellpadding="0" border="0">
+            <tr>
+                <td class="header-logo"><a href="/tachyon"><img class="logo" src="tachyon_logo_2.png"
+                                                                alt="Tachyon Logo"></a></td>
+                <td class="header-title">
                     <h1>Tachyon</h1>
                     <h2>Welcome to Tachyon</h2>
-                </div>
-
-                <div class="menu">
+                </td>
+                <td class="header-nav">
                     <ul>
-                        <li><a href="#">Home</a></li>
-                        <li><a href="#">Profile</a></li>
-                        <li><a href="#">People</a></li>
+                        <li><a href="/tachyon">Home</a></li>
                     </ul>
-                </div>
-
-                <div class="signin">
-                    <h2>Log-on</h2>
-                </div>
-
-            </div>
-        </div>
+                </td>
+                <td class="header-signin"></td>
+            </tr>
+        </table>
     </div>
+</div>
 
     <div class="content">
 
         <table class="hero-table" cellspacing="0" cellpadding="0" border="0">
             <tr>
-                <td class="hero-icon" valign="middle">
-                    <img src="shield_verify.png" width="48" height="48" alt="" />
-                </td>
                 <td class="hero-text" valign="middle">
-                    <h2>Device Verification Required</h2>
-                    <p>This device has not been verified yet. Use your recovery key to restore access, or reset your account to start fresh.</p>
+                    <h2>Confirm it's you</h2>
+                    <p>This device is not confirmed yet. This step allows your contacts to trust that <i>you are you™</i><br>
+                        Please choose one of the following options:</p>
                 </td>
             </tr>
         </table>
-
         <div class="sep"></div>
 
         <table class="options" cellspacing="0" cellpadding="0" border="0">
             <tr>
                 <td class="option option-primary" valign="top">
-                    <a href="/verify.html">
-                        <h3>Restore with recovery key</h3>
-                    </a>
-                    <p>Use your existing recovery key to verify this device and restore access to all your messages and backups. <br> This is the recommended option.</p>
-                    <a href="/verify.html" class="btn btn-primary"><span class="btn-shine"></span><span class="btn-label">Verify this device</span></a>
+                    <table>
+                        <tr>
+                            <td>
+
+                                <h3>Use your recovery key</h3>
+                                <p>You can retrieve your digital identity from the server
+                                    using your recovery key or passphrase.</p><br>
+                                <a href="/verify.html" class="btn btn-primary"><span class="btn-shine"></span><span class="btn-label">Confirm with recovery</span></a>
+
+                            </td>
+                            <td class="hero-icon">
+                                <img src="text-looking.gif" alt="Smiley looking at text" />
+
+                            </td>
+
+                        </tr>
+                    </table>
+
                 </td>
+                <td class="option option-primary" valign="top">
+                    <table>
+                        <tr>
+                            <td>
+                                <h3>Confirm with another device</h3>
+                                <p>Use another confirmed device you own to exchange a copy of your
+                                    digital identity.</p><br>
+                                <a href="/verify.html" class="btn btn-primary"><span class="btn-shine"></span><span class="btn-label">Confirm with device</span></a>
+                            </td>
+                            <td class="hero-icon">
+                                <img src="smiley_bosseordi.gif" alt="Smiley computer" />
+
+                            </td>
+                        </tr>
+                    </table>
+
+                </td>
+            </tr>
+        </table>
+
+        <div class="sep sep-secondary"></div>
+
+        <table class="options" cellspacing="0" cellpadding="0" border="0">
+            <tr>
                 <td class="option option-secondary" valign="top">
-                    <h3>Reset your account</h3>
-                    <p>Start fresh by resetting your account's backup. All previously verified sessions will be invalidated. You will lose access to your encrypted message history. <br> This action cannot be undone.</p>
-                    <a href="/reset" class="btn btn-danger"><span class="btn-shine"></span><span class="btn-label">Reset identity</span></a>
+
+                    <table>
+                        <tr>
+                            <td class="hero-icon">
+                                <img src="scared-emoticon.gif" alt="Scared" />
+                            </td>
+                            <td>
+                                <h3 class="h3-danger">Reset your digital identity</h3>
+                                <p>Last resort option if you have forgotten your recovery key and have lost access to all your confirmed devices. You will lose access to your chat history and will need to reconfirm all your devices. This operation is irreversible</p><br>
+                                <a href="/reset" class="btn btn-danger"><span class="btn-shine"></span><span class="btn-label">Reset identity</span></a>
+                            </td>
+
+                        </tr>
+                    </table>
+
+
                 </td>
             </tr>
         </table>

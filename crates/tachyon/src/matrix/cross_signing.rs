@@ -1,7 +1,16 @@
+use std::time::Duration;
+use futures_util::StreamExt;
 use log::{info, warn};
 use matrix_sdk::encryption::CrossSigningResetAuthType;
 use matrix_sdk::encryption::recovery::RecoveryState;
 use matrix_sdk::ruma::api::client::uiaa;
+use matrix_sdk::{sliding_sync, Client, SlidingSync, SlidingSyncList, SlidingSyncListBuilder, SlidingSyncMode};
+use matrix_sdk::encryption::verification::{SasState, SasVerification, Verification, VerificationRequest, VerificationRequestState};
+use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{ListFilters, ToDevice, E2EE};
+use matrix_sdk::ruma::directory::RoomTypeFilter;
+use matrix_sdk::ruma::events::key::verification::request::ToDeviceKeyVerificationRequestEvent;
+use matrix_sdk::sliding_sync::Range;
+use tokio::time::sleep;
 
 pub async fn check_device_is_crossed_signed(client: &matrix_sdk::Client) -> Result<bool, anyhow::Error> {
 
@@ -142,4 +151,81 @@ pub async fn enable_backup_and_recovery(
     info!("Backup and recovery enabled – store the recovery key safely");
 
     Ok(recovery_key)
+}
+
+fn no_room_data_list() -> SlidingSyncListBuilder {
+
+    let selective_mode = SlidingSyncMode::new_selective()
+        .add_range(Range::new(0, 0));
+
+    let filters = ListFilters {
+        is_dm: None,
+        is_encrypted: None,
+        is_invite: None,
+        room_types: vec![],
+        not_room_types: vec![RoomTypeFilter::Default, RoomTypeFilter::Space],
+    };
+
+    SlidingSyncList::builder("only_to_device")
+        .sync_mode(selective_mode)
+        .filters(Some(filters))
+}
+
+pub async fn build_to_device_only_sliding_sync(matrix_client: &Client) -> Result<SlidingSync, anyhow::Error> {
+    let sliding_sync_builder = matrix_client
+        .sliding_sync("no_room_data_list")?
+        .add_list(no_room_data_list())
+        .share_pos()
+        .with_e2ee_extension(E2EE{
+            enabled: Some(true),
+        })
+        .with_to_device_extension(ToDevice {
+            enabled: Some(true),
+            limit: None,
+            since: None,
+        });
+    Ok(sliding_sync_builder.build().await?)
+}
+
+
+pub async fn cross_sign_sync_task(
+    client: &matrix_sdk::Client,
+    mut kill_signal_rcv: tokio::sync::broadcast::Receiver<()>,
+
+) -> Result<(), anyhow::Error> {
+    let client = client.clone();
+    tokio::spawn(async move {
+        let sliding_sync = build_to_device_only_sliding_sync(&client).await?;
+
+        sliding_sync.add_list(no_room_data_list()).await?;
+        let mut sync_stream = Box::pin(sliding_sync.sync());
+
+        loop {
+            tokio::select! {
+                _ = kill_signal_rcv.recv() => {
+                    sliding_sync.stop_sync().await?;
+                    info!("Gracefully exit cross_sign sync loop...");
+                    break;
+                }
+                sync_response = sync_stream.next()=> {
+                    match sync_response {
+
+                        Some(Ok(update_summary)) => {
+
+                        }
+
+                        Some(Err(err)) => {
+
+                        }
+
+                        None => {
+
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    todo!()
 }
