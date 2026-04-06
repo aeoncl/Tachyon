@@ -158,32 +158,27 @@ fn no_room_data_list() -> SlidingSyncListBuilder {
     let selective_mode = SlidingSyncMode::new_selective()
         .add_range(Range::new(0, 0));
 
-    let filters = ListFilters {
-        is_dm: None,
-        is_encrypted: None,
-        is_invite: None,
-        room_types: vec![],
-        not_room_types: vec![RoomTypeFilter::Default, RoomTypeFilter::Space],
-    };
+    let mut list_filters = ListFilters::default();
+    list_filters.not_room_types = vec![RoomTypeFilter::Default, RoomTypeFilter::Space];
 
     SlidingSyncList::builder("only_to_device")
         .sync_mode(selective_mode)
-        .filters(Some(filters))
+        .filters(Some(list_filters))
 }
 
 pub async fn build_to_device_only_sliding_sync(matrix_client: &Client) -> Result<SlidingSync, anyhow::Error> {
+    let mut e2ee = E2EE::default();
+    e2ee.enabled = Some(true);
+
+    let mut to_device = ToDevice::default();
+    to_device.enabled = Some(true);
+
     let sliding_sync_builder = matrix_client
         .sliding_sync("no_room_data_list")?
         .add_list(no_room_data_list())
         .share_pos()
-        .with_e2ee_extension(E2EE{
-            enabled: Some(true),
-        })
-        .with_to_device_extension(ToDevice {
-            enabled: Some(true),
-            limit: None,
-            since: None,
-        });
+        .with_e2ee_extension(e2ee)
+        .with_to_device_extension(to_device);
     Ok(sliding_sync_builder.build().await?)
 }
 
@@ -195,15 +190,15 @@ pub async fn cross_sign_sync_task(
 ) -> Result<(), anyhow::Error> {
     let client = client.clone();
     tokio::spawn(async move {
-        let sliding_sync = build_to_device_only_sliding_sync(&client).await?;
+        let sliding_sync = build_to_device_only_sliding_sync(&client).await.unwrap();
 
-        sliding_sync.add_list(no_room_data_list()).await?;
+        sliding_sync.add_list(no_room_data_list()).await.unwrap();
         let mut sync_stream = Box::pin(sliding_sync.sync());
 
         loop {
             tokio::select! {
                 _ = kill_signal_rcv.recv() => {
-                    sliding_sync.stop_sync().await?;
+                    sliding_sync.stop_sync().unwrap();
                     info!("Gracefully exit cross_sign sync loop...");
                     break;
                 }
