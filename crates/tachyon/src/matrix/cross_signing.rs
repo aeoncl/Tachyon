@@ -17,6 +17,7 @@ pub async fn check_device_is_crossed_signed(client: &matrix_sdk::Client) -> Resu
 
 }
 
+//There is no way to check the recover status yet without syncing. So we do this instead.
 pub async fn check_secret_storage_state(client: &matrix_sdk::Client) -> Result<bool, anyhow::Error> {
     client.encryption().secret_storage().is_enabled().await.map_err(|e| anyhow::anyhow!("Failed to check secret storage state: {}", e))
 }

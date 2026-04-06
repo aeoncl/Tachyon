@@ -16,7 +16,7 @@ use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::{layout, login, Params};
 use crate::web::tachyon::middleware::set_token_cookie;
 
-const TITLE: &str = "Tachyon Web Login";
+const TITLE: &str = "You are logged out";
 
 pub async fn post_login_request(
     State(state): State<GlobalState>,

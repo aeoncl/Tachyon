@@ -55,6 +55,7 @@ quick-xml = "0.39.2"
 mime = "0.3.17"
 hex-literal = "1.1.0"
 tokio-stream = "0.1.18"
+verify = "0.3.2"
 
 [dev-dependencies]
 mockall = "0.13.1"

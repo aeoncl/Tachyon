@@ -3,10 +3,13 @@ use axum::http::{Request, Response, StatusCode};
 use axum::body::Body;
 use axum::middleware::Next;
 use axum::response::IntoResponse;
-use axum::http::header::{COOKIE, LOCATION, SET_COOKIE};
+use axum::http::header::{CONTENT_TYPE, COOKIE, LOCATION, SET_COOKIE};
+use http_body_util::BodyExt;
+use log::error;
+use maud::html;
 use crate::tachyon::global_state::GlobalState;
 use crate::tachyon::repository::RepositoryStr;
-use crate::web::tachyon::Params;
+use crate::web::tachyon::{layout, Params};
 
 pub async fn is_authenticated(
     State(state): State<GlobalState>,
@@ -86,4 +89,55 @@ fn extract_token_from_query(req: &Request<Body>) -> Option<String> {
     // Validate it's a valid header value
     axum::http::HeaderValue::from_str(t).ok()?;
     Some(t.clone())
+}
+
+pub async fn intercooler_layout_wrapper(req: Request<Body>, next: Next) -> Response<Body> {
+
+    let is_ic_request = req
+        .headers()
+        .get("X-IC-Request")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    let response = next.run(req).await;
+
+    let is_html = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.starts_with("text/html"))
+        .unwrap_or(false);
+
+    if is_ic_request || !is_html {
+        return response;
+    }
+
+    let (parts, body) = response.into_parts();
+
+    let bytes = match body.collect().await {
+        Ok(collected) => collected.to_bytes(),
+        Err(e) => {
+            error!("Could not read body of HTML response: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::empty())
+                .unwrap();
+        }
+    };
+
+    let fragment = match std::str::from_utf8(&bytes) {
+        Ok(s) => s,
+        Err(_) => {
+            let mut response = Response::from_parts(parts, Body::from(bytes));
+            return response;
+        }
+    };
+
+    let wrapped = layout::tachyon_page(html! { (maud::PreEscaped(fragment)) }).into_string();
+
+    let mut response = Response::from_parts(parts, Body::from(wrapped));
+    response.headers_mut().remove(axum::http::header::CONTENT_LENGTH);
+
+    response
 }

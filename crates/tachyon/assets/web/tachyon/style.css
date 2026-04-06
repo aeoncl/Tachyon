@@ -23,7 +23,6 @@ h1, h2 {
 .header {
     min-width: 987px;
     background-color: #D1E8F5;
-    height: auto;
 }
 
 .header .bg {
@@ -31,72 +30,84 @@ h1, h2 {
     background-position: center 0;
 }
 
-.header .bg .bg-content {
+.header-table {
     width: 987px;
     margin: 0 auto;
-    position: relative;
-    padding: 12px;
-    min-height: 84px;
-    text-align: left;
 }
 
-.header .bg .title {
-    position: absolute;
-    left: 114px;
-    top: 12px;
+/* Logo cell: fixed width, vertically centered, logo links cleanly */
+.header-logo {
+    width: 68px;        /* 12px padding + 56px logo */
+    padding: 12px 0 12px 12px;
+    vertical-align: middle;
 }
 
-.header .bg .title h1 {
+.header-logo a {
+    display: block;
+    line-height: 0;     /* kills the inline descender gap under the img */
+}
+
+.logo {
+    height: 80px;
+    width: 56px;
+    display: block;
+}
+
+/* Title cell: shrinks to content, sits right of the logo */
+.header-title {
+    padding: 12px 12px 12px 6px;
+    vertical-align: middle;
+    white-space: nowrap;
+    text-align: left;   /* override body's text-align: center */
+}
+
+.header-title h1 {
     color: #000000;
     font-weight: bold;
 }
 
-.header .bg .title h2 {
+.header-title h2 {
     color: #000000;
     font-weight: lighter;
 }
 
-.logo {
-    position: absolute;
-    height: 80px;
-}
-
-h2 {
-    font-weight: normal;
-}
-
-.header .bg .bg-content .menu {
-    position: relative;
+/* Nav cell: takes all remaining space, centers the nav links */
+.header-nav {
     text-align: center;
-    /* text-align: left;
-     margin-left: 20%; */
+    vertical-align: middle;
     font-size: large;
+    padding: 12px;
 }
 
-
-.header .bg .bg-content .menu ul {
-    margin-top: 24px;
+.header-nav ul {
+    list-style-type: none;
 }
 
-.header .bg .bg-content .menu ul li {
+.header-nav ul li {
     display: inline;
     padding-right: 10px;
 }
 
-.header .bg .bg-content .menu ul li a {
+.header-nav ul li a {
     color: #000000;
     text-decoration: none;
 }
 
-.header .bg .bg-content .menu ul li a:hover {
+.header-nav ul li a:hover {
     text-decoration: underline;
 }
 
-.header .bg .bg-content .signin {
+/* Signin cell: fixed, right-aligned, hidden for now */
+.header-signin {
+    width: 80px;
+    text-align: right;
+    vertical-align: middle;
+    padding: 12px;
     display: none;
-    position: absolute;
-    top: 16px;
-    right: 16px;
+}
+
+h2 {
+    font-weight: normal;
 }
 
 /* ── Content area ───────────────────────────────── */
@@ -224,8 +235,6 @@ h2 {
     line-height: 1.6;
     margin-bottom: 12px;
 }
-
-
 
 /* ── Glossy Buttons (IE6 compatible) ────────────── */
 
@@ -390,7 +399,6 @@ button[type="submit"] {
 
 /* ── Stepper ────────────────────────────────────── */
 
-
 .stepper {
     display: inline-block;
     *display: inline;
@@ -463,9 +471,9 @@ button[type="submit"] {
 .step-complete .step-label {
     color: #4CAF50;
 }
+
 /* ── Step Content ───────────────────────────────── */
 
 #step-content {
     margin-top: 24px;
 }
-

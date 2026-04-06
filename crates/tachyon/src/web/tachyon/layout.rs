@@ -19,23 +19,28 @@ fn page_header(show_nav: bool) -> Markup {
     html! {
         div class="header" {
             div class="bg" {
-                div class="bg-content" {
-                    img class="logo" src="tachyon_logo_2.png" alt="Tachyon Logo";
-                    div class="title" {
-                        h1 { "Tachyon" }
-                        h2 { "Welcome to Tachyon" }
-                    }
-
-                    @if show_nav {
-                        div class="menu" {
-                            ul {
-                                li {
-                                    a href="/tachyon" { "Home" }
-                                }
+                table class="header-table" cellspacing="0" cellpadding="0" border="0" {
+                    tr {
+                        td class="header-logo" {
+                            a href="/tachyon" {
+                                img class="logo" src="tachyon_logo_2.png" alt="Tachyon Logo";
                             }
                         }
-                        div class="signin" {
-                            h2 { "Log-on" }
+                        td class="header-title" {
+                            h1 { "Tachyon" }
+                            h2 { "Welcome to Tachyon" }
+                        }
+                        @if show_nav {
+                            td class="header-nav" {
+                                ul {
+                                    li { a href="/tachyon" { "Home" } }
+                                }
+                            }
+                            td class="header-signin" {
+                                // reserved for future use
+                            }
+                        } @else {
+                            td { "" }
                         }
                     }
                 }
