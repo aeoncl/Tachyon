@@ -69,7 +69,6 @@ h1, h2 {
 .header-title h2 {
     color: #000000;
     font-weight: lighter;
-    font-size: 16pt;
 }
 
 /* Nav cell: takes all remaining space, centers the nav links */
@@ -111,7 +110,6 @@ h2 {
     font-weight: normal;
 }
 
-
 /* ── Content area ───────────────────────────────── */
 
 .content {
@@ -121,7 +119,6 @@ h2 {
     padding: 28px 12px;
 }
 
-
 /* ── Hero section ───────────────────────────────── */
 
 .hero-table {
@@ -129,8 +126,7 @@ h2 {
 }
 
 .hero-icon {
-    padding-right: 24px;
-    padding-left: 24px;
+    padding-right: 16px;
     width: 48px;
 }
 
@@ -139,7 +135,7 @@ h2 {
 }
 
 .hero-text h2 {
-    font-size: 20pt;
+    font-size: 18pt;
     font-weight: normal;
     color: #333;
     margin-bottom: 8px;
@@ -147,7 +143,7 @@ h2 {
 
 .hero-text p {
     font-size: 10pt;
-    color: #5f5f5f;
+    color: #666;
     line-height: 1.6;
     max-width: 600px;
 }
@@ -166,22 +162,15 @@ h2 {
     margin-bottom: 28px;
 }
 
-.sep-secondary {
-    margin-top: 72px;
-}
-
 /* ── Options table ──────────────────────────────── */
 
 .options {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 48px;
 }
 
-
-
 .option {
-   <!-- padding: 0 24px 0 24px; -->
+    padding: 0 24px 0 24px;
 }
 
 .option-primary {
@@ -194,7 +183,7 @@ h2 {
 
 .option.clickable-option {
     cursor: pointer;
-    border: 2px solid;
+    border: 2px solid transparent;
 }
 
 .option.clickable-option:hover {
@@ -218,26 +207,31 @@ h2 {
 
 /* ── Typography ─────────────────────────────────── */
 
-h3 {
-    font-size: 14pt;
+.option-primary h3 {
+    font-size: 12pt;
     font-weight: bold;
     margin-bottom: 4px;
 }
 
-.option-primary h3 {
+.option-primary h3 a {
     color: #0066CC;
     text-decoration: none;
 }
 
-
+.option-primary h3 a:hover {
+    text-decoration: underline;
+}
 
 .option-secondary h3 {
-    color: #5f5f5f;
+    font-size: 12pt;
+    font-weight: bold;
+    color: #555;
+    margin-bottom: 4px;
 }
 
 .option p {
     font-size: 9pt;
-    color: #5f5f5f;
+    color: #666;
     line-height: 1.6;
     margin-bottom: 12px;
 }

@@ -30,11 +30,11 @@ pub trait AlertNotify {
 }
 
 pub enum Alert {
-    CrossSign(CrossSignAlertContent),
+    ConfirmDevice(ConfirmDeviceAlertContent),
     WebLogin(WebLoginAlertContent),
 }
 
-pub struct CrossSignAlertContent {
+pub struct ConfirmDeviceAlertContent {
     sender: oneshot::Sender<Result<(), AlertError>>,
     creation_time: std::time::Instant,
     expiration_time: std::time::Instant,
@@ -94,7 +94,7 @@ impl AlertReceiver {
     }
 }
 
-impl AlertNotify for CrossSignAlertContent {
+impl AlertNotify for ConfirmDeviceAlertContent {
     fn notify_success(self, result: AlertSuccess) -> Result<(), AlertError> {
         if !matches!(result, AlertSuccess::Unit) {
             return Err(anyhow::anyhow!("Invalid alert success type, expected Unit"));
@@ -124,14 +124,14 @@ impl AlertNotify for WebLoginAlertContent {
 impl AlertNotify for Alert {
     fn notify_success(self, result: AlertSuccess) -> Result<(), AlertError> {
         match self {
-            Alert::CrossSign(content) => content.notify_success(result),
+            Alert::ConfirmDevice(content) => content.notify_success(result),
             Alert::WebLogin(content) => content.notify_success(result),
         }
     }
 
     fn notify_failure(self, error: AlertError) -> Result<(), AlertError> {
         match self {
-            Alert::CrossSign(content) => content.notify_failure(error),
+            Alert::ConfirmDevice(content) => content.notify_failure(error),
             Alert::WebLogin(content) => content.notify_failure(error),
         }
     }
@@ -146,13 +146,13 @@ impl Alert {
         )
     }
 
-    pub fn new_crosssign(expiration_duration: std::time::Duration) -> (Self, AlertReceiver) {
+    pub fn new_confirm_device(expiration_duration: std::time::Duration) -> (Self, AlertReceiver) {
         let creation_time = std::time::Instant::now();
         let expiration_time = creation_time + expiration_duration;
 
         let (sender, receiver) = oneshot::channel();
         (
-            Alert::CrossSign(CrossSignAlertContent { sender, creation_time, expiration_time }),
+            Alert::ConfirmDevice(ConfirmDeviceAlertContent { sender, creation_time, expiration_time }),
             AlertReceiver::Unit(receiver),
         )
     }

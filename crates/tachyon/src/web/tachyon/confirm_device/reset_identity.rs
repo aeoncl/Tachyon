@@ -85,7 +85,7 @@ pub async fn get_reset_identity(
     let notification_id = i32::from_str(notification_id_str).map_err(|e| format!("Invalid notification_id: {}", e)).unwrap();
 
     let page = html! {
-        form action="/tachyon/verify_device/reset_identity" method="POST" ic-post-to="/tachyon/verify_device/reset_identity" ic-target=".content" {
+        form action="/tachyon/confirm_device/reset_identity" method="POST" ic-post-to="/tachyon/confirm_device/reset_identity" ic-target=".content" {
             div id="error-message" style="display:none;" {}
             input type="password" name="password" id="password" {}
             input type="hidden" name="notification_id" value=(notification_id) {}

@@ -7,3 +7,4 @@ pub mod sync;
 mod utils;
 mod errors;
 pub mod cross_signing;
+pub mod verification_request_repository;

@@ -8,7 +8,7 @@ use crate::tachyon::global_state::GlobalState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::Params;
 
-pub async fn get_restore(
+pub async fn get_recover(
     State(state): State<GlobalState>,
     axum::extract::Extension(token): axum::extract::Extension<String>,
     axum::extract::Query(params): axum::extract::Query<Params>,
@@ -36,7 +36,7 @@ fn restore_device_content(notification_id: i32) -> Markup {
                 }
             }
 
-            form action="/tachyon/verify_device/restore" method="POST" ic-post-to="/tachyon/verify_device/restore" ic-target=".content" ic-on-beforeSend="if (!validateForm()) { settings.cancel = true; return false;}" {
+            form action="/tachyon/confirm_device/recover" method="POST" ic-post-to="/tachyon/confirm_device/recover" ic-target=".content" ic-on-beforeSend="if (!validateForm()) { settings.cancel = true; return false;}" {
                 div id="error-message" style="display:none;" {}
 
                 table class="restore-options" cellspacing="0" cellpadding="0" {
@@ -99,7 +99,7 @@ fn restore_device_content(notification_id: i32) -> Markup {
         }
 }
 
-pub async fn post_restore(
+pub async fn post_recover(
     State(state): State<GlobalState>,
     axum::extract::Extension(token): axum::extract::Extension<String>,
     axum::extract::Form(form_data): axum::extract::Form<Params>,
@@ -131,15 +131,15 @@ pub async fn post_restore(
     if successful {
         alert.notify_success(AlertSuccess::Unit);
     } else {
-        alert.notify_failure(AlertError::from(anyhow::anyhow!("Failed to verify device")));
+        alert.notify_failure(AlertError::from(anyhow::anyhow!("Failed to confirm device")));
     }
 
     let page = html! {
-        h2 { "Verification Result" }
+        h2 { "Confirmation Result" }
         @if successful {
-            p { "Your device is now verified!" }
+            p { "Your device is now confirmed!" }
         } @else {
-            p { "Your device could not be verified :(" }
+            p { "Your device could not be confirmed :(" }
         }
     };
 

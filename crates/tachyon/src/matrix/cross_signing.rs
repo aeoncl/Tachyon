@@ -1,15 +1,16 @@
-use std::time::Duration;
 use futures_util::StreamExt;
 use log::{info, warn};
-use matrix_sdk::encryption::CrossSigningResetAuthType;
 use matrix_sdk::encryption::recovery::RecoveryState;
-use matrix_sdk::ruma::api::client::uiaa;
-use matrix_sdk::{sliding_sync, Client, SlidingSync, SlidingSyncList, SlidingSyncListBuilder, SlidingSyncMode};
 use matrix_sdk::encryption::verification::{SasState, SasVerification, Verification, VerificationRequest, VerificationRequestState};
+use matrix_sdk::encryption::CrossSigningResetAuthType;
 use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{ListFilters, ToDevice, E2EE};
+use matrix_sdk::ruma::api::client::uiaa;
 use matrix_sdk::ruma::directory::RoomTypeFilter;
 use matrix_sdk::ruma::events::key::verification::request::ToDeviceKeyVerificationRequestEvent;
 use matrix_sdk::sliding_sync::Range;
+use matrix_sdk::{sliding_sync, Client, SlidingSync, SlidingSyncList, SlidingSyncListBuilder, SlidingSyncMode};
+use std::time::Duration;
+use tokio::sync::{mpsc, oneshot};
 use tokio::time::sleep;
 
 pub async fn check_device_is_crossed_signed(client: &matrix_sdk::Client) -> Result<bool, anyhow::Error> {
@@ -174,7 +175,7 @@ pub async fn build_to_device_only_sliding_sync(matrix_client: &Client) -> Result
     to_device.enabled = Some(true);
 
     let sliding_sync_builder = matrix_client
-        .sliding_sync("no_room_data_list")?
+        .sliding_sync("crypto_list")?
         .add_list(no_room_data_list())
         .share_pos()
         .with_e2ee_extension(e2ee)
@@ -185,9 +186,12 @@ pub async fn build_to_device_only_sliding_sync(matrix_client: &Client) -> Result
 
 pub async fn cross_sign_sync_task(
     client: &matrix_sdk::Client,
-    mut kill_signal_rcv: tokio::sync::broadcast::Receiver<()>,
+    mut client_kill_signal_recv: tokio::sync::broadcast::Receiver<()>,
 
-) -> Result<(), anyhow::Error> {
+) -> Result<mpsc::Sender<()>, anyhow::Error> {
+
+    let (sign_sync_kill_signal_snd, mut sign_sync_kill_signal_rcv) = tokio::sync::mpsc::channel::<()>(1);
+
     let client = client.clone();
     tokio::spawn(async move {
         let sliding_sync = build_to_device_only_sliding_sync(&client).await.unwrap();
@@ -195,9 +199,16 @@ pub async fn cross_sign_sync_task(
         sliding_sync.add_list(no_room_data_list()).await.unwrap();
         let mut sync_stream = Box::pin(sliding_sync.sync());
 
+        let _result =sync_stream.next().await;
+
         loop {
             tokio::select! {
-                _ = kill_signal_rcv.recv() => {
+                _ = sign_sync_kill_signal_rcv.recv() => {
+                    sliding_sync.stop_sync().unwrap();
+                    info!("Gracefully exit cross_sign sync loop...");
+                    break;
+                }
+                _ = client_kill_signal_recv.recv() => {
                     sliding_sync.stop_sync().unwrap();
                     info!("Gracefully exit cross_sign sync loop...");
                     break;
@@ -222,5 +233,5 @@ pub async fn cross_sign_sync_task(
         }
     });
 
-    todo!()
+    Ok(sign_sync_kill_signal_snd)
 }

@@ -6,14 +6,17 @@ use crate::tachyon::matrix_client_repository::MatrixClientRepository;
 use dashmap::DashMap;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::Arc;
+use matrix_sdk::encryption::verification::VerificationRequest;
 use tokio::sync::oneshot;
+use crate::matrix::verification_request_repository::VerificationRequestRepository;
 
 pub struct GlobalStateInner {
     tachyon_clients: TachyonClientRepository,
     matrix_clients: MatrixClientRepository,
     token_validator: SecretEncryptor,
     pending_ticket: DashMap<String, TicketToken>,
-    pending_alerts: DashMap<i32, AlertReceiver>
+    pending_alerts: DashMap<i32, AlertReceiver>,
+    pending_verification_requests: VerificationRequestRepository
 }
 
 #[derive(Clone)]
@@ -31,6 +34,7 @@ impl GlobalState {
                 token_validator,
                 pending_ticket: DashMap::new(),
                 pending_alerts: Default::default(),
+                pending_verification_requests: Default::default(),
             })
         }
     }
@@ -62,6 +66,10 @@ impl GlobalState {
 
     pub fn take_pending_alert(&self, key: &i32) -> Option<AlertReceiver> {
         self.inner.pending_alerts.remove(key).map(|(_, recv)| recv)
+    }
+
+    pub fn pending_verification_requests(&self) -> &VerificationRequestRepository {
+        &self.inner.pending_verification_requests
     }
 
     pub fn secret_encryptor(&self) -> &SecretEncryptor {

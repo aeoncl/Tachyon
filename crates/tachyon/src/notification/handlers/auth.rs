@@ -25,6 +25,7 @@ use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use tokio::sync::mpsc::Sender;
 use tokio::task;
+use crate::matrix::cross_signing;
 
 const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"1000\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"100\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
 
@@ -113,18 +114,23 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
         let cross_signed = check_device_is_crossed_signed(&matrix_client_clone).await.unwrap();
 
         if !cross_signed {
+
+            let sign_sync_loop_kill_snd = cross_signing::cross_sign_sync_task(&matrix_client_clone, client_kill_recv.resubscribe()).await.unwrap();
+
             let notification_id = rand::random::<i32>();
 
             let verif_not = NotificationServerCommand::NOT(NotServer {
-                payload: NotificationPayloadType::Normal(NotificationFactory::alert(&msn_user_clone.uuid, msn_user_clone.get_email_address(), "Oops ! Your device is not verified yet ! Click here to verify.", "http://127.0.0.1:8080/tachyon", format!("http://127.0.0.1:8080/tachyon/verify_device?t={}", &ticket_token_clone.as_str()).as_str(), format!("http://127.0.0.1:8080/tachyon/verify_device?t={}", &ticket_token_clone.as_str()).as_str(), Some("shield_verify.png"), notification_id)),
+                payload: NotificationPayloadType::Normal(NotificationFactory::alert(&msn_user_clone.uuid, msn_user_clone.get_email_address(), "Oops ! Your device is not verified yet ! Click here to verify.", "http://127.0.0.1:8080/tachyon", format!("http://127.0.0.1:8080/tachyon/confirm_device?t={}", &ticket_token_clone.as_str()).as_str(), format!("http://127.0.0.1:8080/tachyon/confirm_device?t={}", &ticket_token_clone.as_str()).as_str(), Some("shield_verify.png"), notification_id)),
             });
 
-            let (alert, receiver) = Alert::new_crosssign(Duration::from_mins(5));
+            let (alert, receiver) = Alert::new_confirm_device(Duration::from_mins(5));
             tachyon_client.alerts().insert(notification_id, alert);
 
             notif_sender_clone.send(verif_not).await;
 
             let recv = receiver.recv().await;
+            let _ = sign_sync_loop_kill_snd.send(()).await;
+
             match recv {
                 Ok(success) => {
 
