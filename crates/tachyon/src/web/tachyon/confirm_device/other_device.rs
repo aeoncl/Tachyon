@@ -10,6 +10,7 @@ use matrix_sdk::ruma::{device_id, DeviceId};
 use maud::{html, Markup};
 use std::str::FromStr;
 use matrix_sdk::encryption::verification::{VerificationRequest, VerificationRequestState};
+use matrix_sdk::ruma::events::key::verification::VerificationMethod;
 
 pub async fn get_other_device(
     State(state): State<GlobalState>,
@@ -95,7 +96,7 @@ pub async fn post_other_device(
 
     let device = matrix_client.encryption().get_device(user_id, device_id).await.unwrap().unwrap();
 
-    let verification = device.request_verification().await.unwrap();
+    let verification = device.request_verification_with_methods(vec![VerificationMethod::SasV1]).await.unwrap();
 
 
     let flow_id = verification.flow_id().to_string();

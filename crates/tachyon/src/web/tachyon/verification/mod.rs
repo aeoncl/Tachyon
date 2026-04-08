@@ -1,18 +1,27 @@
+pub(super) mod sas_v1_actions;
+pub(super) mod sas_v1;
+
 use crate::tachyon::global_state::GlobalState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::Params;
 use axum::extract::State;
-use axum::response::Html;
-use matrix_sdk::encryption::verification::{SasState, Verification, VerificationRequestState};
+use axum::response::{Html, IntoResponse};
+use matrix_sdk::encryption::verification::VerificationRequestState;
 use matrix_sdk::ruma::OwnedUserId;
 use maud::{html, Markup};
 use std::str::FromStr;
+use anyhow::anyhow;
+use axum::http::{Response, StatusCode};
+use axum::http::header::CONTENT_TYPE;
+use matrix_sdk::ruma::events::key::verification::VerificationMethod;
+use mime::TEXT_HTML;
+use crate::tachyon::alert::{AlertNotify, AlertSuccess};
 
-pub async fn get_verification(
+pub async fn get_verification_poll(
     State(state): State<GlobalState>,
     axum::extract::Extension(token): axum::extract::Extension<String>,
     axum::extract::Query(params): axum::extract::Query<Params>,
-) -> Html<String> {
+) -> impl IntoResponse {
     let notification_id_str = params.get("notification_id").map(|s| s.as_str()).unwrap_or_default();
     let notification_id = i32::from_str(notification_id_str).map_err(|e| format!("Invalid notification_id: {}", e)).unwrap();
 
@@ -22,7 +31,11 @@ pub async fn get_verification(
     let user_id = OwnedUserId::from_str(user_id_raw).unwrap();
 
     let tachyon_client = state.tachyon_clients().get(&token).unwrap();
-    let _notification = tachyon_client.alerts().get(&notification_id).unwrap();
+    if !tachyon_client.alerts().contains_key(&notification_id)
+    {
+        panic!("Notification not found");
+    }
+
     let matrix_client = state.matrix_clients().get(&token).unwrap();
 
     let verification_request = state.pending_verification_requests().get(&flow_id).unwrap();
@@ -31,7 +44,7 @@ pub async fn get_verification(
 
     let response = match verification_request.state() {
         VerificationRequestState::Created { our_methods } => {
-            html! {
+             html! {
                     div class="container" ic-poll="1s" ic-src=(refresh_url) ic-replace-target="true" {
                         table class="hero-table" cellspacing="0" cellpadding="0" border="0" {
                             tr {
@@ -42,7 +55,6 @@ pub async fn get_verification(
                             }
                         }
                     }
-
                 }
         }
         VerificationRequestState::Requested { their_methods, other_device_data } => {
@@ -52,6 +64,7 @@ pub async fn get_verification(
                             tr {
                                 td class="hero-text" valign="middle" {
                                     h2 { "We received an invitation from another device" }
+
                                 }
                             }
                         }
@@ -59,7 +72,12 @@ pub async fn get_verification(
                 }
         }
         VerificationRequestState::Ready { their_methods, our_methods, other_device_data } => {
-            verification_request.accept().await.unwrap();
+            let sas_v1 = their_methods.iter().any(|method| matches!(method, VerificationMethod::SasV1));
+            if !sas_v1 {
+                verification_request.cancel().await.unwrap();
+            } else {
+                verification_request.accept_with_methods(vec![VerificationMethod::SasV1]).await.unwrap();
+            }
 
             html! {
                     div class="container" ic-poll="1s" ic-src=(refresh_url) ic-replace-target="true" {
@@ -75,12 +93,28 @@ pub async fn get_verification(
 
         }
         VerificationRequestState::Transitioned { verification } => {
-
-            handle_verification(verification, &refresh_url).await
-
+            if let Some(verification) = verification.sas() {
+                sas_v1::handle_sas_v1(verification, &refresh_url, notification_id, flow_id, &user_id).await
+            } else {
+                html! {
+                    div class="container" {
+                        table class="hero-table" cellspacing="0" cellpadding="0" border="0" {
+                            tr {
+                                td class="hero-text" valign="middle" {
+                                    h2 { "Unsupported verification method" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
         }
         VerificationRequestState::Done => {
+
+            let (_, notification) = tachyon_client.alerts().remove(&notification_id).unwrap();
+            notification.notify_success(AlertSuccess::Unit);
+
             html! {
                     div class="container" {
                         table class="hero-table" cellspacing="0" cellpadding="0" border="0" {
@@ -94,6 +128,10 @@ pub async fn get_verification(
                 }
         }
         VerificationRequestState::Cancelled(cancelled) => {
+
+            let (_, notification) = tachyon_client.alerts().remove(&notification_id).unwrap();
+            notification.notify_failure(anyhow!("Verification cancelled: {:?}", cancelled));
+
             html! {
                     div class="container" {
                         table class="hero-table" cellspacing="0" cellpadding="0" border="0" {
@@ -109,149 +147,6 @@ pub async fn get_verification(
         }
     };
 
-
-
-
-
-
-
-    Html(response.into_string())
-}
-
-async fn handle_verification(verification: Verification, refresh_url: &str) -> Markup {
-    let response = if let Some(verification) = verification.sas() {
-
-        match verification.state() {
-            SasState::Created { protocols } => {
-
-                html! {
-                    div class="container" ic-poll="1s" ic-src=(refresh_url) ic-replace-target="true" {
-                        table class="hero-table" cellspacing="0" cellpadding="0" border="0" {
-                            tr {
-                                td class="hero-text" valign="middle" {
-                                    h2 { "We've notified your other device" }
-                                    p { "Please accept the verification invitation on your other device." }
-                                }
-                            }
-                        }
-                    }
-                }
-
-            }
-            SasState::Started { protocols } => {
-
-                verification.accept().await.unwrap();
-
-                html! {
-                    div class="container" ic-poll="1s"  ic-src=(refresh_url) ic-replace-target="true" {
-                        table class="hero-table" cellspacing="0" cellpadding="0" border="0" {
-                            tr {
-                                td class="hero-text" valign="middle" {
-                                    h2 { "The verification process has started" }
-                                }
-                            }
-                        }
-                    }
-                }
-
-
-
-            }
-            SasState::Accepted { accepted_protocols } => {
-                html! {
-                    div class="container" ic-poll="1s" ic-src=(refresh_url) ic-replace-target="true" {
-                        table class="hero-table" cellspacing="0" cellpadding="0" border="0" {
-                            tr {
-                                td class="hero-text" valign="middle" {
-                                    h2 { "Setting up device verification" }
-                                    p { "Please wait while devices communicate." }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            SasState::KeysExchanged { emojis, decimals } => {
-                let emoji_str = emojis.unwrap();
-
-                let emoji_array = emoji_str.emojis;
-
-                html! {
-                    div class="container" ic-poll="1s"  ic-src=(refresh_url) ic-replace-target="true" {
-                        table class="hero-table" cellspacing="0" cellpadding="0" border="0" {
-                            tr {
-                                td class="hero-text" valign="middle" {
-                                    h2 { "Compare these emojis on both your devices" }
-                                    p { "Please wait while devices communicate." }
-                                }
-                            }
-                        }
-
-
-                        @for emoji in emoji_array {
-                            span { (emoji.symbol) }
-                        }
-
-                    }
-                }
-            }
-            SasState::Confirmed => {
-                html! {
-                    div class="container" ic-poll="1s" ic-src=(refresh_url) ic-replace-target="true" {
-                        table class="hero-table" cellspacing="0" cellpadding="0" border="0" {
-                            tr {
-                                td class="hero-text" valign="middle" {
-                                    h2 { "Confirm om your other device" }
-                                    p { "We are awaiting confirmation from your other device." }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            SasState::Done { verified_devices, verified_identities } => {
-                html! {
-                    div class="container" {
-                        table class="hero-table" cellspacing="0" cellpadding="0" border="0" {
-                            tr {
-                                td class="hero-text" valign="middle" {
-                                    h2 { "Your device is now verified !!" }
-                                    p { "Congraaaattzzz" }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            SasState::Cancelled(cancel_info) => {
-                html! {
-                    div class="container" {
-                        table class="hero-table" cellspacing="0" cellpadding="0" border="0" {
-                            tr {
-                                td class="hero-text" valign="middle" {
-                                    h2 { "Verification was cancelled" }
-                                    p { "It's okay, happens to the best of us, you can always try again." }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    } else {
-        html! {
-            div class="container" {
-                table class="hero-table" cellspacing="0" cellpadding="0" border="0" {
-                    tr {
-                        td class="hero-text" valign="middle" {
-                            h2 { "Verification failed" }
-                            p { "The verification process failed." }
-                        }
-                    }
-                }
-            }
-        }
-    };
-
     response
 }
+
