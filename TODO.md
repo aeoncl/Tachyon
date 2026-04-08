@@ -11,7 +11,7 @@
 ## Launching the server
 
 - [X] Make patching solution compatible with third party MSN servers (escargot, crosstalk, etc)
-- [ ] Create launcher to start msnmsgr.exe with zathras imported. (Remove all unknown dll imports)
+- [X] Create launcher to start msnmsgr.exe with zathras imported. (Remove all unknown dll imports)
 - [ ] Config file for both zathras and tachyon to share the port, the logging, etc...
 
 ## Landing Page
@@ -28,7 +28,7 @@
 - [ ] Testing
 - [ ] Anonymize logs
 
-# First Release
+## MMP Features
 - [ ] OIMs
 - [ ] Search for contacts
 - [ ] File Transfer
@@ -36,6 +36,9 @@
 - [ ] Voice Messages
 
 ## Next
+- [ ] Refactor & Consolidate conversions in Tachyon Client. (Send Message, Accept Message, etc...)
+- [ ] zathras.dll opens the browser for tachyon login, not the server. (React to msidcrl login function)
+- [ ] OAUTH Support
 - [ ] Groupchats (msn spaces or ephemeral rooms)
 - [ ] Spaces to category mapping
 - [ ] Status & Presence using new Account Data
