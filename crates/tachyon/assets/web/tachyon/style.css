@@ -18,7 +18,12 @@ h1, h2 {
     font-family: "Segoe UI", Tahoma, Verdana, Arial, sans-serif;
 }
 
-/* ── Header ─────────────────────────────────────── */
+.spacer {
+    height: 48px;
+    display: block;
+}
+
+/* == Header ======================================= */
 
 .header {
     min-width: 987px;
@@ -26,8 +31,16 @@ h1, h2 {
 }
 
 .header .bg {
+    background-image: url("img/tachyon_banner_bigger.png");
+    background-color: rgba(0, 0, 0, 0);
+    background-position-x: center;
+    background-position-y: top;
     background-repeat: repeat-x;
-    background-position: center 0;
+    background-attachment: scroll;
+    background-size: auto;
+    background-origin: padding-box;
+    background-clip: border-box;
+    height: 110px;
 }
 
 .header-table {
@@ -35,16 +48,15 @@ h1, h2 {
     margin: 0 auto;
 }
 
-/* Logo cell: fixed width, vertically centered, logo links cleanly */
 .header-logo {
-    width: 68px;        /* 12px padding + 56px logo */
+    width: 68px;
     padding: 12px 0 12px 12px;
     vertical-align: middle;
 }
 
 .header-logo a {
     display: block;
-    line-height: 0;     /* kills the inline descender gap under the img */
+    line-height: 0;
 }
 
 .logo {
@@ -53,12 +65,11 @@ h1, h2 {
     display: block;
 }
 
-/* Title cell: shrinks to content, sits right of the logo */
 .header-title {
     padding: 12px 12px 12px 6px;
     vertical-align: middle;
     white-space: nowrap;
-    text-align: left;   /* override body's text-align: center */
+    text-align: left;
 }
 
 .header-title h1 {
@@ -98,7 +109,6 @@ h1, h2 {
     text-decoration: underline;
 }
 
-/* Signin cell: fixed, right-aligned, hidden for now */
 .header-signin {
     width: 80px;
     text-align: right;
@@ -112,8 +122,6 @@ h2 {
 }
 
 
-/* ── Content area ───────────────────────────────── */
-
 .content {
     width: 987px;
     margin: 0 auto;
@@ -122,10 +130,10 @@ h2 {
 }
 
 
-/* ── Hero section ───────────────────────────────── */
+/* == Hero section ================================= */
 
 .hero-table {
-    margin: 32px 0 24px 0;
+    margin: 0 0 48px 0;
 }
 
 .hero-icon {
@@ -139,7 +147,7 @@ h2 {
 }
 
 .hero-text h2 {
-    font-size: 20pt;
+    font-size: 22pt;
     font-weight: normal;
     color: #333;
     margin-bottom: 8px;
@@ -147,7 +155,7 @@ h2 {
 
 .hero-text p {
     font-size: 10pt;
-    color: #5f5f5f;
+    color: #333;
     line-height: 1.6;
     max-width: 600px;
 }
@@ -158,7 +166,7 @@ h2 {
     text-align: right;
 }
 
-/* ── Separator ──────────────────────────────────── */
+/* == Separator ==================================== */
 
 .sep {
     height: 1px;
@@ -170,7 +178,7 @@ h2 {
     margin-top: 72px;
 }
 
-/* ── Options table ──────────────────────────────── */
+/* == Options table ================================ */
 
 .options {
     width: 100%;
@@ -182,6 +190,10 @@ h2 {
 
 .option {
    <!-- padding: 0 24px 0 24px; -->
+}
+
+.two-column-option {
+    width: 50%;
 }
 
 .option-primary {
@@ -216,7 +228,7 @@ h2 {
     border-spacing: 10px;
 }
 
-/* ── Typography ─────────────────────────────────── */
+/* == Typography =================================== */
 
 h3 {
     font-size: 14pt;
@@ -242,7 +254,38 @@ h3 {
     margin-bottom: 12px;
 }
 
-/* ── Glossy Buttons (IE6 compatible) ────────────── */
+/* == Emoji Table ============== */
+
+.emoji-table {
+    margin:0 auto;
+}
+
+.emoji-table tr td img {
+    height: 64px;
+    padding: 0 24px 0 24px;
+}
+
+.emoji-container {
+    width: 448px;
+}
+
+.emoji-table tr td p {
+    margin-top: 6px;
+    display: block;
+    text-align: center;
+    font-weight: bold;
+}
+
+
+/* == Glossy Buttons (IE6 compatible) ============== */
+
+.single-btn-form {
+    display: inline-block;
+}
+
+.back-btn-form {
+    margin-left: 64px;
+}
 
 .btn {
     display: inline-block;
@@ -275,7 +318,7 @@ h3 {
     z-index: 1;
 }
 
-/* ── Primary button ─────────────────────────────── */
+/* == Primary button =============================== */
 
 .btn-primary {
     background: #1B7DC8;
@@ -309,7 +352,7 @@ h3 {
     border-color: #0A3D60;
 }
 
-/* ── Danger button ──────────────────────────────── */
+/* == Danger button ================================ */
 
 .btn-danger {
     background: #808080;
@@ -343,7 +386,7 @@ h3 {
     border-color: #662222;
 }
 
-/* ── Form Elements ──────────────────────────────── */
+/* == Form Elements ================================ */
 
 label {
     display: block;
@@ -403,7 +446,7 @@ button[type="submit"] {
     font-weight: bold;
 }
 
-/* ── Stepper ────────────────────────────────────── */
+/* == Stepper ====================================== */
 
 .stepper {
     display: inline-block;
@@ -478,7 +521,7 @@ button[type="submit"] {
     color: #4CAF50;
 }
 
-/* ── Step Content ───────────────────────────────── */
+/* == Step Content ================================= */
 
 #step-content {
     margin-top: 24px;
