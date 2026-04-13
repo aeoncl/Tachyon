@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head><title>Tachyon</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="stylesheet" href="style.css">
+    <script type="text/javascript" src="jquery-1.10.0.min.js"></script>
+    <script type="text/javascript" src="intercooler-1.2.4.min.js"></script>
+    <script type="text/javascript" src="verify.js"></script>
+    <script type="text/javascript" src="tremove.js"></script>
+</head>
+<body>
+<div class="header">
+    <div class="bg">
+        <table class="header-table" cellspacing="0" cellpadding="0" border="0">
+            <tr>
+                <td class="header-logo"><a href="/tachyon"><img class="logo" src="img/tachyon_logo_2.png"
+                                                                alt="Tachyon Logo"></a></td>
+                <td class="header-title"><h1>Tachyon</h1>
+                    <h2>Welcome to Tachyon</h2></td>
+                <td class="header-nav">
+                    <ul>
+                        <li><a href="/tachyon">Home</a></li>
+                    </ul>
+                </td>
+                <td class="header-signin"></td>
+            </tr>
+        </table>
+    </div>
+</div>
+<div class="content">
+    <div class="content">
+        <table class="hero-table" cellspacing="0" cellpadding="0" border="0">
+            <tr>
+                <td class="hero-text" valign="middle"><h2>Restore this device</h2>
+                    <p>Use your top secret recovery key or passphrase to confirm your device. (yn)</p></td>
+            </tr>
+        </table>
+        <form action="/tachyon/confirm_device/recover" method="POST" ic-post-to="/tachyon/confirm_device/recover"
+              ic-target=".content" ic-on-beforeSend="if (!validateForm()) { settings.cancel = true; return false;}">
+            <div id="error-message" style="display:none;"></div>
+
+            <div class="restore-options-container">
+                    <div class="option option-primary clickable-option" id="card-recovery-key">
+                        <input type="radio"
+                               name="restore_method"
+                               id="use-recovery-key"
+                               value="recovery-key"
+                               checked>
+                        <table class="option-content">
+                            <tr>
+                                <td>
+                                    <img src="img/sas_v1/47_key.gif" alt="Recovery Key" class="option-icon">
+                                </td>
+                                <td>
+                                    <h3><label for="use-recovery-key">Recovery Key</label></h3>
+                                    <p>Use the 48-character recovery key that was generated during recovery setup.</p></td>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                <div class="option option-primary clickable-option" id="card-passphrase">
+                    <input type="radio"
+                           name="restore_method"
+                           id="use-passphrase"
+                           value="passphrase">
+
+                    <table class="option-content">
+                        <tr>
+                            <td>
+                                <img src="img/star_speech.gif" alt="Recovery Key" class="option-icon">
+                            </td>
+                            <td>
+                                <h3><label for="use-passphrase">Passphrase</label></h3>
+                                <p>Use the security passphrase that you chose during recovery setup.</p></td>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            <div>
+            <div class="spacer"></div>
+            <div class="sep"></div>
+            <div id="recovery-key-section"><label>Enter your Recovery Key</label>
+                <table class="cd-key-container" cellspacing="0" cellpadding="0">
+                    <tr>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="0"></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="1"></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="2"></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="3"></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="4"></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="5"></td>
+                    </tr>
+                    <tr>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="6"></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="7"></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="8"></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="9"></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="10"></td>
+                        <td class="cd-key-separator">-</td>
+                        <td><input type="text" class="cd-key-block" maxlength="4" data-index="11"></td>
+                    </tr>
+                </table>
+            </div>
+            <input type="hidden" id="recovery_key_full" name="recovery_key_full"><input type="hidden"
+                                                                                        id="notification_id"
+                                                                                        name="notification_id"
+                                                                                        value="1425870851">
+            <div id="passphrase-section" style="display:none;"><label for="passphrase">Enter your
+                Passphrase</label><input type="password" id="passphrase" name="passphrase" style="width: 300px;"></div>
+            <button type="submit" class="btn btn-primary"><span class="btn-shine"></span><span class="btn-label">Restore this device</span>
+            </button>
+        </form>
+    </div>
+</div>
+</body>
+</html>

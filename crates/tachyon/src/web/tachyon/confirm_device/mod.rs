@@ -111,7 +111,7 @@ fn device_confirmation_content(notification_id: i32) -> Markup {
                                 td {
                                     h3 class="h3-danger" { "Reset your digital identity" }
                                     p {
-                                        "Last resort option if you have forgotten your recovery key and have lost access to all your confirmed devices. You will lose access to your chat history and will need to reconfirm all your devices. This operation is irreversible"
+                                        "Last resort option if you have forgotten your recovery key and have lost access to all your confirmed devices. You will lose your encrypted chat history :c. This operation is irreversible."
                                     }
                                     br;
                                     a href=(reset_url) class="btn btn-danger" {

@@ -39,25 +39,43 @@ fn restore_device_content(notification_id: i32) -> Markup {
             form action="/tachyon/confirm_device/recover" method="POST" ic-post-to="/tachyon/confirm_device/recover" ic-target=".content" ic-on-beforeSend="if (!validateForm()) { settings.cancel = true; return false;}" {
                 div id="error-message" style="display:none;" {}
 
-                table class="restore-options" cellspacing="0" cellpadding="0" {
-                    tr {
-                        td class="option option-primary clickable-option" id="card-recovery-key" {
-                            input type="radio" name="restore_method" id="use-recovery-key" value="recovery-key" checked;
-                            h3 {
-                                label for="use-recovery-key" { "Recovery Key" }
+                div class="restore-options-container" {
+                    div class="option option-primary clickable-option" id="card-recovery-key" {
+                        input type="radio" name="restore_method" id="use-recovery-key" value="recovery-key" checked;
+                        table class="option-content" {
+                            tr {
+                                td {
+                                    img src="img/key.gif" alt="Recovery Key" class="option-icon";
+                                }
+                                td {
+                                    h3 {
+                                        label for="use-recovery-key" { "Recovery Key" }
+                                    }
+                                    p { "Use the 48-character recovery key that was generated during recovery setup." }
+                                }
                             }
-                            p { "Use your 48-character recovery key to restore access to your encrypted messages." }
                         }
-                        td class="option option-secondary clickable-option" id="card-passphrase" {
-                            input type="radio" name="restore_method" id="use-passphrase" value="passphrase";
-                            h3 {
-                                label for="use-passphrase" { "Passphrase" }
+                    }
+
+                    div class="option option-primary clickable-option" id="card-passphrase" {
+                        input type="radio" name="restore_method" id="use-passphrase" value="passphrase";
+                        table class="option-content" {
+                            tr {
+                                td {
+                                    img src="img/star_speech.gif" alt="Passphrase" class="option-icon";
+                                }
+                                td {
+                                    h3 {
+                                        label for="use-passphrase" { "Passphrase" }
+                                    }
+                                    p { "Use the security passphrase that you chose during recovery setup." }
+                                }
                             }
-                            p { "Use your security passphrase if you set one up during recovery key creation." }
                         }
                     }
                 }
 
+                div class="spacer" {}
                 div class="sep" {}
 
                 div id="recovery-key-section" {

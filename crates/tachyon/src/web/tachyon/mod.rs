@@ -35,6 +35,8 @@ lazy_static_include_bytes! {
     SMILEY_SCARED => "./assets/web/tachyon/img/scared-emoticon.gif",
     SMILEY_BOSSEORDI => "./assets/web/tachyon/img/smiley_bosseordi.gif",
     SMILEY_LOOKING => "./assets/web/tachyon/img/text-looking.gif",
+    STAR_SPEECH => "./assets/web/tachyon/img/star_speech.gif",
+    KEY => "./assets/web/tachyon/img/key.gif",
     TACHYON_BANNER => "./assets/web/tachyon/img/tachyon_banner_bigger.png"
 }
 
@@ -168,6 +170,8 @@ async fn serve_static(
         "scared-emoticon.gif" => (*SMILEY_SCARED, "image/gif"),
         "smiley_bosseordi.gif" => (*SMILEY_BOSSEORDI, "image/gif"),
         "text-looking.gif" => (*SMILEY_LOOKING, "image/gif"),
+        "star_speech.gif" => (*STAR_SPEECH, "image/gif"),
+        "key.gif" => (*KEY, "image/gif"),
         "tachyon_banner_bigger.png" => (*TACHYON_BANNER, "image/png"),
         "dog.gif" => (*SAS_0, "image/gif"),
         "cat.gif" => (*SAS_1, "image/gif"),

@@ -183,13 +183,6 @@ h2 {
 .options {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 48px;
-}
-
-
-
-.option {
-   <!-- padding: 0 24px 0 24px; -->
 }
 
 .two-column-option {
@@ -214,6 +207,7 @@ h2 {
 }
 
 .option.clickable-option.selected {
+    color: #0066CC;
     border-color: #0066CC;
     background-color: #F0F8FF;
 }
@@ -222,11 +216,24 @@ h2 {
     display: none;
 }
 
-.restore-options {
+.restore-options-container {
     width: 100%;
-    margin: 10px auto;
-    border-spacing: 10px;
 }
+
+.restore-options-container .option {
+    width: 40%;
+    display: inline-block;
+}
+
+.restore-options-container #card-passphrase {
+    margin-left: 48px;
+}
+
+.restore-options-container .option .option-icon {
+    padding: 12px 12px 12px 12px;
+}
+
+
 
 /* == Typography =================================== */
 
@@ -235,12 +242,6 @@ h3 {
     font-weight: bold;
     margin-bottom: 4px;
 }
-
-.option-primary h3 {
-    color: #0066CC;
-    text-decoration: none;
-}
-
 
 
 .option-secondary h3 {
