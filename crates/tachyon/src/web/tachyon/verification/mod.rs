@@ -96,7 +96,8 @@ pub async fn get_verification_poll(
                         table class="hero-table" cellspacing="0" cellpadding="0" border="0" {
                             tr {
                                 td class="hero-text" valign="middle" {
-                                    h2 { "We are ready to perform the verification" }
+                                    h2 { "Choose a verification method" }
+                                    p { "We only support the SAS emoji comparision for now." }
                                 }
                             }
                         }
