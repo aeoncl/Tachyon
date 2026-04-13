@@ -22,18 +22,25 @@
 - [X] Simplify the contact list. Show rooms, not contacts.
 - [X] Send Text Messages
 - [X] Add, Remove contacts
-- [ ] E2E Device verification
+- [X] E2E Device verification
 - [X] MSN Today Page
+- [ ] Memory management of heap allocated objects
+  - [ ] DropGuard for Clients
+  - [ ] Outer select! on spawned tasks to handle kill signals
+  - [ ] Period sweep of GlobalData for unused objects
 - [ ] MSNP Errors
 - [ ] Testing
 - [ ] Anonymize logs
 
 ## MMP Features
 - [ ] OIMs
+- [ ] P2PV2
+  - [ ] File Transfer
+  - [ ] Avatar Transfer
+  - [ ] Voice Messages
 - [ ] Search for contacts
-- [ ] File Transfer
-- [ ] Avatar Transfer
-- [ ] Voice Messages
+- [ ] Polish Web Pages
+- [ ] Recovery Key Setup Page
 
 ## Next
 - [ ] Refactor & Consolidate conversions in Tachyon Client. (Send Message, Accept Message, etc...)
