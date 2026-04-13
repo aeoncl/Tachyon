@@ -39,7 +39,8 @@ pub async fn get_other_device(
 
 fn restore_device_content(notification_id: i32, has_devices_to_confirm_with: bool, devices: &[Device]) -> Markup {
 
-
+    //TODO Filter devices that are not signed, showed them greyed out or something
+    //TODO Show a message if there are no devices to confirm with
 
     html! {
         div class="container" {

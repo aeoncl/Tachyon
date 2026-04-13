@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head><title>Tachyon</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="stylesheet" href="style.css">
+    <script type="text/javascript" src="jquery-1.10.0.min.js"></script>
+    <script type="text/javascript" src="intercooler-1.2.4.min.js"></script>
+    <script type="text/javascript" src="verify.js"></script>
+    <script type="text/javascript" src="tremove.js"></script>
+</head>
+<body>
+<div class="header">
+    <div class="bg">
+        <table class="header-table" cellspacing="0" cellpadding="0" border="0">
+            <tr>
+                <td class="header-logo"><a href="/tachyon"><img class="logo" src="img/tachyon_logo_2.png"
+                                                                alt="Tachyon Logo"></a></td>
+                <td class="header-title"><h1>Tachyon</h1>
+                    <h2>Welcome to Tachyon</h2></td>
+                <td class="header-nav">
+                    <ul>
+                        <li><a href="/tachyon">Home</a></li>
+                    </ul>
+                </td>
+                <td class="header-signin"></td>
+            </tr>
+        </table>
+    </div>
+</div>
+<div class="content">
+    <div class="container">
+        <table class="hero-table" cellspacing="0" cellpadding="0" border="0">
+            <tr>
+                <td class="hero-text" valign="middle"><h2>Restore with another device</h2>
+                    <p>Please choose the device you want to use to start the restore process.</p>
+                    <p>You will need to compare a bunch of emojis on both devices and check that they match !</p></td>
+            </tr>
+        </table>
+        <form action="/tachyon/confirm_device/other_device" method="POST"
+              ic-post-to="/tachyon/confirm_device/other_device" ic-target=".content">
+            <div id="error-message" style="display:none;"></div>
+
+
+            <div class="option option-primary clickable-option" id="card-SEFIOGHZKI"  onclick="updateOptionSelection2('SEFIOGHZKI', this)">
+                <input type="radio"
+                       name="device"
+                       id="SEFIOGHZKI"
+                       value="SEFIOGHZKI">
+                <table class="option-content">
+                    <tr>
+                        <td>
+                            <img src="img/sas_v1/47_key.gif" alt="Recovery Key" class="option-icon">
+                        </td>
+                        <td>
+                            <h3><label for="SEFIOGHZKI">Element pour bureau : Windows</label></h3>
+                            <p>Use the 48-character recovery key that was generated during recovery setup.</p></td>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <div class="option option-primary clickable-option" id="card-SEFIOGHZK2I" onclick="updateOptionSelection2('SEFIOGHZK2I', this)">
+                <input type="radio"
+                       name="device"
+                       id="SEFIOGHZK2I"
+                       value="SEFIOGHZK2I">
+                <table class="option-content">
+                    <tr>
+                        <td>
+                            <img src="img/sas_v1/47_key.gif" alt="Recovery Key" class="option-icon">
+                        </td>
+                        <td>
+                            <h3><label for="SEFIOGHZK2I">Element pour bureau : Windows</label></h3>
+                            <p>Use the 48-character recovery key that was generated during recovery setup.</p></td>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <input type="hidden" id="notification_id" name="notification_id" value="-1513273984"><br></br>
+            <button type="submit" class="btn btn-primary"><span class="btn-shine"></span><span class="btn-label">Restore this device</span>
+            </button>
+        </form>
+    </div>
+</div>
+</body>
+</html>

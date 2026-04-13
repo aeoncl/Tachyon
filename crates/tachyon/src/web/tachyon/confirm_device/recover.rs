@@ -25,6 +25,8 @@ pub async fn get_recover(
 
 fn restore_device_content(notification_id: i32) -> Markup {
 
+    //TODO Show a message if there is no recovery key set-up. hinting at the other flows.
+
     html! {
         div class="content" {
             table class="hero-table" cellspacing="0" cellpadding="0" border="0" {

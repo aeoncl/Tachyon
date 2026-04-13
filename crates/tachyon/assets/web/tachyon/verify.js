@@ -40,15 +40,6 @@ function initVerify(rootContent) {
         return;
     }
 
-    // Update option card selection
-    function updateOptionSelection(selectedValue) {
-        $root.find('.clickable-option').removeClass('selected');
-        if (selectedValue === 'recovery-key') {
-            $root.find('#card-recovery-key').addClass('selected');
-        } else if (selectedValue === 'passphrase') {
-            $root.find('#card-passphrase').addClass('selected');
-        }
-    }
 
     // Update the hidden passphrase field
     function updateHiddenField() {
@@ -96,12 +87,12 @@ function initVerify(rootContent) {
 
     // Initialize
     updateHiddenField();
-    updateOptionSelection('recovery-key');
+    updateOptionSelection('recovery-key', rootContent);
 
     // Handle restore method toggle
     $root.find('input[name="restore-method"]').on('click', function() {
         var method = $(this).val();
-        updateOptionSelection(method);
+        updateOptionSelection(method, rootContent);
 
         if (method === 'recovery-key') {
             $root.find('#recovery-key-section').show();
@@ -173,6 +164,21 @@ function initVerify(rootContent) {
         var lastFilledIndex = Math.min(Math.floor(cleanData.length / blockSize), totalBlocks - 1);
         blocks.eq(lastFilledIndex).focus();
     });
+}
+
+
+function updateOptionSelection(selectedValue, rootContent) {
+    var $root = rootContent || $(document);
+    $root.find('.clickable-option').removeClass('selected');
+    $root.find('#card-'+selectedValue).addClass('selected');
+}
+
+function updateOptionSelection2(selectedValue, el) {
+    event.preventDefault();
+    var $form = $(el).closest('form');
+    $form.find('.clickable-option').removeClass('selected');
+    $(el).addClass('selected');
+    $(el).find('input[type="radio"]').prop('checked', true);
 }
 
 // Initialize on document ready (for initial page load)

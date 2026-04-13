@@ -60,8 +60,8 @@ pub async fn get_verification_poll(
                         table class="hero-table" cellspacing="0" cellpadding="0" border="0" {
                             tr {
                                 td class="hero-text" valign="middle" {
-                                    h2 { "We have sent a verification request to your other device" }
-                                    p { "Please accept the verification invitation on your other device." }
+                                    h2 { "Verification request sent !" }
+                                    p { "Awaiting confirmation from the other side." }
                                 }
                             }
                         }
@@ -69,13 +69,14 @@ pub async fn get_verification_poll(
                 }
         }
         VerificationRequestState::Requested { their_methods, other_device_data } => {
+
             html! {
                     div class="container" ic-poll="1s" ic-src=(refresh_url_with_state) ic-replace-target="true" {
                         table class="hero-table" cellspacing="0" cellpadding="0" border="0" {
                             tr {
                                 td class="hero-text" valign="middle" {
-                                    h2 { "We received an invitation from another device" }
-
+                                    h2 { "Verification request received !" }
+                                    p { (other_device_data.user_id()) " is requesting verification from you." }
                                 }
                             }
                         }
@@ -150,7 +151,7 @@ pub async fn get_verification_poll(
                             tr {
                                 td class="hero-text" valign="middle" {
                                     h2 { "Verification was cancelled (request)" }
-                                    p { "It's okay, happens to the best of us, you can always try again." }
+                                    p { "It's okay, happens to the best of us, you can always try again. (yn)" }
                                 }
                             }
                         }
