@@ -29,10 +29,10 @@
   - [ ] Outer select! on spawned tasks to handle kill signals
   - [ ] Period sweep of GlobalData for unused objects
 - [ ] MSNP Errors
-- [ ] Testing
 - [ ] Anonymize logs
 
 ## MMP Features
+- [ ] Testing
 - [ ] OIMs
 - [ ] P2PV2
   - [ ] File Transfer
