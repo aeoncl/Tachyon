@@ -197,40 +197,36 @@ pub async fn cross_sign_sync_task(
         let sliding_sync = build_to_device_only_sliding_sync(&client).await.unwrap();
 
         sliding_sync.add_list(no_room_data_list()).await.unwrap();
-        let mut sync_stream = Box::pin(sliding_sync.sync());
 
-        let _result =sync_stream.next().await;
-
-        loop {
-            tokio::select! {
-                _ = sign_sync_kill_signal_rcv.recv() => {
-                    sliding_sync.stop_sync().unwrap();
-                    info!("Gracefully exit cross_sign sync loop...");
-                    break;
-                }
-                _ = client_kill_signal_recv.recv() => {
-                    sliding_sync.stop_sync().unwrap();
-                    info!("Gracefully exit cross_sign sync loop...");
-                    break;
-                }
-                sync_response = sync_stream.next()=> {
-                    match sync_response {
-
-                        Some(Ok(update_summary)) => {
-
-                        }
-
-                        Some(Err(err)) => {
-
-                        }
-
-                        None => {
-
-                        }
+        let mut sync_handle = tokio::spawn({
+            let sliding_sync = sliding_sync.clone();
+            async move {
+                let mut sync_stream = Box::pin(sliding_sync.sync());
+                let _result = sync_stream.next().await;
+                loop {
+                    match sync_stream.next().await {
+                        Some(Ok(_update)) => {}
+                        Some(Err(_err)) => {}
+                        None => break,
                     }
                 }
             }
+        });
+
+
+        tokio::select! {
+            _ = sign_sync_kill_signal_rcv.recv() => {
+                sliding_sync.stop_sync().unwrap();
+                sync_handle.abort();
+            },
+            _ = client_kill_signal_recv.recv() => {
+                sliding_sync.stop_sync().unwrap();
+                sync_handle.abort();
+            },
+            _ = &mut sync_handle => {},
         }
+
+        info!("Gracefully exit cross_sign sync loop...");
     });
 
     Ok(sign_sync_kill_signal_snd)

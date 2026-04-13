@@ -24,7 +24,7 @@ use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use tokio::sync::mpsc::Sender;
-use tokio::task;
+use tokio::{select, task};
 use crate::matrix::cross_signing;
 
 const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"1000\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"100\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
@@ -50,7 +50,6 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
                             let matrix_token = tachyon_state.secret_encryptor().decrypt(ticket_token.as_str())?;
 
-                            debug!("matrix_token: {}", matrix_token);
                             let matrix_client = matrix::login::login_with_token(user_id.clone(), matrix_token, true).await?;
 
                             let endpoint_id = EndpointId::new(local_store.email_addr.clone(), Some(endpoint_guid));
@@ -108,7 +107,8 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
     let ticket_token_clone = ticket_token.clone();
 
     let client_kill_snd = local_store.client_kill_snd.clone();
-    let client_kill_recv = local_store.client_kill_recv.resubscribe();
+    let mut client_kill_recv = local_store.client_kill_recv.resubscribe();
+
 
     task::spawn(async move {
         let cross_signed = check_device_is_crossed_signed(&matrix_client_clone).await.unwrap();
@@ -128,19 +128,25 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
 
             notif_sender_clone.send(verif_not).await;
 
-            let recv = receiver.recv().await;
-            let _ = sign_sync_loop_kill_snd.send(()).await;
+            select! {
+                recv = receiver.recv() => {
+                   let _ = sign_sync_loop_kill_snd.send(()).await;
+                    match recv {
+                        Ok(success) => {
 
-            match recv {
-                Ok(success) => {
-
-                }
-                Err(err) => {
-                    client_kill_snd.send(());
+                        }
+                        Err(err) => {
+                            let _  = client_kill_snd.send(());
+                            return;
+                        }
+                    }
+                },
+                kill_recv = client_kill_recv.recv() => {
+                    debug!("client_kill_recv stopping sync_with_server_task");
+                    let _ = sign_sync_loop_kill_snd.send(()).await;
                     return;
                 }
             }
-            //TODO: error handling
         }
 
         let secret_storage_enabled = check_secret_storage_state(&matrix_client_clone).await.unwrap();
