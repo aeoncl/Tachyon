@@ -1,3 +1,4 @@
+use log::debug;
 use crate::matrix::handlers;
 use crate::matrix::handlers::context::TachyonContext;
 use crate::tachyon::client::tachyon_client::TachyonClient;
@@ -7,6 +8,7 @@ use matrix_sdk::{Client, Room};
 use matrix_sdk::ruma::events::key::verification::request::ToDeviceKeyVerificationRequestEvent;
 use matrix_sdk::ruma::events::room::message::OriginalSyncRoomMessageEvent;
 use matrix_sdk::ruma::events::room::tombstone::{OriginalSyncRoomTombstoneEvent, RoomTombstoneEvent, SyncRoomTombstoneEvent};
+use matrix_sdk::ruma::events::typing::SyncTypingEvent;
 use crate::matrix::handlers::request_verification_handlers::request_verification_handler;
 
 pub mod contact_handlers;
@@ -30,7 +32,7 @@ pub(super) fn register_event_handlers(matrix_client: &Client, client_data: Tachy
          room: Room,
          client: Client,
          context: Ctx<TachyonContext>| async move {
-            println!("SyncRoomMemberEvent received: {:?}", &event);
+            debug!("SyncRoomMemberEvent received: {:?}", &event);
             handlers::contact_handlers::handle_contacts(event, room, context.tachyon_client.clone(), client).await;
         },
     );
@@ -40,7 +42,7 @@ pub(super) fn register_event_handlers(matrix_client: &Client, client_data: Tachy
          room: Room,
          client: Client,
          context: Ctx<TachyonContext>| async move {
-            println!("SyncRoomMemberEvent received: {:?}", &event);
+            debug!("SyncRoomMemberEvent received: {:?}", &event);
             handlers::membership_handlers::handle_memberships(event, room, context.tachyon_client.clone(), client).await;
         },
     );
@@ -50,7 +52,7 @@ pub(super) fn register_event_handlers(matrix_client: &Client, client_data: Tachy
          room: Room,
          client: Client,
          context: Ctx<TachyonContext>| async move {
-            println!("StrippedRoomMemberEvent received: {:?}", &event);
+            debug!("StrippedRoomMemberEvent received: {:?}", &event);
             handlers::contact_handlers::handle_contacts_stripped(event, room, context.tachyon_client.clone(), client).await;
         },
     );
@@ -60,7 +62,7 @@ pub(super) fn register_event_handlers(matrix_client: &Client, client_data: Tachy
          room: Room,
          client: Client,
          context: Ctx<TachyonContext>| async move {
-            println!("StrippedRoomMemberEvent received: {:?}", &event);
+            debug!("StrippedRoomMemberEvent received: {:?}", &event);
             handlers::membership_handlers::handle_memberships_stripped(
                 event, room, context.tachyon_client.clone(), client,
             ).await;
@@ -72,7 +74,7 @@ pub(super) fn register_event_handlers(matrix_client: &Client, client_data: Tachy
          room: Room,
          client: Client,
          context: Ctx<TachyonContext>| async move {
-            println!("StrippedRoomMemberEvent received: {:?}", &event);
+            debug!("StrippedRoomMemberEvent received: {:?}", &event);
             handlers::contact_handlers::handle_tombstone(
                 event, room, context.tachyon_client.clone(), client,
             ).await;
@@ -84,7 +86,7 @@ pub(super) fn register_event_handlers(matrix_client: &Client, client_data: Tachy
          room: Room,
          client: Client,
          context: Ctx<TachyonContext>| async move {
-            println!("StrippedRoomMemberEvent received: {:?}", &event);
+            debug!("StrippedRoomMemberEvent received: {:?}", &event);
             handlers::membership_handlers::handle_tombstone(
                 event, room, context.tachyon_client.clone(), client,
             ).await;
@@ -96,13 +98,24 @@ pub(super) fn register_event_handlers(matrix_client: &Client, client_data: Tachy
          room: Room,
          client: Client,
          context: Ctx<TachyonContext>| async move {
-            println!("OriginalSyncRoomMessageEvent received: {:?}", &event);
+            debug!("OriginalSyncRoomMessageEvent received: {:?}", &event);
             handlers::message_handlers::handle_message(
                 event, room, context, client,
             ).await;
         },
     );
 
+    matrix_client.add_event_handler(
+        |event: SyncTypingEvent,
+         room: Room,
+         client: Client,
+         context: Ctx<TachyonContext>| async move {
+            debug!("OriginalSyncTypingEvent received: {:?}", &event);
+            handlers::message_handlers::handle_typing_notice(
+                event, room, context, client,
+            ).await;
+        },
+    );
     matrix_client.add_event_handler(
         |ev: ToDeviceKeyVerificationRequestEvent, client: Client| async move {
             let request = client

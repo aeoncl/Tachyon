@@ -73,10 +73,6 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
                             let me = tachyon_client.own_user();
                             send_initial_joined_member(me, &command_sender).await?;
 
-                            if ROOM_USER_PORTAL_MODE {
-                                send_active_members_notice(&room, &command_sender).await?;
-                            }
-
                             local_switchboard_data.phase = ConnectionPhase::Ready;
 
                             //TODO: send an error if this expect is not here.
@@ -168,9 +164,7 @@ pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sende
 
                     let command_sender_clone = command_sender.clone();
 
-                    if ROOM_USER_PORTAL_MODE {
-                        send_active_members_notice(&room, &command_sender_clone).await?;
-                    } else {
+                    if !ROOM_USER_PORTAL_MODE {
                         tokio::spawn(async move {
                             let mut result = get_initial_roster(&room).await;
                             match result {

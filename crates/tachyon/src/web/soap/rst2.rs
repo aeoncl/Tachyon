@@ -32,7 +32,7 @@ pub async fn rst2_handler(headers: HeaderMap, State(state): State<GlobalState>, 
     let matrix_id = email.to_owned_user_id();
 
     if &creds.password == MAGIC_PASSWORD {
-        return match state.take_pending_ticket(email.as_str()) {
+        return match state.take_pending_ticket(&email) {
             None => {
                 url_open::open(&Url::from_str(format!("http://localhost:8080/tachyon/auth?username={}", email.as_str()).as_str()).unwrap());
                 Err(RST2Error::InternalServerError { source: anyhow!("Used magic password, opening web login.") })

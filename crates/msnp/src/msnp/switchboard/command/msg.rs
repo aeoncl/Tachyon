@@ -16,6 +16,7 @@ use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::models::display_name::DisplayName;
 use crate::shared::models::email_address::EmailAddress;
 use crate::shared::payload::msg::chunked_msg_payload::ChunkedMsgPayload;
+use crate::shared::payload::msg::control_msg::ControlMessagePayload;
 use crate::shared::payload::msg::datacast_msg::DatacastMessagePayload;
 use crate::shared::payload::msg::msn_msgr_p2p_msg_payload::MsnMsgrP2PMessagePayload;
 use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
@@ -92,7 +93,7 @@ pub enum MsgPayload {
     Chunked(ChunkedMsgPayload),
     TextPlain(TextPlainMessagePayload),
     Datacast(DatacastMessagePayload),
-    Control,
+    Control(ControlMessagePayload),
     P2P(MsnMsgrP2PMessagePayload)
 }
 
@@ -116,7 +117,7 @@ impl TryFromRawMsgPayload for MsgPayload {
             MsgContentType::InitialMailDataNotification => {Ok(MsgPayload::Raw(raw_msg_payload))}
             MsgContentType::SystemMessage => {Ok(MsgPayload::Raw(raw_msg_payload))}
             MsgContentType::ServiceMessage => {Ok(MsgPayload::Raw(raw_msg_payload))}
-            MsgContentType::Control => {Ok(MsgPayload::Raw(raw_msg_payload))}
+            MsgContentType::Control => {Ok(MsgPayload::Control(ControlMessagePayload::try_from_raw(raw_msg_payload)?))}
             MsgContentType::Datacast => {Ok(MsgPayload::Datacast(DatacastMessagePayload::try_from_raw(raw_msg_payload)?))}
             MsgContentType::P2P => {Ok(MsgPayload::Raw(raw_msg_payload))}
             MsgContentType::None => {Ok(MsgPayload::Raw(raw_msg_payload))}
@@ -132,7 +133,7 @@ impl IntoBytes for MsgPayload {
             MsgPayload::Raw(payload) => { payload.into_bytes() }
             MsgPayload::TextPlain(payload) => { payload.into_bytes() }
             MsgPayload::Datacast(payload) => payload.into_bytes(),
-            MsgPayload::Control => {todo!()}
+            MsgPayload::Control(payload) => {payload.into_bytes()}
             MsgPayload::P2P(payload) => {todo!()}
             MsgPayload::Chunked(payload) => payload.into_bytes(),
         }

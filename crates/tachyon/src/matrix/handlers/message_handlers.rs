@@ -1,17 +1,20 @@
+use crate::matrix::extensions::direct::DirectRoom;
+use crate::matrix::extensions::message_dedup::SendWithDedup;
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::matrix::handlers::context::TachyonContext;
+use crate::switchboard::extensions::CustomStyles;
+use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
 use matrix_sdk::event_handler::Ctx;
-use matrix_sdk::ruma::events::room::message::{FormattedBody, MessageFormat, MessageType, OriginalSyncRoomMessageEvent};
+use matrix_sdk::ruma::events::room::message::{MessageType, OriginalSyncRoomMessageEvent};
+use matrix_sdk::ruma::events::typing::SyncTypingEvent;
 use matrix_sdk::{Client, Room};
-use matrix_sdk::ruma::OwnedUserId;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
 use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::endpoint_id::EndpointId;
+use msnp::shared::models::msn_user::MsnUser;
+use msnp::shared::payload::msg::control_msg::ControlMessagePayload;
 use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
-use crate::matrix::extensions::direct::DirectRoom;
-use crate::matrix::extensions::message_dedup::SendWithDedup;
-use crate::switchboard::extensions::CustomStyles;
 
 pub async fn handle_message(
     event: OriginalSyncRoomMessageEvent,
@@ -82,4 +85,33 @@ pub async fn handle_message(
         _ => {}
     }
 
+}
+
+pub(crate) async fn handle_typing_notice(event: SyncTypingEvent, room: Room, context: Ctx<TachyonContext>, client: Client) {
+    if let Some(switchboard) = context.tachyon_client.switchboards().get(room.room_id()) {
+        for user_id in event.content.user_ids.iter() {
+            if user_id != room.own_user_id() {
+
+                let sender = {
+                    let member = room.get_member_no_sync(&user_id).await;
+                    if let Ok(Some(member)) = member {
+                        if let Ok(member) = member.to_msn_user_lazy().await {
+                            member
+                        } else {
+                            MsnUser::from_user_id(&user_id)
+                        }
+                    } else {
+                        MsnUser::from_user_id(&user_id)
+                    }
+                };
+
+                switchboard.send_command(SwitchboardServerCommand::MSG(MsgServer {
+                    sender: sender.get_email_address().clone(),
+                    display_name: DisplayName::new_from_ref(sender.compute_display_name()),
+                    payload: MsgPayload::Control(ControlMessagePayload::new(sender.get_email_address().clone()))
+                })).await;
+
+            }
+        }
+    }
 }

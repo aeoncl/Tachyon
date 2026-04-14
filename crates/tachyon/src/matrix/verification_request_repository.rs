@@ -1,6 +1,7 @@
 use dashmap::DashMap;
 use dashmap::mapref::one::Ref;
 use matrix_sdk::encryption::verification::VerificationRequest;
+use matrix_sdk::ruma::UserId;
 use crate::tachyon::repository::RepositoryStr;
 
 pub struct VerificationRequestRepository {
@@ -11,7 +12,7 @@ pub struct VerificationRequestRepository {
 
 impl VerificationRequestRepository {
 
-    pub fn get(&self, key: &str) -> Option<Ref<String, VerificationRequest>> {
+    pub fn get(&self, key: &str) -> Option<Ref<'_, String, VerificationRequest>> {
         self.requests.get(key)
     }
 
@@ -21,6 +22,14 @@ impl VerificationRequestRepository {
 
     pub fn remove(&self, key: &str) {
         self.requests.remove(key);
+    }
+
+    pub fn remove_for(&self, user_id: &UserId) {
+        self.requests.iter()
+            .filter(|entry| entry.value().own_user_id() == user_id)
+            .for_each(|entry| {
+                self.requests.remove(entry.key().as_str());
+            });
     }
 }
 

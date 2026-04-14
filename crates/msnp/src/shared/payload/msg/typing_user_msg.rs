@@ -40,7 +40,7 @@ impl TryFromRawMsgPayload for TypingUserMessageContent {
 impl IntoBytes for TypingUserMessageContent {
 
     fn into_bytes(self) -> Vec<u8> {
-        let raw = RawMsgPayloadFactory::get_typing_user(self.typing_user.as_str());
+        let raw = RawMsgPayloadFactory::get_typing_user(&self.typing_user);
         raw.into_bytes()
     }
 }

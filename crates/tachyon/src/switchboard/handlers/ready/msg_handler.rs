@@ -12,6 +12,7 @@ use msnp::msnp::switchboard::command::msg::{MsgAcknowledgment, MsgClient, MsgPay
 use msnp::shared::command::nak::NakServer;
 use tokio::sync::mpsc::Sender;
 use msnp::shared::payload::msg::chunked_msg_payload::{ChunkMetadata, ChunkedMsgPayload, MsgChunks};
+use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
 
 pub(super) async fn handle_msg(msg_command: MsgClient, command_sender: Sender<SwitchboardServerCommand>, tachyon_client: TachyonClient, matrix_client: Client, room: Room, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
 
@@ -78,7 +79,14 @@ pub fn handle_msg_payload_task(tr_id: u128, ack_type: MsgAcknowledgment, payload
             MsgPayload::Datacast(datacast) => {
                 debug!("received DATACAST {:?}", &datacast.get_type() );
             }
-            MsgPayload::Control => {}
+            MsgPayload::Control(control) => {
+
+                let typing_user_id = control.typing_user.to_owned_user_id();
+
+                if &typing_user_id == room_clone.own_user_id() {
+                    room_clone.typing_notice(true).await;
+                }
+            }
             MsgPayload::P2P(_) => {}
             MsgPayload::Chunked(_) => {
             }

@@ -50,7 +50,7 @@ const REQUIRED_STATE: &[(StateEventType, &str)] = &[
 ];
 
 fn create_room_list() -> SlidingSyncListBuilder {
-    SlidingSyncList::builder("all_rooms")
+    SlidingSyncList::builder("all_sync")
         .required_state(REQUIRED_STATE.iter().map(|(key, val)| (key.to_owned(), val.to_string())).collect())
         .sync_mode(SlidingSyncMode::new_growing(20))
 }

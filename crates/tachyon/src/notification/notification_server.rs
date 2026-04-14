@@ -129,20 +129,6 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
         error!("NS: Unable to send kill signal to client: {}", e);
     }
 
-    let removed = tachyon_state.tachyon_clients().remove(local_client_data.token.0.as_str());
-    if let Some(client_data) = removed {
-        info!("Tachyon Client: {} removed successfully", client_data.own_user().get_email_address());
-    } else {
-        warn!("Failed to remove client data");
-    }
-
-    let removed = tachyon_state.matrix_clients().remove(local_client_data.token.0.as_str());
-    if let Some(client_data) = removed {
-        info!("Matrix Client: {} removed successfully", local_client_data.email_addr.as_str());
-    } else {
-        warn!("Failed to remove client data");
-    }
-    
     info!("Client gracefully shutdown...");
     Ok(())
 

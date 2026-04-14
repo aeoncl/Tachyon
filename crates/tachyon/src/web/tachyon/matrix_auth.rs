@@ -52,7 +52,7 @@ pub async fn post_auth(
                     })
                     .unwrap(),
             );
-            state.store_pending_ticket(email.to_string(), ticket_token);
+            state.store_pending_ticket(email, ticket_token);
             true
         } else {
             false

@@ -9,6 +9,13 @@ pub struct TachyonClientRepository {
 }
 
 impl TachyonClientRepository {
+
+    pub fn new() -> Self {
+        Self {
+            clients: DashMap::new(),
+        }
+    }
+
     pub(crate) fn single(&self) -> Option<TachyonClient> {
 
         if self.clients.len() > 1 {

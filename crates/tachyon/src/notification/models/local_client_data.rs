@@ -4,6 +4,7 @@ use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::notification::models::connection_phase::ConnectionPhase;
+use crate::tachyon::global_state::ClientDropGuard;
 
 pub(crate) struct LocalClientData {
     pub(crate) phase: ConnectionPhase,
@@ -14,7 +15,8 @@ pub(crate) struct LocalClientData {
     pub(crate) private_endpoint_data: PrivateEndpointData,
     pub(crate) needs_initial_presence: bool,
     pub(crate) client_kill_recv: Receiver<()>,
-    pub(crate) client_kill_snd: Sender<()>
+    pub(crate) client_kill_snd: Sender<()>,
+    pub(crate) client_drop_guard: Option<ClientDropGuard>
 }
 
 impl LocalClientData {
@@ -29,6 +31,7 @@ impl LocalClientData {
             needs_initial_presence: true,
             client_kill_recv,
             client_kill_snd,
+            client_drop_guard: None
         }
     }
 }

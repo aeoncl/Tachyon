@@ -285,9 +285,9 @@ pub mod factories {
             return out;
         }
 
-        pub fn get_typing_user(typing_user_msn_addr: &str) -> RawMsgPayload {
+        pub fn get_typing_user(typing_user_msn_addr: &EmailAddress) -> RawMsgPayload {
             let mut out = RawMsgPayload::new(MsgContentType::Control, true);
-            out.add_header("TypingUser", typing_user_msn_addr);
+            out.add_header("TypingUser", typing_user_msn_addr.as_str());
             return out;
         }
 
