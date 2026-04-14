@@ -15,8 +15,7 @@ impl SessionId {
     }
     
     pub fn random() -> SessionId {
-        let mut rng = rand::thread_rng();
-        let rand: u16 = rng.gen();
+        let rand: u16 = rand::random();
         SessionId(rand)
     }
 }
