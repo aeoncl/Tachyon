@@ -44,8 +44,8 @@ pub async fn post_login_request(
     state.store_pending_alert(notification_id, recv);
 
     let nfy_url = format!(
-        "http://127.0.0.1:8080/tachyon/login/nfy?t={}&notification_id={}&email={}",
-        &token, notification_id, username
+        "http://127.0.0.1:{}/tachyon/login/nfy?t={}&notification_id={}&email={}",
+        state.get_config().http_port ,&token, notification_id, username
     );
 
     let secret_not = NotificationServerCommand::NOT(NotServer {
@@ -53,7 +53,7 @@ pub async fn post_login_request(
             &user.uuid,
             user.get_email_address(),
             "Login request to Tachyon Web",
-            "http://127.0.0.1:8080/tachyon",
+            format!("http://127.0.0.1:{}/tachyon", state.get_config().http_port).as_str(),
             &nfy_url,
             &nfy_url,
             None,

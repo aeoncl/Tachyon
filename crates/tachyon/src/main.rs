@@ -1,6 +1,6 @@
 use chrono::Local;
 use env_logger::Builder;
-use log::{error, info, LevelFilter};
+use log::{error, info, warn, LevelFilter};
 use std::fs;
 use std::fs::File;
 use tokio::{join, signal, sync::broadcast::{self, Sender}};
@@ -38,11 +38,11 @@ async fn main() {
 
     let (master_kill_signal,  kill_recv) = broadcast::channel::<()>(1);
 
-    let global_state = GlobalState::new(SecretEncryptor::new(&secret).expect("secret key to be valid"));
+    let global_state = GlobalState::new(config.clone(), SecretEncryptor::new(&secret).expect("secret key to be valid"));
 
-    let notification_server = NotificationServer::listen("127.0.0.1", 1863, kill_recv.resubscribe(), global_state.clone());
-    let switchboard_server = SwitchboardServer::listen("127.0.0.1", 1864, kill_recv.resubscribe(), global_state.clone());
-    let web_server = WebServer::listen("127.0.0.1", 8080, kill_recv, global_state);
+    let notification_server = NotificationServer::listen("127.0.0.1", config.notification_port, kill_recv.resubscribe(), global_state.clone());
+    let switchboard_server = SwitchboardServer::listen("127.0.0.1", config.switchboard_port, kill_recv.resubscribe(), global_state.clone());
+    let web_server = WebServer::listen("127.0.0.1", config.http_port, kill_recv, global_state);
 
     let _result = join!(notification_server, switchboard_server, web_server, listen_for_stop_signal(master_kill_signal));
 
@@ -66,7 +66,7 @@ fn setup_key(config_folder_path: PathBuf) -> Result<Vec<u8>, anyhow::Error> {
 
 fn setup_config(config_dir: PathBuf) -> TachyonConfig {
 
-    let settings_path = config_dir.join("config.json");
+    let settings_path = config_dir.join("config.ini");
 
     let result : Result<TachyonConfig, anyhow::Error> = match fs::read_to_string(&settings_path) {
         Ok(content) => {
@@ -74,12 +74,12 @@ fn setup_config(config_dir: PathBuf) -> TachyonConfig {
         }
         Err(err) => {
             println!("Couldn't load Tachyon config: {:?}", err);
-            let config = TachyonConfig::default();
-            if let Err(e) = fs::write(settings_path, config.to_string().into_bytes()) {
-                println!("Couldn't write Tachyon config file {:?}", e);
+            let default = TachyonConfig::default();
+            let default_str = default.to_string();
+            if let Err(e) = fs::write(&settings_path, default_str) {
+                println!("Couldn't write default config to disk: {:?}", e);
             }
-
-            Ok(config)
+            Ok(default)
         }
     };
 
@@ -87,9 +87,11 @@ fn setup_config(config_dir: PathBuf) -> TachyonConfig {
 }
 
 fn setup_logs(path: PathBuf, config: &TachyonConfig) {
-    if !config.enable_logging {
+    if !config.logs_enabled {
         return;
     }
+
+    println!("Logs enabled");
 
     let log_path = path.join("logs.txt");
     let target = Box::new(File::create(log_path).expect("Can't create file"));

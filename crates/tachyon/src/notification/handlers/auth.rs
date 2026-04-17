@@ -26,10 +26,11 @@ use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory
 use tokio::sync::mpsc::Sender;
 use tokio::{select, task};
 use crate::matrix::cross_signing;
+use crate::tachyon::config::tachyon_config::TachyonConfig;
 
 const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"1000\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"100\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
 
-pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, tachyon_state: &GlobalState, local_store: &mut LocalClientData, client_kill_snd: tokio::sync::broadcast::Sender<()>) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, tachyon_state: &GlobalState, local_store: &mut LocalClientData, client_kill_snd: tokio::sync::broadcast::Sender<()>, config: &TachyonConfig) -> Result<(), anyhow::Error> {
     match command {
         NotificationClientCommand::USR(command) => {
             match command.auth_type {
@@ -65,7 +66,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             local_store.matrix_client = Some(matrix_client.clone());
                             local_store.phase = ConnectionPhase::Ready;
 
-                            sync_with_server_task(&notif_sender, local_store, &ticket_token, &matrix_client, &msn_user, tachyon_client, client_kill_snd)?;
+                            sync_with_server_task(&notif_sender, local_store, &ticket_token, &matrix_client, &msn_user, tachyon_client, client_kill_snd, config)?;
 
                             let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
                                 email_addr: local_store.email_addr.clone(),
@@ -100,12 +101,12 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
 }
 
-fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local_store: &LocalClientData, ticket_token: &TicketToken, matrix_client: &Client, msn_user: &MsnUser, tachyon_client: TachyonClient, client_kill_snd: tokio::sync::broadcast::Sender<()>) -> Result<(), Error> {
+fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local_store: &LocalClientData, ticket_token: &TicketToken, matrix_client: &Client, msn_user: &MsnUser, tachyon_client: TachyonClient, client_kill_snd: tokio::sync::broadcast::Sender<()>, config: &TachyonConfig) -> Result<(), Error> {
     let msn_user_clone = msn_user.clone();
     let matrix_client_clone = matrix_client.clone();
     let notif_sender_clone = notif_sender.clone();
     let ticket_token_clone = ticket_token.clone();
-
+    let config_clone = config.clone();
     let client_kill_snd = local_store.client_kill_snd.clone();
     let mut client_kill_recv = local_store.client_kill_recv.resubscribe();
 
@@ -120,7 +121,7 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
             let notification_id = rand::random::<i32>();
 
             let verif_not = NotificationServerCommand::NOT(NotServer {
-                payload: NotificationPayloadType::Normal(NotificationFactory::alert(&msn_user_clone.uuid, msn_user_clone.get_email_address(), "Oops ! Your device is not verified yet ! Click here to verify.", "http://127.0.0.1:8080/tachyon", format!("http://127.0.0.1:8080/tachyon/confirm_device?t={}", &ticket_token_clone.as_str()).as_str(), format!("http://127.0.0.1:8080/tachyon/confirm_device?t={}", &ticket_token_clone.as_str()).as_str(), Some("shield_verify.png"), notification_id)),
+                payload: NotificationPayloadType::Normal(NotificationFactory::alert(&msn_user_clone.uuid, msn_user_clone.get_email_address(), "Oops ! Your device is not verified yet ! Click here to verify.", format!("http://127.0.0.1:{}/tachyon", config_clone.http_port).as_str(), format!("http://127.0.0.1:{}/tachyon/confirm_device?t={}", config_clone.http_port, &ticket_token_clone.as_str()).as_str(), format!("http://127.0.0.1:{}/tachyon/confirm_device?t={}", config_clone.http_port, &ticket_token_clone.as_str()).as_str(), Some("shield_verify.png"), notification_id)),
             });
 
             let (alert, receiver) = Alert::new_confirm_device(Duration::from_mins(5));
@@ -163,7 +164,7 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
 
 
             let backup_not = NotificationServerCommand::NOT(NotServer {
-                payload: NotificationPayloadType::Normal(NotificationFactory::alert(&msn_user_clone.uuid, msn_user_clone.get_email_address(), "Account backup is disabled. Click here to set it up !", "http://127.0.0.1:8080/tachyon", format!("http://127.0.0.1:8080/tachyon/backup?t={}", &ticket_token_clone.as_str()).as_str(), format!("http://127.0.0.1:8080/tachyon/backup?t={}", &ticket_token_clone.as_str()).as_str(), None, notification_id)),
+                payload: NotificationPayloadType::Normal(NotificationFactory::alert(&msn_user_clone.uuid, msn_user_clone.get_email_address(), "Account backup is disabled. Click here to set it up !", format!("http://127.0.0.1:{}/tachyon", config_clone.http_port).as_str(), format!("http://127.0.0.1:{}/tachyon/backup?t={}", config_clone.http_port, &ticket_token_clone.as_str()).as_str(), format!("http://127.0.0.1:{}/tachyon/backup?t={}", config_clone.http_port, &ticket_token_clone.as_str()).as_str(), None, notification_id)),
             });
 
             notif_sender_clone.send(backup_not).await;

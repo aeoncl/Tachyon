@@ -259,9 +259,7 @@ pub mod response {
                     "messengersecure.live.com",
                     "contacts.msn.com",
                     "storage.msn.com",
-                    "sup.live.com",
-                    "127.0.0.1",
-                    "127.0.0.1:8080"
+                    "sup.live.com"
                 ];
                 let now = Local::now();
                 let tomorrow = now.checked_add_days(Days::new(1)).expect("day to be added");

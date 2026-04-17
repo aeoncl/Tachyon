@@ -22,7 +22,7 @@ lazy_static! {
 }
 
 lazy_static_include_bytes! {
-    MSGR_CONFIG_XML => "./assets/web/MsgrConfig.xml",
+    MSGR_CONFIG_XML => "./assets/web/MsgrConfig-port-template.xml",
     PPCRLCONFIG => "./assets/web/ppcrlconfig.bin",
     WLIDSVCCONFIG => "./assets/web/wlidsvcconfig.xml",
     PPCRLCHECK => "./assets/web/ppcrlcheck.srf.html"
@@ -32,9 +32,12 @@ pub async fn firewall_test() -> StatusCode {
     StatusCode::OK
 }
 
-pub async fn get_msgr_config() -> Response<Body> {
+pub async fn get_msgr_config(State(state): State<GlobalState>) -> Response<Body> {
     let data: &'static [u8] = *MSGR_CONFIG_XML;
-    build_soap_response(from_utf8(data).expect("MsgrConfig to be valid").to_string(), StatusCode::OK)
+    let str = from_utf8(data).expect("MsgrConfig to be valid").to_string();
+    let out = str.replace("%port%", state.get_config().http_port.to_string().as_str());
+
+    build_soap_response(out, StatusCode::OK)
 }
 
 pub async fn sha1auth(body: String) -> (StatusCode, HeaderMap ){

@@ -28,13 +28,7 @@ fn create_dir(path: &Path) {
 
 
 pub fn sanitize_user_id(user_id: &UserId) -> String {
-    if cfg!(debug_assertions) {
-        let user_id = user_id.to_string();
-        let no_prefix = user_id.trim_start_matches("@");
-        no_prefix.replace(":", "_")
-    } else {
-        Uuid::from_seed(user_id.as_str()).to_string()
-    }
+    Uuid::from_seed(user_id.as_str()).to_string()
 }
 
 pub fn get_user_data(user_id: &UserId) -> Option<PathBuf> {

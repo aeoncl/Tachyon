@@ -5,16 +5,17 @@ use crate::notification::handlers::{auth, negotiation};
 use crate::notification::handlers::ready::handle_ready;
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
+use crate::tachyon::config::tachyon_config::TachyonConfig;
 use crate::tachyon::global_state::GlobalState;
 
-pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, tachyon_state: &GlobalState, local_client_data: &mut LocalClientData, client_kill_snd: tokio::sync::broadcast::Sender<()>) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, tachyon_state: &GlobalState, local_client_data: &mut LocalClientData, client_kill_snd: tokio::sync::broadcast::Sender<()>, config: &TachyonConfig) -> Result<(), anyhow::Error> {
 
     let _command_result = match &local_client_data.phase {
         ConnectionPhase::Negotiating => {
             negotiation::handle_negotiation(command, command_sender, local_client_data).await
         },
         ConnectionPhase::Authenticating  => {
-            auth::handle_auth(command, command_sender, &tachyon_state, local_client_data, client_kill_snd).await
+            auth::handle_auth(command, command_sender, &tachyon_state, local_client_data, client_kill_snd, config).await
         },
         ConnectionPhase::Ready => {
             let matrix_client = local_client_data.matrix_client.as_ref().ok_or(anyhow!("Matrix Client should be here by now"))?.clone();

@@ -10,8 +10,10 @@ use matrix_sdk::Client;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::Arc;
+use crate::tachyon::config::tachyon_config::TachyonConfig;
 
 pub struct GlobalStateInner {
+    config: TachyonConfig,
     tachyon_clients: TachyonClientRepository,
     matrix_clients: MatrixClientRepository,
     token_validator: SecretEncryptor,
@@ -54,9 +56,10 @@ impl Drop for ClientDropGuard {
 
 impl GlobalState {
 
-    pub fn new(token_validator: SecretEncryptor) -> Self {
+    pub fn new(config: TachyonConfig, token_validator: SecretEncryptor) -> Self {
         Self {
             inner: Arc::new(GlobalStateInner {
+                config,
                 tachyon_clients: Default::default(),
                 matrix_clients: Default::default(),
                 token_validator,
@@ -65,6 +68,10 @@ impl GlobalState {
                 pending_verification_requests: Default::default(),
             })
         }
+    }
+
+    pub fn get_config(&self) -> &TachyonConfig {
+        &self.inner.config
     }
 
     //FIXME: remove this and fix everywhere it's called to get the client using the key.

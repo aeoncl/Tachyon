@@ -1,5 +1,5 @@
 use axum::body::Body;
-use axum::extract::Path;
+use axum::extract::{Path, State};
 use axum::http::header::CONTENT_TYPE;
 use axum::http::Response;
 use axum::Router;
@@ -26,12 +26,12 @@ lazy_static! {
         Ads{
             tab_ads: vec![
                 TabAd {
-                    image: "http://127.0.0.1:8080/ads/matrix-icon.png".to_string(),
+                    image: "http://127.0.0.1:%port%/ads/matrix-icon.png".to_string(),
                     name: "Matrix Today".to_string(),
                     tab_type: "matrix".to_string(),
                     tooltip: "Find out what's up in the Matrix ecosystem".to_string(),
-                    content_url: "http://127.0.0.1:8080/ads/msn-today".to_string(),
-                    hit_url: "http://127.0.0.1:8080/".to_string(),
+                    content_url: "http://127.0.0.1:%port%/ads/msn-today".to_string(),
+                    hit_url: "http://127.0.0.1:%port%/".to_string(),
                     site_id: 0,
                     notification_id: 0,
                 }
@@ -55,7 +55,7 @@ pub fn ads_router(state: GlobalState) -> Router<GlobalState> {
         .with_state(state)
 }
 
-#[derive(Debug, Default, YaSerialize)]
+#[derive(Clone, Debug, Default, YaSerialize)]
 #[yaserde(rename = "tabad")]
 struct TabAd {
     image: String,
@@ -73,27 +73,38 @@ struct TabAd {
     notification_id: u32
 }
 
-#[derive(Debug, YaSerialize)]
+#[derive(Clone, Debug, YaSerialize)]
 #[yaserde(rename = "ads")]
 struct Ads {
     #[yaserde(rename = "tabad")]
     tab_ads: Vec<TabAd>
 }
 
+impl Ads {
+    pub fn replace_port(&mut self, port: u32) {
+        for tab_ad in &mut self.tab_ads {
+            tab_ad.image = tab_ad.image.replace("%port%", &port.to_string());
+            tab_ad.content_url = tab_ad.content_url.replace("%port%", &port.to_string());
+            tab_ad.hit_url = tab_ad.hit_url.replace("%port%", &port.to_string());
+        }
+    }
+}
 
-pub async fn get_tab_ad(Path(tab_index): Path<u32>) -> Response<Body> {
 
-    match TAB_ADS.get(tab_index as usize) {
+pub async fn get_tab_ad(Path(tab_index): Path<u32>, State(state): State<GlobalState>) -> Response<Body> {
+
+    match TAB_ADS.get(tab_index as usize).cloned() {
         None => {
             Response::builder().status(StatusCode::NOT_FOUND)
                 .body(Body::empty())
                 .unwrap()
         }
-        Some(tab_ad) => {
+        Some(mut tab_ad) => {
+            tab_ad.replace_port(state.get_config().http_port);
             Response::builder()
                 .status(StatusCode::OK)
                 .header(CONTENT_TYPE, "text/xml")
-                .body(Body::from(ser::to_string(tab_ad).unwrap())).unwrap()
+                .body(Body::from(ser::to_string(&tab_ad).unwrap())).unwrap()
         }
     }
 }
