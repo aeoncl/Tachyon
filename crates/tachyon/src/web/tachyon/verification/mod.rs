@@ -15,6 +15,7 @@ use maud::html;
 use std::str::FromStr;
 use axum::body::Body;
 use axum::http::Response;
+use crate::matrix::cross_signing::check_device_is_crossed_signed;
 
 pub async fn get_verification_poll(
     State(state): State<GlobalState>,
@@ -128,6 +129,7 @@ pub async fn get_verification_poll(
 
             let (_, notification) = tachyon_client.alerts().remove(&notification_id).unwrap();
             notification.notify_success(AlertSuccess::Unit);
+
 
             html! {
                     div class="container" {

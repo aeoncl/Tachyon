@@ -3,6 +3,7 @@ use axum::extract::State;
 use axum::response::Html;
 use matrix_sdk::ruma::api::client::uiaa::{AuthData, Password, UserIdentifier};
 use maud::html;
+use crate::matrix::cross_signing::check_device_is_crossed_signed;
 use crate::tachyon::alert::{AlertError, AlertNotify, AlertSuccess};
 use crate::tachyon::global_state::GlobalState;
 use crate::tachyon::repository::RepositoryStr;
@@ -53,7 +54,7 @@ pub async fn post_reset_identity(
         .await
         .unwrap();
 
-    let successful = status.is_complete();
+    let successful = status.is_complete() && check_device_is_crossed_signed(&matrix_client).await.unwrap();
 
     if successful {
         alert.notify_success(AlertSuccess::Unit);

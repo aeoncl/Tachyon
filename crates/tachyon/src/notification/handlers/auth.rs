@@ -133,7 +133,13 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
                    let _ = sign_sync_loop_kill_snd.send(()).await;
                     match recv {
                         Ok(success) => {
+                            //We recheck if the device is cross signed as we can have false positives and the user needs to reset his cryptographic identity in such cases.
+                            if (check_device_is_crossed_signed(&matrix_client_clone).await.unwrap()) {
 
+                            } else {
+                                let _  = client_kill_snd.send(());
+                                return;
+                            }
                         }
                         Err(err) => {
                             let _  = client_kill_snd.send(());

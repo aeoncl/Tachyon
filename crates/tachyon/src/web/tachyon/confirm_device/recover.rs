@@ -2,7 +2,7 @@ use std::str::FromStr;
 use axum::extract::State;
 use axum::response::Html;
 use maud::{html, Markup};
-use crate::matrix::cross_signing::restore_from_recovery_key;
+use crate::matrix::cross_signing::{check_device_is_crossed_signed, restore_from_recovery_key};
 use crate::tachyon::alert::{AlertError, AlertNotify, AlertSuccess};
 use crate::tachyon::global_state::GlobalState;
 use crate::tachyon::repository::RepositoryStr;
@@ -146,9 +146,9 @@ pub async fn post_recover(
 
     let result = restore_from_recovery_key(&matrix_client, recovery_key).await;
 
-    let successful = result.is_ok();
+    let successful = result.is_ok() && check_device_is_crossed_signed(&matrix_client).await.unwrap();
 
-    if successful {
+    if successful{
         alert.notify_success(AlertSuccess::Unit);
     } else {
         alert.notify_failure(AlertError::from(anyhow::anyhow!("Failed to confirm device")));
