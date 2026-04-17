@@ -40,7 +40,7 @@ pub async fn post_auth(
     let matrix_id = email.to_owned_user_id();
 
     let login_successful =
-        if let Ok((matrix_token, _)) = login_with_password(matrix_id, password, true).await {
+        if let Ok((matrix_token, _)) = login_with_password(matrix_id, password, !state.get_config().strict_ssl).await {
             let ticket_token = TicketToken(
                 state
                     .secret_encryptor()

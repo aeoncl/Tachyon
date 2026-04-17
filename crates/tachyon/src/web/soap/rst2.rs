@@ -49,7 +49,7 @@ pub async fn rst2_handler(headers: HeaderMap, State(state): State<GlobalState>, 
         };
     }
 
-    let (matrix_token, _client) = login_with_password(matrix_id, &creds.password, true).await?;
+    let (matrix_token, _client) = login_with_password(matrix_id, &creds.password, !state.get_config().strict_ssl).await?;
 
     let ticket_token = TicketToken(state.secret_encryptor().encrypt(&matrix_token)
         .map_err(|e| RST2Error::InternalServerError { source: anyhow!("Failed to encrypt token: {}", e) })?

@@ -51,7 +51,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
                             let matrix_token = tachyon_state.secret_encryptor().decrypt(ticket_token.as_str())?;
 
-                            let matrix_client = matrix::login::login_with_token(user_id.clone(), matrix_token, true).await?;
+                            let matrix_client = matrix::login::login_with_token(user_id.clone(), matrix_token, !config.strict_ssl).await?;
 
                             let endpoint_id = EndpointId::new(local_store.email_addr.clone(), Some(endpoint_guid));
                             let msn_user = MsnUser::new(endpoint_id);
