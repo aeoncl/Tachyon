@@ -25,11 +25,7 @@ impl VerificationRequestRepository {
     }
 
     pub fn remove_for(&self, user_id: &UserId) {
-        self.requests.iter()
-            .filter(|entry| entry.value().own_user_id() == user_id)
-            .for_each(|entry| {
-                self.requests.remove(entry.key().as_str());
-            });
+        self.requests.retain(|_, v| v.own_user_id() != user_id);
     }
 }
 
