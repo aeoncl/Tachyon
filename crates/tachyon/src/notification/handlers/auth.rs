@@ -57,7 +57,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             let msn_user = MsnUser::new(endpoint_id);
 
 
-                            let tachyon_client = TachyonClient::new(msn_user.clone(), ticket_token.clone(), notif_sender.clone());
+                            let tachyon_client = TachyonClient::new(config.clone(), msn_user.clone(), ticket_token.clone(), notif_sender.clone());
                             let drop_guard = tachyon_state.insert_clients(ticket_token.as_str().to_owned(), tachyon_client.clone(), matrix_client.clone());
 
                             local_store.client_drop_guard = Some(drop_guard);
@@ -156,7 +156,7 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
             }
         }
 
-        let secret_storage_enabled = check_secret_storage_state(&matrix_client_clone).await.unwrap();
+/*        let secret_storage_enabled = check_secret_storage_state(&matrix_client_clone).await.unwrap();
 
         if !secret_storage_enabled {
 
@@ -169,7 +169,7 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
 
             notif_sender_clone.send(backup_not).await;
 
-        }
+        }*/
 
 
         notif_sender_clone.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await;

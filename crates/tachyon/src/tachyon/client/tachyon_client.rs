@@ -13,6 +13,7 @@ use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::{Arc, Mutex, RwLockWriteGuard};
 use tokio::sync::mpsc;
+use crate::tachyon::config::tachyon_config::TachyonConfig;
 
 pub struct TachyonClientInner {
     pub own_user: RwLock<MsnUser>,
@@ -23,6 +24,7 @@ pub struct TachyonClientInner {
     pub alerts: DashMap<i32, Alert>,
     pub circle_store: CircleStore,
     pub notification_handle: NotificationHandle,
+    pub config: TachyonConfig
 }
 
 #[derive(Clone)]
@@ -32,6 +34,7 @@ pub struct TachyonClient {
 
 impl TachyonClient {
     pub fn new(
+        config: TachyonConfig,
         user: MsnUser,
         token: TicketToken,
         notification_sender: mpsc::Sender<NotificationServerCommand>
@@ -46,12 +49,13 @@ impl TachyonClient {
                 alerts: Default::default(),
                 circle_store: CircleStore::new(),
                 notification_handle: NotificationHandle::new(notification_sender),
+                config,
             })
         }
     }
 
     pub fn switchboards(&self) -> SwitchboardService {
-        SwitchboardService::new(self.clone())
+        SwitchboardService::new(self.clone(), self.inner.config.switchboard_port)
     }
 
     pub fn alerts(&self) -> &DashMap<i32, Alert> {

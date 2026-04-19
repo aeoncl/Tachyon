@@ -13,15 +13,17 @@ use tokio_retry2::RetryError;
 
 #[derive(Clone)]
 pub struct SwitchboardService {
-    tachyon_client: TachyonClient
+    tachyon_client: TachyonClient,
+    switchboard_port: u32
 }
 
 impl SwitchboardService {
 
     //TODO Better locks on switchboard.
-    pub fn new(tachyon_client: TachyonClient) -> Self {
+    pub fn new(tachyon_client: TachyonClient, switchboard_port: u32) -> Self {
         SwitchboardService {
             tachyon_client,
+            switchboard_port,
         }
     }
 
@@ -72,12 +74,13 @@ impl SwitchboardService {
         let token = self.tachyon_client.ticket_token().0;
         let room_id = room_id.to_owned();
 
+        let switchboard_port = self.switchboard_port;
         tokio::spawn(async move {
             let _ = notification_client_clone.send(
                 NotificationServerCommand::RNG(
                     RngServer::new(
                         SessionId::random(),
-                        IpAddress::new(Ipv4Addr::new(127, 0, 0, 1), 1864),
+                        IpAddress::new(Ipv4Addr::new(127, 0, 0, 1), switchboard_port),
                         SwitchboardToken::new(room_id.clone(), token.clone()).into(),
                         inviter_clone.get_email_address().clone(),
                         inviter_clone.compute_display_name().to_string()

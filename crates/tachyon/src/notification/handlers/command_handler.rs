@@ -20,7 +20,7 @@ pub(crate) async fn handle_command(command: NotificationClientCommand, command_s
         ConnectionPhase::Ready => {
             let matrix_client = local_client_data.matrix_client.as_ref().ok_or(anyhow!("Matrix Client should be here by now"))?.clone();
             let tachyon_client = local_client_data.tachyon_client.as_ref().ok_or(anyhow!("Tachyon Client should be here by now"))?.clone();
-            handle_ready(command, command_sender, tachyon_client, matrix_client, local_client_data).await
+            handle_ready(command, command_sender, tachyon_client, matrix_client, local_client_data, config).await
         }
     };
 

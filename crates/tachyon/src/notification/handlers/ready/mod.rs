@@ -16,6 +16,7 @@ use uux_handler::handle_uux;
 use xfr_handler::handle_xfr;
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::config::tachyon_config::TachyonConfig;
 
 mod usr_handler;
 mod png_handler;
@@ -30,7 +31,7 @@ mod prp_handler;
 mod fqy_handler;
 mod url_handler;
 
-pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, tachyon_client: TachyonClient, matrix_client: Client, local_store: &mut LocalClientData) -> Result<(), anyhow::Error> {
+pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, tachyon_client: TachyonClient, matrix_client: Client, local_store: &mut LocalClientData, config: &TachyonConfig) -> Result<(), anyhow::Error> {
     match raw_command {
         NotificationClientCommand::USR(command) => handle_usr(command, local_store.email_addr.clone(), command_sender).await,
         NotificationClientCommand::PNG => handle_png(command_sender).await,
@@ -38,7 +39,7 @@ pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command
         NotificationClientCommand::RML(command) => handle_rml(command, tachyon_client, command_sender).await,
         NotificationClientCommand::UUX(command) => handle_uux(command, local_store, command_sender).await,
         NotificationClientCommand::UUM(command) => handle_uum(command, tachyon_client, matrix_client, command_sender).await,
-        NotificationClientCommand::XFR(command) => handle_xfr(command, local_store, command_sender).await,
+        NotificationClientCommand::XFR(command) => handle_xfr(command, local_store, command_sender, config).await,
         NotificationClientCommand::BLP(command) => {
             command_sender.send(NotificationServerCommand::BLP(command)).await?;
             Ok(())
