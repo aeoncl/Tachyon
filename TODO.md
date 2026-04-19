@@ -2,17 +2,13 @@
 
 ## Installer
 
-- [ ] Install WLM in silent mode `wl-setup.exe /q /NOToolbarCEIP /NOhomepage /nolaunch /nosearch /AppSelect:Messenger`
-- [ ] create wlcomm-tachyon.exe and add new COM class in the registry
-- [ ] add zathras.dll to wlcomm-tachyon import table
-- [ ] create Tachyon idcrl environment in the registry
-- [ ] Copy the db dll broken by Windows 11 24H2 (by swapping it with an older version from a previous windows)
+- [X] Installs Tachyon and all the necessary files to make it run.
 
 ## Launching the server
 
 - [X] Make patching solution compatible with third party MSN servers (escargot, crosstalk, etc)
 - [X] Create launcher to start msnmsgr.exe with zathras imported. (Remove all unknown dll imports)
-- [ ] Config file for both zathras and tachyon to share the port, the logging, etc...
+- [X] Config file for both zathras and tachyon to share the port, the logging, etc...
 
 ## Landing Page
 
@@ -25,7 +21,7 @@
 - [X] E2E Device verification
 - [X] MSN Today Page
 - [ ] Memory management of heap allocated objects
-  - [ ] DropGuard for Clients
+  - [X] DropGuard for Clients
   - [ ] Outer select! on spawned tasks to handle kill signals
   - [ ] Period sweep of GlobalData for unused objects
 - [ ] MSNP Errors
