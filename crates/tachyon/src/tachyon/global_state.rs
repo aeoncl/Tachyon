@@ -40,6 +40,8 @@ impl ClientDropGuard {
 
 impl Drop for ClientDropGuard {
     fn drop(&mut self) {
+
+        //FIXME: this fails when a verification request is still pending. The log never prints. server hangs. find out why
         let matrix_client = self.global_state.matrix_clients().remove(&self.key);
         if let Some(client) = matrix_client {
             if let Some(user_id) = client.user_id() {
@@ -50,6 +52,7 @@ impl Drop for ClientDropGuard {
         if let Some(client) = tachyon_client {
             self.global_state.take_pending_ticket(client.own_user().get_email_address());
         }
+
 
         println!("Client Drop Guard dropped");
 

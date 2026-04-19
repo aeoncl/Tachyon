@@ -144,6 +144,7 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
                         }
                         Err(err) => {
                             let _  = client_kill_snd.send(());
+                            debug!("error received stopping sync_with_server_task");
                             return;
                         }
                     }
