@@ -33,6 +33,17 @@ pub async fn get_verification_poll(
     let last_state = params.get("state").map(|s| s.as_str()).unwrap_or_default().trim();
 
 
+    let maybe_client = state.tachyon_clients().get(&token);
+    if maybe_client.is_none() {
+        return Response::builder()
+            .status(404)
+            .header("X-IC-CancelPolling", "true")
+            .body(Body::empty())
+            .unwrap();
+    }
+
+    //TODO fix this with actual error handling
+    //This unwrap caused the notification server to deny clients
     let tachyon_client = state.tachyon_clients().get(&token).unwrap();
     if !tachyon_client.alerts().contains_key(&notification_id)
     {

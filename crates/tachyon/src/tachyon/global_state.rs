@@ -50,6 +50,9 @@ impl Drop for ClientDropGuard {
         if let Some(client) = tachyon_client {
             self.global_state.take_pending_ticket(client.own_user().get_email_address());
         }
+
+        println!("Client Drop Guard dropped");
+
     }
 }
 
