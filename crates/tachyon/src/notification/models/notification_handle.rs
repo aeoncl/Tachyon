@@ -1,13 +1,7 @@
-use std::net::Ipv4Addr;
-use std::time::Duration;
-use matrix_sdk::ruma::RoomId;
-use tokio::sync::mpsc;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
+use std::time::Duration;
+use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::SendTimeoutError;
-use msnp::msnp::notification::command::rng::RngServer;
-use msnp::msnp::notification::models::ip_address::IpAddress;
-use msnp::msnp::switchboard::models::session_id::SessionId;
-use msnp::shared::models::msn_user::MsnUser;
 
 #[derive(Clone)]
 pub struct NotificationHandle {

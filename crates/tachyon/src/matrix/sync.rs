@@ -24,7 +24,9 @@ use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use tokio::sync::broadcast::{Receiver, Sender};
+use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::SendTimeoutError;
+use tokio::task::JoinHandle;
 use msnp::msnp::notification::command::nln::NlnServer;
 use msnp::msnp::notification::command::not::factories::NotificationFactory;
 use msnp::msnp::notification::command::not::{NotServer, NotificationPayloadType};
@@ -65,11 +67,11 @@ pub async fn build_sliding_sync(matrix_client: &Client) -> Result<SlidingSync, a
     Ok(sliding_sync_builder.build().await?)
 }
 
-pub async fn sync(tachyon_client: TachyonClient, matrix_client: Client, kill_signal_snd: Sender<()>, kill_signal_rcv: Receiver<()>) {
+pub async fn sync(tachyon_client: TachyonClient, matrix_client: Client, kill_signal_snd: Sender<()>, kill_signal_rcv: Receiver<()>) -> JoinHandle<()> {
     let sliding_sync = build_sliding_sync(&matrix_client).await.unwrap();
     let updates_recv = matrix_client.subscribe_to_all_room_updates();
 
-    spawn_sync_task(tachyon_client, matrix_client, sliding_sync, updates_recv, kill_signal_snd, kill_signal_rcv, true);
+    spawn_sync_task(tachyon_client, matrix_client, sliding_sync, updates_recv, kill_signal_snd, kill_signal_rcv)
 }
 
 fn spawn_sync_task(
@@ -77,70 +79,98 @@ fn spawn_sync_task(
     matrix_client: Client,
     sliding_sync: SlidingSync,
     mut updates_recv: Receiver<RoomUpdates>,
-    kill_signal_snd: Sender<()>,
-    mut kill_signal_rcv: Receiver<()>,
-    mut first_sync_of_session: bool,
-) {
+    client_shutdown_snd: Sender<()>,
+    mut client_shutdown_rcv: Receiver<()>,
+) -> JoinHandle<()> {
     tokio::spawn(async move {
         info!("Initializing Sliding Sync...");
         register_event_handlers(&matrix_client, tachyon_client.clone());
 
-        let mut initial_sync = true;
-
         info!("Starting Sliding Sync...");
-        let mut sync_stream = Box::pin(sliding_sync.sync());
-        'main: loop {
+        let (error_tx, mut error_rx) = mpsc::channel::<ErrorKind>(1);
+
+        let mut sync_handle = tokio::spawn({
+            let sliding_sync = sliding_sync.clone();
+
+            async move {
+                let mut sync_stream = Box::pin(sliding_sync.sync());
+                loop {
+                    match sync_stream.next().await {
+                        Some(Ok(update_summary)) => {
+                            info!("Received Sliding Sync stream response with pos: {:?}", &update_summary);
+                        }
+                        Some(Err(err)) => {
+                            if let Some(error_kind) = err.client_api_error_kind() {
+                                error!("Error in sync stream: {:?}", error_kind);
+                                let _ = error_tx.send(error_kind.clone()).await;
+                            } else {
+                                error!("Error in sync stream: {:?}", err);
+                            }
+                            break;
+                        }
+                        None => {
+                            error!("Sync stream ended unexpectedly");
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+
+        loop {
             tokio::select! {
-                _ = kill_signal_rcv.recv() => {
+                _ = client_shutdown_rcv.recv() => {
                     info!("Gracefully exit sync loop...");
                     if let Err(err) = sliding_sync.stop_sync() {
                         error!("Error stopping sync loop: {:?}", err);
                     }
-                    break 'main;
+                    sync_handle.abort();
+                    break;
                 }
-                sync_response = sync_stream.next() => {
-                    match sync_response {
-                        Some(Ok(update_summary)) => {
-                            info!("Received Sliding Sync stream response with pos: {:?}", &update_summary);
+                room_update = updates_recv.recv() => {
+                    match room_update {
+                        Ok(room_updates) => {
+                            println!("{:?}", &room_updates);
 
-                            match updates_recv.recv().await {
-                                Ok(room_updates) => {
-                                    println!("{:?}", &room_updates);
-                                    if first_sync_of_session  {
-                                        first_sync_of_session = false;
-                                        handle_first_sync(&tachyon_client).await.unwrap();
-                                    }
-                                    
-                                }
-                                Err(err) => {
-                                    error!("Error receiving RoomUpdates: {:?}", err);
-                                }
-                            }
-
-                            handle_addressbook_notifications(&tachyon_client).await.unwrap();
-                            initial_sync = false
-                        }
-                        Some(Err(err)) => {
-                            if err.client_api_error_kind() == Some(&ErrorKind::UnknownPos) {
-                                info!("Unknown pos, re-syncing...");
-                                spawn_sync_task(tachyon_client, matrix_client, sliding_sync.clone(), updates_recv, kill_signal_snd, kill_signal_rcv, first_sync_of_session);
-                                break 'main;
-                            } else {
-                                error!("Error in sync stream: {:?}", err);
-                                if let Err(e) = kill_signal_snd.send(()) {
-                                    break 'main;
-                                };
+                            if let Err(e) = handle_addressbook_notifications(&tachyon_client).await {
+                                error!("Error handling addressbook notifications: {:?}", e);
                             }
                         }
-                        _ => {
-                            error!("Unexpected sync stream response");
+                        Err(err) => {
+                            error!("Error receiving RoomUpdates: {:?}", err);
                         }
                     }
                 }
+                error_kind = error_rx.recv() => {
+                    if let Some(ErrorKind::UnknownPos) = error_kind {
+                        info!("Unknown pos detected, re-syncing...");
+                        sync_handle.abort();
 
+                        spawn_sync_task(
+                            tachyon_client,
+                            matrix_client,
+                            sliding_sync.clone(),
+                            updates_recv,
+                            client_shutdown_snd,
+                            client_shutdown_rcv
+                        );
+                        break;
+                    } else {
+                        error!("Unrecoverable sync error: {:?}", error_kind);
+                        let _ = client_shutdown_snd.send(());
+                        sync_handle.abort();
+                        break;
+                    }
+                }
+                _ = &mut sync_handle => {
+                    info!("Sync handle completed");
+                    break;
+                }
             }
         }
-    });
+
+        info!("Sync task finished");
+    })
 }
 
 async fn handle_addressbook_notifications(client_data: &TachyonClient) -> Result<(), SendTimeoutError<NotificationServerCommand>> {
@@ -159,14 +189,4 @@ async fn handle_addressbook_notifications(client_data: &TachyonClient) -> Result
     } else {
         Ok(())
     }
-}
-
-async fn handle_first_sync(client_data: &TachyonClient) -> Result<(), anyhow::Error> {
-    let me = client_data.own_user();
-    let ticket_token = client_data.ticket_token();
-    let notification_handle = client_data.notification_handle();
-
-    // This is sent to make the client pass the logon screen. Timeout of the logon screen is 1 minute.
-
-    Ok(())
 }

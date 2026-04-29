@@ -94,8 +94,7 @@ impl SwitchboardHandle {
 pub enum SwitchboardState {
     Initializing,
     Ready {
-        msnp_sender: mpsc::Sender<SwitchboardServerCommand>,
-      //  p2p_sender: mpsc::Sender<String>,
+        msnp_sender: mpsc::Sender<SwitchboardServerCommand>
     }
 }
 

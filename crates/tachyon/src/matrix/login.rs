@@ -11,13 +11,13 @@ use msnp::shared::models::ticket_token::TicketToken;
 
 use crate::tachyon::error::{MatrixConversionError, TachyonError};
 use crate::tachyon::config::paths::get_store_path;
-use crate::tachyon::identifiers::matrix_device_id::MatrixDeviceId;
+use crate::tachyon::identifiers::tachyon_device_id::TachyonDeviceId;
 
-fn get_device_id() -> Result<MatrixDeviceId, MatrixConversionError> {
-    MatrixDeviceId::from_hostname()
+fn get_device_id() -> Result<TachyonDeviceId, MatrixConversionError> {
+    TachyonDeviceId::from_hostname()
 }
 
-pub fn get_device_display_name(device_id: &MatrixDeviceId) -> String {
+pub fn get_device_display_name(device_id: &TachyonDeviceId) -> String {
     format!("Tachyon-{}", &device_id)
 }
 

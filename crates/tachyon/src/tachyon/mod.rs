@@ -4,7 +4,7 @@ pub mod identifiers;
 pub(crate) mod global_state;
 pub mod alert;
 mod matrix_client_repository;
-mod mappers;
+pub mod mappers;
 pub mod switchboard_service;
 pub mod client;
 pub mod config;

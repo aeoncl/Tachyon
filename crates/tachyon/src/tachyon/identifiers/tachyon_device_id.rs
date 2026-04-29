@@ -2,9 +2,9 @@ use std::fmt::{Display, Formatter};
 use anyhow::anyhow;
 use crate::tachyon::error::MatrixConversionError;
 
-pub struct MatrixDeviceId(String);
+pub struct TachyonDeviceId(String);
 
-impl MatrixDeviceId {
+impl TachyonDeviceId {
     pub fn from_hostname() -> Result<Self, MatrixConversionError> {
         let device_id = hostname::get()
             .map_err(|e| MatrixConversionError::DeviceIdGeneration { source: e.into() })?
@@ -14,11 +14,11 @@ impl MatrixDeviceId {
             })?
             .to_string();
 
-        Ok(MatrixDeviceId(format!("TAK-{}", device_id)))
+        Ok(TachyonDeviceId(format!("TAK-{}", device_id)))
     }
 }
 
-impl Display for MatrixDeviceId {
+impl Display for TachyonDeviceId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }

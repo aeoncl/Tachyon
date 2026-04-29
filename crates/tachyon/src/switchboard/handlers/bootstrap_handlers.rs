@@ -22,7 +22,7 @@ use std::str::FromStr;
 use tokio::sync::mpsc::Sender;
 use msnp::shared::models::display_name::DisplayName;
 use crate::tachyon::global_state::GlobalState;
-use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
+use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::repository::RepositoryStr;
 
 const ROOM_USER_PORTAL_MODE: bool = true;
@@ -163,31 +163,8 @@ pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sende
                     tachyon_client.switchboards().insert(switchboard_handle)?;
 
                     let command_sender_clone = command_sender.clone();
-
-                    if !ROOM_USER_PORTAL_MODE {
-                        tokio::spawn(async move {
-                            let mut result = get_initial_roster(&room).await;
-                            match result {
-                                Ok(mut initial_roster) => {
-
-
-                                    for member in initial_roster.drain(..) {
-                                        if let Err(_) = send_initial_joined_member(member, &command_sender_clone.clone()).await {
-                                            //TODO we should retry here or disconnect
-
-                                        }
-                                    }
-                                }
-                                Err(err) => {
-                                    //Todo disconnect if we cannot fetch members.
-                                }
-                            }});
-                    }
                 }
-
-
                 //TODO: handle room not found
-
             }
 
 
@@ -198,28 +175,6 @@ pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sende
         SwitchboardClientCommand::RAW(_) => {}
     };
     Ok(())
-}
-
-async fn send_active_members_notice(room: &Room, sender: &Sender<SwitchboardServerCommand>) -> Result<(), anyhow::Error> {
-    let active = room.active_members_count();
-    if !room.is_valid_one_to_one_direct() || active > 2 {
-        let heroes_string = room.heroes().drain(..).map(|hero| hero.display_name.unwrap_or(hero.user_id.to_string())).reduce(|acc, hero| format!("{}, {}", acc, hero));
-        sender.send(SwitchboardServerCommand::MSG(create_notice_message(format!("This room is a portal room.\r\nYou are sharing it with {} other member(s).\r\n", active-1).as_str()))).await?;
-        if let Some(heroes) = heroes_string {
-            sender.send(SwitchboardServerCommand::MSG(create_notice_message(format!("Room heroes: {}\r\n", heroes).as_str()))).await?;
-        }
-    }
-    Ok(())
-}
-
-fn create_notice_message(text: &str) -> MsgServer {
-    MsgServer{
-        sender: EmailAddress::from_str("tachyon@tachyon.internal").unwrap(),
-        display_name: DisplayName::new_from_ref("System"),
-        payload: MsgPayload::TextPlain(
-            TextPlainMessagePayload::new_with_notice_style(text)
-        ),
-    }
 }
 
 async fn get_initial_roster(room: &Room) -> Result<Vec<MsnUser>, anyhow::Error> {
@@ -248,8 +203,6 @@ async fn get_initial_roster_with_room_user(room: &Room, room_msn_user: MsnUser) 
 }
 
 async fn send_initial_roster_member(tr_id: u128, index: u32, count: u32, member: MsnUser, command_sender: &Sender<SwitchboardServerCommand>) -> Result<(), anyhow::Error>{
-
-
     command_sender.send(SwitchboardServerCommand::IRO(IroServer::new(
         tr_id,
         index,

@@ -186,7 +186,7 @@ pub async fn build_to_device_only_sliding_sync(matrix_client: &Client) -> Result
 
 pub async fn cross_sign_sync_task(
     client: &matrix_sdk::Client,
-    mut client_kill_signal_recv: tokio::sync::broadcast::Receiver<()>,
+    mut client_shutdown_recv: tokio::sync::broadcast::Receiver<()>,
 
 ) -> Result<mpsc::Sender<()>, anyhow::Error> {
 
@@ -219,7 +219,7 @@ pub async fn cross_sign_sync_task(
                 sliding_sync.stop_sync().unwrap();
                 sync_handle.abort();
             },
-            _ = client_kill_signal_recv.recv() => {
+            _ = client_shutdown_recv.recv() => {
                 sliding_sync.stop_sync().unwrap();
                 sync_handle.abort();
             },

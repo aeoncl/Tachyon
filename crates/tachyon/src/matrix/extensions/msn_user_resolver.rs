@@ -13,7 +13,7 @@ use sha1::digest::DynDigest;
 use sha1::{Digest, Sha1};
 use std::str::FromStr;
 use dashmap::mapref::one::Ref;
-use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
+use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 
 lazy_static! {
     static ref ROOM_HASH_TABLE: DashMap<String, OwnedRoomId> = DashMap::new();

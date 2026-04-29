@@ -1,7 +1,7 @@
 use crate::tachyon::global_state::GlobalState;
-use crate::tachyon::identifiers::matrix_id_compatible;
-use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
-use crate::tachyon::identifiers::to_uuid::ToUuid;
+use crate::tachyon::mappers::user_id;
+use crate::tachyon::mappers::user_id::MatrixIdCompatible;
+use crate::tachyon::mappers::uuid::ToUuid;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;

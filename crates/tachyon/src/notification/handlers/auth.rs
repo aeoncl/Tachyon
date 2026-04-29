@@ -7,7 +7,7 @@ use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::alert::{Alert, AlertError, AlertSuccess};
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::global_state::GlobalState;
-use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
+use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::repository::RepositoryStr;
 use anyhow::Error;
 use log::debug;
@@ -30,7 +30,7 @@ use crate::tachyon::config::tachyon_config::TachyonConfig;
 
 const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"1000\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"100\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
 
-pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, tachyon_state: &GlobalState, local_store: &mut LocalClientData, client_kill_snd: tokio::sync::broadcast::Sender<()>, config: &TachyonConfig) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, tachyon_state: &GlobalState, local_store: &mut LocalClientData, config: &TachyonConfig) -> Result<(), anyhow::Error> {
     match command {
         NotificationClientCommand::USR(command) => {
             match command.auth_type {
@@ -57,7 +57,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             let msn_user = MsnUser::new(endpoint_id);
 
 
-                            let tachyon_client = TachyonClient::new(config.clone(), msn_user.clone(), ticket_token.clone(), notif_sender.clone());
+                            let tachyon_client = TachyonClient::new(config.clone(), msn_user.clone(), ticket_token.clone(), notif_sender.clone(), local_store.client_shutdown_snd.clone(), local_store.client_shutdown_recv.resubscribe());
                             let drop_guard = tachyon_state.insert_clients(ticket_token.as_str().to_owned(), tachyon_client.clone(), matrix_client.clone());
 
                             local_store.client_drop_guard = Some(drop_guard);
@@ -66,7 +66,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             local_store.matrix_client = Some(matrix_client.clone());
                             local_store.phase = ConnectionPhase::Ready;
 
-                            sync_with_server_task(&notif_sender, local_store, &ticket_token, &matrix_client, &msn_user, tachyon_client, client_kill_snd, config)?;
+                            sync_with_server_task(&notif_sender, local_store, &ticket_token, &matrix_client, &msn_user, tachyon_client, config)?;
 
                             let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
                                 email_addr: local_store.email_addr.clone(),
@@ -101,14 +101,14 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
 }
 
-fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local_store: &LocalClientData, ticket_token: &TicketToken, matrix_client: &Client, msn_user: &MsnUser, tachyon_client: TachyonClient, client_kill_snd: tokio::sync::broadcast::Sender<()>, config: &TachyonConfig) -> Result<(), Error> {
+fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local_store: &LocalClientData, ticket_token: &TicketToken, matrix_client: &Client, msn_user: &MsnUser, tachyon_client: TachyonClient, config: &TachyonConfig) -> Result<(), Error> {
     let msn_user_clone = msn_user.clone();
     let matrix_client_clone = matrix_client.clone();
     let notif_sender_clone = notif_sender.clone();
     let ticket_token_clone = ticket_token.clone();
     let config_clone = config.clone();
-    let client_kill_snd = local_store.client_kill_snd.clone();
-    let mut client_kill_recv = local_store.client_kill_recv.resubscribe();
+    let client_shutdown_snd = local_store.client_shutdown_snd.clone();
+    let mut client_shutdown_recv = local_store.client_shutdown_recv.resubscribe();
 
 
     task::spawn(async move {
@@ -116,7 +116,7 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
 
         if !cross_signed {
 
-            let sign_sync_loop_kill_snd = cross_signing::cross_sign_sync_task(&matrix_client_clone, client_kill_recv.resubscribe()).await.unwrap();
+            let sign_sync_loop_kill_snd = cross_signing::cross_sign_sync_task(&matrix_client_clone, client_shutdown_recv.resubscribe()).await.unwrap();
 
             let notification_id = rand::random::<i32>();
 
@@ -135,21 +135,21 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
                     match recv {
                         Ok(success) => {
                             //We recheck if the device is cross signed as we can have false positives and the user needs to reset his cryptographic identity in such cases.
-                            if (check_device_is_crossed_signed(&matrix_client_clone).await.unwrap()) {
+                            if check_device_is_crossed_signed(&matrix_client_clone).await.unwrap() {
 
                             } else {
-                                let _  = client_kill_snd.send(());
+                                let _  = client_shutdown_snd.send(());
                                 return;
                             }
                         }
                         Err(err) => {
-                            let _  = client_kill_snd.send(());
+                            let _  = client_shutdown_snd.send(());
                             debug!("error received stopping sync_with_server_task");
                             return;
                         }
                     }
                 },
-                kill_recv = client_kill_recv.recv() => {
+                kill_recv = client_shutdown_recv.recv() => {
                     debug!("client_kill_recv stopping sync_with_server_task");
                     let _ = sign_sync_loop_kill_snd.send(()).await;
                     return;
@@ -199,7 +199,7 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
 
         //Todo check the device state before we sync
 
-        sync(tachyon_client, matrix_client_clone, client_kill_snd, client_kill_recv).await;
+        let sync_join_handle = sync(tachyon_client, matrix_client_clone, client_shutdown_snd, client_shutdown_recv).await;
 
         let initial_mail_data = NotificationServerCommand::MSG(MsgServer {
             sender: "Hotmail".to_string(),

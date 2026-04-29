@@ -9,7 +9,7 @@ use maud::html;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::str::FromStr;
-use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
+use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 
 pub async fn get_auth(
     axum::extract::Query(params): axum::extract::Query<Params>

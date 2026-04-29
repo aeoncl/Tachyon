@@ -17,7 +17,7 @@ use std::str::FromStr;
 use crate::matrix::handlers::contact_handlers::{compute_all_contacts};
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::notification::models::soap_holder::AddressBookContact;
-use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
+use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 
 pub(super) async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, _token: TicketToken, client: Client, mut tachyon_client: TachyonClient) -> Result<Response, ABError> {
     let body = &request.body.body;

@@ -36,15 +36,15 @@ async fn main() {
     setup_logs(tachyon_path.data_dir().to_path_buf(), &config);
     let secret = setup_key(tachyon_path.data_local_dir().to_path_buf()).expect("secret key is mandatory");
 
-    let (master_kill_signal,  kill_recv) = broadcast::channel::<()>(1);
+    let (global_shutdown_signal_snd, global_shutdown_signal_rcv) = broadcast::channel::<()>(1);
 
     let global_state = GlobalState::new(config.clone(), SecretEncryptor::new(&secret).expect("secret key to be valid"));
 
-    let notification_server = NotificationServer::listen("127.0.0.1", config.notification_port, kill_recv.resubscribe(), global_state.clone());
-    let switchboard_server = SwitchboardServer::listen("127.0.0.1", config.switchboard_port, kill_recv.resubscribe(), global_state.clone());
-    let web_server = WebServer::listen("127.0.0.1", config.http_port, kill_recv, global_state);
+    let notification_server = NotificationServer::listen("127.0.0.1", config.notification_port, global_shutdown_signal_rcv.resubscribe(), global_state.clone());
+    let switchboard_server = SwitchboardServer::listen("127.0.0.1", config.switchboard_port, global_shutdown_signal_rcv.resubscribe(), global_state.clone());
+    let web_server = WebServer::listen("127.0.0.1", config.http_port, global_shutdown_signal_rcv, global_state);
 
-    let _result = join!(notification_server, switchboard_server, web_server, listen_for_stop_signal(master_kill_signal));
+    let _result = join!(notification_server, switchboard_server, web_server, listen_for_stop_signal(global_shutdown_signal_snd));
 
     info!("Byebye, world!");
 }
@@ -122,7 +122,7 @@ fn setup_logs(path: PathBuf, config: &TachyonConfig) {
 }
 
 
-async fn listen_for_stop_signal(master_kill_signal: Sender<()>) {
+async fn listen_for_stop_signal(global_shutdown_signal_snd: Sender<()>) {
     match signal::ctrl_c().await {
         Ok(()) => {},
         Err(err) => {
@@ -130,8 +130,8 @@ async fn listen_for_stop_signal(master_kill_signal: Sender<()>) {
             // we also shut down in case of error
         },
     }
-    info!("Sending kill signals");
-    let _result = master_kill_signal.send(());
+    info!("Sending global shutdown signal");
+    let _result = global_shutdown_signal_snd.send(());
 
 }
 

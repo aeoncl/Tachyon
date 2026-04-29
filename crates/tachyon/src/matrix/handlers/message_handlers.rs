@@ -3,7 +3,7 @@ use crate::matrix::extensions::message_dedup::SendWithDedup;
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::matrix::handlers::context::TachyonContext;
 use crate::switchboard::extensions::CustomStyles;
-use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
+use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::events::room::message::{MessageType, OriginalSyncRoomMessageEvent};
 use matrix_sdk::ruma::events::typing::SyncTypingEvent;

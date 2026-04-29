@@ -12,7 +12,7 @@ use msnp::msnp::switchboard::command::msg::{MsgAcknowledgment, MsgClient, MsgPay
 use msnp::shared::command::nak::NakServer;
 use tokio::sync::mpsc::Sender;
 use msnp::shared::payload::msg::chunked_msg_payload::{ChunkMetadata, ChunkedMsgPayload, MsgChunks};
-use crate::tachyon::identifiers::matrix_id_compatible::MatrixIdCompatible;
+use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 
 pub(super) async fn handle_msg(msg_command: MsgClient, command_sender: Sender<SwitchboardServerCommand>, tachyon_client: TachyonClient, matrix_client: Client, room: Room, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
 
