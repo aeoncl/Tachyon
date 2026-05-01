@@ -10,6 +10,7 @@ use matrix_sdk::Client;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::Arc;
+use crate::matrix::services::login::MatrixLoginService;
 use crate::tachyon::config::tachyon_config::TachyonConfig;
 
 pub struct GlobalStateInner {
@@ -19,7 +20,8 @@ pub struct GlobalStateInner {
     token_validator: SecretEncryptor,
     pending_ticket: DashMap<String, TicketToken>,
     pending_alerts: DashMap<i32, AlertReceiver>,
-    pending_verification_requests: VerificationRequestRepository
+    pending_verification_requests: VerificationRequestRepository,
+    matrix_login_service: Box<dyn MatrixLoginService>
 }
 
 #[derive(Clone)]
@@ -60,7 +62,7 @@ impl Drop for ClientDropGuard {
 
 impl GlobalState {
 
-    pub fn new(config: TachyonConfig, token_validator: SecretEncryptor) -> Self {
+    pub fn new(config: TachyonConfig, token_validator: SecretEncryptor, matrix_login_service: Box<dyn MatrixLoginService>) -> Self {
         Self {
             inner: Arc::new(GlobalStateInner {
                 config,
@@ -70,6 +72,7 @@ impl GlobalState {
                 pending_ticket: DashMap::new(),
                 pending_alerts: Default::default(),
                 pending_verification_requests: Default::default(),
+                matrix_login_service,
             })
         }
     }
@@ -125,6 +128,10 @@ impl GlobalState {
 
     pub fn pending_verification_requests(&self) -> &VerificationRequestRepository {
         &self.inner.pending_verification_requests
+    }
+
+    pub fn matrix_login_service(&self) -> &Box<dyn MatrixLoginService> {
+        &self.inner.matrix_login_service
     }
 
     pub fn secret_encryptor(&self) -> &SecretEncryptor {

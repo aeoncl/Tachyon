@@ -388,7 +388,7 @@ mod tests {
     #[test]
     fn ab_alert_notification_test() {
         let msn_user = MsnUser::without_endpoint_guid(EmailAddress::from_str("aeon.shl@shl.local").unwrap());
-        let notif = NotificationFactory::alert(&msn_user.uuid, &msn_user.endpoint_id.email_addr, "this is an alert", "http://127.0.0.1:8080/ads", "http://127.0.0.1:8080/tachyon?s=true", "http://127.0.0.1:8080/tachyon?a=true", Some("spongebob-icon_32x32.png"));
+        let notif = NotificationFactory::alert(&msn_user.uuid, &msn_user.endpoint_id.email_addr, "this is an alert", "http://127.0.0.1:8080/ads", "http://127.0.0.1:8080/tachyon?s=true", "http://127.0.0.1:8080/tachyon?a=true", Some("spongebob-icon_32x32.png"), 1342902633);
 
         let notif_ser = notif.to_xml().unwrap();
 

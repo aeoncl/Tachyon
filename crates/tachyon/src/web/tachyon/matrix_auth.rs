@@ -1,4 +1,3 @@
-use crate::matrix::login::login_with_password;
 use crate::tachyon::global_state::GlobalState;
 use crate::web::soap::error::RST2Error;
 use crate::web::tachyon::{layout, Params};
@@ -40,7 +39,7 @@ pub async fn post_auth(
     let matrix_id = email.to_owned_user_id();
 
     let login_successful =
-        if let Ok((matrix_token, _)) = login_with_password(matrix_id, password, !state.get_config().strict_ssl).await {
+        if let Ok((matrix_token, _)) = state.matrix_login_service().login_with_password(&matrix_id, password, !state.get_config().strict_ssl).await {
             let ticket_token = TicketToken(
                 state
                     .secret_encryptor()
