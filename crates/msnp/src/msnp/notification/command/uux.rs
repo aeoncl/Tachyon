@@ -16,7 +16,7 @@ impl Display for Uux {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(payload) = &self.payload {
             let payload = payload.to_string();
-            write!(f, "UUX {tr_id} {payload_size}\r\n{payload}", tr_id = self.tr_id, payload_size = 0, payload=payload)?;
+            write!(f, "UUX {tr_id} {payload_size}\r\n{payload}", tr_id = self.tr_id, payload_size = payload.len(), payload=payload)?;
         } else {
             write!(f, "UUX {tr_id} {payload_size}\r\n", tr_id = self.tr_id, payload_size = 0)?;
         }
