@@ -4,6 +4,7 @@ mod matrix_auth;
 mod login;
 mod confirm_device;
 mod verification;
+mod client;
 
 use crate::tachyon::global_state::GlobalState;
 use axum::body::Body;

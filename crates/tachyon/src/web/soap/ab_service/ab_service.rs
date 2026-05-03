@@ -29,21 +29,20 @@ pub async fn address_book_service(headers: HeaderMap, State(state): State<Global
     let token = TicketToken::from_str(&header_env.header.ab_auth_header.ticket_token).unwrap();
 
     let tachyon_client = state.tachyon_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")})?;
-    let client = state.matrix_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Matrix Client to be present in client Store")})?;
 
     match soap_action {
         "http://www.msn.com/webservices/AddressBook/ABFindContactsPaged" => {
-            ab_find_contacts_paged(AbfindContactsPagedMessageSoapEnvelope::try_from_xml(&body)?, token, client, tachyon_client).await
+            ab_find_contacts_paged(AbfindContactsPagedMessageSoapEnvelope::try_from_xml(&body)?, token, tachyon_client).await
         },
         "http://www.msn.com/webservices/AddressBook/ABContactAdd" => {
-            ab_contact_add(AbcontactAddMessageSoapEnvelope::try_from_xml(&body)?, token, client, tachyon_client, &soap_action).await
+            ab_contact_add(AbcontactAddMessageSoapEnvelope::try_from_xml(&body)?, token, tachyon_client, &soap_action).await
         },
         "http://www.msn.com/webservices/AddressBook/ABContactDelete" => {
-            ab_contact_delete(AbcontactDeleteMessageSoapEnvelope::try_from_xml(&body)?, token, client, tachyon_client, &soap_action).await
+            ab_contact_delete(AbcontactDeleteMessageSoapEnvelope::try_from_xml(&body)?, token, tachyon_client, &soap_action).await
 
         },
         "http://www.msn.com/webservices/AddressBook/ABContactUpdate" => {
-            ab_contact_update(AbcontactUpdateMessageSoapEnvelope::try_from_xml(&body)?, token, client, tachyon_client, &soap_action).await
+            ab_contact_update(AbcontactUpdateMessageSoapEnvelope::try_from_xml(&body)?, token, tachyon_client, &soap_action).await
 
         },
         "http://www.msn.com/webservices/AddressBook/ABGroupAdd" => {

@@ -14,7 +14,7 @@ use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::traits::xml::ToXml;
 use std::str::FromStr;
 
-pub(super) async fn ab_contact_update(request : AbcontactUpdateMessageSoapEnvelope, _token: TicketToken, client: Client, tachyon_client: TachyonClient, soap_action: &str) -> Result<Response, ABError> {
+pub(super) async fn ab_contact_update(request : AbcontactUpdateMessageSoapEnvelope, _token: TicketToken, tachyon_client: TachyonClient, soap_action: &str) -> Result<Response, ABError> {
 
     if request.body.body.ab_id.body != "00000000-0000-0000-0000-000000000000" {
         return Err(ABError::InternalServerError(anyhow!("Invalid AB ID")));
@@ -46,7 +46,7 @@ pub(super) async fn ab_contact_update(request : AbcontactUpdateMessageSoapEnvelo
 
     if let Some(messenger_user) = contact_info.is_messenger_user {
         if !messenger_user {
-            match client.find_room_from_email(&contact.email_address)? {
+            match tachyon_client.matrix_client().find_room_from_email(&contact.email_address)? {
                 Some(room) => {
                     room.leave().await?;
                     let soap_body = AbcontactUpdateResponseMessageSoapEnvelope::get_response(&cache_key);

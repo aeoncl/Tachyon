@@ -16,6 +16,7 @@ use rand::{random, Rng};
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
+use crate::matrix::services::login::MatrixLoginServiceImpl;
 use self::tachyon::config::paths;
 use self::tachyon::config::paths::create_dirs;
 use self::tachyon::config::tachyon_config::TachyonConfig;
@@ -38,7 +39,8 @@ async fn main() {
 
     let (global_shutdown_signal_snd, global_shutdown_signal_rcv) = broadcast::channel::<()>(1);
 
-    let global_state = GlobalState::new(config.clone(), SecretEncryptor::new(&secret).expect("secret key to be valid"));
+    let login_service = MatrixLoginServiceImpl::new();
+    let global_state = GlobalState::new(config.clone(), SecretEncryptor::new(&secret).expect("secret key to be valid"), Box::new(login_service));
 
     let notification_server = NotificationServer::listen("127.0.0.1", config.notification_port, global_shutdown_signal_rcv.resubscribe(), global_state.clone());
     let switchboard_server = SwitchboardServer::listen("127.0.0.1", config.switchboard_port, global_shutdown_signal_rcv.resubscribe(), global_state.clone());

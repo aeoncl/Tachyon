@@ -86,13 +86,13 @@ pub async fn get_profile_pic(Path((image_mxid, _image_type)): Path<(String, Stri
 
     let client_data = state.get_single_client().unwrap();
 
-    let client= state.matrix_clients().get(client_data.ticket_token().as_str()).unwrap();
+    let client= state.tachyon_clients().get(client_data.ticket_token().as_str()).unwrap();
 
 
     let thumbnail_settings = MediaThumbnailSettings::new(UInt::new(200).unwrap(), UInt::new(200).unwrap() );
 
     let media_request = MediaRequestParameters{ source: MediaSource::Plain(parsed_mxc), format: MediaFormat::Thumbnail(thumbnail_settings)};
-    let image = client.media().get_media_content(&media_request, true).await.unwrap();
+    let image = client.matrix_client().media().get_media_content(&media_request, true).await.unwrap();
 
     Response::builder()
         .header(CONTENT_TYPE, "image/jpeg")

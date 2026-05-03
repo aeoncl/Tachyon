@@ -26,17 +26,16 @@ pub async fn sharing_service(headers: HeaderMap, State(state): State<GlobalState
 
 
     let tachyon_client = state.tachyon_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")})?;
-    let client = state.matrix_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Matrix Client to be present in client Store")})?;
 
     match soap_action {
         "http://www.msn.com/webservices/AddressBook/FindMembership" => {
-            find_membership(FindMembershipRequestSoapEnvelope::try_from_xml(&body)?, token, client, tachyon_client).await
+            find_membership(FindMembershipRequestSoapEnvelope::try_from_xml(&body)?, token, tachyon_client).await
         },
         "http://www.msn.com/webservices/AddressBook/AddMember" => {
-            add_member(AddMemberMessageSoapEnvelope::try_from_xml(&body)?, token, client, tachyon_client).await
+            add_member(AddMemberMessageSoapEnvelope::try_from_xml(&body)?, token, tachyon_client).await
         },
         "http://www.msn.com/webservices/AddressBook/DeleteMember" => {
-            delete_member(DeleteMemberMessageSoapEnvelope::try_from_xml(&body)?, token, client, tachyon_client).await
+            delete_member(DeleteMemberMessageSoapEnvelope::try_from_xml(&body)?, token, tachyon_client).await
         },
         _ => {
             error!("SOAP|ABCH: Unsupported soap action: {}", &soap_action);

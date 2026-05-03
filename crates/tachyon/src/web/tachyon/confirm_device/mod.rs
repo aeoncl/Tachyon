@@ -22,7 +22,7 @@ pub async fn get_confirm(
 
     let tachyon_client = state.tachyon_clients().get(&token).unwrap();
     let _notification = tachyon_client.alerts().get(&notification_id).unwrap();
-    let matrix_client = state.matrix_clients().get(&token).unwrap();
+    let matrix_client = tachyon_client.matrix_client().clone();
 
     let secret_store_enabled = check_secret_storage_state(&matrix_client).await.unwrap();
 

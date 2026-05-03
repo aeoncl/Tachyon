@@ -1,6 +1,5 @@
 pub mod extensions;
 pub mod handlers;
-pub mod login;
 pub mod msn_user_resolver;
 pub mod oim;
 pub mod sync;
@@ -8,3 +7,5 @@ mod utils;
 mod errors;
 pub mod cross_signing;
 pub mod verification_request_repository;
+pub mod services;
+pub type MatrixClient = matrix_sdk::Client;

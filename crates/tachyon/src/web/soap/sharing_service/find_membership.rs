@@ -16,16 +16,16 @@ use crate::matrix::handlers::membership_handlers::compute_all_memberships;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 
-pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token: TicketToken, client: Client, mut client_data: TachyonClient) -> Result<Response, ABError> {
+pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token: TicketToken, mut tachyon_client: TachyonClient) -> Result<Response, ABError> {
 
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or(Uuid::new().to_string());
 
 
     let deltas_only = request.body.request.deltas_only.unwrap_or(false);
-    let own_user = client_data.own_user();
+    let own_user = tachyon_client.own_user();
 
     if deltas_only {
-        let members= get_delta_sync(&mut client_data)?;
+        let members= get_delta_sync(&mut tachyon_client)?;
 
         let msg_service = FindMembershipResponseFactory::get_messenger_service(members, false);
         let soap_body = FindMembershipResponseFactory::get_response(&own_user, &cache_key, msg_service);
@@ -35,7 +35,7 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token
 
 
     } else {
-        let members = compute_all_memberships(client).await;
+        let members = compute_all_memberships(tachyon_client.matrix_client().clone()).await;
         let msg_service = FindMembershipResponseFactory::get_messenger_service(members, true);
         let soap_body = FindMembershipResponseFactory::get_response(&own_user, &cache_key, msg_service);
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))

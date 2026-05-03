@@ -16,7 +16,7 @@ use std::str::FromStr;
 
 
 //TODO Contact Delete is called after a delay of 10 secs. Check if we find something in contact dll regarding SHIELDS
-pub(super) async fn ab_contact_delete(request : AbcontactDeleteMessageSoapEnvelope, _token: TicketToken, client: Client, tachyon_client: TachyonClient, soap_action: &str) -> Result<Response, ABError> {
+pub(super) async fn ab_contact_delete(request : AbcontactDeleteMessageSoapEnvelope, _token: TicketToken, tachyon_client: TachyonClient, soap_action: &str) -> Result<Response, ABError> {
 
     if request.body.ab_contact_delete.ab_id.body != "00000000-0000-0000-0000-000000000000" {
         return Err(ABError::InternalServerError(anyhow!("Invalid AB ID")));
@@ -43,7 +43,7 @@ pub(super) async fn ab_contact_delete(request : AbcontactDeleteMessageSoapEnvelo
         }
     };
 
-    match client.find_room_from_email(&contact.email_address)? {
+    match tachyon_client.matrix_client().find_room_from_email(&contact.email_address)? {
         Some(room) => {
             room.leave().await?;
 

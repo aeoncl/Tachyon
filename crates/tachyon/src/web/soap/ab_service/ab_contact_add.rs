@@ -33,7 +33,7 @@ use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 
-pub(super) async fn ab_contact_add(request : AbcontactAddMessageSoapEnvelope, _token: TicketToken, client: Client, tachyon_client: TachyonClient, soap_action: &str) -> Result<Response, ABError> {
+pub(super) async fn ab_contact_add(request : AbcontactAddMessageSoapEnvelope, _token: TicketToken, tachyon_client: TachyonClient, soap_action: &str) -> Result<Response, ABError> {
 
     if request.body.ab_contact_add.ab_id.body != "00000000-0000-0000-0000-000000000000" {
         return Err(ABError::InternalServerError(anyhow!("Invalid AB ID")));
@@ -41,6 +41,7 @@ pub(super) async fn ab_contact_add(request : AbcontactAddMessageSoapEnvelope, _t
 
     let cache_key = request.header.unwrap().application_header.cache_key.unwrap();
 
+    let client = tachyon_client.matrix_client();
 
     if let Some(contacts) = request.body.ab_contact_add.contacts.map(|c| c.contact) {
         for contact in contacts {

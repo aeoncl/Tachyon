@@ -50,7 +50,7 @@ pub async fn get_verification_poll(
         panic!("Notification not found");
     }
 
-    let matrix_client = state.matrix_clients().get(&token).unwrap();
+    let matrix_client = tachyon_client.matrix_client().clone();
 
     let verification_request = state.pending_verification_requests().get(&flow_id).unwrap();
 

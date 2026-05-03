@@ -22,7 +22,7 @@ pub async fn get_other_device(
 
     let tachyon_client = state.tachyon_clients().get(&token).unwrap();
     let _notification = tachyon_client.alerts().get(&notification_id).unwrap();
-    let matrix_client = state.matrix_clients().get(&token).unwrap();
+    let matrix_client = tachyon_client.matrix_client().clone();
 
     let has_devices_to_confirm_with = matrix_client.encryption().has_devices_to_verify_against().await.unwrap();
 
@@ -92,7 +92,7 @@ pub async fn post_other_device(
     let tachyon_client = state.tachyon_clients().get(&token).unwrap();
     let _notification = tachyon_client.alerts().get(&notification_id).unwrap();
 
-    let matrix_client = state.matrix_clients().get(&token).unwrap();
+    let matrix_client = tachyon_client.matrix_client().clone();
     let user_id = matrix_client.user_id().unwrap();
 
     let device = matrix_client.encryption().get_device(user_id, device_id).await.unwrap().unwrap();

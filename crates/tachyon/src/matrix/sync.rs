@@ -84,7 +84,7 @@ fn spawn_sync_task(
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         info!("Initializing Sliding Sync...");
-        register_event_handlers(&matrix_client, tachyon_client.clone());
+        let (handler_drop_guards, context_drop_guard) = register_event_handlers(&matrix_client, tachyon_client.clone());
 
         info!("Starting Sliding Sync...");
         let (error_tx, mut error_rx) = mpsc::channel::<ErrorKind>(1);
@@ -117,6 +117,7 @@ fn spawn_sync_task(
             }
         });
 
+        let mut restart_sync = false;
         loop {
             tokio::select! {
                 _ = client_shutdown_rcv.recv() => {
@@ -145,15 +146,7 @@ fn spawn_sync_task(
                     if let Some(ErrorKind::UnknownPos) = error_kind {
                         info!("Unknown pos detected, re-syncing...");
                         sync_handle.abort();
-
-                        spawn_sync_task(
-                            tachyon_client,
-                            matrix_client,
-                            sliding_sync.clone(),
-                            updates_recv,
-                            client_shutdown_snd,
-                            client_shutdown_rcv
-                        );
+                        restart_sync = true;
                         break;
                     } else {
                         error!("Unrecoverable sync error: {:?}", error_kind);
@@ -167,6 +160,19 @@ fn spawn_sync_task(
                     break;
                 }
             }
+        }
+
+        if restart_sync {
+            drop(handler_drop_guards);
+            drop(context_drop_guard);
+            spawn_sync_task(
+                tachyon_client,
+                matrix_client,
+                sliding_sync.clone(),
+                updates_recv,
+                client_shutdown_snd,
+                client_shutdown_rcv
+            );
         }
 
         info!("Sync task finished");

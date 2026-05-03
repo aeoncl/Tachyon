@@ -18,7 +18,6 @@ pub async fn get_recover(
 
     let tachyon_client = state.tachyon_clients().get(&token).unwrap();
     let _notification = tachyon_client.alerts().get(&notification_id).unwrap();
-    let _matrix_client = state.matrix_clients().get(&token).unwrap();
 
     Html(restore_device_content(notification_id).into_string())
 }
@@ -142,7 +141,7 @@ pub async fn post_recover(
 
     let tachyon_client = state.tachyon_clients().get(&token).unwrap();
     let (_id, mut alert) = tachyon_client.alerts().remove(&notification_id).unwrap();
-    let matrix_client = state.matrix_clients().get(&token).unwrap();
+    let matrix_client = tachyon_client.matrix_client().clone();
 
     let result = restore_from_recovery_key(&matrix_client, recovery_key).await;
 

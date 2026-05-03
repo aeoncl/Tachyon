@@ -28,12 +28,19 @@ pub(crate) async fn handle_command(command: NotificationClientCommand, command_s
 
 }
 
+#[cfg(test)]
 mod tests {
+    use crate::matrix::login::{AccessToken, MatrixLoginService, MatrixLoginServiceImpl};
+    use crate::matrix::services::login::{AccessToken, MatrixLoginService, MatrixLoginServiceImpl};
     use crate::notification::handlers::command_handler::handle_command;
     use crate::notification::models::connection_phase::ConnectionPhase;
     use crate::notification::models::local_client_data::LocalClientData;
     use crate::tachyon::config::secret_encryptor::SecretEncryptor;
+    use crate::tachyon::error::TachyonError;
     use crate::tachyon::global_state::GlobalState;
+    use matrix_sdk::ruma::UserId;
+    use matrix_sdk::test_utils::mocks::MatrixMockServer;
+    use matrix_sdk::{async_trait, Client};
     use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
     use msnp::msnp::notification::command::cvr::CvrClient;
     use msnp::msnp::notification::command::usr::{AuthOperationTypeClient, AuthPolicy, OperationTypeServer, SsoPhaseClient, SsoPhaseServer, UsrClient};
@@ -43,11 +50,6 @@ mod tests {
     use msnp::shared::models::email_address::EmailAddress;
     use msnp::shared::traits::TryFromRawCommand;
     use std::str::FromStr;
-    use matrix_sdk::{async_trait, Client};
-    use matrix_sdk::ruma::UserId;
-    use matrix_sdk::test_utils::mocks::{MatrixMock, MatrixMockServer};
-    use crate::matrix::login::{AccessToken, MatrixLoginService, MatrixLoginServiceImpl};
-    use crate::tachyon::error::TachyonError;
 
     const TEST_SECRET: [u8; 32] = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
 
@@ -73,6 +75,7 @@ mod tests {
             Ok((test.access_token, self.client.clone()))
         }
     }
+
 
 
     #[tokio::test]
@@ -127,7 +130,7 @@ mod tests {
         let (kill_snd, kill_recv) = tokio::sync::broadcast::channel::<()>(1);
         let mut local_client_data = LocalClientData::new(kill_snd.clone(), kill_recv.resubscribe());
         local_client_data.phase = ConnectionPhase::Authenticating;
-            
+
         let usr_i = NotificationClientCommand::USR(UsrClient {
             tr_id: 1,
             auth_type: AuthOperationTypeClient::Sso(SsoPhaseClient::I { email_addr: EmailAddress::from_str("aeon@test.com").unwrap() }),

@@ -23,7 +23,7 @@ pub async fn post_reset_identity(
 
     let tachyon_client = state.tachyon_clients().get(&token).unwrap();
     let (_id, mut alert) = tachyon_client.alerts().remove(&notification_id).unwrap();
-    let matrix_client = state.matrix_clients().get(&token).unwrap();
+    let matrix_client = tachyon_client.matrix_client().clone();
 
     let own_user = matrix_client.user_id().unwrap();
 

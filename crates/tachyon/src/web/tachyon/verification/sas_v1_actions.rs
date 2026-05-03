@@ -22,7 +22,7 @@ pub(crate) async fn post_sas_v1_action(
     let user_id_raw = form_data.get("user_id").map(|s| s.as_str()).unwrap();
     let user_id = OwnedUserId::from_str(user_id_raw).unwrap();
 
-    let client = state.matrix_clients().get(&token).unwrap();
+    let client = state.tachyon_clients().get(&token).unwrap().matrix_client().clone();
 
     let verification = client.encryption().get_verification(&user_id, flow_id).await.unwrap();
 
