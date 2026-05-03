@@ -1,9 +1,7 @@
 pub mod error;
 pub mod repository;
 pub mod identifiers;
-pub(crate) mod global_state;
 pub mod alert;
-mod matrix_client_repository;
 pub mod mappers;
 pub mod client;
-pub mod config;
+pub mod global;

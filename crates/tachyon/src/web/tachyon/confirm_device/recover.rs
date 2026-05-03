@@ -4,7 +4,7 @@ use axum::response::Html;
 use maud::{html, Markup};
 use crate::matrix::cross_signing::{check_device_is_crossed_signed, restore_from_recovery_key};
 use crate::tachyon::alert::{AlertError, AlertNotify, AlertSuccess};
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global::global_state::GlobalState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::Params;
 

@@ -5,7 +5,7 @@ use msnp::msnp::notification::command::xfr::XfrClient;
 use msnp::msnp::notification::models::ip_address::IpAddress;
 use std::str::FromStr;
 use tokio::sync::mpsc::Sender;
-use crate::tachyon::config::tachyon_config::TachyonConfig;
+use crate::tachyon::global::tachyon_config::TachyonConfig;
 
 pub async fn handle_xfr(command: XfrClient, local_store: &mut LocalClientData, command_sender: Sender<NotificationServerCommand>, config: &TachyonConfig) -> Result<(), anyhow::Error>  {
 

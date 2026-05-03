@@ -1,4 +1,4 @@
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global::global_state::GlobalState;
 use crate::tachyon::mappers::user_id;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::mappers::uuid::ToUuid;

@@ -1,18 +1,16 @@
+use crate::matrix::services::login::MatrixLoginService;
 use crate::matrix::verification_request_repository::VerificationRequestRepository;
 use crate::tachyon::alert::AlertReceiver;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::client::tachyon_client_repository::TachyonClientRepository;
-use crate::tachyon::config::secret_encryptor::SecretEncryptor;
-use crate::tachyon::matrix_client_repository::MatrixClientRepository;
+use crate::tachyon::global::secret_encryptor::SecretEncryptor;
+use crate::tachyon::global::tachyon_config::TachyonConfig;
+use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::repository::RepositoryStr;
 use dashmap::DashMap;
-use matrix_sdk::Client;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::Arc;
-use crate::matrix::services::login::MatrixLoginService;
-use crate::tachyon::config::tachyon_config::TachyonConfig;
-use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 
 pub struct GlobalStateInner {
     config: TachyonConfig,

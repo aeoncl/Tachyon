@@ -5,7 +5,7 @@ use matrix_sdk::ruma::api::client::uiaa::{AuthData, Password, UserIdentifier};
 use maud::html;
 use crate::matrix::cross_signing::check_device_is_crossed_signed;
 use crate::tachyon::alert::{AlertError, AlertNotify, AlertSuccess};
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global::global_state::GlobalState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::Params;
 

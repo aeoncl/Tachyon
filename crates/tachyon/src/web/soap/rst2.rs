@@ -10,7 +10,7 @@ use msnp::soap::traits::xml::{ToXml, TryFromXml};
 use reqwest::Url;
 use std::str::FromStr;
 
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global::global_state::GlobalState;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::mappers::uuid::ToUuid;
 use crate::web::soap::error::RST2Error;

@@ -2,7 +2,7 @@ use crate::switchboard::handlers::bootstrap_handlers::{handle_auth, handle_init}
 use crate::switchboard::handlers::ready::handle_ready;
 use crate::switchboard::models::connection_phase::ConnectionPhase;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global::global_state::GlobalState;
 use anyhow::anyhow;
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
 use tokio::sync::mpsc::Sender;

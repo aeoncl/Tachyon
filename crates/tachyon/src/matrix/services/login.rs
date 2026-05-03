@@ -11,7 +11,7 @@ use matrix_sdk::ruma::UserId;
 use msnp::shared::models::ticket_token::TicketToken;
 
 use crate::tachyon::error::{MatrixConversionError, TachyonError};
-use crate::tachyon::config::paths::get_store_path;
+use crate::tachyon::global::paths::get_store_path;
 use crate::tachyon::identifiers::tachyon_device_id::TachyonDeviceId;
 
 pub(crate) type AccessToken = String;

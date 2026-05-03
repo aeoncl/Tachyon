@@ -11,7 +11,7 @@ use msnp::soap::rsi::get_metadata::request::GetMetadataMessageSoapEnvelope;
 use msnp::soap::rsi::service_header::RSIAuthSoapEnvelope;
 use msnp::soap::traits::xml::TryFromXml;
 
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global::global_state::GlobalState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::soap::rsi::delete_messages::delete_messages;
 use crate::web::soap::rsi::error::RSIError;

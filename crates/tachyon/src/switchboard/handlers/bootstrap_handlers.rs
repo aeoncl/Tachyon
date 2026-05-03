@@ -21,7 +21,7 @@ use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use std::str::FromStr;
 use tokio::sync::mpsc::Sender;
 use msnp::shared::models::display_name::DisplayName;
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global::global_state::GlobalState;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::repository::RepositoryStr;
 

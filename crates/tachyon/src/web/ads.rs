@@ -9,7 +9,7 @@ use lazy_static_include::lazy_static_include_bytes;
 use reqwest::StatusCode;
 use yaserde::ser;
 use yaserde_derive::YaSerialize;
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global::global_state::GlobalState;
 use crate::web::matrix_today::get_msn_today;
 
 lazy_static_include_bytes! {

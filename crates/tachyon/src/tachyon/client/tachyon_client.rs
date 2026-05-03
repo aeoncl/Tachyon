@@ -1,20 +1,19 @@
+use crate::matrix::MatrixClient;
 use crate::notification::circle_store::CircleStore;
 use crate::notification::models::notification_handle::NotificationHandle;
 use crate::notification::models::soap_holder::SoapHolder;
 use crate::switchboard::models::switchboard_handle::SwitchboardHandle;
 use crate::tachyon::alert::Alert;
-use crate::tachyon::config::tachyon_config::TachyonConfig;
+use crate::tachyon::client::switchboards::SwitchboardService;
+use crate::tachyon::global::tachyon_config::TachyonConfig;
 use dashmap::DashMap;
 use matrix_sdk::locks::RwLock;
 use matrix_sdk::ruma::OwnedRoomId;
 use msnp::msnp::models::contact_list::ContactList;
-use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::{Arc, Mutex, RwLockWriteGuard};
-use tokio::sync::{broadcast, mpsc};
-use crate::matrix::MatrixClient;
-use crate::tachyon::client::switchboards::SwitchboardService;
+use tokio::sync::broadcast;
 
 pub struct TachyonSessionData {
     pub matrix_client: MatrixClient,

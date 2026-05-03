@@ -1,7 +1,7 @@
 use crate::switchboard::handlers::handle_command;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::tachyon::client::tachyon_client::TachyonClient;
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global::global_state::GlobalState;
 use anyhow::anyhow;
 use log::{debug, error, info};
 use msnp::msnp::notification::command::command::NotificationServerCommand;

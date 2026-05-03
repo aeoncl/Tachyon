@@ -1,4 +1,4 @@
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global::global_state::GlobalState;
 use crate::web::soap::error::RST2Error;
 use crate::web::tachyon::{layout, Params};
 use anyhow::anyhow;

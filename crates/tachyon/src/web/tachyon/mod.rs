@@ -6,7 +6,7 @@ mod confirm_device;
 mod verification;
 mod client;
 
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global::global_state::GlobalState;
 use axum::body::Body;
 use axum::extract::Path;
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE, ETAG, IF_NONE_MATCH};

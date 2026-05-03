@@ -1,4 +1,4 @@
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global::global_state::GlobalState;
 use crate::web::soap::error::ABError;
 use crate::web::soap::sharing_service::add_member::add_member;
 use crate::web::soap::sharing_service::delete_member::delete_member;

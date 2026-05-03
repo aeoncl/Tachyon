@@ -3,7 +3,7 @@ use axum::extract::State;
 use axum::response::Html;
 use maud::{html, Markup};
 use crate::matrix::cross_signing::check_secret_storage_state;
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global::global_state::GlobalState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::Params;
 

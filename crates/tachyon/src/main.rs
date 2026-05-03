@@ -5,10 +5,14 @@ use std::fs;
 use std::fs::File;
 use tokio::{join, signal, sync::broadcast::{self, Sender}};
 
+use self::tachyon::global::global_state::GlobalState;
+use self::tachyon::global::paths;
+use self::tachyon::global::paths::create_dirs;
+use self::tachyon::global::secret_encryptor::SecretEncryptor;
+use self::tachyon::global::tachyon_config::TachyonConfig;
+use crate::matrix::services::login::MatrixLoginServiceImpl;
 use crate::notification::notification_server::NotificationServer;
 use crate::switchboard::switchboard_server::SwitchboardServer;
-use crate::tachyon::global_state::GlobalState;
-use self::tachyon::config::secret_encryptor::SecretEncryptor;
 use crate::web::web_server::WebServer;
 use anyhow::anyhow;
 use directories::ProjectDirs;
@@ -16,10 +20,6 @@ use rand::{random, Rng};
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
-use crate::matrix::services::login::MatrixLoginServiceImpl;
-use self::tachyon::config::paths;
-use self::tachyon::config::paths::create_dirs;
-use self::tachyon::config::tachyon_config::TachyonConfig;
 
 mod notification;
 mod web;

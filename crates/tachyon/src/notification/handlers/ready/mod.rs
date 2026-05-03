@@ -16,7 +16,7 @@ use uux_handler::handle_uux;
 use xfr_handler::handle_xfr;
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::client::tachyon_client::TachyonClient;
-use crate::tachyon::config::tachyon_config::TachyonConfig;
+use crate::tachyon::global::tachyon_config::TachyonConfig;
 
 mod usr_handler;
 mod png_handler;

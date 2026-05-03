@@ -11,7 +11,7 @@ use msnp::msnp::notification::command::not::factories::NotificationFactory;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
 use crate::tachyon::alert::{Alert, AlertError, AlertNotify, AlertSuccess};
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global::global_state::GlobalState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::{layout, login, Params};
 use crate::web::tachyon::middleware::set_token_cookie;
