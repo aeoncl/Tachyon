@@ -1,7 +1,8 @@
-use matrix_sdk::Client;
-use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::user_service::UserService;
+use crate::tachyon::identifiers::is_sha1::IsSha1;
+use matrix_sdk::Client;
 use msnp::msnp::notification::command::chg::ChgClient;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::iln::IlnServer;
@@ -10,9 +11,8 @@ use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::network_id_email::NetworkIdEmail;
 use msnp::shared::models::presence_status::PresenceStatus;
 use tokio::sync::mpsc::Sender;
-use crate::tachyon::identifiers::is_sha1::IsSha1;
 
-pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, client_data: TachyonClient, matrix_client: Client, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
+pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, client_data: TachyonClient, user_service: Box<dyn UserService>, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     command_sender.send(NotificationServerCommand::CHG(command.clone())).await?;
 
     let client_data = client_data.clone();
@@ -33,13 +33,8 @@ pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, c
                     continue;
                 }
 
-               let display_name = if let Ok(Some(room)) = matrix_client.find_room_from_email(&contact.email_address) {
-                   if let Ok(msn_user) = room.to_msn_user_lazy().await {
-                       msn_user.display_name
-                   } else {
-                       None
-                   }
-                    
+               let display_name = if let Some(proxy_user) = user_service.resolve_room_proxy_user_from_email(&contact.email_address).await {
+                   proxy_user.display_name.clone()
                 } else {
                     None
                 };

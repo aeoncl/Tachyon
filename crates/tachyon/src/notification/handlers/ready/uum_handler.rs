@@ -1,15 +1,13 @@
-use std::str::FromStr;
-use matrix_sdk::Client;
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::user_service::UserService;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::uum::{UumClient, UumPayload};
-use msnp::shared::models::font_style::FontStyle;
-use tokio::sync::mpsc::Sender;
 use msnp::shared::models::email_address::EmailAddress;
-use crate::matrix::extensions::msn_user_resolver::FindRoomFromEmail;
+use msnp::shared::models::font_style::FontStyle;
+use std::str::FromStr;
+use tokio::sync::mpsc::Sender;
 
-pub async fn handle_uum(command: UumClient, client_data: TachyonClient, matrix_client: Client, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
+pub async fn handle_uum(command: UumClient, user_service: &Box<dyn UserService>, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     let ok_response = command.get_ok_response();
 
     match command.payload {
@@ -18,7 +16,7 @@ pub async fn handle_uum(command: UumClient, client_data: TachyonClient, matrix_c
             let dest_email = EmailAddress::from_str(&command.destination);
             if let Ok(dest_email) = dest_email {
 
-                let room = matrix_client.find_room_from_email(&dest_email)?;
+                let room = user_service.find_room_from_email(&dest_email)?;
                 match room {
                     None => {
                         //NO DM ROOM FOUND

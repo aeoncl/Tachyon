@@ -2,6 +2,7 @@ use crate::matrix::MatrixClient;
 use crate::notification::circle_store::CircleStore;
 use crate::notification::models::notification_handle::NotificationHandle;
 use crate::notification::models::soap_holder::SoapHolder;
+use crate::tachyon::services::contact_list_service::{ContactListService, ContactListServiceImpl};
 use crate::switchboard::models::switchboard_handle::SwitchboardHandle;
 use crate::tachyon::alert::Alert;
 use crate::tachyon::client::switchboards::SwitchboardService;
@@ -27,6 +28,9 @@ pub struct TachyonSessionData {
     pub circle_store: CircleStore,
     pub notification_handle: NotificationHandle,
 
+    pub room_proxy_lookup_table: DashMap<OwnedRoomId, String>,
+    pub room_proxy_reverse_lookup_table: DashMap<String, OwnedRoomId>,
+
     pub config: TachyonConfig,
     pub client_shutdown_snd: broadcast::Sender<()>,
     pub client_shutdown_recv: broadcast::Receiver<()>,
@@ -34,7 +38,7 @@ pub struct TachyonSessionData {
 
 #[derive(Clone)]
 pub struct TachyonClient {
-    pub session_data: Arc<TachyonSessionData>
+    pub session_data: Arc<TachyonSessionData>,
 }
 
 impl TachyonClient {
@@ -58,10 +62,12 @@ impl TachyonClient {
                 alerts: Default::default(),
                 circle_store: CircleStore::new(),
                 notification_handle,
+                room_proxy_lookup_table: Default::default(),
+                room_proxy_reverse_lookup_table: Default::default(),
                 config,
                 client_shutdown_snd,
                 client_shutdown_recv,
-            })
+            }),
         }
     }
 

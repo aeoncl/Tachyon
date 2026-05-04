@@ -6,6 +6,7 @@ use tokio::sync::mpsc::error::SendTimeoutError;
 use msnp::msnp::notification::command::rng::RngServer;
 use msnp::msnp::notification::models::ip_address::IpAddress;
 use msnp::msnp::switchboard::models::session_id::SessionId;
+use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
 use crate::switchboard::models::switchboard_token::SwitchboardToken;
@@ -22,15 +23,15 @@ impl NotificationHandle {
         }
     }
 
-    pub async fn request_switchboard(&self, ip: IpAddress, token: TicketToken, inviter: MsnUser) -> Result<(), SendTimeoutError<NotificationServerCommand>> {
-        
+    pub async fn request_switchboard(&self, ip: IpAddress, token: TicketToken, inviter: EmailAddress) -> Result<(), SendTimeoutError<NotificationServerCommand>> {
+
         let cmd = NotificationServerCommand::RNG(
             RngServer::new(
                 SessionId::random(),
                 ip,
                 token,
-                inviter.get_email_address().clone(),
-                inviter.compute_display_name().to_string()
+                inviter.clone(),
+                inviter.to_string()
             )
         );
 

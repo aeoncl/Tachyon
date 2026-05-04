@@ -1,11 +1,12 @@
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::notification::models::soap_holder::AddressBookContact;
 use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::user_service::UserService;
 use matrix_sdk::deserialized_responses::RawSyncOrStrippedState;
 use matrix_sdk::ruma::events::room::member::{MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent};
+use matrix_sdk::ruma::events::room::tombstone::OriginalSyncRoomTombstoneEvent;
 use matrix_sdk::ruma::room::RoomType;
 use matrix_sdk::{Client, Room, RoomState};
-use matrix_sdk::ruma::events::room::tombstone::{OriginalSyncRoomTombstoneEvent, RoomTombstoneEvent, SyncRoomTombstoneEvent};
 use msnp::soap::abch::msnab_datatypes::{ContactType, ContactTypeEnum};
 
 pub(super) async fn handle_contacts(
@@ -22,7 +23,7 @@ pub(super) async fn handle_contacts(
 
     println!("Handling contact event for room: {}", room.room_id().to_string());
 
-    let mut contacts = compute_contacts(&event, &room).await.unwrap();
+    let mut contacts = compute_contacts(&event, &room, &tachyon_client.user_service()).await.unwrap();
 
     if !contacts.is_empty() {
         let mut contact_holder = tachyon_client.soap_holder().contacts.lock().unwrap();
@@ -31,13 +32,13 @@ pub(super) async fn handle_contacts(
 
 }
 
-async fn compute_contacts(event: &SyncRoomMemberEvent, room: &Room) -> Result<Vec<AddressBookContact>, anyhow::Error> {
+async fn compute_contacts(event: &SyncRoomMemberEvent, room: &Room, user_service: &Box<dyn UserService>) -> Result<Vec<AddressBookContact>, anyhow::Error> {
     let mut out = Vec::new();
     let event_is_about_me = event.state_key() == room.own_user_id();
 
     if event_is_about_me {
 
-        let room_msn_user = room.to_msn_user().await?;
+        let room_msn_user = user_service.resolve_room_proxy_user(room.room_id()).await.unwrap();
 
         match event.membership() {
             MembershipState::Ban => {
@@ -78,7 +79,7 @@ pub(super) async fn handle_contacts_stripped(
     }
 
 
-    let mut contacts = compute_contacts_from_stripped_event(&event, &room).await.unwrap();
+    let mut contacts = compute_contacts_from_stripped_event(&event, &room, &tachyon_client.user_service()).await.unwrap();
 
     if !contacts.is_empty() {
         let mut contact_holder = tachyon_client.soap_holder().contacts.lock().unwrap();
@@ -87,14 +88,14 @@ pub(super) async fn handle_contacts_stripped(
 
 }
 
-async fn compute_contacts_from_stripped_event(event: &StrippedRoomMemberEvent, room: &Room) ->  Result<Vec<AddressBookContact>, anyhow::Error> {
+async fn compute_contacts_from_stripped_event(event: &StrippedRoomMemberEvent, room: &Room, user_service: &Box<dyn UserService>) ->  Result<Vec<AddressBookContact>, anyhow::Error> {
     let mut out = Vec::new();
 
     let event_is_about_me = event.state_key == room.own_user_id();
 
     if event_is_about_me {
 
-        let msn_user = room.to_msn_user().await?;
+        let room_msn_user = user_service.resolve_room_proxy_user(room.room_id()).await.unwrap();
 
         match room.state() {
             RoomState::Invited => {
@@ -103,7 +104,7 @@ async fn compute_contacts_from_stripped_event(event: &StrippedRoomMemberEvent, r
             }
             RoomState::Knocked => {
                 // I Knocked
-                let contact = ContactType::new(&msn_user, ContactTypeEnum::LivePending, false);
+                let contact = ContactType::new(&room_msn_user, ContactTypeEnum::LivePending, false);
                 out.push( AddressBookContact::Contact(contact));
             }
             _ => {
@@ -116,7 +117,7 @@ async fn compute_contacts_from_stripped_event(event: &StrippedRoomMemberEvent, r
 
 }
 
-pub async fn compute_all_contacts(client: Client) -> Vec<AddressBookContact> {
+pub async fn compute_all_contacts(client: Client, user_service: Box<dyn UserService>) -> Vec<AddressBookContact> {
     let mut out = Vec::new();
 
     for room in client.rooms() {
@@ -124,13 +125,13 @@ pub async fn compute_all_contacts(client: Client) -> Vec<AddressBookContact> {
             match event {
                 RawSyncOrStrippedState::Sync(sync) => {
                     let deserialized = sync.deserialize().unwrap();
-                    let mut memberships = compute_contacts(&deserialized, &room).await.unwrap();
+                    let mut memberships = compute_contacts(&deserialized, &room, &user_service).await.unwrap();
                     out.append(&mut memberships);
 
                 }
                 RawSyncOrStrippedState::Stripped(stripped) => {
                     let deserialized = stripped.deserialize().unwrap();
-                    let mut stripped_memberships = compute_contacts_from_stripped_event(&deserialized, &room).await.unwrap();
+                    let mut stripped_memberships = compute_contacts_from_stripped_event(&deserialized, &room, &user_service).await.unwrap();
                     out.append(&mut stripped_memberships);
                 }
             }
@@ -143,9 +144,10 @@ pub async fn compute_all_contacts(client: Client) -> Vec<AddressBookContact> {
 pub(super) async fn handle_tombstone(    event: OriginalSyncRoomTombstoneEvent,
                                room: Room,
                                tachyon_client: TachyonClient,
+                               user_service: Box<dyn UserService>,
                                client: Client) {
 
-    let room_msn_user = room.to_msn_user().await.unwrap();
+    let room_msn_user = user_service.resolve_room_proxy_user(room.room_id()).await.unwrap();
 
     let contact = ContactType::new(&room_msn_user, ContactTypeEnum::Live, true);
 

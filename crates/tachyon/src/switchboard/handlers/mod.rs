@@ -6,6 +6,7 @@ use crate::tachyon::global::global_state::GlobalState;
 use anyhow::anyhow;
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
 use tokio::sync::mpsc::Sender;
+use crate::tachyon::client::user_service::UserService;
 use crate::tachyon::repository::RepositoryStr;
 
 mod bootstrap_handlers;
@@ -19,8 +20,7 @@ pub(crate) async fn handle_command(command: SwitchboardClientCommand, command_se
         }
         ConnectionPhase::Initializing => {
             let tachyon_client = local_switchboard_data.tachyon_client.as_ref().ok_or(anyhow!("Client Data should be here by now"))?.clone();
-            let matrix_client = local_switchboard_data.matrix_client.as_ref().ok_or(anyhow!("Matrix Client Data should be here by now"))?.clone();
-            handle_init(command, command_sender, tachyon_client, matrix_client, local_switchboard_data).await?
+            handle_init(command, command_sender, tachyon_client.clone(), &tachyon_client.user_service(), local_switchboard_data).await?
 
         }
         ConnectionPhase::Ready => {

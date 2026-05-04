@@ -17,6 +17,7 @@ use std::str::FromStr;
 use crate::matrix::handlers::contact_handlers::{compute_all_contacts};
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::notification::models::soap_holder::AddressBookContact;
+use crate::tachyon::client::user_service::UserService;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 
 pub(super) async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, _token: TicketToken, mut tachyon_client: TachyonClient) -> Result<Response, ABError> {
@@ -63,7 +64,7 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
         let (contacts, circles) = {
             let mut contacts = Vec::new();
             let mut circles = Vec::new();
-            for current in compute_all_contacts(tachyon_client.matrix_client().clone()).await.drain(..) {
+            for current in compute_all_contacts(tachyon_client.matrix_client().clone(), tachyon_client.user_service()).await.drain(..) {
                 match current {
                     AddressBookContact::Contact(contact) => {
                         contacts.push(contact);

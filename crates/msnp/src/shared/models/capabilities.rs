@@ -77,7 +77,9 @@ pub enum Capabilities {
     // (WL Msgr 9.0)
     MsgrVersion9 = 0x90000000,
     // (WL Msgr 14.0)
-    MsgrVersion10 = 0xA0000000
+    MsgrVersion10 = 0xA0000000,
+    // (WL Msgr 15.0)
+    MsgrVersion11 = 0xB0000000,
 
 }
 
@@ -164,8 +166,8 @@ impl Default for ClientCapabilities {
       + ExtendedCapabilities::VoiceClipSupportsCircleIM as u32;
 
 
-  //      ClientCapabilities::new(STANDARD_CAP, EXTENDED_CAP)
-        ClientCapabilities::new(2789003324, 48)
+        ClientCapabilities::new(STANDARD_CAP, EXTENDED_CAP)
+   //     ClientCapabilities::new(2789003324, 48)
   }
 }
 

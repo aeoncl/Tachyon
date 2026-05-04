@@ -5,3 +5,4 @@ pub mod alert;
 pub mod mappers;
 pub mod client;
 pub mod global;
+pub mod services;

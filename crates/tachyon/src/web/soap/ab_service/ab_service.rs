@@ -13,6 +13,7 @@ use msnp::soap::abch::ab_service::ab_find_contacts_paged::request::AbfindContact
 use msnp::soap::abch::ab_service::ab_group_add::request::AbgroupAddMessageSoapEnvelope;
 use msnp::soap::abch::request_header::AuthHeaderSoapEnvelope;
 use msnp::soap::traits::xml::TryFromXml;
+use crate::tachyon::client::user_service::UserService;
 use crate::tachyon::global::global_state::GlobalState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::soap::ab_service::ab_contact_add::ab_contact_add;
@@ -35,14 +36,14 @@ pub async fn address_book_service(headers: HeaderMap, State(state): State<Global
             ab_find_contacts_paged(AbfindContactsPagedMessageSoapEnvelope::try_from_xml(&body)?, token, tachyon_client).await
         },
         "http://www.msn.com/webservices/AddressBook/ABContactAdd" => {
-            ab_contact_add(AbcontactAddMessageSoapEnvelope::try_from_xml(&body)?, token, tachyon_client, &soap_action).await
+            ab_contact_add(AbcontactAddMessageSoapEnvelope::try_from_xml(&body)?, token, tachyon_client.clone(), &tachyon_client.user_service(), &soap_action).await
         },
         "http://www.msn.com/webservices/AddressBook/ABContactDelete" => {
-            ab_contact_delete(AbcontactDeleteMessageSoapEnvelope::try_from_xml(&body)?, token, tachyon_client, &soap_action).await
+            ab_contact_delete(AbcontactDeleteMessageSoapEnvelope::try_from_xml(&body)?, token, tachyon_client.clone(), &tachyon_client.user_service(), &soap_action).await
 
         },
         "http://www.msn.com/webservices/AddressBook/ABContactUpdate" => {
-            ab_contact_update(AbcontactUpdateMessageSoapEnvelope::try_from_xml(&body)?, token, tachyon_client, &soap_action).await
+            ab_contact_update(AbcontactUpdateMessageSoapEnvelope::try_from_xml(&body)?, token, tachyon_client.clone(), &tachyon_client.user_service(), &soap_action).await
 
         },
         "http://www.msn.com/webservices/AddressBook/ABGroupAdd" => {

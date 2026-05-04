@@ -8,17 +8,18 @@ use msnp::msnp::switchboard::models::session_id::SessionId;
 use msnp::shared::models::msn_user::MsnUser;
 use std::net::Ipv4Addr;
 use tokio_retry2::RetryError;
+use msnp::shared::models::email_address::EmailAddress;
 
 pub trait SwitchboardService : Send + Sync {
     fn get(&self, room_id: &RoomId) -> Option<SwitchboardHandle>;
     fn contains(&self, room_id: &RoomId) -> bool;
-    fn insert(&self, switchboard: SwitchboardHandle) -> Result<SwitchboardHandle, anyhow::Error>;
-    fn get_or_initialize(&self, room_id: &RoomId, inviter: &MsnUser) -> SwitchboardHandle;
+    fn initialize(&self, room_id: &RoomId, inviter: &EmailAddress) -> SwitchboardHandle;
+    fn get_or_initialize(&self, room_id: &RoomId, inviter: &EmailAddress) -> SwitchboardHandle;
     fn remove(&self, room_id: &RoomId) -> Option<SwitchboardHandle>;
-    fn initialize(&self, room_id: &RoomId, inviter: &MsnUser) -> SwitchboardHandle;
     fn check_sb_initialized(&self, handle: SwitchboardHandle) -> Result<(), RetryError<anyhow::Error>>;
 
-    }
+    fn insert(&self, switchboard: SwitchboardHandle) -> Result<SwitchboardHandle, anyhow::Error>;
+}
 
 impl SwitchboardService for TachyonClient {
 
@@ -44,7 +45,7 @@ impl SwitchboardService for TachyonClient {
         Ok(switchboard)
     }
 
-    fn get_or_initialize(&self, room_id: &RoomId, inviter: &MsnUser) -> SwitchboardHandle {
+    fn get_or_initialize(&self, room_id: &RoomId, inviter: &EmailAddress) -> SwitchboardHandle {
         if let Some(switchboard) = self.get(room_id) {
             return switchboard;
         }
@@ -58,7 +59,7 @@ impl SwitchboardService for TachyonClient {
             .map(|(room_id, sb)| sb)
     }
 
-    fn initialize(&self, room_id: &RoomId, inviter: &MsnUser) -> SwitchboardHandle {
+    fn initialize(&self, room_id: &RoomId, inviter: &EmailAddress) -> SwitchboardHandle {
 
         let switchboard = SwitchboardHandle::new(SessionId::random(), room_id.to_owned());
         self.session_data.switchboards.insert(room_id.to_owned(), switchboard.clone());

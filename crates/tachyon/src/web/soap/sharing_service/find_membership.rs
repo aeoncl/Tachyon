@@ -13,6 +13,7 @@ use msnp::soap::abch::sharing_service::find_membership::request::FindMembershipR
 use msnp::soap::abch::sharing_service::find_membership::response::factory::FindMembershipResponseFactory;
 use msnp::soap::traits::xml::ToXml;
 use crate::matrix::handlers::membership_handlers::compute_all_memberships;
+use crate::tachyon::client::user_service::UserService;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 
@@ -35,7 +36,7 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token
 
 
     } else {
-        let members = compute_all_memberships(tachyon_client.matrix_client().clone()).await;
+        let members = compute_all_memberships(tachyon_client.matrix_client().clone(), &tachyon_client.user_service()).await;
         let msg_service = FindMembershipResponseFactory::get_messenger_service(members, true);
         let soap_body = FindMembershipResponseFactory::get_response(&own_user, &cache_key, msg_service);
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))

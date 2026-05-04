@@ -1,27 +1,31 @@
-use log::debug;
 use crate::matrix::handlers;
 use crate::matrix::handlers::context::TachyonContext;
-use crate::tachyon::client::tachyon_client::TachyonClient;
-use matrix_sdk::event_handler::{Ctx, EventHandler, EventHandlerDropGuard, EventHandlerHandle};
-use matrix_sdk::ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMemberEvent};
-use matrix_sdk::{Client, Room};
-use matrix_sdk::ruma::events::key::verification::request::ToDeviceKeyVerificationRequestEvent;
-use matrix_sdk::ruma::events::room::message::OriginalSyncRoomMessageEvent;
-use matrix_sdk::ruma::events::room::tombstone::{OriginalSyncRoomTombstoneEvent, RoomTombstoneEvent, SyncRoomTombstoneEvent};
-use matrix_sdk::ruma::events::typing::SyncTypingEvent;
 use crate::matrix::handlers::request_verification_handlers::request_verification_handler;
+use crate::tachyon::client::incoming_messaging::IncomingMessagingPortal;
+use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::user_service::UserService;
+use log::debug;
+use matrix_sdk::event_handler::{Ctx, EventHandler, EventHandlerDropGuard, EventHandlerHandle};
+use matrix_sdk::ruma::events::key::verification::request::ToDeviceKeyVerificationRequestEvent;
+use matrix_sdk::ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMemberEvent};
+use matrix_sdk::ruma::events::room::message::OriginalSyncRoomMessageEvent;
+use matrix_sdk::ruma::events::room::tombstone::{
+    OriginalSyncRoomTombstoneEvent, RoomTombstoneEvent, SyncRoomTombstoneEvent,
+};
+use matrix_sdk::ruma::events::typing::SyncTypingEvent;
+use matrix_sdk::{Client, Room};
 
 pub mod contact_handlers;
 pub(super) mod context;
 pub mod membership_handlers;
-pub(super) mod profile_handlers;
-pub(super) mod presence_handlers;
 mod message_handlers;
+pub(super) mod presence_handlers;
+pub(super) mod profile_handlers;
 mod request_verification_handlers;
 
 pub struct EventHandlerContextDropGuard<C: Clone + Send + Sync + 'static> {
     matrix_client: Client,
-    _phantom: std::marker::PhantomData<C>
+    _phantom: std::marker::PhantomData<C>,
 }
 
 impl<C: Clone + Send + Sync + 'static> EventHandlerContextDropGuard<C> {
@@ -39,21 +43,34 @@ impl<C: Clone + Send + Sync + 'static> Drop for EventHandlerContextDropGuard<C> 
     }
 }
 
-fn register_droppable_event_handler(matrix_client: &Client, event_drop_guards: &mut Vec<EventHandlerDropGuard>, create_handler: impl FnOnce() -> EventHandlerHandle) {
+fn register_droppable_event_handler(
+    matrix_client: &Client,
+    event_drop_guards: &mut Vec<EventHandlerDropGuard>,
+    create_handler: impl FnOnce() -> EventHandlerHandle,
+) {
     let handler = create_handler();
     let drop_guard = matrix_client.event_handler_drop_guard(handler);
     event_drop_guards.push(drop_guard);
 }
 
-fn register_droppable_event_handler_context<C: Clone + Send + Sync + 'static>(matrix_client: &Client, context: C) -> EventHandlerContextDropGuard<C> {
+fn register_droppable_event_handler_context<C: Clone + Send + Sync + 'static>(
+    matrix_client: &Client,
+    context: C,
+) -> EventHandlerContextDropGuard<C> {
     matrix_client.add_event_handler_context(Some(context));
     EventHandlerContextDropGuard::new(matrix_client.clone())
 }
 
-pub(super) fn register_event_handlers(matrix_client: &Client, tachyon_client: TachyonClient) -> (Vec<EventHandlerDropGuard>, EventHandlerContextDropGuard<TachyonContext>) {
-
+pub(super) fn register_event_handlers(
+    matrix_client: &Client,
+    tachyon_client: TachyonClient,
+) -> (
+    Vec<EventHandlerDropGuard>,
+    EventHandlerContextDropGuard<TachyonContext>,
+) {
     let mut event_drop_guards = Vec::new();
-    let context_drop_guard = register_droppable_event_handler_context(matrix_client, TachyonContext { tachyon_client });
+    let context_drop_guard =
+        register_droppable_event_handler_context(matrix_client, TachyonContext { tachyon_client });
 
     register_droppable_event_handler(matrix_client, &mut event_drop_guards, || {
         matrix_client.add_event_handler(
@@ -65,12 +82,17 @@ pub(super) fn register_event_handlers(matrix_client: &Client, tachyon_client: Ta
 
                 let context = context.as_ref().unwrap().clone();
 
-                handlers::contact_handlers::handle_contacts(event, room, context.tachyon_client, client).await;
+                handlers::contact_handlers::handle_contacts(
+                    event,
+                    room,
+                    context.tachyon_client,
+                    client,
+                )
+                .await;
             },
         )
     });
 
-
     register_droppable_event_handler(matrix_client, &mut event_drop_guards, || {
         matrix_client.add_event_handler(
             |event: SyncRoomMemberEvent,
@@ -79,7 +101,13 @@ pub(super) fn register_event_handlers(matrix_client: &Client, tachyon_client: Ta
              context: Ctx<Option<TachyonContext>>| async move {
                 debug!("SyncRoomMemberEvent received: {:?}", &event);
                 let context = context.as_ref().unwrap().clone();
-                handlers::membership_handlers::handle_memberships(event, room, context.tachyon_client, client).await;
+                handlers::membership_handlers::handle_memberships(
+                    event,
+                    room,
+                    context.tachyon_client,
+                    client,
+                )
+                .await;
             },
         )
     });
@@ -92,13 +120,18 @@ pub(super) fn register_event_handlers(matrix_client: &Client, tachyon_client: Ta
              context: Ctx<Option<TachyonContext>>| async move {
                 debug!("StrippedRoomMemberEvent received: {:?}", &event);
                 let context = context.as_ref().unwrap().clone();
-                handlers::contact_handlers::handle_contacts_stripped(event, room, context.tachyon_client, client).await;
+                handlers::contact_handlers::handle_contacts_stripped(
+                    event,
+                    room,
+                    context.tachyon_client,
+                    client,
+                )
+                .await;
             },
         )
     });
 
     register_droppable_event_handler(matrix_client, &mut event_drop_guards, || {
-
         matrix_client.add_event_handler(
             |event: StrippedRoomMemberEvent,
              room: Room,
@@ -107,76 +140,81 @@ pub(super) fn register_event_handlers(matrix_client: &Client, tachyon_client: Ta
                 debug!("StrippedRoomMemberEvent received: {:?}", &event);
 
                 let context = context.as_ref().unwrap().clone();
-
 
                 handlers::membership_handlers::handle_memberships_stripped(
-                    event, room, context.tachyon_client, client,
-                ).await;
+                    event,
+                    room,
+                    context.tachyon_client,
+                    client,
+                )
+                .await;
             },
         )
-
     });
 
     register_droppable_event_handler(matrix_client, &mut event_drop_guards, || {
-
         matrix_client.add_event_handler(
             |event: OriginalSyncRoomTombstoneEvent,
              room: Room,
              client: Client,
              context: Ctx<Option<TachyonContext>>| async move {
-
                 let context = context.as_ref().unwrap().clone();
 
                 debug!("StrippedRoomMemberEvent received: {:?}", &event);
                 handlers::contact_handlers::handle_tombstone(
-                    event, room, context.tachyon_client, client,
-                ).await;
+                    event,
+                    room,
+                    context.tachyon_client.clone(),
+                    context.tachyon_client.user_service(),
+                    client,
+                )
+                .await;
             },
         )
-
     });
 
     register_droppable_event_handler(matrix_client, &mut event_drop_guards, || {
-
         matrix_client.add_event_handler(
             |event: OriginalSyncRoomTombstoneEvent,
              room: Room,
              client: Client,
              context: Ctx<Option<TachyonContext>>| async move {
-
                 let context = context.as_ref().unwrap().clone();
-
 
                 debug!("StrippedRoomMemberEvent received: {:?}", &event);
                 handlers::membership_handlers::handle_tombstone(
-                    event, room, context.tachyon_client, client,
-                ).await;
+                    event,
+                    room,
+                    context.tachyon_client.clone(),
+                    context.tachyon_client.user_service(),
+                    client,
+                )
+                .await;
             },
         )
-
     });
 
-
     register_droppable_event_handler(matrix_client, &mut event_drop_guards, || {
-
         matrix_client.add_event_handler(
             |event: OriginalSyncRoomMessageEvent,
              room: Room,
              client: Client,
              context: Ctx<Option<TachyonContext>>| async move {
-
                 let context = context.as_ref().unwrap().clone();
-
 
                 debug!("OriginalSyncRoomMessageEvent received: {:?}", &event);
                 handlers::message_handlers::handle_message(
-                    event, room, context.tachyon_client, client,
-                ).await;
+                    event,
+                    room,
+                    context.tachyon_client.incoming_message_portal(),
+                    context.tachyon_client.clone(),
+                    context.tachyon_client.user_service(),
+                    client,
+                )
+                .await;
             },
         )
-
     });
-
 
     register_droppable_event_handler(matrix_client, &mut event_drop_guards, || {
         matrix_client.add_event_handler(
@@ -189,8 +227,12 @@ pub(super) fn register_event_handlers(matrix_client: &Client, tachyon_client: Ta
                 let context = context.as_ref().unwrap().clone();
 
                 handlers::message_handlers::handle_typing_notice(
-                    event, room, context.tachyon_client, client,
-                ).await;
+                    event,
+                    room,
+                    context.tachyon_client,
+                    client,
+                )
+                .await;
             },
         )
     });

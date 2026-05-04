@@ -1,10 +1,10 @@
 use crate::matrix::extensions::direct::DirectRoom;
 use crate::matrix::extensions::message_dedup::SendWithDedup;
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
-use crate::matrix::handlers::context::TachyonContext;
 use crate::switchboard::extensions::CustomStyles;
+use crate::tachyon::client::incoming_messaging::{IncomingMessagingPortal, IncomingTextMessage};
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
-use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::events::room::message::{MessageType, OriginalSyncRoomMessageEvent};
 use matrix_sdk::ruma::events::typing::SyncTypingEvent;
 use matrix_sdk::{Client, Room};
@@ -15,12 +15,14 @@ use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::payload::msg::control_msg::ControlMessagePayload;
 use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::user_service::UserService;
 
 pub async fn handle_message(
     event: OriginalSyncRoomMessageEvent,
     room: Room,
+    incoming_messaging_portal: Box<dyn IncomingMessagingPortal>,
     tachyon_client: TachyonClient,
+    user_service: Box<dyn UserService>,
     client: Client,
 ) {
 
@@ -28,10 +30,7 @@ pub async fn handle_message(
         return;
     }
 
-    let room_user = room.to_msn_user_lazy().await.unwrap();
-    let switchboard = tachyon_client.switchboards().get_or_initialize(room.room_id(), &room_user);
-
-
+    let room_user = user_service.resolve_room_proxy_user(room.room_id()).await.unwrap();
     let message_sender = if event.sender != room.own_user_id() {
 
         match room.get_single_direct_target() {
@@ -57,28 +56,23 @@ pub async fn handle_message(
         MessageType::Image(_) => {}
         MessageType::Location(_) => {}
         MessageType::Notice(message) => {
-            
-            let msg = SwitchboardServerCommand::MSG(MsgServer {
-                sender: message_sender.get_email_address().clone(),
-                display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
-                payload: MsgPayload::TextPlain(TextPlainMessagePayload::new_with_notice_style(&message.body)),
-            }
-            );
 
-            switchboard.send_command(msg).await.unwrap();
+            incoming_messaging_portal.receive_message(
+                message_sender.get_email_address(),
+                room.room_id(),
+                IncomingTextMessage::new_with_default_style(&message.body)
+            )
 
         }
         MessageType::ServerNotice(_) => {}
         MessageType::Text(message) => {
 
-            let msg = SwitchboardServerCommand::MSG(MsgServer {
-                sender: message_sender.get_email_address().clone(),
-                display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
-                payload: MsgPayload::TextPlain(TextPlainMessagePayload::new_with_default_style(&message.body)),
-            }
-            );
+            incoming_messaging_portal.receive_notice(
+                message_sender.get_email_address(),
+                room.room_id(),
+                IncomingTextMessage::new_with_default_style(&message.body)
+            )
 
-            switchboard.send_command(msg).await.unwrap();
         }
         MessageType::Video(_) => {}
         MessageType::VerificationRequest(_) => {}

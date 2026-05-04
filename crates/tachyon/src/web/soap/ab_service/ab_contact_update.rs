@@ -1,11 +1,9 @@
-use crate::matrix::extensions::msn_user_resolver::FindRoomFromEmail;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 use anyhow::anyhow;
 use axum::http::StatusCode;
 use axum::response::Response;
-use matrix_sdk::Client;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::ab_service::ab_contact_update::request::AbcontactUpdateMessageSoapEnvelope;
@@ -13,8 +11,9 @@ use msnp::soap::abch::ab_service::ab_contact_update::response::AbcontactUpdateRe
 use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::traits::xml::ToXml;
 use std::str::FromStr;
+use crate::tachyon::client::user_service::UserService;
 
-pub(super) async fn ab_contact_update(request : AbcontactUpdateMessageSoapEnvelope, _token: TicketToken, tachyon_client: TachyonClient, soap_action: &str) -> Result<Response, ABError> {
+pub(super) async fn ab_contact_update(request : AbcontactUpdateMessageSoapEnvelope, _token: TicketToken, tachyon_client: TachyonClient, user_service: &Box<dyn UserService>, soap_action: &str) -> Result<Response, ABError> {
 
     if request.body.body.ab_id.body != "00000000-0000-0000-0000-000000000000" {
         return Err(ABError::InternalServerError(anyhow!("Invalid AB ID")));
@@ -46,7 +45,7 @@ pub(super) async fn ab_contact_update(request : AbcontactUpdateMessageSoapEnvelo
 
     if let Some(messenger_user) = contact_info.is_messenger_user {
         if !messenger_user {
-            match tachyon_client.matrix_client().find_room_from_email(&contact.email_address)? {
+            match user_service.find_room_from_email(&contact.email_address)? {
                 Some(room) => {
                     room.leave().await?;
                     let soap_body = AbcontactUpdateResponseMessageSoapEnvelope::get_response(&cache_key);

@@ -1,29 +1,25 @@
 use crate::matrix::extensions::direct::DirectRoom;
-use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
-use crate::switchboard::extensions::CustomStyles;
+use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::switchboard::models::connection_phase::ConnectionPhase;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::switchboard::models::switchboard_handle::{SwitchboardHandle, SwitchboardState};
 use crate::switchboard::models::switchboard_token::SwitchboardToken;
 use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::user_service::{room_to_msn_user, UserService};
+use crate::tachyon::global::global_state::GlobalState;
+use crate::tachyon::mappers::user_id::MatrixIdCompatible;
+use crate::tachyon::repository::RepositoryStr;
 use matrix_sdk::{Client, Room, RoomMemberships};
 use msnp::msnp::switchboard::command::cal::{CalServer, CalServerFunction};
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
 use msnp::msnp::switchboard::command::iro::IroServer;
 use msnp::msnp::switchboard::command::joi::JoiServer;
-use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::switchboard::models::session_id::SessionId;
-use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
-use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use std::str::FromStr;
 use tokio::sync::mpsc::Sender;
-use msnp::shared::models::display_name::DisplayName;
-use crate::tachyon::global::global_state::GlobalState;
-use crate::tachyon::mappers::user_id::MatrixIdCompatible;
-use crate::tachyon::repository::RepositoryStr;
 
 const ROOM_USER_PORTAL_MODE: bool = true;
 
@@ -41,7 +37,9 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
                     match matrix_client.get_room(token.room_id.as_ref()) {
                         None => {}
                         Some(room) => {
-                            let room_msn_user = room.to_msn_user_lazy().await?;
+
+                            let email = tachyon_client.user_service().resolve_room_proxy_email(room.room_id()).unwrap();
+                            let room_msn_user = room_to_msn_user(email, true, &room).await?;
                             local_switchboard_data.token = TicketToken(token.matrix_token);
                             local_switchboard_data.session_id = SessionId::random();
                             local_switchboard_data.email_addr = room_msn_user.get_email_address().clone();
@@ -128,7 +126,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
 }
 
 
-pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, tachyon_client: TachyonClient, matrix_client: Client, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, tachyon_client: TachyonClient, user_service: &Box<dyn UserService>, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
     match command {
         SwitchboardClientCommand::ANS(_) => {}
         SwitchboardClientCommand::USR(_) => {}
@@ -149,9 +147,10 @@ pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sende
                 let me = tachyon_client.own_user();
                 send_initial_joined_member(me, &command_sender).await?;
             } else {
-                let maybe_found = matrix_client.find_room_from_email(&email).unwrap();
+                let maybe_found = user_service.find_room_from_email(&email).unwrap();
                 if let Some(room) = maybe_found {
-                    let target_room_user = room.to_msn_user_lazy().await?;
+
+                    let target_room_user = user_service.resolve_room_proxy_user(&room.room_id()).await.unwrap();
 
                     local_switchboard_data.room_id = Some(room.room_id().to_owned());
                     local_switchboard_data.room = Some(room.clone());
