@@ -15,12 +15,12 @@ use msnp::soap::abch::msnab_datatypes::{CircleRelationshipRole, ContactType, Con
 use msnp::soap::traits::xml::ToXml;
 use std::str::FromStr;
 use crate::matrix::handlers::contact_handlers::{compute_all_contacts};
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 use crate::notification::models::soap_holder::AddressBookContact;
-use crate::tachyon::client::user_service::UserService;
+use crate::tachyon::services::session::user_service::UserService;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 
-pub(super) async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, _token: TicketToken, mut tachyon_client: TachyonClient) -> Result<Response, ABError> {
+pub(super) async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, _token: TicketToken, mut tachyon_client: TachyonSessionData) -> Result<Response, ABError> {
     let body = &request.body.body;
 
     let ab_id = {
@@ -43,7 +43,7 @@ pub(super) async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageS
     }
 }
 
-async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelope, tachyon_client: &mut TachyonClient) -> Result<Response, ABError> {
+async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelope, tachyon_client: &mut TachyonSessionData) -> Result<Response, ABError> {
     let body = request.body.body;
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or(Uuid::new().to_string());
     let me_user = tachyon_client.own_user();
@@ -83,7 +83,7 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
 
 }
 
-fn get_delta_contact_list(client_data: &mut TachyonClient) -> Result<Vec<ContactType>, ABError> {
+fn get_delta_contact_list(client_data: &mut TachyonSessionData) -> Result<Vec<ContactType>, ABError> {
     let mut current_contacts = Vec::new();
 
     let mut contact_holder = client_data.soap_holder().contacts.lock().unwrap();
@@ -102,7 +102,7 @@ fn get_delta_contact_list(client_data: &mut TachyonClient) -> Result<Vec<Contact
 
 
 
-async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, ab_id: &str, client_data: &mut TachyonClient) -> Result<Response, ABError> {
+async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, ab_id: &str, client_data: &mut TachyonSessionData) -> Result<Response, ABError> {
     let body = request.body.body;
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or_default();
 

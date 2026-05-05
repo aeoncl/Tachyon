@@ -3,7 +3,7 @@ use crate::notification::handlers::{auth, negotiation};
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::global::global_state::GlobalState;
-use crate::tachyon::global::tachyon_config::TachyonConfig;
+use crate::tachyon::tachyon_config::TachyonConfig;
 use anyhow::anyhow;
 use msnp::msnp::notification::command::command::{
     NotificationClientCommand, NotificationServerCommand,
@@ -60,7 +60,7 @@ mod tests {
     use crate::notification::models::local_client_data::LocalClientData;
     use crate::tachyon::error::TachyonError;
     use crate::tachyon::global::global_state::GlobalState;
-    use crate::tachyon::global::secret_encryptor::SecretEncryptor;
+    use crate::tachyon::services::global::secret_service::SecretService;
     use matrix_sdk::ruma::UserId;
     use matrix_sdk::test_utils::mocks::MatrixMockServer;
     use matrix_sdk::{async_trait, Client};
@@ -128,7 +128,7 @@ mod tests {
 
         let state = GlobalState::new(
             Default::default(),
-            SecretEncryptor::new(&TEST_SECRET).unwrap(),
+            SecretService::new(&TEST_SECRET).unwrap(),
             Box::new(MatrixLoginServiceImpl::new()),
         );
 
@@ -184,7 +184,7 @@ mod tests {
 
         let state = GlobalState::new(
             Default::default(),
-            SecretEncryptor::new(&TEST_SECRET).unwrap(),
+            SecretService::new(&TEST_SECRET).unwrap(),
             Box::new(matrix_login_service),
         );
 

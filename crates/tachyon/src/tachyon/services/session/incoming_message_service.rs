@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::sync::Arc;
 use matrix_sdk::ruma::RoomId;
 use msnp::msnp::switchboard::command::msg::MsgPayload;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
@@ -7,9 +8,7 @@ use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use crate::switchboard::extensions::CustomStyles;
-use crate::tachyon::client::tachyon_client::TachyonClient;
-
-
+use crate::tachyon::state::session::switchboard_handle_repository::SwitchboardHandleRepository;
 
 pub struct IncomingTextMessage {
     text: String,
@@ -32,20 +31,31 @@ impl IncomingTextMessage {
     }
 }
 
-pub trait IncomingMessagingPortal: Send + Sync {
+pub trait IncomingMessagingService: Send + Sync {
 
     fn receive_message(&self, sender: &EmailAddress, room_id: &RoomId, message: IncomingTextMessage);
 
     fn receive_notice(&self, sender: &EmailAddress, room_id: &RoomId, message: IncomingTextMessage);
 
-    fn incoming_message_portal(&self) -> Box<dyn IncomingMessagingPortal>;
+    fn incoming_message_portal(&self) -> Box<dyn IncomingMessagingService>;
 }
 
+struct IncomingMessagingServiceImpl {
+    switchboards: Arc<dyn SwitchboardHandleRepository>
+}
 
-impl IncomingMessagingPortal for TachyonClient {
+impl IncomingMessagingServiceImpl {
+    pub fn new(switchboards: Arc<dyn SwitchboardHandleRepository>) -> Self {
+        Self {
+            switchboards,
+        }
+    }
+}
+
+impl IncomingMessagingService for IncomingMessagingServiceImpl {
     fn receive_message(&self, sender: &EmailAddress, room_id: &RoomId, message: IncomingTextMessage) {
         //Check if this shouldn't add a switchboard to the list
-        let handle = self.switchboards().get_or_initialize(room_id, &EmailAddress::from_str("5f291f827bce7fa3b3e69ca0cc3daf5df9bbbe45@shlasouf.local").unwrap());
+        let handle = self.switchboards.get_or_initialize(room_id, &EmailAddress::from_str("5f291f827bce7fa3b3e69ca0cc3daf5df9bbbe45@shlasouf.local").unwrap());
 
         let sender_clone = sender.clone();
         tokio::spawn(async move {
@@ -59,7 +69,7 @@ impl IncomingMessagingPortal for TachyonClient {
     }
 
     fn receive_notice(&self, sender: &EmailAddress, room_id: &RoomId, message: IncomingTextMessage) {
-        let handle = self.switchboards().get_or_initialize(room_id, &EmailAddress::from_str("5f291f827bce7fa3b3e69ca0cc3daf5df9bbbe45@shlasouf.local").unwrap());
+        let handle = self.switchboards.get_or_initialize(room_id, &EmailAddress::from_str("5f291f827bce7fa3b3e69ca0cc3daf5df9bbbe45@shlasouf.local").unwrap());
 
         let sender_clone = sender.clone();
         tokio::spawn(async move {
@@ -71,8 +81,8 @@ impl IncomingMessagingPortal for TachyonClient {
         });
     }
 
-    fn incoming_message_portal(&self) -> Box<dyn IncomingMessagingPortal> {
-        Box::new(self.clone()) as Box<dyn IncomingMessagingPortal>
+    fn incoming_message_portal(&self) -> Box<dyn IncomingMessagingService> {
+        Box::new(self.clone()) as Box<dyn IncomingMessagingService>
     }
 }
 

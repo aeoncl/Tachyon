@@ -1,27 +1,25 @@
 use crate::switchboard::models::switchboard_handle::{SwitchboardHandle, SwitchboardState};
 use crate::switchboard::models::switchboard_token::SwitchboardToken;
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::state::session::tachyon_client_repository::TachyonSessionData;
 use anyhow::anyhow;
 use matrix_sdk::ruma::RoomId;
 use msnp::msnp::notification::models::ip_address::IpAddress;
 use msnp::msnp::switchboard::models::session_id::SessionId;
-use msnp::shared::models::msn_user::MsnUser;
+use msnp::shared::models::email_address::EmailAddress;
 use std::net::Ipv4Addr;
 use tokio_retry2::RetryError;
-use msnp::shared::models::email_address::EmailAddress;
 
-pub trait SwitchboardService : Send + Sync {
+pub trait SwitchboardHandleRepository: Send + Sync {
     fn get(&self, room_id: &RoomId) -> Option<SwitchboardHandle>;
     fn contains(&self, room_id: &RoomId) -> bool;
     fn initialize(&self, room_id: &RoomId, inviter: &EmailAddress) -> SwitchboardHandle;
     fn get_or_initialize(&self, room_id: &RoomId, inviter: &EmailAddress) -> SwitchboardHandle;
     fn remove(&self, room_id: &RoomId) -> Option<SwitchboardHandle>;
     fn check_sb_initialized(&self, handle: SwitchboardHandle) -> Result<(), RetryError<anyhow::Error>>;
-
     fn insert(&self, switchboard: SwitchboardHandle) -> Result<SwitchboardHandle, anyhow::Error>;
 }
 
-impl SwitchboardService for TachyonClient {
+impl SwitchboardHandleRepository for TachyonSessionData {
 
     fn get(&self, room_id: &RoomId) -> Option<SwitchboardHandle> {
         self.session_data.switchboards.get(room_id).map(|sb| sb.clone())
@@ -29,34 +27,6 @@ impl SwitchboardService for TachyonClient {
 
     fn contains(&self, room_id: &RoomId) -> bool {
         self.session_data.switchboards.contains_key(room_id)
-    }
-
-    fn insert(&self, switchboard: SwitchboardHandle) -> Result<SwitchboardHandle, anyhow::Error> {
-        {
-            let mut pending_events = switchboard.pending_events.lock().map_err(|e| anyhow::anyhow!("Failed to lock pending events: {}", e))?;
-            let old_value = self.session_data.switchboards.insert(switchboard.room_id.clone(), switchboard.clone());
-            if let Some(old) = old_value {
-                for old_pending in old.pending_events.lock().map_err(|e| anyhow::anyhow!("Failed to lock pending events: {}", e))?.drain(..) {
-                    pending_events.push(old_pending);
-                }
-
-            }
-        }
-        Ok(switchboard)
-    }
-
-    fn get_or_initialize(&self, room_id: &RoomId, inviter: &EmailAddress) -> SwitchboardHandle {
-        if let Some(switchboard) = self.get(room_id) {
-            return switchboard;
-        }
-
-        self.initialize(room_id, &inviter)
-    }
-
-    fn remove(&self, room_id: &RoomId) -> Option<SwitchboardHandle> {
-        self.session_data.switchboards
-            .remove(room_id)
-            .map(|(room_id, sb)| sb)
     }
 
     fn initialize(&self, room_id: &RoomId, inviter: &EmailAddress) -> SwitchboardHandle {
@@ -76,6 +46,19 @@ impl SwitchboardService for TachyonClient {
         switchboard
     }
 
+    fn get_or_initialize(&self, room_id: &RoomId, inviter: &EmailAddress) -> SwitchboardHandle {
+        if let Some(switchboard) = self.get(room_id) {
+            return switchboard;
+        }
+
+        self.initialize(room_id, &inviter)
+    }
+
+    fn remove(&self, room_id: &RoomId) -> Option<SwitchboardHandle> {
+        self.session_data.switchboards
+            .remove(room_id)
+            .map(|(room_id, sb)| sb)
+    }
 
     fn check_sb_initialized(&self, handle: SwitchboardHandle) -> Result<(), RetryError<anyhow::Error>> {
         match handle.switchboard_state.lock() {
@@ -90,6 +73,21 @@ impl SwitchboardService for TachyonClient {
                 RetryError::to_permanent(anyhow!("{}", lock_err))
             }
         }
+    }
+
+
+    fn insert(&self, switchboard: SwitchboardHandle) -> Result<SwitchboardHandle, anyhow::Error> {
+        {
+            let mut pending_events = switchboard.pending_events.lock().map_err(|e| anyhow::anyhow!("Failed to lock pending events: {}", e))?;
+            let old_value = self.session_data.switchboards.insert(switchboard.room_id.clone(), switchboard.clone());
+            if let Some(old) = old_value {
+                for old_pending in old.pending_events.lock().map_err(|e| anyhow::anyhow!("Failed to lock pending events: {}", e))?.drain(..) {
+                    pending_events.push(old_pending);
+                }
+
+            }
+        }
+        Ok(switchboard)
     }
 
 }

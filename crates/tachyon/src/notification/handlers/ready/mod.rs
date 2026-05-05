@@ -1,7 +1,7 @@
 use crate::notification::models::local_client_data::LocalClientData;
-use crate::tachyon::client::tachyon_client::TachyonClient;
-use crate::tachyon::client::user_service::UserService;
-use crate::tachyon::global::tachyon_config::TachyonConfig;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
+use crate::tachyon::services::session::user_service::UserService;
+use crate::tachyon::tachyon_config::TachyonConfig;
 use adl_handler::handle_adl;
 use chg_handler::handle_chg;
 use fqy_handler::handle_fqy;
@@ -32,7 +32,7 @@ mod prp_handler;
 mod fqy_handler;
 mod url_handler;
 
-pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, tachyon_client: TachyonClient, local_store: &mut LocalClientData, config: &TachyonConfig) -> Result<(), anyhow::Error> {
+pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, tachyon_client: TachyonSessionData, local_store: &mut LocalClientData, config: &TachyonConfig) -> Result<(), anyhow::Error> {
     match raw_command {
         NotificationClientCommand::USR(command) => handle_usr(command, local_store.email_addr.clone(), command_sender).await,
         NotificationClientCommand::PNG => handle_png(command_sender).await,

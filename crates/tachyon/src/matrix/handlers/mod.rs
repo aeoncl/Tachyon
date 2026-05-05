@@ -1,9 +1,10 @@
 use crate::matrix::handlers;
 use crate::matrix::handlers::context::TachyonContext;
 use crate::matrix::handlers::request_verification_handlers::request_verification_handler;
-use crate::tachyon::client::incoming_messaging::IncomingMessagingPortal;
-use crate::tachyon::client::tachyon_client::TachyonClient;
-use crate::tachyon::client::user_service::UserService;
+use crate::tachyon::services::session::incoming_message_service::IncomingMessagingService;
+use crate::tachyon::services::session::user_service::UserService;
+use crate::tachyon::state::session::tachyon_client_repository::TachyonSessionData;
+use crate::tachyon::tachyon_client::TachyonClient;
 use log::debug;
 use matrix_sdk::event_handler::{Ctx, EventHandler, EventHandlerDropGuard, EventHandlerHandle};
 use matrix_sdk::ruma::events::key::verification::request::ToDeviceKeyVerificationRequestEvent;
@@ -165,7 +166,7 @@ pub(super) fn register_event_handlers(
                     event,
                     room,
                     context.tachyon_client.clone(),
-                    context.tachyon_client.user_service(),
+                    context.tachyon_client.users(),
                     client,
                 )
                 .await;
@@ -186,7 +187,7 @@ pub(super) fn register_event_handlers(
                     event,
                     room,
                     context.tachyon_client.clone(),
-                    context.tachyon_client.user_service(),
+                    context.tachyon_client.users(),
                     client,
                 )
                 .await;
@@ -206,9 +207,9 @@ pub(super) fn register_event_handlers(
                 handlers::message_handlers::handle_message(
                     event,
                     room,
-                    context.tachyon_client.incoming_message_portal(),
+                    context.tachyon_client.incoming_messages(),
                     context.tachyon_client.clone(),
-                    context.tachyon_client.user_service(),
+                    context.tachyon_client.users(),
                     client,
                 )
                 .await;

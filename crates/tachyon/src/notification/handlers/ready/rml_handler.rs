@@ -2,9 +2,9 @@ use log::debug;
 use tokio::sync::mpsc::Sender;
 use msnp::msnp::notification::command::adl::RmlClient;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 
-pub async fn handle_rml(command: RmlClient, client_data: TachyonClient, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
+pub async fn handle_rml(command: RmlClient, client_data: TachyonSessionData, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     debug!("RML: {:?}", &command);
 
     client_data.session_data.contact_list.lock().unwrap().remove_contacts(command.payload.get_contacts()?);

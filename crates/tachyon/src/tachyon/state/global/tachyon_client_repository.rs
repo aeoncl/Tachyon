@@ -1,7 +1,8 @@
 use dashmap::DashMap;
 use msnp::shared::models::email_address::EmailAddress;
-use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::repository::RepositoryStr;
+use crate::tachyon::state::session::tachyon_client_repository::TachyonSessionData;
+use crate::tachyon::tachyon_client::TachyonClient;
 
 #[derive(Default)]
 pub struct TachyonClientRepository {
@@ -16,7 +17,7 @@ impl TachyonClientRepository {
         }
     }
 
-    pub(crate) fn single(&self) -> Option<TachyonClient> {
+    pub fn single(&self) -> Option<TachyonClient> {
 
         if self.clients.len() > 1 {
             return None;
@@ -25,7 +26,7 @@ impl TachyonClientRepository {
         self.clients.iter().next().map(|x| x.value().clone())
     }
 
-    pub fn find_by_email(&self, email: &EmailAddress) -> Option<TachyonClient> {
+    pub fn find_by_email(&self, email: &EmailAddress) -> Option<TachyonSessionData> {
         self.clients.iter().find(|entry| entry.value().own_user().get_email_address() == email).map(|client| client.value().clone())
     }
 }

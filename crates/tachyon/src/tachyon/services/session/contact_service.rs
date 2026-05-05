@@ -5,7 +5,7 @@ use msnp::shared::models::email_address::EmailAddress;
 use msnp::soap::abch::msnab_datatypes::ContactType;
 
 use crate::notification::models::soap_holder::AddressBookContact;
-use crate::tachyon::client::user_service::UserService;
+use crate::tachyon::services::session::user_service::UserService;
 
 #[async_trait]
 pub trait ContactService: Send + Sync {
@@ -29,23 +29,19 @@ pub trait ContactService: Send + Sync {
     async fn unblock_contact(&self, email: &EmailAddress) -> anyhow::Result<()>;
 }
 
-// ---------------------------------------------------------------------------
-// Implementation
-// ---------------------------------------------------------------------------
-
 pub struct ContactServiceImpl {
     delta_buffer: Arc<Mutex<Vec<AddressBookContact>>>,
 
     matrix_client: Client,
 
-    user_service: Box<dyn UserService>,
+    user_service: Arc<dyn UserService>,
 }
 
 impl ContactServiceImpl {
     pub fn new(
         delta_buffer: Arc<Mutex<Vec<AddressBookContact>>>,
         matrix_client: Client,
-        user_service: Box<dyn UserService>,
+        user_service: Arc<dyn UserService>,
     ) -> Self {
         Self {
             delta_buffer,
@@ -57,8 +53,6 @@ impl ContactServiceImpl {
 
 #[async_trait]
 impl ContactService for ContactServiceImpl {
-    // -- Delta sync (Matrix → SOAP) -------------------------------------
-
     fn push_delta(&self, contact: AddressBookContact) {
         let mut buf = self.delta_buffer.lock().expect("delta_buffer lock");
         buf.push(contact);

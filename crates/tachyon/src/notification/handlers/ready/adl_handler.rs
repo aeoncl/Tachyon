@@ -1,6 +1,6 @@
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
-use crate::tachyon::client::tachyon_client::TachyonClient;
-use crate::tachyon::client::user_service::UserService;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
+use crate::tachyon::services::session::user_service::UserService;
 use crate::tachyon::identifiers::is_sha1::IsSha1;
 use log::debug;
 use matrix_sdk::Client;
@@ -16,7 +16,7 @@ use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tokio::time::sleep;
 
-pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, user_service: Box<dyn UserService>, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
+pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonSessionData, user_service: Box<dyn UserService>, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     debug!("ADL: {:?}", &command);
 
     let contacts = command.payload.get_contacts()?;

@@ -9,7 +9,7 @@ use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::OwnedWriteH
 use msnp::msnp::raw_command_parser::RawCommand;
 use crate::notification::handlers::command_handler::handle_command;
 use crate::notification::models::local_client_data::LocalClientData;
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 use crate::tachyon::global::global_state::GlobalState;
 use crate::tachyon::repository::RepositoryStr;
 

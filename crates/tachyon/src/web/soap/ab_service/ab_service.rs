@@ -13,7 +13,7 @@ use msnp::soap::abch::ab_service::ab_find_contacts_paged::request::AbfindContact
 use msnp::soap::abch::ab_service::ab_group_add::request::AbgroupAddMessageSoapEnvelope;
 use msnp::soap::abch::request_header::AuthHeaderSoapEnvelope;
 use msnp::soap::traits::xml::TryFromXml;
-use crate::tachyon::client::user_service::UserService;
+use crate::tachyon::services::session::user_service::UserService;
 use crate::tachyon::global::global_state::GlobalState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::soap::ab_service::ab_contact_add::ab_contact_add;

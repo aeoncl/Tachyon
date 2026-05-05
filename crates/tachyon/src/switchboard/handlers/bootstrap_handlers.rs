@@ -4,8 +4,8 @@ use crate::switchboard::models::connection_phase::ConnectionPhase;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::switchboard::models::switchboard_handle::{SwitchboardHandle, SwitchboardState};
 use crate::switchboard::models::switchboard_token::SwitchboardToken;
-use crate::tachyon::client::tachyon_client::TachyonClient;
-use crate::tachyon::client::user_service::{room_to_msn_user, UserService};
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
+use crate::tachyon::services::session::user_service::{room_to_msn_user, UserService};
 use crate::tachyon::global::global_state::GlobalState;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::repository::RepositoryStr;
@@ -126,7 +126,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
 }
 
 
-pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, tachyon_client: TachyonClient, user_service: &Box<dyn UserService>, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, tachyon_client: TachyonSessionData, user_service: &Box<dyn UserService>, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
     match command {
         SwitchboardClientCommand::ANS(_) => {}
         SwitchboardClientCommand::USR(_) => {}

@@ -1,5 +1,6 @@
+use std::sync::Arc;
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 use matrix_sdk::deserialized_responses::RawSyncOrStrippedState;
 use matrix_sdk::ruma::events::room::member::{MembershipState, RoomMemberEventContent};
 use matrix_sdk::ruma::room::RoomType;
@@ -7,7 +8,8 @@ use matrix_sdk::{ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomM
 use matrix_sdk::ruma::events::room::tombstone::{OriginalSyncRoomTombstoneEvent, RoomTombstoneEvent, SyncRoomTombstoneEvent};
 use msnp::shared::models::role_list::RoleList;
 use msnp::soap::abch::msnab_datatypes::{BaseMember, MemberState};
-use crate::tachyon::client::user_service::UserService;
+use crate::tachyon::services::session::user_service::UserService;
+use crate::tachyon::tachyon_client::TachyonClient;
 
 pub(super) async fn handle_memberships(
     event: SyncRoomMemberEvent,
@@ -155,9 +157,9 @@ pub async fn compute_all_memberships(client: Client, user_service: &Box<dyn User
 }
 
 pub(super) async fn handle_tombstone(event: OriginalSyncRoomTombstoneEvent,
-                               room: Room,
-                               tachyon_client: TachyonClient,
-                                     user_service: Box<dyn UserService>,
+                                     room: Room,
+                                     tachyon_client: TachyonClient,
+                                     user_service: Arc<dyn UserService>,
 
                                      client: Client) {
 

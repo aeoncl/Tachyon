@@ -1,21 +1,22 @@
 use crate::matrix::services::login::MatrixLoginService;
 use crate::matrix::verification_request_repository::VerificationRequestRepository;
 use crate::tachyon::alert::AlertReceiver;
-use crate::tachyon::client::tachyon_client::TachyonClient;
-use crate::tachyon::client::tachyon_client_repository::TachyonClientRepository;
-use crate::tachyon::global::secret_encryptor::SecretEncryptor;
-use crate::tachyon::global::tachyon_config::TachyonConfig;
+
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::repository::RepositoryStr;
+use crate::tachyon::services::global::secret_service::SecretService;
+use crate::tachyon::state::global::tachyon_client_repository::TachyonClientRepository;
+use crate::tachyon::tachyon_config::TachyonConfig;
 use dashmap::DashMap;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::Arc;
+use crate::tachyon::tachyon_client::TachyonClient;
 
 pub struct GlobalStateInner {
     config: TachyonConfig,
     tachyon_clients: TachyonClientRepository,
-    token_validator: SecretEncryptor,
+    token_validator: SecretService,
     pending_ticket: DashMap<String, TicketToken>,
     pending_alerts: DashMap<i32, AlertReceiver>,
     pending_verification_requests: VerificationRequestRepository,
@@ -57,7 +58,7 @@ impl Drop for ClientDropGuard {
 
 impl GlobalState {
 
-    pub fn new(config: TachyonConfig, token_validator: SecretEncryptor, matrix_login_service: Box<dyn MatrixLoginService>) -> Self {
+    pub fn new(config: TachyonConfig, token_validator: SecretService, matrix_login_service: Box<dyn MatrixLoginService>) -> Self {
         Self {
             inner: Arc::new(GlobalStateInner {
                 config,
@@ -117,7 +118,7 @@ impl GlobalState {
         &self.inner.matrix_login_service
     }
 
-    pub fn secret_encryptor(&self) -> &SecretEncryptor {
+    pub fn secret_encryptor(&self) -> &SecretService {
         &self.inner.token_validator
     }
 

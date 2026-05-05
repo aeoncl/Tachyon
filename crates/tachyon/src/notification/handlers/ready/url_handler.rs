@@ -2,9 +2,9 @@ use tokio::sync::mpsc::Sender;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::url::{UrlClient, UrlServer, UrlType};
 use crate::notification::models::local_client_data::LocalClientData;
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 
-pub async fn handle_url(command: UrlClient, client_data: &mut LocalClientData, tachyon_client: TachyonClient, sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>{
+pub async fn handle_url(command: UrlClient, client_data: &mut LocalClientData, tachyon_client: TachyonSessionData, sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>{
 
     //TODO: handle url types
 

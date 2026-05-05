@@ -1,5 +1,6 @@
 use crate::matrix::extensions::direct::DirectRoom;
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::matrix::MatrixClient;
+use crate::tachyon::state::session::room_proxy_repository::RoomProxyRepository;
 use anyhow::Error;
 use base64::engine::general_purpose;
 use base64::Engine;
@@ -10,9 +11,13 @@ use msnp::shared::models::msn_object::{FriendlyName, MSNObjectFactory};
 use msnp::shared::models::msn_user::MsnUser;
 use sha1::{Digest, Sha1};
 use std::str::FromStr;
+use std::sync::{Arc, RwLock};
 
 #[async_trait]
 pub trait UserService: Send + Sync {
+
+    fn own_user(&self) -> MsnUser;
+
     async fn resolve_room_proxy_user(&self, room_id: &RoomId) -> Option<MsnUser>;
 
     async fn resolve_room_proxy_user_from_email(&self, email: &EmailAddress) -> Option<MsnUser>;
@@ -20,14 +25,34 @@ pub trait UserService: Send + Sync {
     fn resolve_room_proxy_email(&self, room_id: &RoomId) -> Option<EmailAddress>;
 
     fn find_room_from_email(&self, email: &EmailAddress) -> Result<Option<Room>, Error>;
-    fn user_service(&self) -> Box<dyn UserService>;
+}
+
+struct UserServiceImpl {
+    matrix_client: MatrixClient,
+    room_proxies: Arc<dyn RoomProxyRepository>,
+    own_user: Arc<RwLock<MsnUser>>
+}
+
+impl UserServiceImpl {
+    pub fn new(matrix_client: MatrixClient, room_proxies: Arc<dyn RoomProxyRepository>, own_user: Arc<RwLock<MsnUser>>) -> Self {
+        Self {
+            matrix_client,
+            room_proxies,
+            own_user
+        }
+    }
 }
 
 #[async_trait]
-impl UserService for TachyonClient {
+impl UserService for UserServiceImpl {
+
+    fn own_user(&self) -> MsnUser {
+        self.own_user.read().expect("to not be poisonned").clone()
+    }
+
     async fn resolve_room_proxy_user(&self, room_id: &RoomId) -> Option<MsnUser> {
         let email = self.resolve_room_proxy_email(room_id)?;
-        let room = &self.session_data.matrix_client.get_room(room_id)?;
+        let room = &self.matrix_client.get_room(room_id)?;
         room_to_msn_user(email, true, room).await.ok()
     }
 
@@ -37,38 +62,28 @@ impl UserService for TachyonClient {
     }
 
     fn resolve_room_proxy_email(&self, room_id: &RoomId) -> Option<EmailAddress> {
-        let room = self.session_data.matrix_client.get_room(room_id)?;
+        let room = self.matrix_client.get_room(room_id)?;
         let proxy_email = map_room_to_proxy_email(&room).ok()?;
-        self.session_data
-            .room_proxy_lookup_table
-            .insert(room.room_id().to_owned(), proxy_email.to_string());
-        self.session_data
-            .room_proxy_reverse_lookup_table
-            .insert(proxy_email.to_string(), room.room_id().to_owned());
+        self.room_proxies
+            .insert(&proxy_email, room.room_id());
         Some(proxy_email)
     }
 
     fn find_room_from_email(&self, email: &EmailAddress) -> Result<Option<Room>, Error> {
-        let out = if let Some(entry) = self
-            .session_data
-            .room_proxy_reverse_lookup_table
-            .get(email.as_str())
+        let out = if let Some(entry) = self.room_proxies
+            .get_room_for_email(email)
         {
             let room_id = entry.value();
-            self.session_data.matrix_client.get_room(room_id.as_ref())
+            self.matrix_client.get_room(room_id.as_ref())
         } else {
             let mut found = None;
 
-            for current in self.session_data.matrix_client.rooms() {
-                let current_room_proxy_email = map_room_to_proxy_email(&current)?;
+            for current_room in self.matrix_client.rooms() {
+                let current_room_proxy_email = map_room_to_proxy_email(&current_room)?;
                 if current_room_proxy_email == *email {
-                    self.session_data
-                        .room_proxy_reverse_lookup_table
-                        .insert(email.to_string(), current.room_id().to_owned());
-                    self.session_data
-                        .room_proxy_lookup_table
-                        .insert(current.room_id().to_owned(), email.to_string());
-                    found = Some(current);
+                    self.room_proxies
+                        .insert(&current_room_proxy_email, current_room.room_id());
+                    found = Some(current_room);
                     break;
                 }
             }
@@ -76,10 +91,6 @@ impl UserService for TachyonClient {
         };
 
         Ok(out)
-    }
-
-    fn user_service(&self) -> Box<dyn UserService> {
-        Box::new(self.clone())
     }
 }
 

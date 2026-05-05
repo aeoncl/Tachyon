@@ -2,11 +2,9 @@ use crate::matrix::MatrixClient;
 use crate::notification::circle_store::CircleStore;
 use crate::notification::models::notification_handle::NotificationHandle;
 use crate::notification::models::soap_holder::SoapHolder;
-use crate::tachyon::services::contact_list_service::{ContactListService, ContactListServiceImpl};
 use crate::switchboard::models::switchboard_handle::SwitchboardHandle;
 use crate::tachyon::alert::Alert;
-use crate::tachyon::client::switchboards::SwitchboardService;
-use crate::tachyon::global::tachyon_config::TachyonConfig;
+use crate::tachyon::tachyon_config::TachyonConfig;
 use dashmap::DashMap;
 use matrix_sdk::locks::RwLock;
 use matrix_sdk::ruma::OwnedRoomId;
@@ -16,7 +14,7 @@ use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::{Arc, Mutex, RwLockWriteGuard};
 use tokio::sync::broadcast;
 
-pub struct TachyonSessionData {
+pub struct TachyonSessionDataInner {
     pub matrix_client: MatrixClient,
     pub own_user: RwLock<MsnUser>,
     pub ticket_token: TicketToken,
@@ -37,11 +35,11 @@ pub struct TachyonSessionData {
 }
 
 #[derive(Clone)]
-pub struct TachyonClient {
-    pub session_data: Arc<TachyonSessionData>,
+pub struct TachyonSessionData {
+    pub session_data: Arc<TachyonSessionDataInner>,
 }
 
-impl TachyonClient {
+impl TachyonSessionData {
     pub fn new(
         matrix_client: MatrixClient,
         config: TachyonConfig,
@@ -50,9 +48,9 @@ impl TachyonClient {
         notification_handle: NotificationHandle,
         client_shutdown_snd: broadcast::Sender<()>,
         client_shutdown_recv: broadcast::Receiver<()>,
-    ) -> TachyonClient {
-        TachyonClient {
-            session_data: Arc::new(TachyonSessionData {
+    ) -> TachyonSessionData {
+        TachyonSessionData {
+            session_data: Arc::new(TachyonSessionDataInner {
                 matrix_client,
                 own_user: RwLock::new(user),
                 ticket_token: token,
@@ -69,10 +67,6 @@ impl TachyonClient {
                 client_shutdown_recv,
             }),
         }
-    }
-
-    pub fn switchboards(&self) -> Box<dyn SwitchboardService> {
-        Box::new(self.clone()) as Box<dyn SwitchboardService>
     }
 
     pub fn alerts(&self) -> &DashMap<i32, Alert> {

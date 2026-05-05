@@ -1,4 +1,4 @@
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 use anyhow::anyhow;
@@ -12,10 +12,10 @@ use msnp::soap::abch::ab_service::ab_contact_delete::response::AbcontactDeleteRe
 use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::traits::xml::ToXml;
 use std::str::FromStr;
-use crate::tachyon::client::user_service::UserService;
+use crate::tachyon::services::session::user_service::UserService;
 
 //TODO Contact Delete is called after a delay of 10 secs. Check if we find something in contact dll regarding SHIELDS
-pub(super) async fn ab_contact_delete(request : AbcontactDeleteMessageSoapEnvelope, _token: TicketToken, tachyon_client: TachyonClient, user_service: &Box<dyn UserService>, soap_action: &str) -> Result<Response, ABError> {
+pub(super) async fn ab_contact_delete(request : AbcontactDeleteMessageSoapEnvelope, _token: TicketToken, tachyon_client: TachyonSessionData, user_service: &Box<dyn UserService>, soap_action: &str) -> Result<Response, ABError> {
 
     if request.body.ab_contact_delete.ab_id.body != "00000000-0000-0000-0000-000000000000" {
         return Err(ABError::InternalServerError(anyhow!("Invalid AB ID")));

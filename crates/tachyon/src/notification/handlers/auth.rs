@@ -5,7 +5,7 @@ use crate::matrix::sync::sync;
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::alert::{Alert, AlertError, AlertSuccess};
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 use crate::tachyon::global::global_state::GlobalState;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::repository::RepositoryStr;
@@ -28,7 +28,7 @@ use tokio::{select, task};
 use crate::matrix::cross_signing;
 use crate::matrix::services::login::MatrixLoginService;
 use crate::notification::models::notification_handle::NotificationHandle;
-use crate::tachyon::global::tachyon_config::TachyonConfig;
+use crate::tachyon::tachyon_config::TachyonConfig;
 
 const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"1000\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"100\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
 
@@ -59,7 +59,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             let msn_user = MsnUser::new(endpoint_id);
 
 
-                            let tachyon_client = TachyonClient::new(matrix_client.clone(), config.clone(), msn_user.clone(), ticket_token.clone(), NotificationHandle::new(notif_sender.clone()), local_store.client_shutdown_snd.clone(), local_store.client_shutdown_recv.resubscribe());
+                            let tachyon_client = TachyonSessionData::new(matrix_client.clone(), config.clone(), msn_user.clone(), ticket_token.clone(), NotificationHandle::new(notif_sender.clone()), local_store.client_shutdown_snd.clone(), local_store.client_shutdown_recv.resubscribe());
                             let drop_guard = tachyon_state.insert_clients(ticket_token.as_str().to_owned(), tachyon_client.clone());
 
                             local_store.client_drop_guard = Some(drop_guard);
@@ -103,7 +103,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
 }
 
-fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local_store: &LocalClientData, ticket_token: &TicketToken, matrix_client: &Client, msn_user: &MsnUser, tachyon_client: TachyonClient, config: &TachyonConfig) -> Result<(), Error> {
+fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local_store: &LocalClientData, ticket_token: &TicketToken, matrix_client: &Client, msn_user: &MsnUser, tachyon_client: TachyonSessionData, config: &TachyonConfig) -> Result<(), Error> {
     let msn_user_clone = msn_user.clone();
     let matrix_client_clone = matrix_client.clone();
     let notif_sender_clone = notif_sender.clone();

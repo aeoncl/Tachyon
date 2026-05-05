@@ -2,8 +2,8 @@ use crate::matrix::extensions::direct::DirectRoom;
 use crate::matrix::extensions::message_dedup::SendWithDedup;
 use crate::matrix::extensions::msn_user_resolver::{ToEmailAddress, ToMsnUser};
 use crate::notification::models::soap_holder::AddressBookContact;
-use crate::tachyon::client::tachyon_client::TachyonClient;
-use crate::tachyon::client::user_service::UserService;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
+use crate::tachyon::services::session::user_service::UserService;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::mappers::uuid::ToUuid;
 use crate::web::soap::error::ABError;
@@ -39,7 +39,7 @@ use tokio::time::sleep;
 pub(super) async fn ab_contact_add(
     request: AbcontactAddMessageSoapEnvelope,
     _token: TicketToken,
-    tachyon_client: TachyonClient,
+    tachyon_client: TachyonSessionData,
     user_service: &Box<dyn UserService>,
     soap_action: &str,
 ) -> Result<Response, ABError> {
@@ -173,7 +173,7 @@ fn extract_invite_msg(messenger_member_info: Option<&MessengerMemberInfo>) -> Op
 //We could also delete the user after it's created in the ADL command
 async fn delete_user_contact(
     contact_email_addr: EmailAddress,
-    tachyon_client: TachyonClient,
+    tachyon_client: TachyonSessionData,
 ) -> Result<(), anyhow::Error> {
     debug!("Deleting user contact: {}", contact_email_addr);
 
@@ -208,7 +208,7 @@ async fn contact_create(
     contact_email_addr: &EmailAddress,
     soap_action: &str,
     cache_key: &str,
-    tachyon_client: TachyonClient,
+    tachyon_client: TachyonSessionData,
 ) -> Result<Response, anyhow::Error> {
     let contact_uuid = contact_email_addr.to_uuid();
 

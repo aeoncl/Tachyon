@@ -3,7 +3,7 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use matrix_sdk::Client;
 
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::Ab;
@@ -13,11 +13,11 @@ use msnp::soap::abch::sharing_service::find_membership::request::FindMembershipR
 use msnp::soap::abch::sharing_service::find_membership::response::factory::FindMembershipResponseFactory;
 use msnp::soap::traits::xml::ToXml;
 use crate::matrix::handlers::membership_handlers::compute_all_memberships;
-use crate::tachyon::client::user_service::UserService;
+use crate::tachyon::services::session::user_service::UserService;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 
-pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token: TicketToken, mut tachyon_client: TachyonClient) -> Result<Response, ABError> {
+pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token: TicketToken, mut tachyon_client: TachyonSessionData) -> Result<Response, ABError> {
 
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or(Uuid::new().to_string());
 
@@ -43,7 +43,7 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token
     }
 }
 
-fn get_delta_sync(client_data: &mut TachyonClient) -> Result<Vec<BaseMember>, ABError> {
+fn get_delta_sync(client_data: &mut TachyonSessionData) -> Result<Vec<BaseMember>, ABError> {
     let mut member_holder = client_data.soap_holder().memberships.lock().map_err(|e| ABError::InternalServerError(anyhow!("Could not lock member holder mutex")))?;
 
 

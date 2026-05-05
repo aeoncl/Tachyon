@@ -1,5 +1,5 @@
 use matrix_sdk::Client;
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 
 trait AdminWebClient {
 
@@ -7,7 +7,7 @@ trait AdminWebClient {
 
 }
 
-impl AdminWebClient for TachyonClient {
+impl AdminWebClient for TachyonSessionData {
     fn matrix_client(&self) -> Client {
         self.session_data.matrix_client.clone()
     }

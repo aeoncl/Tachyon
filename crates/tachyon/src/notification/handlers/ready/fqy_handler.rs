@@ -1,9 +1,9 @@
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::fqy::{FqyClient, FqyServer};
 use tokio::sync::mpsc::Sender;
 
-pub async fn handle_fqy(command: FqyClient, tachyon_client: TachyonClient, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error> {
+pub async fn handle_fqy(command: FqyClient, tachyon_client: TachyonSessionData, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error> {
 
     let mut payload = command.payload;
 

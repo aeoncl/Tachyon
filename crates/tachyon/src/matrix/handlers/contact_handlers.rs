@@ -1,13 +1,13 @@
-use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::notification::models::soap_holder::AddressBookContact;
-use crate::tachyon::client::tachyon_client::TachyonClient;
-use crate::tachyon::client::user_service::UserService;
+use crate::tachyon::services::session::user_service::UserService;
+use crate::tachyon::tachyon_client::TachyonClient;
 use matrix_sdk::deserialized_responses::RawSyncOrStrippedState;
 use matrix_sdk::ruma::events::room::member::{MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent};
 use matrix_sdk::ruma::events::room::tombstone::OriginalSyncRoomTombstoneEvent;
 use matrix_sdk::ruma::room::RoomType;
 use matrix_sdk::{Client, Room, RoomState};
 use msnp::soap::abch::msnab_datatypes::{ContactType, ContactTypeEnum};
+use std::sync::Arc;
 
 pub(super) async fn handle_contacts(
     event: SyncRoomMemberEvent,
@@ -141,11 +141,11 @@ pub async fn compute_all_contacts(client: Client, user_service: Box<dyn UserServ
     out
 }
 
-pub(super) async fn handle_tombstone(    event: OriginalSyncRoomTombstoneEvent,
-                               room: Room,
-                               tachyon_client: TachyonClient,
-                               user_service: Box<dyn UserService>,
-                               client: Client) {
+pub(super) async fn handle_tombstone(event: OriginalSyncRoomTombstoneEvent,
+                                     room: Room,
+                                     tachyon_client: TachyonClient,
+                                     user_service: Arc<dyn UserService>,
+                                     client: Client) {
 
     let room_msn_user = user_service.resolve_room_proxy_user(room.room_id()).await.unwrap();
 

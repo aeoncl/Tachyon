@@ -5,11 +5,11 @@ use std::cmp::PartialEq;
 use std::fmt::Display;
 use std::str::FromStr;
 
-pub struct SecretEncryptor {
+pub struct SecretService {
     cipher: Aes256Gcm,
 }
 
-impl SecretEncryptor {
+impl SecretService {
     pub fn new(secret: &[u8]) -> Result<Self, anyhow::Error> {
 
         if secret.len() != 32 {
@@ -46,7 +46,7 @@ impl SecretEncryptor {
 
 #[cfg(test)]
 mod tests {
-    use crate::tachyon::global::secret_encryptor::SecretEncryptor;
+    use crate::tachyon::services::global::secret_service::SecretService;
     use rand::random;
 
     const TEST_SECRET: [u8; 32] = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
@@ -54,18 +54,18 @@ mod tests {
 
     #[test]
     fn new_succeeds_with_valid_secret() {
-        assert!(SecretEncryptor::new(&TEST_SECRET).is_ok());
+        assert!(SecretService::new(&TEST_SECRET).is_ok());
     }
 
     #[test]
     fn new_fails_with_invalid_secret() {
         let invalid_secret = random::<[u8; 31]>();
-        assert!(SecretEncryptor::new(&invalid_secret).is_err());
+        assert!(SecretService::new(&invalid_secret).is_err());
     }
 
     #[test]
     fn encryption_succeeds() {
-        let encryptor = SecretEncryptor::new(&TEST_SECRET).unwrap();
+        let encryptor = SecretService::new(&TEST_SECRET).unwrap();
 
         let encrypted = encryptor.encrypt(TEST_TOKEN);
         assert!(encrypted.is_ok());

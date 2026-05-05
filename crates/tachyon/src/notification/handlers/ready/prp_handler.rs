@@ -1,10 +1,10 @@
 use crate::notification::models::local_client_data::LocalClientData;
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::prp::{PrpClient, PrpOperation};
 use tokio::sync::mpsc::Sender;
 
-pub async fn handle_prp(command: PrpClient, local_store: &mut LocalClientData, client_data: TachyonClient, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
+pub async fn handle_prp(command: PrpClient, local_store: &mut LocalClientData, client_data: TachyonSessionData, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
 
     match &command.operation {
 

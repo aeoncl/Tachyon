@@ -69,7 +69,7 @@ impl FromStr for TachyonConfig {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
-    use crate::tachyon::global::tachyon_config::TachyonConfig;
+    use crate::tachyon::tachyon_config::TachyonConfig;
 
     #[test]
     fn deserialize_config() {

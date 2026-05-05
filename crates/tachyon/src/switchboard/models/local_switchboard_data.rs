@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use crate::switchboard::models::connection_phase::ConnectionPhase;
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 use matrix_sdk::ruma::OwnedRoomId;
 use matrix_sdk::Room;
 use msnp::msnp::notification::models::endpoint_guid::EndpointGuid;
@@ -15,7 +15,7 @@ pub struct LocalSwitchboardData {
     pub(crate) email_addr: EmailAddress,
     pub(crate) endpoint_guid: Option<EndpointGuid>,
     pub(crate) token: TicketToken,
-    pub(crate) tachyon_client: Option<TachyonClient>,
+    pub(crate) tachyon_client: Option<TachyonSessionData>,
     pub(crate) matrix_client: Option<matrix_sdk::Client>,
     pub(crate) client_kill_recv: Receiver<()>,
     pub(crate) room: Option<Room>,

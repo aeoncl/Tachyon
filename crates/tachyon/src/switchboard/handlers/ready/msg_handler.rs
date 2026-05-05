@@ -2,7 +2,7 @@ use futures_util::FutureExt;
 use log::{debug, error};
 use crate::matrix::extensions::message_dedup::SendWithDedup;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use matrix_sdk::{Client, Error, Room};
 use matrix_sdk::room::futures::SendMessageLikeEventResult;
@@ -14,7 +14,7 @@ use tokio::sync::mpsc::Sender;
 use msnp::shared::payload::msg::chunked_msg_payload::{ChunkMetadata, ChunkedMsgPayload, MsgChunks};
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 
-pub(super) async fn handle_msg(msg_command: MsgClient, command_sender: Sender<SwitchboardServerCommand>, tachyon_client: TachyonClient, matrix_client: Client, room: Room, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
+pub(super) async fn handle_msg(msg_command: MsgClient, command_sender: Sender<SwitchboardServerCommand>, tachyon_client: TachyonSessionData, matrix_client: Client, room: Room, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
 
     if let MsgPayload::Chunked(chunk) = msg_command.payload {
         if let Some(complete) = handle_chunked(chunk, local_switchboard_data).await? {

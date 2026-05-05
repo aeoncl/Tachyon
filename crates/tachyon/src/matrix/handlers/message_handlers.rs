@@ -1,9 +1,10 @@
+use std::sync::Arc;
 use crate::matrix::extensions::direct::DirectRoom;
 use crate::matrix::extensions::message_dedup::SendWithDedup;
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::switchboard::extensions::CustomStyles;
-use crate::tachyon::client::incoming_messaging::{IncomingMessagingPortal, IncomingTextMessage};
-use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::services::session::incoming_message_service::{IncomingMessagingService, IncomingTextMessage};
+use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use matrix_sdk::ruma::events::room::message::{MessageType, OriginalSyncRoomMessageEvent};
 use matrix_sdk::ruma::events::typing::SyncTypingEvent;
@@ -15,14 +16,15 @@ use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::payload::msg::control_msg::ControlMessagePayload;
 use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
-use crate::tachyon::client::user_service::UserService;
+use crate::tachyon::services::session::user_service::UserService;
+use crate::tachyon::tachyon_client::TachyonClient;
 
 pub async fn handle_message(
     event: OriginalSyncRoomMessageEvent,
     room: Room,
-    incoming_messaging_portal: Box<dyn IncomingMessagingPortal>,
+    incoming_messaging_portal: Arc<dyn IncomingMessagingService>,
     tachyon_client: TachyonClient,
-    user_service: Box<dyn UserService>,
+    user_service: Arc<dyn UserService>,
     client: Client,
 ) {
 
@@ -43,7 +45,7 @@ pub async fn handle_message(
         }
 
     } else {
-        let mut own_user = tachyon_client.own_user();
+        let mut own_user = user_service.own_user();
         own_user.endpoint_id = EndpointId::from_email_addr(own_user.get_email_address().clone());
         own_user
     };
@@ -82,7 +84,7 @@ pub async fn handle_message(
 
 }
 
-pub(crate) async fn handle_typing_notice(event: SyncTypingEvent, room: Room, tachyon_client: TachyonClient, client: Client) {
+pub(crate) async fn handle_typing_notice(event: SyncTypingEvent, room: Room, tachyon_client: TachyonSessionData, client: Client) {
     if let Some(switchboard) = tachyon_client.switchboards().get(room.room_id()) {
         for user_id in event.content.user_ids.iter() {
             if user_id != room.own_user_id() {

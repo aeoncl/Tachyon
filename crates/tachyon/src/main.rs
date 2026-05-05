@@ -11,8 +11,8 @@ use tokio::{
 use self::tachyon::global::global_state::GlobalState;
 use self::tachyon::global::paths;
 use self::tachyon::global::paths::create_dirs;
-use self::tachyon::global::secret_encryptor::SecretEncryptor;
-use self::tachyon::global::tachyon_config::TachyonConfig;
+use self::tachyon::services::global::secret_service::SecretService;
+use tachyon::tachyon_config::TachyonConfig;
 use crate::matrix::services::login::MatrixLoginServiceImpl;
 use crate::notification::notification_server::NotificationServer;
 use crate::switchboard::switchboard_server::SwitchboardServer;
@@ -45,7 +45,7 @@ async fn main() {
     let login_service = MatrixLoginServiceImpl::new();
     let global_state = GlobalState::new(
         config.clone(),
-        SecretEncryptor::new(&secret).expect("secret key to be valid"),
+        SecretService::new(&secret).expect("secret key to be valid"),
         Box::new(login_service),
     );
 

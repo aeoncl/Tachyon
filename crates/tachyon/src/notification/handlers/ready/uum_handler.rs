@@ -1,4 +1,4 @@
-use crate::tachyon::client::user_service::UserService;
+use crate::tachyon::services::session::user_service::UserService;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::uum::{UumClient, UumPayload};

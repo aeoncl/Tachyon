@@ -6,7 +6,7 @@ use crate::tachyon::global::global_state::GlobalState;
 use anyhow::anyhow;
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
 use tokio::sync::mpsc::Sender;
-use crate::tachyon::client::user_service::UserService;
+use crate::tachyon::services::session::user_service::UserService;
 use crate::tachyon::repository::RepositoryStr;
 
 mod bootstrap_handlers;
