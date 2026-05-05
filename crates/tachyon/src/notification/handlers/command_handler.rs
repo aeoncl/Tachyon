@@ -28,6 +28,7 @@ pub(crate) async fn handle_command(command: NotificationClientCommand, command_s
 
 }
 
+#[cfg(test)]
 mod tests {
     use crate::notification::handlers::command_handler::handle_command;
     use crate::notification::models::connection_phase::ConnectionPhase;
