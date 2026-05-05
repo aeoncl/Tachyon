@@ -1,44 +1,70 @@
-use crate::tachyon::global::global_state::GlobalState;
 use crate::tachyon::repository::RepositoryStr;
+use crate::tachyon::state::global::global_state::GlobalState;
 use crate::web::tachyon::Params;
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{Response, StatusCode};
 use axum::response::{Html, IntoResponse};
 use matrix_sdk::encryption::identities::Device;
+use matrix_sdk::encryption::verification::{VerificationRequest, VerificationRequestState};
+use matrix_sdk::ruma::events::key::verification::VerificationMethod;
 use matrix_sdk::ruma::{device_id, DeviceId};
 use maud::{html, Markup};
 use std::str::FromStr;
-use matrix_sdk::encryption::verification::{VerificationRequest, VerificationRequestState};
-use matrix_sdk::ruma::events::key::verification::VerificationMethod;
 
 pub async fn get_other_device(
     State(state): State<GlobalState>,
     axum::extract::Extension(token): axum::extract::Extension<String>,
     axum::extract::Query(params): axum::extract::Query<Params>,
 ) -> Html<String> {
-    let notification_id_str = params.get("notification_id").map(|s| s.as_str()).unwrap_or_default();
-    let notification_id = i32::from_str(notification_id_str).map_err(|e| format!("Invalid notification_id: {}", e)).unwrap();
+    let notification_id_str = params
+        .get("notification_id")
+        .map(|s| s.as_str())
+        .unwrap_or_default();
+    let notification_id = i32::from_str(notification_id_str)
+        .map_err(|e| format!("Invalid notification_id: {}", e))
+        .unwrap();
 
     let tachyon_client = state.tachyon_clients().get(&token).unwrap();
     let _notification = tachyon_client.alerts().get(&notification_id).unwrap();
     let matrix_client = tachyon_client.matrix_client().clone();
 
-    let has_devices_to_confirm_with = matrix_client.encryption().has_devices_to_verify_against().await.unwrap();
+    let has_devices_to_confirm_with = matrix_client
+        .encryption()
+        .has_devices_to_verify_against()
+        .await
+        .unwrap();
 
-    let devices = matrix_client.encryption().get_user_devices(matrix_client.user_id().unwrap()).await.unwrap();
+    let devices = matrix_client
+        .encryption()
+        .get_user_devices(matrix_client.user_id().unwrap())
+        .await
+        .unwrap();
 
-    let verifiable_devices = devices.devices().filter(|device| {
-        device.is_cross_signed_by_owner()
-            && device.curve25519_key().is_some()
-            && !device.is_dehydrated()
-    }).collect::<Vec<_>>();
+    let verifiable_devices = devices
+        .devices()
+        .filter(|device| {
+            device.is_cross_signed_by_owner()
+                && device.curve25519_key().is_some()
+                && !device.is_dehydrated()
+        })
+        .collect::<Vec<_>>();
 
-    Html(restore_device_content(notification_id, has_devices_to_confirm_with, &verifiable_devices).into_string())
+    Html(
+        restore_device_content(
+            notification_id,
+            has_devices_to_confirm_with,
+            &verifiable_devices,
+        )
+        .into_string(),
+    )
 }
 
-fn restore_device_content(notification_id: i32, has_devices_to_confirm_with: bool, devices: &[Device]) -> Markup {
-
+fn restore_device_content(
+    notification_id: i32,
+    has_devices_to_confirm_with: bool,
+    devices: &[Device],
+) -> Markup {
     //TODO Filter devices that are not signed, showed them greyed out or something
     //TODO Show a message if there are no devices to confirm with
 
@@ -75,15 +101,15 @@ fn restore_device_content(notification_id: i32, has_devices_to_confirm_with: boo
     }
 }
 
-
 pub async fn post_other_device(
     State(state): State<GlobalState>,
     axum::extract::Extension(token): axum::extract::Extension<String>,
     axum::extract::Form(form_data): axum::extract::Form<Params>,
-) -> impl IntoResponse  {
-
-
-    let notification_id_raw = form_data.get("notification_id").map(|s| s.as_str()).unwrap();
+) -> impl IntoResponse {
+    let notification_id_raw = form_data
+        .get("notification_id")
+        .map(|s| s.as_str())
+        .unwrap();
     let notification_id = i32::from_str(notification_id_raw).unwrap();
 
     let device_id_raw = form_data.get("device").map(|s| s.as_str()).unwrap();
@@ -95,21 +121,31 @@ pub async fn post_other_device(
     let matrix_client = tachyon_client.matrix_client().clone();
     let user_id = matrix_client.user_id().unwrap();
 
-    let device = matrix_client.encryption().get_device(user_id, device_id).await.unwrap().unwrap();
+    let device = matrix_client
+        .encryption()
+        .get_device(user_id, device_id)
+        .await
+        .unwrap()
+        .unwrap();
 
-    let verification = device.request_verification_with_methods(vec![VerificationMethod::SasV1]).await.unwrap();
-
+    let verification = device
+        .request_verification_with_methods(vec![VerificationMethod::SasV1])
+        .await
+        .unwrap();
 
     let flow_id = verification.flow_id().to_string();
-    state.pending_verification_requests().insert(flow_id.clone(), verification);
+    state
+        .pending_verification_requests()
+        .insert(flow_id.clone(), verification);
 
-
-    let return_url = format!("/tachyon/verification?notification_id={}&flow_id={}&user_id={}", notification_id, flow_id, user_id);
+    let return_url = format!(
+        "/tachyon/verification?notification_id={}&flow_id={}&user_id={}",
+        notification_id, flow_id, user_id
+    );
 
     Response::builder()
         .status(StatusCode::OK)
         .header("X-IC-Redirect", return_url)
         .body(Body::empty())
         .unwrap()
-
 }

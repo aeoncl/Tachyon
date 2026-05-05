@@ -1,17 +1,12 @@
 
-pub trait OutgoingMessageService {
-
+pub trait OutgoingMessageService: Send + Sync {
     fn send_message(&self);
-
 }
 
-struct OutgoingMessageServiceImpl {
-
-}
+pub struct OutgoingMessageServiceImpl {}
 
 impl OutgoingMessageService for OutgoingMessageServiceImpl {
     fn send_message(&self) {
         todo!()
     }
 }
-

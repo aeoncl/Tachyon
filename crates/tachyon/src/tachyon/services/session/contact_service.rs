@@ -2,17 +2,24 @@ use std::sync::{Arc, Mutex};
 
 use matrix_sdk::{async_trait, Client};
 use msnp::shared::models::email_address::EmailAddress;
-use msnp::soap::abch::msnab_datatypes::ContactType;
+use msnp::soap::abch::msnab_datatypes::{BaseMember, ContactType};
 
 use crate::notification::models::soap_holder::AddressBookContact;
 use crate::tachyon::services::session::user_service::UserService;
 
 #[async_trait]
 pub trait ContactService: Send + Sync {
-
     fn push_delta(&self, contact: AddressBookContact);
 
     fn drain_contact_deltas(&self) -> Vec<ContactType>;
+
+    fn push_membership_delta(&self, member: BaseMember);
+
+    fn push_membership_deltas(&self, members: Vec<BaseMember>);
+
+    fn drain_membership_deltas(&self) -> Vec<BaseMember>;
+
+    fn has_pending_deltas(&self) -> bool;
 
     async fn compute_all_contacts(&self) -> Vec<AddressBookContact>;
 
@@ -31,6 +38,7 @@ pub trait ContactService: Send + Sync {
 
 pub struct ContactServiceImpl {
     delta_buffer: Arc<Mutex<Vec<AddressBookContact>>>,
+    membership_delta_buffer: Arc<Mutex<Vec<BaseMember>>>,
 
     matrix_client: Client,
 
@@ -40,11 +48,13 @@ pub struct ContactServiceImpl {
 impl ContactServiceImpl {
     pub fn new(
         delta_buffer: Arc<Mutex<Vec<AddressBookContact>>>,
+        membership_delta_buffer: Arc<Mutex<Vec<BaseMember>>>,
         matrix_client: Client,
         user_service: Arc<dyn UserService>,
     ) -> Self {
         Self {
             delta_buffer,
+            membership_delta_buffer,
             matrix_client,
             user_service,
         }
@@ -68,14 +78,46 @@ impl ContactService for ContactServiceImpl {
             .collect()
     }
 
+    fn push_membership_delta(&self, member: BaseMember) {
+        let mut buf = self
+            .membership_delta_buffer
+            .lock()
+            .expect("membership_delta_buffer lock");
+        buf.push(member);
+    }
+
+    fn push_membership_deltas(&self, members: Vec<BaseMember>) {
+        let mut buf = self
+            .membership_delta_buffer
+            .lock()
+            .expect("membership_delta_buffer lock");
+        buf.extend(members);
+    }
+
+    fn drain_membership_deltas(&self) -> Vec<BaseMember> {
+        let mut buf = self
+            .membership_delta_buffer
+            .lock()
+            .expect("membership_delta_buffer lock");
+        buf.drain(..).collect()
+    }
+
+    fn has_pending_deltas(&self) -> bool {
+        let contact_buf = self.delta_buffer.lock().expect("delta_buffer lock");
+        let member_buf = self
+            .membership_delta_buffer
+            .lock()
+            .expect("membership_delta_buffer lock");
+        !contact_buf.is_empty() || !member_buf.is_empty()
+    }
+
     async fn compute_all_contacts(&self) -> Vec<AddressBookContact> {
         crate::matrix::handlers::contact_handlers::compute_all_contacts(
             self.matrix_client.clone(),
-            self.user_service.user_service(),
+            self.user_service.clone(),
         )
         .await
     }
-
 
     async fn add_contact(
         &self,

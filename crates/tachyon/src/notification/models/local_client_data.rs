@@ -1,22 +1,23 @@
-use tokio::sync::broadcast::{Receiver, Sender};
+use crate::notification::models::connection_phase::ConnectionPhase;
+use crate::tachyon::state::global::global_state::ClientDropGuard;
+use crate::tachyon::state::session::tachyon_client_repository::TachyonSessionData;
+use crate::tachyon::tachyon_client::TachyonClient;
 use msnp::msnp::notification::models::endpoint_data::PrivateEndpointData;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
-use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
-use crate::notification::models::connection_phase::ConnectionPhase;
-use crate::tachyon::global::global_state::ClientDropGuard;
+use tokio::sync::broadcast::{Receiver, Sender};
 
 pub(crate) struct LocalClientData {
     pub(crate) phase: ConnectionPhase,
     pub(crate) email_addr: EmailAddress,
     pub(crate) token: TicketToken,
-    pub(crate) tachyon_client: Option<TachyonSessionData>,
+    pub(crate) tachyon_client: Option<TachyonClient>,
     pub(crate) matrix_client: Option<matrix_sdk::Client>,
     pub(crate) private_endpoint_data: PrivateEndpointData,
     pub(crate) needs_initial_presence: bool,
     pub(crate) client_shutdown_recv: Receiver<()>,
     pub(crate) client_shutdown_snd: Sender<()>,
-    pub(crate) client_drop_guard: Option<ClientDropGuard>
+    pub(crate) client_drop_guard: Option<ClientDropGuard>,
 }
 
 impl LocalClientData {
@@ -31,7 +32,7 @@ impl LocalClientData {
             needs_initial_presence: true,
             client_shutdown_recv,
             client_shutdown_snd,
-            client_drop_guard: None
+            client_drop_guard: None,
         }
     }
 }

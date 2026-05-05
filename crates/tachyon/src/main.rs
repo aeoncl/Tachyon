@@ -8,11 +8,10 @@ use tokio::{
     sync::broadcast::{self, Sender},
 };
 
-use self::tachyon::global::global_state::GlobalState;
 use self::tachyon::global::paths;
 use self::tachyon::global::paths::create_dirs;
 use self::tachyon::services::global::secret_service::SecretService;
-use tachyon::tachyon_config::TachyonConfig;
+use self::tachyon::state::global::global_state::GlobalState;
 use crate::matrix::services::login::MatrixLoginServiceImpl;
 use crate::notification::notification_server::NotificationServer;
 use crate::switchboard::switchboard_server::SwitchboardServer;
@@ -23,6 +22,7 @@ use rand::{random, Rng};
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
+use tachyon::tachyon_config::TachyonConfig;
 
 mod matrix;
 mod notification;

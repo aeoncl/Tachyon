@@ -8,12 +8,16 @@ use msnp::soap::rsi::get_metadata::request::GetMetadataMessageSoapEnvelope;
 use msnp::soap::rsi::get_metadata::response::GetMetadataResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::ToXml;
 
-use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
+use crate::tachyon::tachyon_client::TachyonClient;
 use crate::web::soap::rsi::error::RSIError;
 use crate::web::soap::shared;
 
-pub async fn get_metadata(_request : GetMetadataMessageSoapEnvelope, _token: TicketToken, _client: Client, client_data: &mut TachyonSessionData) -> Result<Response, RSIError> {
-
+pub async fn get_metadata(
+    _request: GetMetadataMessageSoapEnvelope,
+    _token: TicketToken,
+    _client: Client,
+    client_data: &TachyonClient,
+) -> Result<Response, RSIError> {
     let mut md = MailData {
         ..Default::default()
     };
@@ -22,11 +26,26 @@ pub async fn get_metadata(_request : GetMetadataMessageSoapEnvelope, _token: Tic
         let oim = oim.value();
         let serialized = oim.to_string();
 
-        let display_name = oim.sender_display_name.as_ref().unwrap_or(&oim.sender.to_string()).to_owned();
-        let metadata_message = MailDataMessage::new(oim.recv_datetime.clone(), oim.sender.clone(), display_name, oim.message_id.clone(), String::new(), serialized.len(), oim.read);
+        let display_name = oim
+            .sender_display_name
+            .as_ref()
+            .unwrap_or(&oim.sender.to_string())
+            .to_owned();
+        let metadata_message = MailDataMessage::new(
+            oim.recv_datetime.clone(),
+            oim.sender.clone(),
+            display_name,
+            oim.message_id.clone(),
+            String::new(),
+            serialized.len(),
+            oim.read,
+        );
         md.messages.push(metadata_message);
     }
 
     let soap_body = GetMetadataResponseMessageSoapEnvelope::new(md);
-    Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
+    Ok(shared::build_soap_response(
+        soap_body.to_xml()?,
+        StatusCode::OK,
+    ))
 }

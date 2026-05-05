@@ -1,10 +1,8 @@
+use crate::tachyon::state::session::tachyon_client_repository::TachyonSessionData;
 use matrix_sdk::Client;
-use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 
 trait AdminWebClient {
-
     fn matrix_client(&self) -> matrix_sdk::Client;
-
 }
 
 impl AdminWebClient for TachyonSessionData {

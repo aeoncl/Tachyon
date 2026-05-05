@@ -1,24 +1,28 @@
-use std::str::FromStr;
+use crate::matrix::cross_signing::check_secret_storage_state;
+use crate::tachyon::repository::RepositoryStr;
+use crate::tachyon::state::global::global_state::GlobalState;
+use crate::web::tachyon::Params;
 use axum::extract::State;
 use axum::response::Html;
 use maud::{html, Markup};
-use crate::matrix::cross_signing::check_secret_storage_state;
-use crate::tachyon::global::global_state::GlobalState;
-use crate::tachyon::repository::RepositoryStr;
-use crate::web::tachyon::Params;
+use std::str::FromStr;
 
+pub(super) mod other_device;
 pub(super) mod recover;
 pub(super) mod reset_identity;
-pub(super) mod other_device;
 
 pub async fn get_confirm(
     State(state): State<GlobalState>,
     axum::extract::Extension(token): axum::extract::Extension<String>,
     axum::extract::Query(params): axum::extract::Query<Params>,
 ) -> Html<String> {
-
-    let notification_id_str = params.get("notification_id").map(|s| s.as_str()).unwrap_or_default();
-    let notification_id = i32::from_str(notification_id_str).map_err(|e| format!("Invalid notification_id: {}", e)).unwrap();
+    let notification_id_str = params
+        .get("notification_id")
+        .map(|s| s.as_str())
+        .unwrap_or_default();
+    let notification_id = i32::from_str(notification_id_str)
+        .map_err(|e| format!("Invalid notification_id: {}", e))
+        .unwrap();
 
     let tachyon_client = state.tachyon_clients().get(&token).unwrap();
     let _notification = tachyon_client.alerts().get(&notification_id).unwrap();
@@ -30,9 +34,18 @@ pub async fn get_confirm(
 }
 
 fn device_confirmation_content(notification_id: i32) -> Markup {
-    let recover_url = format!("/tachyon/confirm_device/recover?notification_id={}", notification_id);
-    let other_device_url = format!("/tachyon/confirm_device/other_device?notification_id={}", notification_id);
-    let reset_url = format!("/tachyon/confirm_device/reset_identity?notification_id={}", notification_id);
+    let recover_url = format!(
+        "/tachyon/confirm_device/recover?notification_id={}",
+        notification_id
+    );
+    let other_device_url = format!(
+        "/tachyon/confirm_device/other_device?notification_id={}",
+        notification_id
+    );
+    let reset_url = format!(
+        "/tachyon/confirm_device/reset_identity?notification_id={}",
+        notification_id
+    );
 
     html! {
         div class="content" {

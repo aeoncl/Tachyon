@@ -1,62 +1,80 @@
+use crate::matrix::handlers::contact_handlers::compute_all_contacts;
+use crate::notification::models::soap_holder::AddressBookContact;
+use crate::tachyon::mappers::user_id::MatrixIdCompatible;
+use crate::tachyon::services::session::user_service::UserService;
+use crate::tachyon::tachyon_client::TachyonClient;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 use anyhow::anyhow;
 use axum::http::StatusCode;
 use axum::response::Response;
 use matrix_sdk::ruma::events::room::member::MembershipState;
-use matrix_sdk::{Client, RoomMemberships};
+use matrix_sdk::RoomMemberships;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::models::uuid::Uuid;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::request::AbfindContactsPagedMessageSoapEnvelope;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContactsPagedResponseMessageSoapEnvelope;
-use msnp::soap::abch::msnab_datatypes::{CircleRelationshipRole, ContactType, ContactTypeEnum, RelationshipState};
+use msnp::soap::abch::msnab_datatypes::{
+    CircleRelationshipRole, ContactType, ContactTypeEnum, RelationshipState,
+};
 use msnp::soap::traits::xml::ToXml;
 use std::str::FromStr;
-use crate::matrix::handlers::contact_handlers::{compute_all_contacts};
-use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
-use crate::notification::models::soap_holder::AddressBookContact;
-use crate::tachyon::services::session::user_service::UserService;
-use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 
-pub(super) async fn ab_find_contacts_paged(request : AbfindContactsPagedMessageSoapEnvelope, _token: TicketToken, mut tachyon_client: TachyonSessionData) -> Result<Response, ABError> {
+pub(super) async fn ab_find_contacts_paged(
+    request: AbfindContactsPagedMessageSoapEnvelope,
+    _token: TicketToken,
+    tachyon_client: TachyonClient,
+) -> Result<Response, ABError> {
     let body = &request.body.body;
 
     let ab_id = {
-        match body.ab_handle.as_ref(){
-            None => {
-                "00000000-0000-0000-0000-000000000000".to_string()
-            }
-            Some(ab_handle) => {
-                ab_handle.ab_id.as_str().to_string()
-            }
+        match body.ab_handle.as_ref() {
+            None => "00000000-0000-0000-0000-000000000000".to_string(),
+            Some(ab_handle) => ab_handle.ab_id.as_str().to_string(),
         }
     };
 
     if &ab_id == "00000000-0000-0000-0000-000000000000" {
         //Handle User Request
-        handle_user_contact_list(request, &mut tachyon_client).await
+        handle_user_contact_list(request, &tachyon_client).await
     } else {
         //Handle Circle Request
-        handle_circle_request(request, &ab_id, &mut tachyon_client).await
+        handle_circle_request(request, &ab_id, &tachyon_client).await
     }
 }
 
-async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelope, tachyon_client: &mut TachyonSessionData) -> Result<Response, ABError> {
+async fn handle_user_contact_list(
+    request: AbfindContactsPagedMessageSoapEnvelope,
+    tachyon_client: &TachyonClient,
+) -> Result<Response, ABError> {
     let body = request.body.body;
-    let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or(Uuid::new().to_string());
+    let cache_key = request
+        .header
+        .expect("to be here")
+        .application_header
+        .cache_key
+        .unwrap_or(Uuid::new().to_string());
     let me_user = tachyon_client.own_user();
     let _uuid = &me_user.uuid;
     let _msn_addr = me_user.get_email_address();
 
     if body.filter_options.deltas_only {
-
         let contacts = get_delta_contact_list(tachyon_client)?;
-        
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(&me_user, &cache_key, contacts, vec![], false);
 
-        Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(
+            &me_user,
+            &cache_key,
+            contacts,
+            vec![],
+            false,
+        );
+
+        Ok(shared::build_soap_response(
+            soap_body.to_xml()?,
+            StatusCode::OK,
+        ))
 
         //Ok(shared::build_soap_response(SoapFaultResponseEnvelope::new_fullsync_required("http://www.msn.com/webservices/AddressBook/ABFindContactsPaged").to_xml()?, StatusCode::OK))
     } else {
@@ -64,7 +82,13 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
         let (contacts, circles) = {
             let mut contacts = Vec::new();
             let mut circles = Vec::new();
-            for current in compute_all_contacts(tachyon_client.matrix_client().clone(), tachyon_client.user_service()).await.drain(..) {
+            for current in compute_all_contacts(
+                tachyon_client.matrix_client().clone(),
+                tachyon_client.users(),
+            )
+            .await
+            .drain(..)
+            {
                 match current {
                     AddressBookContact::Contact(contact) => {
                         contacts.push(contact);
@@ -77,17 +101,22 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
             (contacts, circles)
         };
 
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(&me_user, &cache_key, contacts, circles,false );
-        Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
+        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(
+            &me_user, &cache_key, contacts, circles, false,
+        );
+        Ok(shared::build_soap_response(
+            soap_body.to_xml()?,
+            StatusCode::OK,
+        ))
     }
-
 }
 
-fn get_delta_contact_list(client_data: &mut TachyonSessionData) -> Result<Vec<ContactType>, ABError> {
+
+fn get_delta_contact_list(client_data: &TachyonClient) -> Result<Vec<ContactType>, ABError> {
     let mut current_contacts = Vec::new();
 
     let mut contact_holder = client_data.soap_holder().contacts.lock().unwrap();
-    
+
     for contact in contact_holder.drain(..) {
         match contact {
             AddressBookContact::Contact(contact) => {
@@ -100,19 +129,33 @@ fn get_delta_contact_list(client_data: &mut TachyonSessionData) -> Result<Vec<Co
     Ok(current_contacts)
 }
 
-
-
-async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, ab_id: &str, client_data: &mut TachyonSessionData) -> Result<Response, ABError> {
+async fn handle_circle_request(
+    request: AbfindContactsPagedMessageSoapEnvelope,
+    ab_id: &str,
+    client_data: &TachyonClient,
+) -> Result<Response, ABError> {
     let body = request.body.body;
-    let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or_default();
+    let cache_key = request
+        .header
+        .expect("to be here")
+        .application_header
+        .cache_key
+        .unwrap_or_default();
 
     if body.filter_options.deltas_only {
+        let contacts = client_data
+            .soap_holder()
+            .circle_contacts
+            .remove(ab_id)
+            .map(|(_id, contacts)| contacts)
+            .unwrap_or(Vec::new());
 
-        let contacts = client_data.session_data.soap_holder.circle_contacts.remove(ab_id).map(|(_id, contacts)| contacts).unwrap_or(Vec::new());
-
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_circle(ab_id, &cache_key, contacts);
-        Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
-
+        let soap_body =
+            AbfindContactsPagedResponseMessageSoapEnvelope::new_circle(ab_id, &cache_key, contacts);
+        Ok(shared::build_soap_response(
+            soap_body.to_xml()?,
+            StatusCode::OK,
+        ))
     } else {
         //TODO have hashmap to avoid computing all the rooms uuid
         let ab_id_uuid = Uuid::from_str(ab_id).unwrap();
@@ -131,28 +174,52 @@ async fn handle_circle_request(request: AbfindContactsPagedMessageSoapEnvelope, 
         let found = found.unwrap();
         let _me = found.get_member_no_sync(me).await?.unwrap();
 
-
         let mut contacts = Vec::new();
 
-        let mut members = found.members_no_sync(RoomMemberships::JOIN.union(RoomMemberships::INVITE)).await?;
+        let mut members = found
+            .members_no_sync(RoomMemberships::JOIN.union(RoomMemberships::INVITE))
+            .await?;
 
-        for current in members.drain(..){
+        for current in members.drain(..) {
             match current.membership() {
                 MembershipState::Join => {
-                    let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
-                    contacts.push(ContactType::new_circle_member_contact(&msn_user.uuid, msn_user.get_email_address().as_str(), current.display_name().unwrap_or(msn_user.get_email_address().as_str()), ContactTypeEnum::Live, RelationshipState::Accepted , CircleRelationshipRole::Member , false));
+                    let msn_user =
+                        MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
+                    contacts.push(ContactType::new_circle_member_contact(
+                        &msn_user.uuid,
+                        msn_user.get_email_address().as_str(),
+                        current
+                            .display_name()
+                            .unwrap_or(msn_user.get_email_address().as_str()),
+                        ContactTypeEnum::Live,
+                        RelationshipState::Accepted,
+                        CircleRelationshipRole::Member,
+                        false,
+                    ));
                 }
                 _ => {
-                    let msn_user = MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
-                    contacts.push(ContactType::new_circle_member_contact(&msn_user.uuid, msn_user.get_email_address().as_str(), current.display_name().unwrap_or(msn_user.get_email_address().as_str()), ContactTypeEnum::LivePending, RelationshipState::WaitingResponse , CircleRelationshipRole::Member,false));
+                    let msn_user =
+                        MsnUser::with_email_addr(EmailAddress::from_user_id(current.user_id()));
+                    contacts.push(ContactType::new_circle_member_contact(
+                        &msn_user.uuid,
+                        msn_user.get_email_address().as_str(),
+                        current
+                            .display_name()
+                            .unwrap_or(msn_user.get_email_address().as_str()),
+                        ContactTypeEnum::LivePending,
+                        RelationshipState::WaitingResponse,
+                        CircleRelationshipRole::Member,
+                        false,
+                    ));
                 }
             }
         }
 
-
-        let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_circle(ab_id, &cache_key, contacts);
-        Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
+        let soap_body =
+            AbfindContactsPagedResponseMessageSoapEnvelope::new_circle(ab_id, &cache_key, contacts);
+        Ok(shared::build_soap_response(
+            soap_body.to_xml()?,
+            StatusCode::OK,
+        ))
     }
-
-
 }

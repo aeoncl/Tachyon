@@ -1,12 +1,12 @@
-use std::str::FromStr;
+use crate::tachyon::repository::RepositoryStr;
+use crate::tachyon::state::global::global_state::GlobalState;
+use crate::web::tachyon::Params;
 use axum::body::Body;
-use axum::extract::{State, Path};
+use axum::extract::{Path, State};
 use axum::http::{Response, StatusCode};
 use axum::response::IntoResponse;
 use matrix_sdk::ruma::OwnedUserId;
-use crate::tachyon::global::global_state::GlobalState;
-use crate::tachyon::repository::RepositoryStr;
-use crate::web::tachyon::Params;
+use std::str::FromStr;
 
 pub(crate) async fn post_sas_v1_action(
     State(state): State<GlobalState>,
@@ -14,7 +14,10 @@ pub(crate) async fn post_sas_v1_action(
     Path(action): Path<String>,
     axum::extract::Form(form_data): axum::extract::Form<Params>,
 ) -> impl IntoResponse {
-    let notification_id_raw = form_data.get("notification_id").map(|s| s.as_str()).unwrap();
+    let notification_id_raw = form_data
+        .get("notification_id")
+        .map(|s| s.as_str())
+        .unwrap();
     let notification_id = i32::from_str(notification_id_raw).unwrap();
 
     let flow_id = form_data.get("flow_id").map(|s| s.as_str()).unwrap();
@@ -22,9 +25,18 @@ pub(crate) async fn post_sas_v1_action(
     let user_id_raw = form_data.get("user_id").map(|s| s.as_str()).unwrap();
     let user_id = OwnedUserId::from_str(user_id_raw).unwrap();
 
-    let client = state.tachyon_clients().get(&token).unwrap().matrix_client().clone();
+    let client = state
+        .tachyon_clients()
+        .get(&token)
+        .unwrap()
+        .matrix_client()
+        .clone();
 
-    let verification = client.encryption().get_verification(&user_id, flow_id).await.unwrap();
+    let verification = client
+        .encryption()
+        .get_verification(&user_id, flow_id)
+        .await
+        .unwrap();
 
     let sas = verification.sas().unwrap();
 
@@ -41,7 +53,10 @@ pub(crate) async fn post_sas_v1_action(
         }
     }
 
-    let return_url = format!("/tachyon/verification?notification_id={}&flow_id={}&user_id={}", notification_id, flow_id, &user_id);
+    let return_url = format!(
+        "/tachyon/verification?notification_id={}&flow_id={}&user_id={}",
+        notification_id, flow_id, &user_id
+    );
 
     Response::builder()
         .status(StatusCode::OK)

@@ -1,13 +1,14 @@
 use crate::notification::models::local_client_data::LocalClientData;
-use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
 use crate::tachyon::services::session::user_service::UserService;
+use crate::tachyon::tachyon_client::TachyonClient;
 use crate::tachyon::tachyon_config::TachyonConfig;
 use adl_handler::handle_adl;
 use chg_handler::handle_chg;
 use fqy_handler::handle_fqy;
 use log::warn;
-use matrix_sdk::Client;
-use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
+use msnp::msnp::notification::command::command::{
+    NotificationClientCommand, NotificationServerCommand,
+};
 use png_handler::handle_png;
 use prp_handler::handle_prp;
 use put_handler::handle_put;
@@ -19,45 +20,86 @@ use uum_handler::handle_uum;
 use uux_handler::handle_uux;
 use xfr_handler::handle_xfr;
 
-mod usr_handler;
-mod png_handler;
 mod adl_handler;
-mod rml_handler;
-mod uux_handler;
-mod uum_handler;
 mod chg_handler;
-mod put_handler;
-mod xfr_handler;
-mod prp_handler;
 mod fqy_handler;
+mod png_handler;
+mod prp_handler;
+mod put_handler;
+mod rml_handler;
 mod url_handler;
+mod usr_handler;
+mod uum_handler;
+mod uux_handler;
+mod xfr_handler;
 
-pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, tachyon_client: TachyonSessionData, local_store: &mut LocalClientData, config: &TachyonConfig) -> Result<(), anyhow::Error> {
+pub(super) async fn handle_ready(
+    raw_command: NotificationClientCommand,
+    command_sender: Sender<NotificationServerCommand>,
+    tachyon_client: TachyonClient,
+    local_store: &mut LocalClientData,
+    config: &TachyonConfig,
+) -> Result<(), anyhow::Error> {
     match raw_command {
-        NotificationClientCommand::USR(command) => handle_usr(command, local_store.email_addr.clone(), command_sender).await,
+        NotificationClientCommand::USR(command) => {
+            handle_usr(command, local_store.email_addr.clone(), command_sender).await
+        }
         NotificationClientCommand::PNG => handle_png(command_sender).await,
-        NotificationClientCommand::ADL(command) => handle_adl(command, tachyon_client.clone(), tachyon_client.user_service(), command_sender).await,
-        NotificationClientCommand::RML(command) => handle_rml(command, tachyon_client, command_sender).await,
-        NotificationClientCommand::UUX(command) => handle_uux(command, local_store, command_sender).await,
-        NotificationClientCommand::UUM(command) => handle_uum(command, &tachyon_client.user_service(), command_sender).await,
-        NotificationClientCommand::XFR(command) => handle_xfr(command, local_store, command_sender, config).await,
+        NotificationClientCommand::ADL(command) => {
+            handle_adl(
+                command,
+                tachyon_client.clone(),
+                tachyon_client.users(),
+                command_sender,
+            )
+            .await
+        }
+        NotificationClientCommand::RML(command) => {
+            handle_rml(command, tachyon_client, command_sender).await
+        }
+        NotificationClientCommand::UUX(command) => {
+            handle_uux(command, local_store, command_sender).await
+        }
+        NotificationClientCommand::UUM(command) => {
+            handle_uum(command, &tachyon_client.users(), command_sender).await
+        }
+        NotificationClientCommand::XFR(command) => {
+            handle_xfr(command, local_store, command_sender, config).await
+        }
         NotificationClientCommand::BLP(command) => {
-            command_sender.send(NotificationServerCommand::BLP(command)).await?;
+            command_sender
+                .send(NotificationServerCommand::BLP(command))
+                .await?;
             Ok(())
         }
-        NotificationClientCommand::CHG(command) => handle_chg(command, local_store, tachyon_client.clone(), tachyon_client.user_service(), command_sender).await,
-        NotificationClientCommand::PRP(command) => handle_prp(command, local_store, tachyon_client, command_sender).await,
-        NotificationClientCommand::UUN(_command) => {Ok(())},
+        NotificationClientCommand::CHG(command) => {
+            handle_chg(
+                command,
+                local_store,
+                tachyon_client.clone(),
+                tachyon_client.users(),
+                command_sender,
+            )
+            .await
+        }
+        NotificationClientCommand::PRP(command) => {
+            handle_prp(command, local_store, tachyon_client, command_sender).await
+        }
+        NotificationClientCommand::UUN(_command) => Ok(()),
         NotificationClientCommand::RAW(command) => {
             warn!("Received RAW command: {:?}", command);
             Ok(())
-        },
-        NotificationClientCommand::PUT(command) => handle_put(command, local_store, tachyon_client, command_sender).await,
-        NotificationClientCommand::OUT => {Ok(())}
-        NotificationClientCommand::VER(_) => {Ok(())}
-        NotificationClientCommand::CVR(_) => {Ok(())}
-        NotificationClientCommand::FQY(command) => {handle_fqy(command, tachyon_client, command_sender).await}
-        NotificationClientCommand::SDG(_) => {Ok(())}
+        }
+        NotificationClientCommand::PUT(command) => {
+            handle_put(command, local_store, tachyon_client, command_sender).await
+        }
+        NotificationClientCommand::OUT => Ok(()),
+        NotificationClientCommand::VER(_) => Ok(()),
+        NotificationClientCommand::CVR(_) => Ok(()),
+        NotificationClientCommand::FQY(command) => {
+            handle_fqy(command, tachyon_client, command_sender).await
+        }
+        NotificationClientCommand::SDG(_) => Ok(()),
         NotificationClientCommand::URL(command) => {
             handle_url(command, local_store, tachyon_client, command_sender).await
         }

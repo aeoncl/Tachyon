@@ -2,7 +2,7 @@ use crate::notification::handlers::ready::handle_ready;
 use crate::notification::handlers::{auth, negotiation};
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
-use crate::tachyon::global::global_state::GlobalState;
+use crate::tachyon::state::global::global_state::GlobalState;
 use crate::tachyon::tachyon_config::TachyonConfig;
 use anyhow::anyhow;
 use msnp::msnp::notification::command::command::{
@@ -59,8 +59,8 @@ mod tests {
     use crate::notification::models::connection_phase::ConnectionPhase;
     use crate::notification::models::local_client_data::LocalClientData;
     use crate::tachyon::error::TachyonError;
-    use crate::tachyon::global::global_state::GlobalState;
     use crate::tachyon::services::global::secret_service::SecretService;
+    use crate::tachyon::state::global::global_state::GlobalState;
     use matrix_sdk::ruma::UserId;
     use matrix_sdk::test_utils::mocks::MatrixMockServer;
     use matrix_sdk::{async_trait, Client};

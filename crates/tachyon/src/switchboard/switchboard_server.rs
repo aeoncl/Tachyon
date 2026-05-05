@@ -1,12 +1,14 @@
 use crate::switchboard::handlers::handle_command;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
-use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
-use crate::tachyon::global::global_state::GlobalState;
+use crate::tachyon::state::global::global_state::GlobalState;
+use crate::tachyon::state::session::tachyon_client_repository::TachyonSessionData;
 use anyhow::anyhow;
 use log::{debug, error, info};
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::raw_command_parser::RawCommandParser;
-use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
+use msnp::msnp::switchboard::command::command::{
+    SwitchboardClientCommand, SwitchboardServerCommand,
+};
 use msnp::shared::traits::{IntoBytes, TryFromRawCommand};
 use std::str::from_utf8_unchecked;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
@@ -18,32 +20,37 @@ use tokio::sync::{broadcast, mpsc};
 
 pub struct SwitchboardServer;
 
-
 impl SwitchboardServer {
-    pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, tachyon_state: GlobalState) -> Result<(), anyhow::Error> {
+    pub async fn listen(
+        ip_addr: &str,
+        port: u32,
+        global_kill_recv: Receiver<()>,
+        tachyon_state: GlobalState,
+    ) -> Result<(), anyhow::Error> {
         info!("Switchboard Server started...");
 
         let listener = TcpListener::bind(format!("{}:{}", ip_addr, port))
-            .await.map_err(|e| anyhow!(e))?;
+            .await
+            .map_err(|e| anyhow!(e))?;
 
         loop {
             let mut global_kill_recv = global_kill_recv.resubscribe();
             let tachyon_state_clone = tachyon_state.clone();
 
             tokio::select! {
-                    accepted = listener.accept() => {
-                        let (socket, _addr)  = accepted.map_err(|e| anyhow!(e))?;
-                        let _result = tokio::spawn(async move {
-                            handle_client(socket, global_kill_recv.resubscribe(), tachyon_state_clone).await
-                        });
-                    }
-                    global_kill = global_kill_recv.recv() => {
-                        if let Err(err) = global_kill {
-                            error!("Unable to listen for global kill: {}", err);
-                        }
-                        break;
-                    }
+                accepted = listener.accept() => {
+                    let (socket, _addr)  = accepted.map_err(|e| anyhow!(e))?;
+                    let _result = tokio::spawn(async move {
+                        handle_client(socket, global_kill_recv.resubscribe(), tachyon_state_clone).await
+                    });
                 }
+                global_kill = global_kill_recv.recv() => {
+                    if let Err(err) = global_kill {
+                        error!("Unable to listen for global kill: {}", err);
+                    }
+                    break;
+                }
+            }
         }
 
         info!("TCP Server gracefull shutdown...");
@@ -51,7 +58,11 @@ impl SwitchboardServer {
     }
 }
 
-async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Receiver<()>, tachyon_state: GlobalState) -> Result<(), anyhow::Error> {
+async fn handle_client(
+    socket: TcpStream,
+    mut global_kill_recv: broadcast::Receiver<()>,
+    tachyon_state: GlobalState,
+) -> Result<(), anyhow::Error> {
     debug!("Switchboard Client connected...");
 
     let (read, write) = socket.into_split();
@@ -62,10 +73,9 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
 
     let mut parser = RawCommandParser::new();
     let mut reader = BufReader::new(read);
-    let mut buffer= [0u8; 2048];
+    let mut buffer = [0u8; 2048];
 
     loop {
-
         tokio::select! {
             bytes_read = reader.read(&mut buffer) => {
                 match bytes_read {
@@ -133,13 +143,15 @@ async fn handle_client(socket: TcpStream, mut global_kill_recv : broadcast::Rece
             client.switchboards().remove(&room_id);
         }
     }
-    
+
     info!("SB Client gracefully shutdown...");
     Ok(())
 }
 
-
-fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> Sender<SwitchboardServerCommand> {
+fn start_write_task(
+    mut write: OwnedWriteHalf,
+    mut kill_recv: Receiver<()>,
+) -> Sender<SwitchboardServerCommand> {
     println!("Socket write task started...");
     let (sender, mut receiver) = mpsc::channel::<SwitchboardServerCommand>(300);
 
@@ -164,6 +176,6 @@ fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> S
             }
         }
         println!("Socket write task gracefully shutdown...");
-    } );
+    });
     sender
 }

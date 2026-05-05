@@ -7,15 +7,17 @@ use msnp::shared::models::font_style::FontStyle;
 use std::str::FromStr;
 use tokio::sync::mpsc::Sender;
 
-pub async fn handle_uum(command: UumClient, user_service: &Box<dyn UserService>, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
+pub async fn handle_uum(
+    command: UumClient,
+    user_service: &std::sync::Arc<dyn UserService>,
+    command_sender: Sender<NotificationServerCommand>,
+) -> Result<(), anyhow::Error> {
     let ok_response = command.get_ok_response();
 
     match command.payload {
         UumPayload::TextPlain(content) => {
-
             let dest_email = EmailAddress::from_str(&command.destination);
             if let Ok(dest_email) = dest_email {
-
                 let room = user_service.find_room_from_email(&dest_email)?;
                 match room {
                     None => {
@@ -48,28 +50,37 @@ pub async fn handle_uum(command: UumClient, user_service: &Box<dyn UserService>,
                                 }
                             }
 
-                            let color_attr = if content.is_default_font_color() { String::new() } else { format!(" color=\"{}\"", content.font_color.serialize_rgb())};
-                            let face_attr = if content.is_default_font() { String::new() } else { format!(" face=\"{}\"", content.font_family) };
-                            message = format!("<font{}{}>{}</font>",  color_attr, face_attr, message);
+                            let color_attr = if content.is_default_font_color() {
+                                String::new()
+                            } else {
+                                format!(" color=\"{}\"", content.font_color.serialize_rgb())
+                            };
+                            let face_attr = if content.is_default_font() {
+                                String::new()
+                            } else {
+                                format!(" face=\"{}\"", content.font_family)
+                            };
+                            message =
+                                format!("<font{}{}>{}</font>", color_attr, face_attr, message);
 
                             RoomMessageEventContent::text_html(content.body, message)
                         };
 
                         let _response = room.send(content).await?;
                         //self.add_to_events_sent(response.event_id.to_string());
-                        command_sender.send(NotificationServerCommand::OK(ok_response)).await?;
+                        command_sender
+                            .send(NotificationServerCommand::OK(ok_response))
+                            .await?;
                     }
                 }
-
             }
             Ok(())
-        },
+        }
         UumPayload::TypingUser(_) => {
             todo!()
         }
         UumPayload::Nudge(_) => {
             todo!()
-
         }
         UumPayload::Raw(_) => {
             todo!()

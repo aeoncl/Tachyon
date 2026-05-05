@@ -1,37 +1,22 @@
-use crate::matrix::handlers::context::TachyonContext;
-use crate::matrix::handlers::{self, register_event_handlers};
-use crate::tachyon::client::tachyon_session_data::TachyonSessionData;
+use crate::matrix::handlers;
+use crate::matrix::handlers::register_event_handlers;
+use crate::tachyon::tachyon_client::TachyonClient;
 use futures::StreamExt;
-use log::{debug, error, info};
-use matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState;
-use matrix_sdk::event_handler::Ctx;
-use matrix_sdk::ruma::api::client::error::ErrorKind;
-use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{
-    AccountData, ListFilters, RoomSubscription, ToDevice, Typing, E2EE,
-};
-use matrix_sdk::ruma::directory::RoomTypeFilter;
-use matrix_sdk::ruma::events::direct::{DirectEvent, DirectEventContent};
-use matrix_sdk::ruma::events::room::member::{StrippedRoomMemberEvent, SyncRoomMemberEvent};
-use matrix_sdk::ruma::events::{GlobalAccountDataEventType, StateEventType};
-use matrix_sdk::ruma::{assign, OwnedRoomId, RoomId, UInt, UserId};
+use log::{error, info};
+use matrix_sdk::ruma::events::room::member::RoomMemberEventContent;
+use matrix_sdk::ruma::events::StateEventType;
 use matrix_sdk::sync::RoomUpdates;
 use matrix_sdk::{
-    Client, Error, Room, SlidingSync, SlidingSyncList, SlidingSyncListBuilder, SlidingSyncMode,
+    Client, Error, SlidingSync, SlidingSyncList, SlidingSyncListBuilder, SlidingSyncMode,
 };
 use msnp::msnp::notification::command::command::NotificationServerCommand;
-use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
-
+use msnp::msnp::notification::command::not::factories::NotificationFactory;
+use msnp::msnp::notification::command::not::{NotServer, NotificationPayloadType};
 use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::error::SendTimeoutError;
 use tokio::task::JoinHandle;
-use msnp::msnp::notification::command::nln::NlnServer;
-use msnp::msnp::notification::command::not::factories::NotificationFactory;
-use msnp::msnp::notification::command::not::{NotServer, NotificationPayloadType};
-use msnp::shared::models::display_name::DisplayName;
-use msnp::shared::models::presence_status::PresenceStatus;
 
 const REQUIRED_STATE: &[(StateEventType, &str)] = &[
     (StateEventType::RoomName, ""),
@@ -53,7 +38,12 @@ const REQUIRED_STATE: &[(StateEventType, &str)] = &[
 
 fn create_room_list() -> SlidingSyncListBuilder {
     SlidingSyncList::builder("all_sync")
-        .required_state(REQUIRED_STATE.iter().map(|(key, val)| (key.to_owned(), val.to_string())).collect())
+        .required_state(
+            REQUIRED_STATE
+                .iter()
+                .map(|(key, val)| (key.to_owned(), val.to_string()))
+                .collect(),
+        )
         .sync_mode(SlidingSyncMode::new_growing(20))
 }
 
@@ -67,15 +57,28 @@ pub async fn build_sliding_sync(matrix_client: &Client) -> Result<SlidingSync, a
     Ok(sliding_sync_builder.build().await?)
 }
 
-pub async fn sync(tachyon_client: TachyonSessionData, matrix_client: Client, kill_signal_snd: Sender<()>, kill_signal_rcv: Receiver<()>) -> JoinHandle<()> {
+
+pub async fn sync(
+    tachyon_client: TachyonClient,
+    matrix_client: Client,
+    kill_signal_snd: Sender<()>,
+    kill_signal_rcv: Receiver<()>,
+) -> JoinHandle<()> {
     let sliding_sync = build_sliding_sync(&matrix_client).await.unwrap();
     let updates_recv = matrix_client.subscribe_to_all_room_updates();
 
-    spawn_sync_task(tachyon_client, matrix_client, sliding_sync, updates_recv, kill_signal_snd, kill_signal_rcv)
+    spawn_sync_task(
+        tachyon_client,
+        matrix_client,
+        sliding_sync,
+        updates_recv,
+        kill_signal_snd,
+        kill_signal_rcv,
+    )
 }
 
 fn spawn_sync_task(
-    tachyon_client: TachyonSessionData,
+    tachyon_client: TachyonClient,
     matrix_client: Client,
     sliding_sync: SlidingSync,
     mut updates_recv: Receiver<RoomUpdates>,
@@ -84,10 +87,12 @@ fn spawn_sync_task(
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         info!("Initializing Sliding Sync...");
-        let (handler_drop_guards, context_drop_guard) = register_event_handlers(&matrix_client, tachyon_client.clone());
+        let (handler_drop_guards, context_drop_guard) =
+            register_event_handlers(&matrix_client, tachyon_client.clone());
 
         info!("Starting Sliding Sync...");
-        let (error_tx, mut error_rx) = mpsc::channel::<ErrorKind>(1);
+        let (error_tx, mut error_rx) =
+            mpsc::channel::<matrix_sdk::ruma::api::client::error::ErrorKind>(1);
 
         let mut sync_handle = tokio::spawn({
             let sliding_sync = sliding_sync.clone();
@@ -97,7 +102,10 @@ fn spawn_sync_task(
                 loop {
                     match sync_stream.next().await {
                         Some(Ok(update_summary)) => {
-                            info!("Received Sliding Sync stream response with pos: {:?}", &update_summary);
+                            info!(
+                                "Received Sliding Sync stream response with pos: {:?}",
+                                &update_summary
+                            );
                         }
                         Some(Err(err)) => {
                             if let Some(error_kind) = err.client_api_error_kind() {
@@ -143,7 +151,7 @@ fn spawn_sync_task(
                     }
                 }
                 error_kind = error_rx.recv() => {
-                    if let Some(ErrorKind::UnknownPos) = error_kind {
+                    if let Some(matrix_sdk::ruma::api::client::error::ErrorKind::UnknownPos) = error_kind {
                         info!("Unknown pos detected, re-syncing...");
                         sync_handle.abort();
                         restart_sync = true;
@@ -171,7 +179,7 @@ fn spawn_sync_task(
                 sliding_sync.clone(),
                 updates_recv,
                 client_shutdown_snd,
-                client_shutdown_rcv
+                client_shutdown_rcv,
             );
         }
 
@@ -179,19 +187,22 @@ fn spawn_sync_task(
     })
 }
 
-async fn handle_addressbook_notifications(client_data: &TachyonSessionData) -> Result<(), SendTimeoutError<NotificationServerCommand>> {
-
-    let update_required = {
-        let contact_holder = client_data.soap_holder().contacts.lock().unwrap();
-        let member_holder = client_data.soap_holder().memberships.lock().unwrap();
-        contact_holder.len() > 0 || member_holder.len() > 0
-    };
+async fn handle_addressbook_notifications(
+    tachyon_client: &TachyonClient,
+) -> Result<(), tokio::sync::mpsc::error::SendTimeoutError<NotificationServerCommand>> {
+    let update_required = tachyon_client.contacts().has_pending_deltas();
 
     if update_required {
-        let user = client_data.own_user();
-        client_data.notification_handle().send(NotificationServerCommand::NOT(NotServer {
-            payload: NotificationPayloadType::Normal(NotificationFactory::get_abch_updated(&user.uuid, user.get_email_address())),
-        })).await
+        let user = tachyon_client.own_user();
+        tachyon_client
+            .notification_handle()
+            .send(NotificationServerCommand::NOT(NotServer {
+                payload: NotificationPayloadType::Normal(NotificationFactory::get_abch_updated(
+                    &user.uuid,
+                    user.get_email_address(),
+                )),
+            }))
+            .await
     } else {
         Ok(())
     }

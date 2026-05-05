@@ -27,18 +27,23 @@ pub trait UserService: Send + Sync {
     fn find_room_from_email(&self, email: &EmailAddress) -> Result<Option<Room>, Error>;
 }
 
-struct UserServiceImpl {
+
+pub struct UserServiceImpl {
     matrix_client: MatrixClient,
     room_proxies: Arc<dyn RoomProxyRepository>,
-    own_user: Arc<RwLock<MsnUser>>
+    own_user: Arc<RwLock<MsnUser>>,
 }
 
 impl UserServiceImpl {
-    pub fn new(matrix_client: MatrixClient, room_proxies: Arc<dyn RoomProxyRepository>, own_user: Arc<RwLock<MsnUser>>) -> Self {
+    pub fn new(
+        matrix_client: MatrixClient,
+        room_proxies: Arc<dyn RoomProxyRepository>,
+        own_user: Arc<RwLock<MsnUser>>,
+    ) -> Self {
         Self {
             matrix_client,
             room_proxies,
-            own_user
+            own_user,
         }
     }
 }
@@ -64,16 +69,13 @@ impl UserService for UserServiceImpl {
     fn resolve_room_proxy_email(&self, room_id: &RoomId) -> Option<EmailAddress> {
         let room = self.matrix_client.get_room(room_id)?;
         let proxy_email = map_room_to_proxy_email(&room).ok()?;
-        self.room_proxies
-            .insert(&proxy_email, room.room_id());
+        self.room_proxies.insert(&proxy_email, room.room_id());
         Some(proxy_email)
     }
 
     fn find_room_from_email(&self, email: &EmailAddress) -> Result<Option<Room>, Error> {
-        let out = if let Some(entry) = self.room_proxies
-            .get_room_for_email(email)
-        {
-            let room_id = entry.value();
+
+        let out = if let Some(room_id) = self.room_proxies.get_room_for_email(email) {
             self.matrix_client.get_room(room_id.as_ref())
         } else {
             let mut found = None;

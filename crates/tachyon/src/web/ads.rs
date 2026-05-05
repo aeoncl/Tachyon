@@ -1,16 +1,16 @@
+use crate::tachyon::state::global::global_state::GlobalState;
+use crate::web::matrix_today::get_msn_today;
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::header::CONTENT_TYPE;
 use axum::http::Response;
-use axum::Router;
 use axum::routing::{get, post};
+use axum::Router;
 use lazy_static::lazy_static;
 use lazy_static_include::lazy_static_include_bytes;
 use reqwest::StatusCode;
 use yaserde::ser;
 use yaserde_derive::YaSerialize;
-use crate::tachyon::global::global_state::GlobalState;
-use crate::web::matrix_today::get_msn_today;
 
 lazy_static_include_bytes! {
     AVATAR => "./assets/img/avatar_48x48.jpg",
@@ -22,22 +22,18 @@ lazy_static_include_bytes! {
 }
 
 lazy_static! {
-        static ref TAB_ADS: Vec<Ads> = vec![
-        Ads{
-            tab_ads: vec![
-                TabAd {
-                    image: "http://127.0.0.1:%port%/ads/matrix-icon.png".to_string(),
-                    name: "Matrix Today".to_string(),
-                    tab_type: "matrix".to_string(),
-                    tooltip: "Find out what's up in the Matrix ecosystem".to_string(),
-                    content_url: "http://127.0.0.1:%port%/ads/msn-today".to_string(),
-                    hit_url: "http://127.0.0.1:%port%/".to_string(),
-                    site_id: 0,
-                    notification_id: 0,
-                }
-            ]
-        }
-        ];
+    static ref TAB_ADS: Vec<Ads> = vec![Ads {
+        tab_ads: vec![TabAd {
+            image: "http://127.0.0.1:%port%/ads/matrix-icon.png".to_string(),
+            name: "Matrix Today".to_string(),
+            tab_type: "matrix".to_string(),
+            tooltip: "Find out what's up in the Matrix ecosystem".to_string(),
+            content_url: "http://127.0.0.1:%port%/ads/msn-today".to_string(),
+            hit_url: "http://127.0.0.1:%port%/".to_string(),
+            site_id: 0,
+            notification_id: 0,
+        }]
+    }];
 }
 
 pub fn ads_router(state: GlobalState) -> Router<GlobalState> {
@@ -70,14 +66,14 @@ struct TabAd {
     #[yaserde(rename = "siteid")]
     site_id: u32,
     #[yaserde(rename = "notificationid")]
-    notification_id: u32
+    notification_id: u32,
 }
 
 #[derive(Clone, Debug, YaSerialize)]
 #[yaserde(rename = "ads")]
 struct Ads {
     #[yaserde(rename = "tabad")]
-    tab_ads: Vec<TabAd>
+    tab_ads: Vec<TabAd>,
 }
 
 impl Ads {
@@ -90,21 +86,22 @@ impl Ads {
     }
 }
 
-
-pub async fn get_tab_ad(Path(tab_index): Path<u32>, State(state): State<GlobalState>) -> Response<Body> {
-
+pub async fn get_tab_ad(
+    Path(tab_index): Path<u32>,
+    State(state): State<GlobalState>,
+) -> Response<Body> {
     match TAB_ADS.get(tab_index as usize).cloned() {
-        None => {
-            Response::builder().status(StatusCode::NOT_FOUND)
-                .body(Body::empty())
-                .unwrap()
-        }
+        None => Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Body::empty())
+            .unwrap(),
         Some(mut tab_ad) => {
             tab_ad.replace_port(state.get_config().http_port);
             Response::builder()
                 .status(StatusCode::OK)
                 .header(CONTENT_TYPE, "text/xml")
-                .body(Body::from(ser::to_string(&tab_ad).unwrap())).unwrap()
+                .body(Body::from(ser::to_string(&tab_ad).unwrap()))
+                .unwrap()
         }
     }
 }
@@ -114,7 +111,8 @@ pub async fn get_banner_ads() -> Response<Body> {
 
     axum::response::Response::builder()
         .header(CONTENT_TYPE, "text/html")
-        .body(Body::from(data)).expect("banner ads response to be valid")
+        .body(Body::from(data))
+        .expect("banner ads response to be valid")
 }
 
 pub async fn get_matrix_icon() -> Response<Body> {
@@ -122,8 +120,8 @@ pub async fn get_matrix_icon() -> Response<Body> {
 
     axum::response::Response::builder()
         .header(CONTENT_TYPE, "image/png")
-        .body(Body::from(data)).expect("banner ads response to be valid")
-
+        .body(Body::from(data))
+        .expect("banner ads response to be valid")
 }
 
 pub async fn get_avatar_jpg() -> Response<Body> {
@@ -131,8 +129,8 @@ pub async fn get_avatar_jpg() -> Response<Body> {
 
     axum::response::Response::builder()
         .header(CONTENT_TYPE, "image/jpg")
-        .body(Body::from(data)).expect("banner ads response to be valid")
-
+        .body(Body::from(data))
+        .expect("banner ads response to be valid")
 }
 
 pub async fn get_spongebob_icon() -> Response<Body> {
@@ -140,8 +138,8 @@ pub async fn get_spongebob_icon() -> Response<Body> {
 
     axum::response::Response::builder()
         .header(CONTENT_TYPE, "image/png")
-        .body(Body::from(data)).expect("banner ads response to be valid")
-
+        .body(Body::from(data))
+        .expect("banner ads response to be valid")
 }
 
 pub async fn get_alert_background() -> Response<Body> {
@@ -149,8 +147,8 @@ pub async fn get_alert_background() -> Response<Body> {
 
     axum::response::Response::builder()
         .header(CONTENT_TYPE, "image/png")
-        .body(Body::from(data)).expect("banner ads response to be valid")
-
+        .body(Body::from(data))
+        .expect("banner ads response to be valid")
 }
 
 pub async fn get_text_ad() -> Response<Body> {
@@ -158,18 +156,18 @@ pub async fn get_text_ad() -> Response<Body> {
 
     axum::response::Response::builder()
         .header(CONTENT_TYPE, "text/html")
-        .body(Body::from(data)).expect("Text ad response to be valid")
-
+        .body(Body::from(data))
+        .expect("Text ad response to be valid")
 }
 
 #[cfg(test)]
 mod tests {
-    use yaserde::ser;
     use crate::web::ads::{Ads, TabAd};
+    use yaserde::ser;
 
     #[test]
     fn tab_ad_serialization_test() {
-        let tab = Ads{
+        let tab = Ads {
             tab_ads: vec![TabAd {
                 image: "http://img.local".to_string(),
                 name: "Matrix Today".to_string(),
@@ -179,14 +177,11 @@ mod tests {
                 hit_url: "http://127.0.0.1/".to_string(),
                 site_id: 0,
                 notification_id: 0,
-            }]
+            }],
         };
-        
-
 
         let test = ser::to_string(&tab).unwrap();
 
         println!("{}", test);
-
     }
 }

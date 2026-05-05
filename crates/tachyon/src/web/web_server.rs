@@ -13,8 +13,11 @@ use log::{debug, info, log_enabled, warn, Level};
 use tokio::net::TcpListener;
 use tokio::sync::broadcast::Receiver;
 
-use crate::tachyon::global::global_state::GlobalState;
-use crate::web::ads::{ads_router, get_alert_background, get_avatar_jpg, get_banner_ads, get_matrix_icon, get_spongebob_icon, get_tab_ad, get_text_ad};
+use crate::tachyon::state::global::global_state::GlobalState;
+use crate::web::ads::{
+    ads_router, get_alert_background, get_avatar_jpg, get_banner_ads, get_matrix_icon,
+    get_spongebob_icon, get_tab_ad, get_text_ad,
+};
 use crate::web::matrix_today::get_msn_today;
 use crate::web::soap::ab_service::ab_service::address_book_service;
 use crate::web::soap::rsi::rsi::rsi;
@@ -23,15 +26,21 @@ use crate::web::soap::sharing_service::sharing_service::sharing_service;
 use crate::web::soap::rst2::rst2_handler;
 use crate::web::soap::storage_service::storage_service::storage_service;
 use crate::web::tachyon::tachyon_router;
-use crate::web::web_endpoints::{firewall_test, get_msgr_config, get_profile_pic, ppcrlcheck, ppcrlconfigsrf, sha1auth, wlidsvcconfig};
+use crate::web::web_endpoints::{
+    firewall_test, get_msgr_config, get_profile_pic, ppcrlcheck, ppcrlconfigsrf, sha1auth,
+    wlidsvcconfig,
+};
 
 pub struct WebServer;
 
-
 impl WebServer {
-    pub async fn listen(ip_addr: &str, port: u32, global_kill_recv: Receiver<()>, tachyon_state: GlobalState) -> Result<(), anyhow::Error> {
+    pub async fn listen(
+        ip_addr: &str,
+        port: u32,
+        global_kill_recv: Receiver<()>,
+        tachyon_state: GlobalState,
+    ) -> Result<(), anyhow::Error> {
         info!("Web Server started...");
-
 
         let state = tachyon_state;
 
@@ -47,32 +56,41 @@ impl WebServer {
             .route("/wlidsvcconfig.xml", get(wlidsvcconfig))
             .route("/pcrlcheck.srf", get(ppcrlcheck))
             .route("/RST2.srf", post(rst2_handler))
-            .route("/storage/usertile/{image_mxid}/{image_type}", get(get_profile_pic))
+            .route(
+                "/storage/usertile/{image_mxid}/{image_type}",
+                get(get_profile_pic),
+            )
             //SOAP
             .route("/abservice/abservice.asmx", post(address_book_service))
             .route("/abservice/SharingService.asmx", post(sharing_service))
-            .route("/storageservice/SchematizedStore.asmx", post(storage_service))
+            .route(
+                "/storageservice/SchematizedStore.asmx",
+                post(storage_service),
+            )
             .route("/rsi/rsi.asmx", post(rsi))
             .with_state(state)
             .layer(middleware::from_fn(my_middleware))
             .fallback(fallback);
 
         let listener = TcpListener::bind(format!("{}:{}", ip_addr, port))
-            .await.map_err(|e| anyhow!(e))?;
+            .await
+            .map_err(|e| anyhow!(e))?;
 
-        axum::serve(listener, app).with_graceful_shutdown(shutdown_signals(global_kill_recv)).await.map_err(|e| e.into())
+        axum::serve(listener, app)
+            .with_graceful_shutdown(shutdown_signals(global_kill_recv))
+            .await
+            .map_err(|e| e.into())
     }
 }
 
-
-async fn my_middleware(
-    request: Request,
-    next: Next,
-) -> Response {
-
+async fn my_middleware(request: Request, next: Next) -> Response {
     let mut request = request;
 
-    info!("WEB << {} - SOAPAction: {:?}", request.uri(), request.headers().get("SOAPAction"));
+    info!(
+        "WEB << {} - SOAPAction: {:?}",
+        request.uri(),
+        request.headers().get("SOAPAction")
+    );
 
     for (name, value) in request.headers().iter() {
         debug!("{:?}: {:?}", name, value);
@@ -89,7 +107,6 @@ async fn my_middleware(
             Err(_) => {}
         }
 
-        
         request = Request::from_parts(parts, Body::from(bytes))
     }
 
@@ -111,15 +128,16 @@ async fn my_middleware(
         response = Response::from_parts(parts, Body::from(bytes))
     }
 
-
     response
 }
 
 async fn fallback(request: Request) -> (StatusCode, String) {
-
     let uri = request.uri().to_string();
     warn!("WEB << Unknown url called: {} {}", request.method(), &uri);
-    debug!("Body: {}", String::from_request(request, &()).await.unwrap());
+    debug!(
+        "Body: {}",
+        String::from_request(request, &()).await.unwrap()
+    );
     (StatusCode::NOT_FOUND, format!("No route for {}", &uri))
 }
 

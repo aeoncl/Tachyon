@@ -1,19 +1,19 @@
-use std::str::from_utf8;
+use crate::tachyon::repository::RepositoryStr;
+use crate::tachyon::state::global::global_state::GlobalState;
+use crate::web::soap::shared::build_soap_response;
 use axum::body::Body;
 use axum::extract::{Path, State};
-use axum::http::{HeaderMap, Response, StatusCode};
 use axum::http::header::{CONTENT_TYPE, LOCATION, SET_COOKIE};
-use base64::Engine;
+use axum::http::{HeaderMap, Response, StatusCode};
 use base64::engine::general_purpose;
+use base64::Engine;
 use lazy_static::lazy_static;
 use lazy_static_include::lazy_static_include_bytes;
 use matrix_sdk::media::{MediaFormat, MediaRequestParameters, MediaThumbnailSettings};
 use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::{OwnedMxcUri, UInt};
 use regex::Regex;
-use crate::tachyon::global::global_state::GlobalState;
-use crate::tachyon::repository::RepositoryStr;
-use crate::web::soap::shared::build_soap_response;
+use std::str::from_utf8;
 
 lazy_static! {
     pub static ref DEFAULT_CACHE_KEY: String = String::from("12r1:8nBBE6vX1J4uPKajtbem5XBIblimCwAhIziAeEAwYD0AMiaztryWvcZthkN9oX_pl2scBKXfKvRvuWKYdHUNuRkgiyV9rzcDpnDIDiM6vdcEB6d82wjjnL4TAFAjc5X8i-C94mNfQvujUk470P7fz9qbWfK6ANcEtygDb-oWsYVfEBrxl6geTUg9tGT7yCIsls7ECcLyqwsROuAbWCrued_VPKiUgSIvqG8gaA");
@@ -40,61 +40,84 @@ pub async fn get_msgr_config(State(state): State<GlobalState>) -> Response<Body>
     build_soap_response(out, StatusCode::OK)
 }
 
-pub async fn sha1auth(body: String) -> (StatusCode, HeaderMap ){
-
+pub async fn sha1auth(body: String) -> (StatusCode, HeaderMap) {
     let body_decoded = urlencoding::decode(&body).unwrap().to_string();
     let captures = SHA1_REGEX.captures(&body_decoded).unwrap();
-    let redirect_url = urlencoding::decode(&captures[1]).expect("Url to be correct").into_owned();
+    let redirect_url = urlencoding::decode(&captures[1])
+        .expect("Url to be correct")
+        .into_owned();
 
     let mut headers = HeaderMap::new();
-    headers.insert(SET_COOKIE, "mycookie=blahblahblah; SameSite=None; Secure".parse().unwrap());
-    headers.insert(LOCATION, redirect_url.parse().expect("Redirect Url to be valid"));
+    headers.insert(
+        SET_COOKIE,
+        "mycookie=blahblahblah; SameSite=None; Secure"
+            .parse()
+            .unwrap(),
+    );
+    headers.insert(
+        LOCATION,
+        redirect_url.parse().expect("Redirect Url to be valid"),
+    );
     (StatusCode::FOUND, headers)
 }
 
 pub async fn ppcrlconfigsrf() -> Vec<u8> {
     let data: &'static [u8] = *PPCRLCONFIG;
     data.to_vec()
-
 }
 
 pub async fn wlidsvcconfig() -> Response<Body> {
-
     let data: &'static [u8] = *WLIDSVCCONFIG;
     Response::builder()
         .header(CONTENT_TYPE, "text/xml")
-        .body(Body::from(data)).expect("wlid config to be valid")
-
+        .body(Body::from(data))
+        .expect("wlid config to be valid")
 }
 
-
-
 pub async fn ppcrlcheck() -> Response<Body> {
-
     let data: &'static [u8] = *PPCRLCHECK;
     Response::builder()
         .header(CONTENT_TYPE, "text/xml")
-        .body(Body::from(data)).expect("wlid config to be valid")
-
+        .body(Body::from(data))
+        .expect("wlid config to be valid")
 }
 
-pub async fn get_profile_pic(Path((image_mxid, _image_type)): Path<(String, String)>, State(state): State<GlobalState>) -> Response<Body> {
-
+pub async fn get_profile_pic(
+    Path((image_mxid, _image_type)): Path<(String, String)>,
+    State(state): State<GlobalState>,
+) -> Response<Body> {
     //Todo handle errors
-    let image_mxid = String::from_utf8(general_purpose::STANDARD.decode(image_mxid.as_bytes()).unwrap()).unwrap();
+    let image_mxid = String::from_utf8(
+        general_purpose::STANDARD
+            .decode(image_mxid.as_bytes())
+            .unwrap(),
+    )
+    .unwrap();
     let parsed_mxc = OwnedMxcUri::from(image_mxid);
 
     let client_data = state.get_single_client().unwrap();
 
-    let client= state.tachyon_clients().get(client_data.ticket_token().as_str()).unwrap();
+    let client = state
+        .tachyon_clients()
+        .get(client_data.ticket_token().as_str())
+        .unwrap();
 
+    let thumbnail_settings =
+        MediaThumbnailSettings::new(UInt::new(200).unwrap(), UInt::new(200).unwrap());
 
-    let thumbnail_settings = MediaThumbnailSettings::new(UInt::new(200).unwrap(), UInt::new(200).unwrap() );
-
-    let media_request = MediaRequestParameters{ source: MediaSource::Plain(parsed_mxc), format: MediaFormat::Thumbnail(thumbnail_settings)};
-    let image = client.matrix_client().media().get_media_content(&media_request, true).await.unwrap();
+    let media_request = MediaRequestParameters {
+        source: MediaSource::Plain(parsed_mxc),
+        format: MediaFormat::Thumbnail(thumbnail_settings),
+    };
+    let image = client
+        .matrix_client()
+        .media()
+        .get_media_content(&media_request, true)
+        .await
+        .unwrap();
 
     Response::builder()
         .header(CONTENT_TYPE, "image/jpeg")
-        .body(Body::from(image)).expect("Image to be valid")
+        .body(Body::from(image))
+        .expect("Image to be valid")
 }

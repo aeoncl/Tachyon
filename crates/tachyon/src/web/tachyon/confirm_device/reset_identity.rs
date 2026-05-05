@@ -1,25 +1,26 @@
-use std::str::FromStr;
+use crate::matrix::cross_signing::check_device_is_crossed_signed;
+use crate::tachyon::alert::{AlertError, AlertNotify, AlertSuccess};
+use crate::tachyon::repository::RepositoryStr;
+use crate::tachyon::state::global::global_state::GlobalState;
+use crate::web::tachyon::Params;
 use axum::extract::State;
 use axum::response::Html;
 use matrix_sdk::ruma::api::client::uiaa::{AuthData, Password, UserIdentifier};
 use maud::html;
-use crate::matrix::cross_signing::check_device_is_crossed_signed;
-use crate::tachyon::alert::{AlertError, AlertNotify, AlertSuccess};
-use crate::tachyon::global::global_state::GlobalState;
-use crate::tachyon::repository::RepositoryStr;
-use crate::web::tachyon::Params;
+use std::str::FromStr;
 
 pub async fn post_reset_identity(
     State(state): State<GlobalState>,
     axum::extract::Extension(token): axum::extract::Extension<String>,
     axum::extract::Form(form_data): axum::extract::Form<Params>,
 ) -> Html<String> {
-
-    let notification_id_raw = form_data.get("notification_id").map(|s| s.as_str()).unwrap();
+    let notification_id_raw = form_data
+        .get("notification_id")
+        .map(|s| s.as_str())
+        .unwrap();
     let notification_id = i32::from_str(notification_id_raw).unwrap();
 
     let password = form_data.get("password").map(|s| s.as_str()).unwrap();
-
 
     let tachyon_client = state.tachyon_clients().get(&token).unwrap();
     let (_id, mut alert) = tachyon_client.alerts().remove(&notification_id).unwrap();
@@ -27,16 +28,28 @@ pub async fn post_reset_identity(
 
     let own_user = matrix_client.user_id().unwrap();
 
-    let handle = matrix_client.encryption().recovery().reset_identity().await.unwrap();
+    let handle = matrix_client
+        .encryption()
+        .recovery()
+        .reset_identity()
+        .await
+        .unwrap();
     if let Some(handle) = handle {
-        handle.reset(Some(AuthData::Password(Password::new(UserIdentifier::UserIdOrLocalpart(own_user.to_string()), password.to_string())))).await.unwrap();
+        handle
+            .reset(Some(AuthData::Password(Password::new(
+                UserIdentifier::UserIdOrLocalpart(own_user.to_string()),
+                password.to_string(),
+            ))))
+            .await
+            .unwrap();
     }
 
-    let secret_storage_key = matrix_client.encryption()
+    let secret_storage_key = matrix_client
+        .encryption()
         .recovery()
         .enable()
-        .await.unwrap();
-
+        .await
+        .unwrap();
 
     let status = matrix_client
         .encryption()
@@ -54,7 +67,10 @@ pub async fn post_reset_identity(
         .await
         .unwrap();
 
-    let successful = status.is_complete() && check_device_is_crossed_signed(&matrix_client).await.unwrap();
+    let successful = status.is_complete()
+        && check_device_is_crossed_signed(&matrix_client)
+            .await
+            .unwrap();
 
     if successful {
         alert.notify_success(AlertSuccess::Unit);
@@ -81,9 +97,13 @@ pub async fn get_reset_identity(
     axum::extract::Extension(token): axum::extract::Extension<String>,
     axum::extract::Query(params): axum::extract::Query<Params>,
 ) -> Html<String> {
-
-    let notification_id_str = params.get("notification_id").map(|s| s.as_str()).unwrap_or_default();
-    let notification_id = i32::from_str(notification_id_str).map_err(|e| format!("Invalid notification_id: {}", e)).unwrap();
+    let notification_id_str = params
+        .get("notification_id")
+        .map(|s| s.as_str())
+        .unwrap_or_default();
+    let notification_id = i32::from_str(notification_id_str)
+        .map_err(|e| format!("Invalid notification_id: {}", e))
+        .unwrap();
 
     let page = html! {
         form action="/tachyon/confirm_device/reset_identity" method="POST" ic-post-to="/tachyon/confirm_device/reset_identity" ic-target=".content" {
@@ -98,5 +118,4 @@ pub async fn get_reset_identity(
     };
 
     Html(page.into_string())
-
 }

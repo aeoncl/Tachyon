@@ -1,20 +1,20 @@
-use std::str::FromStr;
-use axum::extract::State;
-use axum::response::{Html, IntoResponse};
-use axum::http::{Request, Response, StatusCode};
+use crate::tachyon::alert::{Alert, AlertError, AlertNotify, AlertSuccess};
+use crate::tachyon::repository::RepositoryStr;
+use crate::tachyon::state::global::global_state::GlobalState;
+use crate::web::tachyon::middleware::set_token_cookie;
+use crate::web::tachyon::{layout, login, Params};
 use axum::body::Body;
+use axum::extract::State;
 use axum::http::header::{LOCATION, SET_COOKIE};
+use axum::http::{Request, Response, StatusCode};
+use axum::response::{Html, IntoResponse};
 use maud::{html, Markup};
 use msnp::msnp::notification::command::command::NotificationServerCommand;
-use msnp::msnp::notification::command::not::{NotServer, NotificationPayloadType};
 use msnp::msnp::notification::command::not::factories::NotificationFactory;
+use msnp::msnp::notification::command::not::{NotServer, NotificationPayloadType};
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
-use crate::tachyon::alert::{Alert, AlertError, AlertNotify, AlertSuccess};
-use crate::tachyon::global::global_state::GlobalState;
-use crate::tachyon::repository::RepositoryStr;
-use crate::web::tachyon::{layout, login, Params};
-use crate::web::tachyon::middleware::set_token_cookie;
+use std::str::FromStr;
 
 const TITLE: &str = "You are logged out";
 
@@ -22,7 +22,10 @@ pub async fn post_login_request(
     State(state): State<GlobalState>,
     axum::extract::Form(form_data): axum::extract::Form<Params>,
 ) -> Html<String> {
-    let username = form_data.get("email").map(|s| s.as_str()).unwrap_or("Unknown");
+    let username = form_data
+        .get("email")
+        .map(|s| s.as_str())
+        .unwrap_or("Unknown");
     let email = EmailAddress::from_str(username).unwrap();
 
     let Some(client) = state.tachyon_clients().find_by_email(&email) else {
@@ -45,7 +48,10 @@ pub async fn post_login_request(
 
     let nfy_url = format!(
         "http://127.0.0.1:{}/tachyon/login/nfy?t={}&notification_id={}&email={}",
-        state.get_config().http_port ,&token, notification_id, username
+        state.get_config().http_port,
+        &token,
+        notification_id,
+        username
     );
 
     let secret_not = NotificationServerCommand::NOT(NotServer {
@@ -69,10 +75,14 @@ pub async fn get_login_nfy(
     State(state): State<GlobalState>,
     axum::extract::Extension(token): axum::extract::Extension<String>,
     axum::extract::Query(params): axum::extract::Query<Params>,
-) -> impl IntoResponse  {
-
-    let notification_id_str = params.get("notification_id").map(|s| s.as_str()).unwrap_or_default();
-    let notification_id = i32::from_str(notification_id_str).map_err(|e| format!("Invalid notification_id: {}", e)).unwrap();
+) -> impl IntoResponse {
+    let notification_id_str = params
+        .get("notification_id")
+        .map(|s| s.as_str())
+        .unwrap_or_default();
+    let notification_id = i32::from_str(notification_id_str)
+        .map_err(|e| format!("Invalid notification_id: {}", e))
+        .unwrap();
 
     let client = state.tachyon_clients().get(&token).unwrap();
     let (_id, mut alert) = client.alerts().remove(&notification_id).unwrap();
@@ -89,15 +99,20 @@ pub async fn get_login_request(
     State(state): State<GlobalState>,
     axum::extract::Query(params): axum::extract::Query<Params>,
 ) -> impl IntoResponse {
-
-    let notification_id_str = params.get("notification_id").map(|s| s.as_str()).unwrap_or_default();
-    let notification_id = i32::from_str(notification_id_str).map_err(|e| format!("Invalid notification_id: {}", e)).unwrap();
+    let notification_id_str = params
+        .get("notification_id")
+        .map(|s| s.as_str())
+        .unwrap_or_default();
+    let notification_id = i32::from_str(notification_id_str)
+        .map_err(|e| format!("Invalid notification_id: {}", e))
+        .unwrap();
 
     let email_str = params.get("email").map(|s| s.as_str()).unwrap_or_default();
-    let email = EmailAddress::from_str(email_str).map_err(|e| format!("Invalid email address: {}", e)).unwrap();
+    let email = EmailAddress::from_str(email_str)
+        .map_err(|e| format!("Invalid email address: {}", e))
+        .unwrap();
 
     if let Some(mut recv) = state.take_pending_alert(&notification_id) {
-
         match recv.try_recv() {
             Ok(Some(AlertSuccess::TicketToken(token))) => {
                 return Response::builder()
@@ -148,10 +163,7 @@ fn login_form() -> Markup {
     }
 }
 
-pub async fn get_login_page(
-    req: Request<Body>,
-) -> impl IntoResponse {
-
+pub async fn get_login_page(req: Request<Body>) -> impl IntoResponse {
     if let Some(_) = req.extensions().get::<String>() {
         return Response::builder()
             .status(StatusCode::TEMPORARY_REDIRECT)
@@ -166,6 +178,4 @@ pub async fn get_login_page(
             layout::tachyon_page_no_nav(login::login_form()).into_string(),
         ))
         .unwrap()
-
-
 }
