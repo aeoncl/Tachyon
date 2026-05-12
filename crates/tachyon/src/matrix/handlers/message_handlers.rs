@@ -53,7 +53,9 @@ pub async fn handle_message(
     match event.content.msgtype {
         MessageType::Audio(_) => {}
         MessageType::Emote(_) => {}
-        MessageType::File(_) => {}
+        MessageType::File(file) => {
+
+        }
         MessageType::Image(_) => {}
         MessageType::Location(_) => {}
         MessageType::Notice(message) => {
