@@ -16,6 +16,7 @@ use std::sync::{Arc, Mutex, RwLockWriteGuard};
 use tokio::sync::{broadcast, mpsc};
 
 pub struct TachyonClientInner {
+    matrix_client: matrix_sdk::Client,
     pub own_user: RwLock<MsnUser>,
     pub ticket_token: TicketToken,
     pub contact_list: Mutex<ContactList>,
@@ -36,6 +37,7 @@ pub struct TachyonClient {
 
 impl TachyonClient {
     pub fn new(
+        matrix_client: matrix_sdk::Client,
         config: TachyonConfig,
         user: MsnUser,
         token: TicketToken,
@@ -45,6 +47,7 @@ impl TachyonClient {
     ) -> TachyonClient {
         TachyonClient {
             inner: Arc::new(TachyonClientInner {
+                matrix_client,
                 own_user: RwLock::new(user),
                 ticket_token: token,
                 contact_list: Default::default(),
@@ -102,5 +105,9 @@ impl TachyonClient {
 
     pub fn notification_handle(&self) -> NotificationHandle {
         self.inner.notification_handle.clone()
+    }
+
+    pub fn matrix_client(&self) -> matrix_sdk::Client {
+        self.inner.matrix_client.clone()
     }
 }

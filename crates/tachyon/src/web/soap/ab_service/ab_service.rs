@@ -1,4 +1,10 @@
-use std::str::FromStr;
+use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::repository::RepositoryStr;
+use crate::web::soap::ab_service::ab_contact_add::ab_contact_add;
+use crate::web::soap::ab_service::ab_contact_delete::ab_contact_delete;
+use crate::web::soap::ab_service::ab_contact_update::ab_contact_update;
+use crate::web::soap::ab_service::ab_find_contacts_paged::ab_find_contacts_paged;
+use crate::web::soap::error::ABError;
 use anyhow::anyhow;
 use axum::extract::State;
 use axum::http::HeaderMap;
@@ -13,13 +19,7 @@ use msnp::soap::abch::ab_service::ab_find_contacts_paged::request::AbfindContact
 use msnp::soap::abch::ab_service::ab_group_add::request::AbgroupAddMessageSoapEnvelope;
 use msnp::soap::abch::request_header::AuthHeaderSoapEnvelope;
 use msnp::soap::traits::xml::TryFromXml;
-use crate::tachyon::global_state::GlobalState;
-use crate::tachyon::repository::RepositoryStr;
-use crate::web::soap::ab_service::ab_contact_add::ab_contact_add;
-use crate::web::soap::ab_service::ab_contact_delete::ab_contact_delete;
-use crate::web::soap::ab_service::ab_contact_update::ab_contact_update;
-use crate::web::soap::ab_service::ab_find_contacts_paged::ab_find_contacts_paged;
-use crate::web::soap::error::ABError;
+use std::str::FromStr;
 #[debug_handler]
 pub async fn address_book_service(headers: HeaderMap, State(state): State<GlobalState>, body: String) -> Result<Response, ABError> {
 
@@ -29,7 +29,7 @@ pub async fn address_book_service(headers: HeaderMap, State(state): State<Global
     let token = TicketToken::from_str(&header_env.header.ab_auth_header.ticket_token).unwrap();
 
     let tachyon_client = state.tachyon_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")})?;
-    let client = state.matrix_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Matrix Client to be present in client Store")})?;
+    let client = tachyon_client.matrix_client();
 
     match soap_action {
         "http://www.msn.com/webservices/AddressBook/ABFindContactsPaged" => {

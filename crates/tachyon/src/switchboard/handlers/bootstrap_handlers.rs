@@ -37,7 +37,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
                 None => {}
                 Some(tachyon_client) => {
 
-                    let matrix_client = tachyon_state.matrix_clients().get(&token.matrix_token).unwrap();
+                    let matrix_client = tachyon_state.tachyon_clients().get(&token.matrix_token).unwrap().matrix_client();
                     match matrix_client.get_room(token.room_id.as_ref()) {
                         None => {}
                         Some(room) => {
@@ -103,7 +103,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
                     //TODO AUTH error
                 }
                 Some(client_data) => {
-                    let matrix_client = tachyon_state.matrix_clients().get(token.as_str()).unwrap();
+                    let matrix_client = tachyon_state.tachyon_clients().get(token.as_str()).unwrap().matrix_client();
 
                     local_switchboard_data.email_addr = usr_command.endpoint_id.email_addr.clone();
                     local_switchboard_data.endpoint_guid = usr_command.endpoint_id.endpoint_guid.clone();

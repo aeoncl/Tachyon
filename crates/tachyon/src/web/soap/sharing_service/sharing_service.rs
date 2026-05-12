@@ -26,7 +26,7 @@ pub async fn sharing_service(headers: HeaderMap, State(state): State<GlobalState
 
 
     let tachyon_client = state.tachyon_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")})?;
-    let client = state.matrix_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Matrix Client to be present in client Store")})?;
+    let client = tachyon_client.matrix_client();
 
     match soap_action {
         "http://www.msn.com/webservices/AddressBook/FindMembership" => {

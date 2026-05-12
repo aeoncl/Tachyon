@@ -74,6 +74,7 @@ pub async fn sync(tachyon_client: TachyonClient, matrix_client: Client, kill_sig
     spawn_sync_task(tachyon_client, matrix_client, sliding_sync, updates_recv, kill_signal_snd, kill_signal_rcv)
 }
 
+
 fn spawn_sync_task(
     tachyon_client: TachyonClient,
     matrix_client: Client,
@@ -84,10 +85,12 @@ fn spawn_sync_task(
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         info!("Initializing Sliding Sync...");
-        register_event_handlers(&matrix_client, tachyon_client.clone());
+        let (handler_drop_guards, context_drop_guard) =
+            register_event_handlers(&matrix_client, tachyon_client.clone());
 
         info!("Starting Sliding Sync...");
-        let (error_tx, mut error_rx) = mpsc::channel::<ErrorKind>(1);
+        let (error_tx, mut error_rx) =
+            mpsc::channel::<matrix_sdk::ruma::api::client::error::ErrorKind>(1);
 
         let mut sync_handle = tokio::spawn({
             let sliding_sync = sliding_sync.clone();
@@ -97,7 +100,10 @@ fn spawn_sync_task(
                 loop {
                     match sync_stream.next().await {
                         Some(Ok(update_summary)) => {
-                            info!("Received Sliding Sync stream response with pos: {:?}", &update_summary);
+                            info!(
+                                "Received Sliding Sync stream response with pos: {:?}",
+                                &update_summary
+                            );
                         }
                         Some(Err(err)) => {
                             if let Some(error_kind) = err.client_api_error_kind() {
@@ -117,6 +123,7 @@ fn spawn_sync_task(
             }
         });
 
+        let mut restart_sync = false;
         loop {
             tokio::select! {
                 _ = client_shutdown_rcv.recv() => {
@@ -142,18 +149,10 @@ fn spawn_sync_task(
                     }
                 }
                 error_kind = error_rx.recv() => {
-                    if let Some(ErrorKind::UnknownPos) = error_kind {
+                    if let Some(matrix_sdk::ruma::api::client::error::ErrorKind::UnknownPos) = error_kind {
                         info!("Unknown pos detected, re-syncing...");
                         sync_handle.abort();
-
-                        spawn_sync_task(
-                            tachyon_client,
-                            matrix_client,
-                            sliding_sync.clone(),
-                            updates_recv,
-                            client_shutdown_snd,
-                            client_shutdown_rcv
-                        );
+                        restart_sync = true;
                         break;
                     } else {
                         error!("Unrecoverable sync error: {:?}", error_kind);
@@ -167,6 +166,19 @@ fn spawn_sync_task(
                     break;
                 }
             }
+        }
+
+        if restart_sync {
+            drop(handler_drop_guards);
+            drop(context_drop_guard);
+            spawn_sync_task(
+                tachyon_client,
+                matrix_client,
+                sliding_sync.clone(),
+                updates_recv,
+                client_shutdown_snd,
+                client_shutdown_rcv,
+            );
         }
 
         info!("Sync task finished");

@@ -15,11 +15,12 @@ use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::payload::msg::control_msg::ControlMessagePayload;
 use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 
 pub async fn handle_message(
     event: OriginalSyncRoomMessageEvent,
     room: Room,
-    context: Ctx<TachyonContext>,
+    tachyon_client: TachyonClient,
     client: Client,
 ) {
 
@@ -28,7 +29,7 @@ pub async fn handle_message(
     }
 
     let room_user = room.to_msn_user_lazy().await.unwrap();
-    let switchboard = context.tachyon_client.switchboards().get_or_initialize(room.room_id(), &room_user);
+    let switchboard = tachyon_client.switchboards().get_or_initialize(room.room_id(), &room_user);
 
 
     let message_sender = if event.sender != room.own_user_id() {
@@ -43,7 +44,7 @@ pub async fn handle_message(
         }
 
     } else {
-        let mut own_user = context.tachyon_client.own_user();
+        let mut own_user = tachyon_client.own_user();
         own_user.endpoint_id = EndpointId::from_email_addr(own_user.get_email_address().clone());
         own_user
     };
@@ -87,8 +88,8 @@ pub async fn handle_message(
 
 }
 
-pub(crate) async fn handle_typing_notice(event: SyncTypingEvent, room: Room, context: Ctx<TachyonContext>, client: Client) {
-    if let Some(switchboard) = context.tachyon_client.switchboards().get(room.room_id()) {
+pub(crate) async fn handle_typing_notice(event: SyncTypingEvent, room: Room, tachyon_client: TachyonClient, client: Client) {
+    if let Some(switchboard) = tachyon_client.switchboards().get(room.room_id()) {
         for user_id in event.content.user_ids.iter() {
             if user_id != room.own_user_id() {
 

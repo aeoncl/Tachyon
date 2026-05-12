@@ -57,9 +57,8 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             let endpoint_id = EndpointId::new(local_store.email_addr.clone(), Some(endpoint_guid));
                             let msn_user = MsnUser::new(endpoint_id);
 
-
-                            let tachyon_client = TachyonClient::new(config.clone(), msn_user.clone(), ticket_token.clone(), notif_sender.clone(), local_store.client_shutdown_snd.clone(), local_store.client_shutdown_recv.resubscribe());
-                            let drop_guard = tachyon_state.insert_clients(ticket_token.as_str().to_owned(), tachyon_client.clone(), matrix_client.clone());
+                            let tachyon_client = TachyonClient::new(matrix_client.clone(), config.clone(), msn_user.clone(), ticket_token.clone(), notif_sender.clone(), local_store.client_shutdown_snd.clone(), local_store.client_shutdown_recv.resubscribe());
+                            let drop_guard = tachyon_state.insert_clients(ticket_token.as_str().to_owned(), tachyon_client.clone());
 
                             local_store.client_drop_guard = Some(drop_guard);
                             local_store.token = ticket_token.clone();
