@@ -2,14 +2,15 @@ use std::{fmt::{self, Display}, str::FromStr};
 use std::fmt::Formatter;
 
 use anyhow::anyhow;
-use base64::{Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine};
 use log::warn;
 use sha1::{Digest, Sha1};
 use strum_macros::EnumString;
 use yaserde::{de::{self, from_str}, ser::to_string_with_config};
 
-use crate::{msnp::error::PayloadError, p2p::v2::slp_context::SlpContext};
+use crate::msnp::error::PayloadError;
 use crate::msnp::error::CommandError;
+use crate::p2p::v2::slp::slp_context::SlpContext;
 use crate::shared::models::email_address::EmailAddress;
 
 
@@ -189,7 +190,7 @@ impl yaserde::YaDeserialize for MsnObject {
     }
 }
 
-impl yaserde::YaSerialize for &MsnObject {
+impl yaserde::YaSerialize for MsnObject {
     fn serialize<W: std::io::Write>(&self, writer: &mut yaserde::ser::Serializer<W>) -> Result<(), String> {
         let size = self.size.to_string();
         let obj_type = self.obj_type.to_string();
@@ -283,7 +284,7 @@ impl MsnObject {
             indent_string: None
         };
 
-        to_string_with_config(&self, &yaserde_cfg).unwrap()
+        to_string_with_config(self, &yaserde_cfg).unwrap()
     }
 }
 
@@ -402,7 +403,7 @@ impl Display for MsnObject {
             indent_string: None
         };
 
-        let serialized = to_string_with_config(&self, &yaserde_cfg).unwrap();
+        let serialized = to_string_with_config(self, &yaserde_cfg).unwrap();
         return write!(f, "{}", serialized.as_str());
     }
 }
@@ -543,7 +544,8 @@ mod tests {
     use std::str::FromStr;
 
     use lazy_static_include::lazy_static_include_bytes;
-    use crate::{p2p::v2::slp_context::SlpContext, shared::models::msn_object::{compute_sha1, MsnObject, MsnObjectContentType, MSNObjectFactory, MsnObjectType}};
+    use crate::shared::models::msn_object::{compute_sha1, MSNObjectFactory, MsnObject, MsnObjectContentType, MsnObjectType};
+    use crate::p2p::v2::slp::slp_context::SlpContext;
     use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::msn_object::FriendlyName;
 

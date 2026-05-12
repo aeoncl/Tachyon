@@ -2,8 +2,10 @@ use anyhow::anyhow;
 
 
 use crate::msnp::error::PayloadError;
-
-use super::{error::P2PError, factories::{P2PPayloadFactory, SlpPayloadFactory}, p2p_payload::P2PPayload, slp_payload::SlpPayload};
+use crate::p2p::v2::error::P2PError;
+use crate::p2p::v2::factories::P2PPayloadFactory;
+use crate::p2p::v2::raw_p2p_payload::RawP2PPayload;
+use crate::p2p::v2::slp::slp_payload::{SlpPayload, SlpPayloadFactory};
 
 pub struct SlpPayloadHandler;
 
@@ -45,7 +47,7 @@ impl SlpPayloadHandler {
             }
     }
 
-    pub fn handle_p2p(slp_payload: &SlpPayload) -> Result<P2PPayload, P2PError> {
+    pub fn handle_p2p(slp_payload: &SlpPayload) -> Result<RawP2PPayload, P2PError> {
         let slp_payload_response = SlpPayloadHandler::handle(slp_payload)?;
         let mut p2p_payload_response = P2PPayloadFactory::get_sip_text_message();
         p2p_payload_response.set_payload(slp_payload_response.to_string().as_bytes().to_owned());

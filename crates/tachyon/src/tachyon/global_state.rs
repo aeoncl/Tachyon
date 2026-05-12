@@ -3,7 +3,6 @@ use crate::tachyon::alert::AlertReceiver;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::client::tachyon_client_repository::TachyonClientRepository;
 use crate::tachyon::config::secret_encryptor::SecretEncryptor;
-use crate::tachyon::matrix_client_repository::MatrixClientRepository;
 use crate::tachyon::repository::RepositoryStr;
 use dashmap::DashMap;
 use matrix_sdk::Client;

@@ -1,413 +1,30 @@
-pub mod pending_packet;
-pub mod opcode;
-pub mod p2p_payload;
-pub mod p2p_transport_packet;
-pub mod slp_payload;
-pub mod tlv;
-pub mod slp_payload_handler;
-pub mod slp_context;
-pub mod file;
-pub mod events;
-pub mod session;
 pub mod app_id;
-pub mod models;
 pub mod error;
+pub mod file;
+pub mod opcode;
+pub mod raw_p2p_payload;
+pub mod p2p_transport_packet;
+pub mod pending_packet;
+pub mod tlv;
+pub mod slp;
+pub mod data_preparation_payload;
 
 pub mod factories {
-    use base64::Engine;
-    use base64::engine::general_purpose;
     use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
-    use crate::{msnp::error::PayloadError, shared::models::{msn_object::MsnObject, msn_user::MsnUser, uuid::Uuid}};
+    use super::{
+        p2p_transport_packet::P2PTransportPacket,
+        raw_p2p_payload::RawP2PPayload,
+        tlv::TLV,
+    };
 
-    use super::{p2p_payload::P2PPayload, p2p_transport_packet::P2PTransportPacket, slp_context::PreviewData, slp_payload::{EufGUID, SlpPayload}, tlv::TLV};
 
-    /**
- * RT5'}L³E[@
-ÆhÅ6GÆð;ÐvÖPõ¤£UUN 14 aeontest@escargot.chat;{6c03b198-22eb-49f4-b4d6-8eb5567b2e8c} 3 743
-INVITE MSNMSGR:aeontest@escargot.chat;{6c03b198-22eb-49f4-b4d6-8eb5567b2e8c} MSNSLP/1.0
-To: <msnmsgr:aeontest@shl.local;{f52973b6-c926-4bad-9ba8-7c1e840e4ab0}>
-From: <msnmsgr:aeontest3@shl.local;{77c46a8f-33a3-5282-9a5d-905ecd3eb069}>
-Via: MSNSLP/1.0/TLP ;branch={2477EF37-9DC5-4884-BC5E-1D32FE3BEC2F}
-CSeq: 0 
-Call-ID: {AFDB2A8D-0514-488F-9667-35624900DBE3}
-Max-Forwards: 0
-Content-Type: application/x-msnmsgr-transreqbody
-Content-Length: 283
 
-NetID: 251789322
-Conn-Type: Firewall
-TCP-Conn-Type: Firewall
-UPnPNat: false
-ICF: false
-IPv6-global: 
-Capabilities-Flags: 1
-Nat-Trav-Msg-Type: WLX-Nat-Trav-Msg-Direct-Connect-Req
-Bridges: TRUDPv1 TCPv1 SBBridge TURNv1
-Hashed-Nonce: {D14FBAF3-CA6B-CC91-F93A-E76F24903F60}
 
-
- * 
- * 
- */
-
-
-
-            /**
-             * RT5'}L³EL@
-ÆhÅ>G0ÎÞ%ýPúð£{UUN 13 aeonshl@escargot.chat;{6c03b198-22eb-49f4-b4d6-8eb5567b2e8c} 3 729
-MSNSLP/1.0 200 OK
-To: <msnmsgr:aeontest3@shl.local;{77c46a8f-33a3-5282-9a5d-905ecd3eb069}>
-From: <msnmsgr:aeontest@shl.local;{f52973b6-c926-4bad-9ba8-7c1e840e4ab0}>
-Via: MSNSLP/1.0/TLP ;branch={2477EF37-9DC5-4884-BC5E-1D32FE3BEC2F}
-CSeq: 1 
-Call-ID: {AFDB2A8D-0514-488F-9667-35624900DBE3}
-Max-Forwards: 0
-Content-Type: application/x-msnmsgr-transrespbody
-Content-Length: 338
-
-Listening: true
-NeedConnectingEndpointInfo: false
-Conn-Type: Firewall
-TCP-Conn-Type: Firewall
-IPv6-global: 
-UPnPNat: false
-Capabilities-Flags: 1
-srddA-lanretnI4vPI: 51.2.0.01
-troP-lanretnI4vPI: 40505
-Nat-Trav-Msg-Type: WLX-Nat-Trav-Msg-Direct-Connect-Resp
-Bridge: TCPv1
-Hashed-Nonce: {5ADF1CCD-28B2-0CDA-26E9-CEB6E3EC8044}
-
-
-             * 
-             * 
-             */
-
-
-/*
-E ¨@
-
-ÅJÅHf|a7yj)ßPÿg`£¶8¶C97INVITE MSNMSGR:aeontest@escargot.chat;{6c03b198-22eb-49f4-b4d6-8eb5567b2e8c} MSNSLP/1.0
-To: <msnmsgr:aeontest@shl.local;{f52973b6-c926-4bad-9ba8-7c1e840e4ab0}>
-From: <msnmsgr:aeontest3@shl.local;{77c46a8f-33a3-5282-9a5d-905ecd3eb069}>
-Via: MSNSLP/1.0/TLP ;branch={210985C6-A856-402A-A757-2AD20D04B5D6}
-CSeq: 0 
-Call-ID: {68BC1AE3-7443-431C-AB3D-16781527BDD3}
-Max-Forwards: 0
-Content-Type: application/x-msnmsgr-sessionreqbody
-Content-Length: 15107
-
-EUF-GUID: {5D3E02AB-6190-11D3-BBBB-00C04F795683}
-SessionID: 2216804035
-AppID: 2
-RequestFlags: 16
-Context: PgIAAAIAAABVEwAAAAAAAAAAAABkAG8AZwBlAC4AagBwAGcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIlQTkcNChoKAAAAD
-
-
-*/
-
-
-
-             /**
-              EÚÝ@
-
-ÅHÅJyj*f|P ¼<ìª$h.MSNSLP/1.0 200 OK
-To: <msnmsgr:aeontest3@shl.local;{77c46a8f-33a3-5282-9a5d-905ecd3eb069}>
-From: <msnmsgr:aeontest@shl.local;{f52973b6-c926-4bad-9ba8-7c1e840e4ab0}>
-Via: MSNSLP/1.0/TLP ;branch={210985C6-A856-402A-A757-2AD20D04B5D6}
-CSeq: 1 
-Call-ID: {68BC1AE3-7443-431C-AB3D-16781527BDD3}
-Max-Forwards: 0
-Content-Type: application/x-msnmsgr-sessionreqbody
-Content-Length: 26
-
-SessionID: 2216804035
-
-* 
-
-
-              */
-
-    pub struct SlpPayloadFactory;
-
-    impl SlpPayloadFactory {
-
-        pub fn get_session_bye(sender: &MsnUser, receiver: &MsnUser, call_id: Uuid, session_id: String) -> Result<SlpPayload, PayloadError> {
-            let mut out = SlpPayload::new();
-            out.first_line = format!("BYE MSNMSGR:{mpop_id} MSNSLP/1.0", mpop_id = receiver.endpoint_id);
-            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.endpoint_id));
-            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = sender.endpoint_id));
-            out.add_header(String::from("Via"), format!("MSNSLP/1.0/TLP ;branch={{{branch_uuid}}}", branch_uuid = Uuid::new().to_string()));
-            out.add_header(String::from("CSeq"), String::from("0"));
-            out.add_header(String::from("Call-ID"), format!("{{{call_id}}}", call_id = call_id.to_string()));
-            out.add_header(String::from("Max-Forwards"), String::from("0"));
-            out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-sessionclosebody"));
-            out.add_body_property(String::from("SessionID"), session_id);
-            return Ok(out);
-        }
-
-        pub fn get_200_ok_session(invite: &SlpPayload) -> Result<SlpPayload, PayloadError>  {
-            let mut out = SlpPayload::new();
-            out.first_line = String::from("MSNSLP/1.0 200 OK");
-            out.add_header(String::from("To"), invite.get_header(&String::from("From"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("From"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-            out.add_header(String::from("From"), invite.get_header(&String::from("To"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("To"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-            out.add_header(String::from("Via"), invite.get_header(&String::from("Via"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Via"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-            let cseq = invite.headers.get("CSeq")
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("CSeq"), payload: format!("{:?}", &invite) })?
-                .parse::<i32>()? + 1;
-
-            out.add_header(String::from("CSeq"), cseq.to_string());
-
-            out.add_header(String::from("Call-ID"), invite.get_header(&String::from("Call-ID"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Call-ID"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-            out.add_header(String::from("Max-Forwards"), String::from("0"));
-            out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-sessionreqbody"));
-
-            out.add_body_property(String::from("SessionID"), invite.get_body_property(&String::from("SessionID"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("SessionID"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-            return Ok(out);
-        }
-
-        pub fn get_file_transfer_request(sender: &MsnUser, receiver: &MsnUser, context: &PreviewData, session_id: u32) -> Result<SlpPayload, PayloadError> {
-            let mut out = SlpPayload::new();
-            out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver.endpoint_id);
-            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.endpoint_id));
-            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = sender.endpoint_id));
-            out.add_header(String::from("Via"), format!("MSNSLP/1.0/TLP ;branch={{{branch_uuid}}}", branch_uuid = Uuid::new().to_string()));
-
-            out.add_header(String::from("CSeq"), String::from("0"));
-            out.add_header(String::from("Call-ID"), format!("{{{call_id}}}", call_id = Uuid::new().to_string()));
-            out.add_header(String::from("Max-Forwards"), String::from("0"));
-            out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-sessionreqbody"));
-
-            out.add_body_property(String::from("EUF-GUID"), EufGUID::FileTransfer.to_string());
-            out.add_body_property(String::from("SessionID"), session_id.to_string());
-            out.add_body_property(String::from("AppID"), String::from("2"));
-            out.add_body_property(String::from("RequestFlags"), String::from("16"));
-
-            out.add_body_property(String::from("Context"), context.to_string());
-
-            return Ok(out);
-        }
-
-        pub fn get_msn_object_request(sender: &MsnUser, receiver: &MsnUser, context: &MsnObject, session_id: u32) -> Result<SlpPayload, PayloadError> {
-
-
-            let context_b64 = general_purpose::STANDARD.encode(context.to_string_not_encoded());
-
-            let mut out = SlpPayload::new();
-            out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver.endpoint_id);
-            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.endpoint_id));
-            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = sender.endpoint_id));
-            out.add_header(String::from("Via"), format!("MSNSLP/1.0/TLP ;branch={{{branch_uuid}}}", branch_uuid = Uuid::new().to_string()));
-
-            out.add_header(String::from("CSeq"), String::from("0"));
-            out.add_header(String::from("Call-ID"), format!("{{{call_id}}}", call_id = Uuid::new().to_string()));
-            out.add_header(String::from("Max-Forwards"), String::from("0"));
-            out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-sessionreqbody"));
-
-            out.add_body_property(String::from("EUF-GUID"), EufGUID::MSNObject.to_string());
-            out.add_body_property(String::from("SessionID"), session_id.to_string());
-            out.add_body_property(String::from("AppID"), String::from("20"));
-            out.add_body_property(String::from("RequestFlags"), String::from("18"));
-            out.add_body_property(String::from("Context"), context_b64);
-            return Ok(out);
-        }
-
-        pub fn get_200_ok_indirect_connect(invite: &SlpPayload) -> Result<SlpPayload, PayloadError> {
-            let mut out = SlpPayloadFactory::get_200_ok_direct_connect(invite)?;
-            out.add_body_property(String::from("Bridge"), String::from("SBBridge"));
-            return Ok(out);
-        }
-
-        pub fn get_200_ok_direct_connect(invite: &SlpPayload) -> Result<SlpPayload, PayloadError> {
-            let mut out = SlpPayload::new();
-            out.first_line = String::from("MSNSLP/1.0 200 OK");
-
-            
-            out.add_header(String::from("To"), invite.get_header(&String::from("From"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("From"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-
-            out.add_header(String::from("From"), invite.get_header(&String::from("To"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("To"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-            out.add_header(String::from("Via"), invite.get_header(&String::from("Via"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Via"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-            let cseq = invite.headers.get("CSeq")
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("CSeq"), payload: format!("{:?}", &invite) })?
-                .parse::<i32>()? + 1;
-
-            out.add_header(String::from("CSeq"), cseq.to_string());
-
-            out.add_header(String::from("Call-ID"), invite.get_header(&String::from("Call-ID"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Call-ID"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-            out.add_header(String::from("Max-Forwards"), String::from("0"));
-            out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-transrespbody"));
-
-            if let Some(session_id) = invite.get_body_property(&String::from("SessionID")){
-                out.add_body_property(String::from("SessionID"), session_id.to_owned());
-            }
-
-            out.add_body_property(String::from("Listening"), String::from("true"));
-            out.add_body_property(String::from("NeedConnectingEndpointInfo"), String::from("false"));
-            out.add_body_property(String::from("Conn-Type"), String::from("DirectConnect"));
-            out.add_body_property(String::from("TCP-Conn-Type"), String::from("DirectConnect"));
-            out.add_body_property(String::from("IPv6-global"), String::from(""));
-            out.add_body_property(String::from("UPnPNat"), String::from("false"));
-            out.add_body_property(String::from("Capabilities-Flags"), String::from("1"));
-            out.add_body_property(String::from("IPv4Internal-Addrs"), String::from("127.0.0.1"));
-            out.add_body_property(String::from("IPv4Internal-Port"), String::from("1865"));
-            out.add_body_property(String::from("Nat-Trav-Msg-Type"), String::from("WLX-Nat-Trav-Msg-Direct-Connect-Resp"));
-            out.add_body_property(String::from("Bridge"), String::from("TCPv1"));
-            out.add_body_property(String::from("Hashed-Nonce"), String::from("{2B95F56D-9CA0-9A64-82CE-ADC1F3C55845}"));
-            return Ok(out);
-        }
-
-        pub fn get_200_ok_direct_connect_bad_port(invite: &SlpPayload) -> Result<SlpPayload, PayloadError> {
-            let mut out = SlpPayload::new();
-            out.first_line = String::from("MSNSLP/1.0 200 OK");
-
-            
-            out.add_header(String::from("To"), invite.get_header(&String::from("From"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("From"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-
-            out.add_header(String::from("From"), invite.get_header(&String::from("To"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("To"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-            out.add_header(String::from("Via"), invite.get_header(&String::from("Via"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Via"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-            let cseq = invite.headers.get("CSeq")
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("CSeq"), payload: format!("{:?}", &invite) })?
-                .parse::<i32>()? + 1;
-            out.add_header(String::from("CSeq"), cseq.to_string());
-
-            out.add_header(String::from("Call-ID"), invite.get_header(&String::from("Call-ID"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Call-ID"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-            out.add_header(String::from("Max-Forwards"), String::from("0"));
-            out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-transrespbody"));
-
-            if let Some(session_id) = invite.get_body_property(&String::from("SessionID")){
-                out.add_body_property(String::from("SessionID"), session_id.to_owned());
-            }
-
-            out.add_body_property(String::from("Listening"), String::from("true"));
-            out.add_body_property(String::from("NeedConnectingEndpointInfo"), String::from("false"));
-            out.add_body_property(String::from("Conn-Type"), String::from("Firewall"));
-            out.add_body_property(String::from("TCP-Conn-Type"), String::from("Firewall"));
-            out.add_body_property(String::from("IPv6-global"), String::from(""));
-            out.add_body_property(String::from("UPnPNat"), String::from("false"));
-            out.add_body_property(String::from("Capabilities-Flags"), String::from("1"));
-            out.add_body_property(String::from("IPv4External-Addrs"), String::from("127.0.0.1"));
-            out.add_body_property(String::from("IPv4External-Port"), String::from("1866"));
-            out.add_body_property(String::from("Nat-Trav-Msg-Type"), String::from("WLX-Nat-Trav-Msg-Direct-Connect-Resp"));
-            out.add_body_property(String::from("Bridge"), String::from("TCPv1"));
-            out.add_body_property(String::from("Hashed-Nonce"), String::from("{2B95F56D-9CA0-9A64-82CE-ADC1F3C55845}"));
-            return Ok(out);
-        }
-
-        pub fn get_500_error_direct_connect(invite: &SlpPayload, bridge: String) -> Result<SlpPayload, PayloadError> {
-            let mut out = SlpPayload::new();
-            out.first_line = String::from("MSNSLP/1.0 500 Internal Error");
-
-            
-            out.add_header(String::from("To"), invite.get_header(&String::from("From"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("From"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-            out.add_header(String::from("From"), invite.get_header(&String::from("To"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("To"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-            out.add_header(String::from("Via"), invite.get_header(&String::from("Via"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Via"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-            let cseq = invite.headers.get("CSeq")
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("CSeq"), payload: format!("{:?}", &invite) })?
-                .parse::<i32>()? + 1;
-
-            out.add_header(String::from("CSeq"), cseq.to_string());
-            out.add_header(String::from("Call-ID"), invite.get_header(&String::from("Call-ID"))
-                .ok_or(PayloadError::MandatoryPartNotFound {name: String::from("Call-ID"), payload: format!("{:?}", &invite) })?
-                .to_owned());
-
-            out.add_header(String::from("Max-Forwards"), String::from("0"));
-            out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-transrespbody"));
-
-            out.add_body_property(String::from("Bridge"), String::from(bridge));
-            out.add_body_property(String::from("Nonce"), String::from("{00000000-0000-0000-0000-000000000000}"));
-            out.add_body_property(String::from("Capabilities-Flags"), String::from("0"));
-
-
-            return Ok(out);
-        }
-
-        pub fn get_transport_request(sender: &MsnUser, receiver: &MsnUser) -> SlpPayload {
-            let mut out = SlpPayload::new();
-
-            out.first_line = format!("INVITE MSNMSGR:{mpop_id} MSNSLP/1.0", mpop_id = &receiver.endpoint_id);
-
-            out.add_header(String::from("To"), format!("<msnmsgr:{mpop_id}>", mpop_id = &receiver.endpoint_id));
-            out.add_header(String::from("From"), format!("<msnmsgr:{mpop_id}>", mpop_id = &sender.endpoint_id));
-            out.add_header(String::from("Via"), format!("MSNSLP/1.0/TLP ;branch={{{branch_uuid}}}", branch_uuid = Uuid::new().to_string()));
-
-            out.add_header(String::from("CSeq"), String::from("0"));
-            out.add_header(String::from("Call-ID"), format!("{{{call_id}}}", call_id = Uuid::new().to_string()));
-            out.add_header(String::from("Max-Forwards"), String::from("0"));
-            out.add_header(String::from("Content-Type"), String::from("application/x-msnmsgr-transreqbody"));
-
-
-            out.add_body_property(String::from("NetID"), String::from("251789322"));
-            out.add_body_property(String::from("Conn-Type"), String::from("Firewall"));
-            out.add_body_property(String::from("TCP-Conn-Type"), String::from("Firewall"));
-            out.add_body_property(String::from("UPnPNat"), String::from("false"));
-            out.add_body_property(String::from("ICF"), String::from("false"));
-            out.add_body_property(String::from("IPv4Internal-Addrs"), String::from("127.0.0.1"));
-            out.add_body_property(String::from("IPv4Internal-Port"), String::from("1865"));
-            out.add_body_property(String::from("IPv6-global"), String::from(""));
-            out.add_body_property(String::from("Capabilities-Flags"), String::from("1"));
-            out.add_body_property(String::from("Nat-Trav-Msg-Type"), String::from("WLX-Nat-Trav-Msg-Direct-Connect-Req"));
-            out.add_body_property(String::from("Bridges"), String::from("SBBridge"));
-            out.add_body_property(String::from("Hashed-Nonce"), String::from("{D14FBAF3-CA6B-CC91-F93A-E76F24903F60}"));
-
-            return out;
-        }
-    
-
-    }
 
     pub struct P2PTransportPacketFactory;
 
     impl P2PTransportPacketFactory {
-
         pub fn get_ack(next_ack_sequence_number: u32) -> P2PTransportPacket {
             let mut out = P2PTransportPacket::new(0, None);
             out.set_ack(next_ack_sequence_number);
@@ -428,98 +45,87 @@ SessionID: 2216804035
         }
     }
 
-
     pub struct P2PPayloadFactory;
 
     impl P2PPayloadFactory {
-        pub fn get_sip_text_message() -> P2PPayload {
-            return P2PPayload::new(0x01, 0x0);
+        pub fn get_sip_text_message() -> RawP2PPayload {
+            return RawP2PPayload::new(0, 0x01, 0x0);
         }
 
-        pub fn get_file_transfer(session_id: u32) -> P2PPayload {
-            return P2PPayload::new(0x07, session_id);
+        pub fn get_file_transfer(session_id: u32) -> RawP2PPayload {
+            return RawP2PPayload::new(0, 0x07, session_id);
         }
 
-        pub fn get_data_preparation_message(session_id: u32) -> P2PPayload {
-            let mut payload = P2PPayload::new(0x01, session_id);
+        pub fn get_data_preparation_message(session_id: u32) -> RawP2PPayload {
+            let mut payload = RawP2PPayload::new(0, 0x01, session_id);
             payload.set_payload([0x0, 0x0, 0x0, 0x0].to_vec());
             return payload;
         }
 
-        pub fn get_msn_obj(session_id: u32) -> P2PPayload {
-            return P2PPayload::new(0x05, session_id);
-
+        pub fn get_msn_obj(session_id: u32) -> RawP2PPayload {
+            return RawP2PPayload::new(0, 0x05, session_id);
         }
     }
 
     pub struct TLVFactory;
 
     impl TLVFactory {
-
         pub fn get_ack(sequence_number: u32) -> TLV {
-            let mut buffer: [u8;4] = [0,0,0,0];
+            let mut buffer: [u8; 4] = [0, 0, 0, 0];
             BigEndian::write_u32(&mut buffer, sequence_number);
             return TLV::new(0x02, 0x04, buffer.to_vec());
         }
 
         pub fn get_nak(sequence_number: u32) -> TLV {
-            let mut buffer: [u8;4] = [0,0,0,0];
+            let mut buffer: [u8; 4] = [0, 0, 0, 0];
             BigEndian::write_u32(&mut buffer, sequence_number);
             return TLV::new(0x03, 0x04, buffer.to_vec());
         }
 
         pub fn get_untransfered_data_size(untransfered_payload_data_size: u64) -> TLV {
-            let mut buffer: [u8;8] = [0,0,0,0,0,0,0,0];
+            let mut buffer: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
             BigEndian::write_u64(&mut buffer, untransfered_payload_data_size);
             return TLV::new(0x01, 0x08, buffer.to_vec());
         }
 
         pub fn get_client_peer_info() -> TLV {
-
             let protocol_version: u16 = 0x0200;
             let impl_idu: u16 = 0x0000;
             let version: u16 = 0x0e00;
 
             let reserved_bytes: u16 = 0x2d76;
-                                  //0b0000000100001111
+            //0b0000000100001111
             let capabilities: u32 = 0b0000000100001110;
 
             let mut value: Vec<u8> = Vec::new();
 
-            let mut buffer: [u8;2] = [0,0];
+            let mut buffer: [u8; 2] = [0, 0];
             LittleEndian::write_u16(&mut buffer, protocol_version);
             value.append(&mut buffer.to_vec());
 
-            let mut buffer: [u8;2] = [0,0];
+            let mut buffer: [u8; 2] = [0, 0];
             LittleEndian::write_u16(&mut buffer, impl_idu);
             value.append(&mut buffer.to_vec());
-            
-            let mut buffer: [u8;2] = [0,0];
+
+            let mut buffer: [u8; 2] = [0, 0];
             LittleEndian::write_u16(&mut buffer, version);
             value.append(&mut buffer.to_vec());
 
-            let mut buffer: [u8;2] = [0,0];
+            let mut buffer: [u8; 2] = [0, 0];
             LittleEndian::write_u16(&mut buffer, reserved_bytes);
             value.append(&mut buffer.to_vec());
 
-            let mut buffer: [u8;4] = [0,0,0,0];
+            let mut buffer: [u8; 4] = [0, 0, 0, 0];
             LittleEndian::write_u32(&mut buffer, capabilities);
-            value.append(&mut buffer.to_vec());            
+            value.append(&mut buffer.to_vec());
 
             return TLV::new(0x01, 0xc, value);
         }
-
-
     }
-
 }
-
-
 
 #[cfg(test)]
 mod tests {
-    use crate::shared::payload::msg::raw_msg_payload::RawMsgPayload;
-
     /*
         #[test]
         #[allow(rustc::invalid_from_utf8_unchecked)]
@@ -554,7 +160,7 @@ mod tests {
             let p2p_payload_deserialized = P2PPayload::deserialize(p2p_payload_serialized.as_bytes(), p2p_transport_packet.payload_length).unwrap();
 
             assert_eq!(p2p_payload_deserialized.header_length, original_p2p_payload.header_length);
-            assert_eq!(p2p_payload_deserialized.tf_combination, original_p2p_payload.tf_combination);
+            assert_eq!(p2p_payload_deserialized.tf_byte(), original_p2p_payload.tf_byte());
 
             let slp_payload = original_p2p_payload.get_payload_as_slp().unwrap();
 
@@ -598,7 +204,7 @@ mod tests {
             let p2p_payload_deserialized = P2PPayload::deserialize(p2p_payload_serialized.as_bytes(), p2p_transport_packet.payload_length).unwrap();
 
             assert_eq!(p2p_payload_deserialized.header_length, original_p2p_payload.header_length);
-            assert_eq!(p2p_payload_deserialized.tf_combination, original_p2p_payload.tf_combination);
+            assert_eq!(p2p_payload_deserialized.tf_byte(), original_p2p_payload.tf_byte());
 
             let slp_payload = original_p2p_payload.get_payload_as_slp().unwrap();
 
@@ -817,7 +423,4 @@ mod tests {
 
 
          */
-
-
-
 }

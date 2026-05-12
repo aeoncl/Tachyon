@@ -1,4 +1,5 @@
-use crate::models::msn_object::MSNObject;
+use yaserde_derive::{YaDeserialize, YaSerialize};
+use crate::shared::models::msn_object::MsnObject;
 
 #[derive(Clone, Debug, YaDeserialize, YaSerialize, Default)]
 #[yaserde(rename = "map")]
@@ -40,11 +41,11 @@ pub struct MapBody {
 
     //Thumbnail URLEncoded MSN Object
     #[yaserde(rename = "tospath", attribute)]
-    pub tospath: MSNObject,
+    pub tospath: Option<MsnObject>,
 
     //Main URLEncoded MSN Object
     #[yaserde(rename = "mospath", attribute)]
-    pub mospath: MSNObject,
+    pub mospath: Option<MsnObject>,
 
     #[yaserde(rename = "dispn", attribute)]
     pub display_name: String

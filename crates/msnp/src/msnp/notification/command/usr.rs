@@ -179,8 +179,8 @@ pub enum AuthPolicy {
 }
 
 pub struct UsrServer {
-    tr_id: u128,
-    auth_type: OperationTypeServer,
+    pub tr_id: u128,
+    pub auth_type: OperationTypeServer,
 }
 
 impl UsrServer {
