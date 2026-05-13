@@ -1,10 +1,11 @@
 use anyhow::anyhow;
 use core::fmt;
-
+use std::fmt::Display;
+use std::str::from_utf8_unchecked;
 use byteorder::{BigEndian, ByteOrder};
-
+use log::info;
 use crate::{msnp::error::PayloadError, shared::traits::IntoBytes};
-use crate::p2p::v2::slp::slp_payload::SlpPayload;
+use crate::p2p::v2::slp::raw_slp_payload::RawSlpPayload;
 use super::tlv::{TLVList, ValueType};
 
 #[derive(Clone)]
@@ -152,10 +153,10 @@ impl RawP2PPayload {
         self.tlvs.get_missing_bytes_count()
     }
 
-    pub fn get_payload_as_slp(&self) -> Result<SlpPayload, PayloadError> {
+    pub fn get_payload_as_slp(&self) -> Result<RawSlpPayload, PayloadError> {
         if !self.payload.is_empty() {
             if self.flag <= 0x01 && self.session_id == 0x0000 {
-                return SlpPayload::try_from(&self.payload);
+                return RawSlpPayload::try_from(&self.payload);
             }
         }
         return Err(PayloadError::PayloadDoesNotContainsSLP);
@@ -227,6 +228,61 @@ impl IntoBytes for RawP2PPayload {
         out.extend(self.payload);
 
         out
+    }
+}
+
+
+impl Display for RawP2PPayload {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut out: Vec<u8> = Vec::new();
+
+        out.push(self.tf_byte().clone());
+
+        let mut buffer : [u8;2] = [0,0];
+        BigEndian::write_u16(&mut buffer, self.package_number);
+        out.append(&mut buffer.to_vec());
+
+        let mut buffer : [u8;4] = [0,0,0,0];
+        BigEndian::write_u32(&mut buffer, self.session_id);
+        out.append(&mut buffer.to_vec());
+
+        for tlv in &self.tlvs {
+            let mut tlv_serialized : Vec<u8> = tlv.to_bytes();
+            out.append(&mut tlv_serialized);
+        }
+
+        if !self.tlvs.is_empty() {
+            let mut last = self.tlvs.iter().last().unwrap().clone();
+            let mut padding : Vec<u8> = Vec::new();
+            let mut value = last.value;
+
+            let mut trailing_nul_bytes_count = 0;
+
+            while value.pop().unwrap_or(0x01) == 0x00 {
+                trailing_nul_bytes_count+=1;
+            }
+
+            let necessary_padding = 4 - trailing_nul_bytes_count;
+
+            if(necessary_padding>0) {
+                for i in 0..necessary_padding {
+                    padding.push(0x0);
+                }
+            }
+
+            info!("Padding length: {}", padding.len());
+
+            out.append(&mut padding);
+        }
+
+        out.insert(0, (out.len() + 1) as u8);
+
+        out.append(&mut self.payload.clone());
+
+        let out_str = unsafe { from_utf8_unchecked(&out) };
+        return write!(f, "{}", out_str);
+
     }
 }
 

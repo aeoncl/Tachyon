@@ -1,6 +1,8 @@
 use std::{char::decode_utf16, fmt::Display};
 
 use byteorder::{ByteOrder, LittleEndian};
+use crate::p2p::v2::slp::raw_slp_payload::EufGUID;
+use crate::shared::models::msn_object::MsnObject;
 
 
 pub trait SlpContext {

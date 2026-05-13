@@ -8,12 +8,15 @@ use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::events::room::message::{MessageType, OriginalSyncRoomMessageEvent};
 use matrix_sdk::ruma::events::typing::SyncTypingEvent;
 use matrix_sdk::{Client, Room};
+use ruma::UInt;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
 use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
+use msnp::shared::payload::msg::chunked_msg_payload::ChunkedMsgPayload;
 use msnp::shared::payload::msg::control_msg::ControlMessagePayload;
+use msnp::shared::payload::msg::gif_msg::GifMsgPayload;
 use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 
@@ -51,12 +54,31 @@ pub async fn handle_message(
 
 
     match event.content.msgtype {
-        MessageType::Audio(_) => {}
-        MessageType::Emote(_) => {}
-        MessageType::File(file) => {
+        MessageType::Audio(audio) => {
 
         }
-        MessageType::Image(_) => {}
+        MessageType::Emote(emote) => {
+
+        }
+        MessageType::File(file) => {
+            let size = file.info.map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
+
+            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, file.filename.unwrap_or("file".to_string()), file.source).await;
+        }
+        MessageType::Image(image) => {
+            if let Some(info) = image.info.as_ref() {
+                if let Some(mime) = info.mimetype.as_ref() {
+                    if mime.contains("gif") {
+
+                         if let Ok(Some(bytes)) = client.media().get_file(&image, true).await {
+
+                                 switchboard.send_msg(&message_sender.get_email_address(), message_sender.compute_display_name(), GifMsgPayload::new(bytes)).await;
+
+                        }
+                    }
+                }
+            }
+        }
         MessageType::Location(_) => {}
         MessageType::Notice(message) => {
             
@@ -70,7 +92,9 @@ pub async fn handle_message(
             switchboard.send_command(msg).await.unwrap();
 
         }
-        MessageType::ServerNotice(_) => {}
+        MessageType::ServerNotice(server) => {
+
+        }
         MessageType::Text(message) => {
 
             let msg = SwitchboardServerCommand::MSG(MsgServer {
@@ -82,7 +106,9 @@ pub async fn handle_message(
 
             switchboard.send_command(msg).await.unwrap();
         }
-        MessageType::Video(_) => {}
+        MessageType::Video(video) => {
+
+        }
         MessageType::VerificationRequest(_) => {}
         MessageType::_Custom(_) => {}
         _ => {}

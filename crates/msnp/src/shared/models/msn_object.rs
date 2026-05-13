@@ -10,7 +10,7 @@ use yaserde::{de::{self, from_str}, ser::to_string_with_config};
 
 use crate::msnp::error::PayloadError;
 use crate::msnp::error::CommandError;
-use crate::p2p::v2::slp::slp_context::SlpContext;
+use crate::p2p::v2::slp::session_slp_context::SlpContext;
 use crate::shared::models::email_address::EmailAddress;
 
 
@@ -67,21 +67,6 @@ pub struct MsnObject {
     /* Not serialized  */
     pub compute_sha1c: bool,
 
-}
-
-impl SlpContext for MsnObject {
-
-    fn from_slp_context(bytes: &[u8]) -> Option<Self> {
-        let base64_decoded = general_purpose::STANDARD.decode(bytes);
-        if let Ok(base64_decoded) = base64_decoded {
-            if let Ok(str) = String::from_utf8(base64_decoded){
-                if let Ok(msn_obj) = MsnObject::from_str(str.as_str()) {
-                    return Some(msn_obj);
-                }
-            }
-        }
-        return None;
-    }
 }
 
 impl FromStr for MsnObject {
@@ -545,7 +530,7 @@ mod tests {
 
     use lazy_static_include::lazy_static_include_bytes;
     use crate::shared::models::msn_object::{compute_sha1, MSNObjectFactory, MsnObject, MsnObjectContentType, MsnObjectType};
-    use crate::p2p::v2::slp::slp_context::SlpContext;
+    use crate::p2p::v2::slp::session_slp_context::SlpContext;
     use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::msn_object::FriendlyName;
 

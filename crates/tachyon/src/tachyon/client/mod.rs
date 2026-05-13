@@ -1,3 +1,4 @@
 pub mod tachyon_client;
 pub mod tachyon_client_repository;
-mod messaging;
+pub mod messaging;
+pub mod transport;

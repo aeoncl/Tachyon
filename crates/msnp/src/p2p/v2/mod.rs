@@ -1,4 +1,3 @@
-pub mod app_id;
 pub mod error;
 pub mod file;
 pub mod opcode;

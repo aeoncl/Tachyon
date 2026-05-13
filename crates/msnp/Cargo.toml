@@ -43,6 +43,7 @@ chrono.workspace = true
 hex = "0.4.3"
 typenum = "1.17.0"
 mime = "0.3.17"
+bytes = "1.11.1"
 
 [lib]
 name = "msnp"

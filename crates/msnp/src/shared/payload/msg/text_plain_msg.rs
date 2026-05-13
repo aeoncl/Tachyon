@@ -54,7 +54,7 @@ impl TryFromRawMsgPayload for TextPlainMessagePayload {
 
         let font_color = FontColor::parse_from_bgr(format_header_map.get("CO").unwrap_or(&"0"))?;
 
-        let body =  String::from_utf8(raw.body)?;
+        let body = raw.get_body_as_string()?;
 
         Ok(
             TextPlainMessagePayload {
