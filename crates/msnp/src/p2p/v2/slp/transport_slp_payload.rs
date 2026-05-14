@@ -1,14 +1,13 @@
+use crate::msnp::error::PayloadError;
+use crate::p2p::v2::slp::raw_slp_payload::{RawSlpPayload, TryFromRawSlpPayload};
+use crate::p2p::v2::slp::{SlpHeaders, SlpStatus};
+use crate::shared::models::uuid::Uuid;
+use anyhow::anyhow;
+use linked_hash_map::LinkedHashMap;
 use std::convert::Infallible;
 use std::fmt::{Display, Formatter};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
-use anyhow::anyhow;
-use linked_hash_map::LinkedHashMap;
-use crate::msnp::error::{CommandError, PayloadError};
-use crate::msnp::notification::models::ip_address::IpAddress;
-use crate::p2p::v2::slp::raw_slp_payload::{RawSlpPayload, TryFromRawSlpPayload};
-use crate::p2p::v2::slp::{SlpHeaders, SlpStatus};
-use crate::shared::models::uuid::Uuid;
 
 pub struct Bridges(pub Vec<TransportBridge>);
 
