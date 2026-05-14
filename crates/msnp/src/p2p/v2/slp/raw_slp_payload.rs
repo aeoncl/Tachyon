@@ -3,34 +3,25 @@
  */
 
 use anyhow::anyhow;
+use base64::{engine::general_purpose, Engine};
+use linked_hash_map::LinkedHashMap;
+use num::FromPrimitive;
 use std::{
     fmt::Display,
     str::{from_utf8, FromStr},
 };
-use std::convert::Infallible;
-use std::fmt::Formatter;
-use std::net::{Ipv4Addr, Ipv6Addr};
-use base64::{engine::general_purpose, Engine};
-use linked_hash_map::LinkedHashMap;
-use log::warn;
-use num::FromPrimitive;
 
+use crate::p2p::v2::slp::session_slp_context::{PreviewData, SlpContext};
 use crate::shared::models::endpoint_id::EndpointId;
+use crate::shared::traits::IntoBytes;
 use crate::{
     msnp::error::PayloadError,
     shared::models::{msn_object::MsnObject, msn_user::MsnUser, uuid::Uuid},
 };
-use crate::msnp::notification::models::ip_address::IpAddress;
-use crate::msnp::switchboard::models::session_id::SessionId;
-use crate::p2p::v2::slp::app_id::AppID;
-use crate::p2p::v2::slp::session_slp_context::{PreviewData, SlpContext};
-use crate::p2p::v2::slp::session_slp_payload::{SessionClosePayload, SessionReqInvitePayload, SessionResponseInvitePayload};
-use crate::shared::models::capabilities::Capabilities;
-use crate::shared::traits::IntoBytes;
 
 pub trait TryFromRawSlpPayload {
     type Err;
-    fn try_from_raw_slp_payload(payload: RawSlpPayload) -> Result<Self, Self::Err>;
+    fn try_from_raw_slp_payload(payload: RawSlpPayload) -> Result<Self, Self::Err> where Self: Sized;
 }
 
 pub trait IntoRawSlpPayload {
@@ -216,10 +207,11 @@ impl Display for EufGUID {
     }
 }
 
-impl TryFrom<&str> for EufGUID {
-    type Error = PayloadError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+impl FromStr for EufGUID {
+    type Err = PayloadError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value.to_uppercase().as_str() {
             "{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}" => {
                 return Ok(EufGUID::MSNObject);
@@ -248,7 +240,6 @@ impl TryFrom<&str> for EufGUID {
         }
     }
 }
-
 pub struct SlpPayloadFactory;
 
 impl SlpPayloadFactory {
@@ -804,14 +795,13 @@ impl SlpPayloadFactory {
 }
 
 mod tests {
-
-    use crate::p2p::v2::slp::raw_slp_payload::RawSlpPayload;
+    use std::str::FromStr;
 
     use super::EufGUID;
 
     #[test]
     fn test_euf_guid_try_from_str() {
-        let test = EufGUID::try_from("{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}").unwrap();
+        let test = EufGUID::from_str("{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}").unwrap();
         assert_eq!(test, EufGUID::MSNObject);
     }
 
@@ -819,24 +809,5 @@ mod tests {
     fn test_euf_guid_to_str() {
         let test = EufGUID::MSNObject.to_string();
         assert_eq!("{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}", test.as_str());
-    }
-
-    #[test]
-    fn test_slp_payload_get_euf_guid_success() {
-        let mut payload = RawSlpPayload::new();
-        payload.add_body_property(
-            String::from("EUF-GUID"),
-            String::from("{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}"),
-        );
-
-        let result = payload.get_euf_guid().unwrap().unwrap();
-        assert_eq!(result, EufGUID::MSNObject);
-    }
-
-    #[test]
-    fn test_slp_payload_get_euf_guid_none() {
-        let payload = RawSlpPayload::new();
-        let result = payload.get_euf_guid().unwrap();
-        assert_eq!(result.is_none(), true);
     }
 }

@@ -49,16 +49,16 @@ impl PreviewData {
         //Preview
         LittleEndian::write_u32(&mut result[16..20], 1);
 
-        let mut test : Vec<u8> = Vec::new();
+        let mut file_name_bytes: Vec<u8> = Vec::new();
 
-        let mut test_str = self.filename.clone();
-        test_str.push('\0');
+        let mut file_name = self.filename.clone();
+        file_name.push('\0');
 
-        encode_utf16::<LittleEndian>(&mut test, test_str.as_str());
+        encode_utf16::<LittleEndian>(&mut file_name_bytes, file_name.as_str());
 
 
-        let slice = &mut result[20..test.len()+20];
-        slice.clone_from_slice(test.as_slice());
+        let slice = &mut result[20..file_name_bytes.len()+20];
+        slice.clone_from_slice(file_name_bytes.as_slice());
 
         return result;
     }

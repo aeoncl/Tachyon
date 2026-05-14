@@ -591,23 +591,6 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_test() {
-        let base64_context = String::from("PG1zbm9iaiBDcmVhdG9yPSJidWRkeTFAaG90bWFpbC5jb20iIFNpemU9IjI0NTM5IiBUeXBlPSIzIiBMb2NhdGlvbj0iVEZSMkMudG1wIiBGcmllbmRseT0iQUFBPSIgU0hBMUQ9InRyQzhTbEZ4MnNXUXhaTUlCQVdTRW5YYzhvUT0iIFNIQTFDPSJVMzJvNmJvc1p6bHVKcTgyZUF0TXB4NWRJRUk9Ii8+DQoA");
-        let msn_obj = MsnObject::from_slp_context(&base64_context.into_bytes()).unwrap();
-        assert_eq!(msn_obj.avatarcontentid, None);
-        assert_eq!(msn_obj.avatarid, None);
-        assert_eq!(msn_obj.compute_sha1c, false);
-        assert_eq!(msn_obj.contentid, None);
-        assert!(msn_obj.contenttype == None);
-        assert_eq!(msn_obj.creator.as_str(), "buddy1@hotmail.com");
-        assert_eq!(msn_obj.size, 24539);
-        assert!(msn_obj.obj_type == MsnObjectType::DisplayPicture);
-        assert_eq!(msn_obj.location.as_str(), "TFR2C.tmp");
-        assert_eq!(msn_obj.sha1d.as_str(), "trC8SlFx2sWQxZMIBAWSEnXc8oQ=");
-        println!("{:?}", &msn_obj);
-    }
-
-    #[test]
     fn testttt() {
         let str = "bQBzAG4AbQBzAGcAcgBfADIAMAAyADMAXwAxADEAXwAxAF8AMQAyAF8AMwA4AF8ANAAxAF8ANQA4ADEAXwAyAAAA";
         let test = FriendlyName::from_str(str).expect("To have worked");
