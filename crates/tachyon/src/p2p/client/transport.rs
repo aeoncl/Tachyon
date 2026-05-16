@@ -8,6 +8,7 @@ use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::payload::msg::p2p_msg_payload::P2PMessagePayload;
 use std::sync::{Arc, Mutex};
 use dashmap::DashMap;
+use msnp::p2p::v2::factories::TLVFactory;
 use msnp::p2p::v2::slp::raw_slp_payload::RawSlpPayload;
 use msnp::shared::models::uuid::Uuid;
 use msnp::shared::traits::IntoBytes;
@@ -52,8 +53,11 @@ impl TransportSender {
     }
 }
 
+#[derive(PartialEq)]
 enum TransportSessionStatus {
     Initial,
+    HandshakeOngoing,
+    HandshakeCompleted,
     Negotiating(Uuid),
     Ready
 }
@@ -62,7 +66,7 @@ type PackageNumber = u16;
 
 struct TransportInner {
     sequence_number: tokio::sync::Mutex<u32>,
-    status: Mutex<TransportSessionStatus>,
+    status: tokio::sync::Mutex<TransportSessionStatus>,
     transport_sender: tokio::sync::Mutex<TransportSender>,
     chunks_unwraped: DashMap<PackageNumber, Vec<P2PTransportPacket>>
 }
@@ -80,7 +84,7 @@ impl Transport {
         Transport {
             inner: Arc::new(TransportInner {
                 sequence_number: tokio::sync::Mutex::new(sequence_number),
-                status: Mutex::new(TransportSessionStatus::Initial),
+                status: tokio::sync::Mutex::new(TransportSessionStatus::Initial),
                 transport_sender: tokio::sync::Mutex::new(initial_transport),
                 chunks_unwraped: Default::default(),
             }),
@@ -114,19 +118,30 @@ impl Transport {
 
         let actual_payload_serialized_len = packet.clone().into_bytes().len();
 
-        let transport_packet = P2PTransportPacket::new(current_sequence_number, Some(packet));
+        let mut transport_packet = P2PTransportPacket::new(current_sequence_number, Some(packet));
+
+        {
+            let mut status_lock = self.inner.status.lock().await;
+            if *status_lock == TransportSessionStatus::Initial {
+                transport_packet.set_syn(TLVFactory::get_client_peer_info());
+            };
+
+            *status_lock = TransportSessionStatus::HandshakeOngoing;
+        }
+
 
         let estimated_payload_len = transport_packet.get_payload_length();
 
         println!("Actual len: {} == {} computed len ", actual_payload_serialized_len, estimated_payload_len);
 
 
-            println!("TransportPacket: {:?}", &transport_packet);
+        println!("TransportPacket: {:?}", &transport_packet);
 
         let next_sequence_number = current_sequence_number + transport_packet.get_payload_length();;
         println!("Next Sequence Number: {:?}", &next_sequence_number);
 
         transport_sender_lock.send_packet(sender, sender_display_name, receiver, transport_packet).await;
+
 
         *sequence_lock = next_sequence_number
     }

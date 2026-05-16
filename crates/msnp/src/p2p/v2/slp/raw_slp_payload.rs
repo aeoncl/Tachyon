@@ -244,23 +244,23 @@ pub struct SlpPayloadFactory;
 
 impl SlpPayloadFactory {
     pub fn get_session_bye(
-        sender: &MsnUser,
-        receiver: &MsnUser,
-        call_id: Uuid,
-        session_id: String,
+        sender: &EndpointId,
+        receiver: &EndpointId,
+        call_id: &Uuid,
+        session_id: u32,
     ) -> Result<RawSlpPayload, PayloadError> {
         let mut out = RawSlpPayload::new();
         out.first_line = format!(
             "BYE MSNMSGR:{mpop_id} MSNSLP/1.0",
-            mpop_id = receiver.endpoint_id
+            mpop_id = receiver
         );
         out.add_header(
             String::from("To"),
-            format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.endpoint_id),
+            format!("<msnmsgr:{mpop_id}>", mpop_id = receiver),
         );
         out.add_header(
             String::from("From"),
-            format!("<msnmsgr:{mpop_id}>", mpop_id = sender.endpoint_id),
+            format!("<msnmsgr:{mpop_id}>", mpop_id = sender),
         );
         out.add_header(
             String::from("Via"),
@@ -279,7 +279,7 @@ impl SlpPayloadFactory {
             String::from("Content-Type"),
             String::from("application/x-msnmsgr-sessionclosebody"),
         );
-        out.add_body_property(String::from("SessionID"), session_id);
+        out.add_body_property(String::from("SessionID"), session_id.to_string());
         return Ok(out);
     }
 
@@ -367,6 +367,7 @@ impl SlpPayloadFactory {
         receiver: &EndpointId,
         context: &PreviewData,
         session_id: u32,
+        call_id: &Uuid
     ) -> Result<RawSlpPayload, PayloadError> {
         let mut out = RawSlpPayload::new();
         out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver);
@@ -389,7 +390,7 @@ impl SlpPayloadFactory {
         out.add_header(String::from("CSeq"), String::from("0"));
         out.add_header(
             String::from("Call-ID"),
-            format!("{{{call_id}}}", call_id = Uuid::new().to_string()),
+            format!("{{{call_id}}}", call_id = call_id.to_string()),
         );
         out.add_header(String::from("Max-Forwards"), String::from("0"));
         out.add_header(

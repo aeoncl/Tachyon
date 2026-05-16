@@ -1,5 +1,7 @@
+use std::time::Duration;
 use log::info;
 use matrix_sdk::media::{MediaFormat, MediaRequestParameters};
+use tokio::time::sleep;
 use msnp::msnp::error::PayloadError;
 use msnp::p2p::v2::factories::P2PPayloadFactory;
 use crate::p2p::client::transport::{Transport, UnwrappedP2PPacket};
@@ -9,6 +11,7 @@ use msnp::p2p::v2::slp::raw_slp_payload::{RawSlpPayload, SlpPayloadFactory};
 use msnp::p2p::v2::slp::SlpPayload;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
+use msnp::shared::traits::IntoBytes;
 use crate::p2p::client::session::SessionType;
 
 pub async fn handle_p2p_packet(transport: Transport, p2p_packet: P2PTransportPacket, tachyon_client: TachyonClient) {
@@ -49,6 +52,13 @@ pub async fn handle_p2p_packet(transport: Transport, p2p_packet: P2PTransportPac
                                         p2p_payload.payload = file;
 
                                         session.receive_packet(&content.sender, &content.sender_display_name, &content.receiver, p2p_payload).await;
+
+                                        let bye = SlpPayloadFactory::get_session_bye(&content.sender, &content.receiver, session.call_id(), session_id).unwrap();
+                                        let mut bye_packet = P2PPayloadFactory::get_sip_text_message();
+                                        bye_packet.set_payload(bye.into_bytes());
+
+                                        sleep(Duration::from_secs(10)).await;
+                                        session.receive_packet(&content.sender, &content.sender_display_name, &content.receiver, bye_packet).await;
                                     }
                                     Err(_) => {
                                         //TODO send err 500

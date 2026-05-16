@@ -9,6 +9,7 @@ use msnp::shared::traits::IntoBytes;
 use std::sync::{Arc, Mutex};
 use anyhow::anyhow;
 use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
+use msnp::shared::models::uuid::Uuid;
 
 pub type SessionId = u32;
 
@@ -31,7 +32,8 @@ pub struct P2PSessionInner {
     session_id: SessionId,
     transport: Transport,
     session_type: SessionType,
-    session_status: Mutex<SessionStatus>
+    session_status: Mutex<SessionStatus>,
+    call_id: Uuid,
 }
 
 #[derive(Clone)]
@@ -51,7 +53,7 @@ impl P2PSession {
     pub async fn receive_invite(&self) {
         match &self.inner.session_type {
             SessionType::ReceiveFile(content) => {
-                let slp_payload = SlpPayloadFactory::get_file_transfer_request(&content.sender, &content.receiver,  &PreviewData::new(content.file_size, content.filename.clone()), self.inner.session_id).unwrap();
+                let slp_payload = SlpPayloadFactory::get_file_transfer_request(&content.sender, &content.receiver,  &PreviewData::new(content.file_size, content.filename.clone()), self.inner.session_id, &self.inner.call_id).unwrap();
                 let mut packet = P2PPayloadFactory::get_sip_text_message();
                 packet.set_payload(slp_payload.into_bytes());
                 self.inner.transport.receive_packet(&content.sender, &content.sender_display_name, &content.receiver, packet).await;
@@ -65,6 +67,10 @@ impl P2PSession {
 
     pub fn session_type(&self) -> &SessionType {
         &self.inner.session_type
+    }
+
+    pub fn call_id(&self) -> &Uuid {
+        &self.inner.call_id
     }
 
     pub(crate) fn accept(&self) -> Result<(), anyhow::Error> {
@@ -86,6 +92,7 @@ impl P2PSession {
                 transport,
                 session_type,
                 session_status: Mutex::new(SessionStatus::Invite),
+                call_id: Uuid::from_seed(&session_id.to_string()),
             }),
         }
     }
