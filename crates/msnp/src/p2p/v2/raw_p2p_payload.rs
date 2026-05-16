@@ -1,15 +1,13 @@
-use anyhow::anyhow;
-use core::fmt;
-use std::fmt::Display;
-use std::ops::Sub;
-use std::str::from_utf8_unchecked;
-use byteorder::{BigEndian, ByteOrder};
-use log::info;
-use rand::random;
-use crate::{msnp::error::PayloadError, shared::traits::IntoBytes};
+use super::tlv::{TLVList, ValueType};
 use crate::p2p::v2::factories::TLVFactory;
 use crate::p2p::v2::slp::raw_slp_payload::RawSlpPayload;
-use super::tlv::{TLVList, ValueType};
+use crate::{msnp::error::PayloadError, shared::traits::IntoBytes};
+use anyhow::anyhow;
+use byteorder::{BigEndian, ByteOrder};
+use core::fmt;
+use rand::random;
+use std::fmt::Display;
+use std::str::from_utf8_unchecked;
 
 #[derive(Clone)]
 pub struct RawP2PPayload {
@@ -150,16 +148,10 @@ impl RawP2PPayload {
 
         let mut out = Vec::with_capacity((remaining_bytes / chunk_size as u64) as usize);
 
-
         let chunk_count = payload.len().div_ceil(chunk_size);
 
         for (index, chunk) in payload.chunks(chunk_size).enumerate() {
-
-            let flag: u8 = if index == 0 {
-                1
-            } else {
-                0
-            };
+            let flag: u8 = if index == 0 { 1 } else { 0 };
 
             let mut payload = RawP2PPayload::new(transfer_type, flag, session_id);
             remaining_bytes = remaining_bytes.saturating_sub(chunk_size as u64);
@@ -170,7 +162,6 @@ impl RawP2PPayload {
 
             if index < chunk_count - 1 {
                 payload.add_tlv(TLVFactory::get_untransfered_data_size(remaining_bytes));
-
             }
 
             payload.package_number = package_number;
@@ -276,60 +267,6 @@ impl IntoBytes for RawP2PPayload {
     }
 }
 
-
-impl Display for RawP2PPayload {
-
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut out: Vec<u8> = Vec::new();
-
-        out.push(self.tf_byte().clone());
-
-        let mut buffer : [u8;2] = [0,0];
-        BigEndian::write_u16(&mut buffer, self.package_number);
-        out.append(&mut buffer.to_vec());
-
-        let mut buffer : [u8;4] = [0,0,0,0];
-        BigEndian::write_u32(&mut buffer, self.session_id);
-        out.append(&mut buffer.to_vec());
-
-        for tlv in &self.tlvs {
-            let mut tlv_serialized : Vec<u8> = tlv.to_bytes();
-            out.append(&mut tlv_serialized);
-        }
-
-        if !self.tlvs.is_empty() {
-            let mut last = self.tlvs.iter().last().unwrap().clone();
-            let mut padding : Vec<u8> = Vec::new();
-            let mut value = last.value;
-
-            let mut trailing_nul_bytes_count = 0;
-
-            while value.pop().unwrap_or(0x01) == 0x00 {
-                trailing_nul_bytes_count+=1;
-            }
-
-            let necessary_padding = 4 - trailing_nul_bytes_count;
-
-            if(necessary_padding>0) {
-                for i in 0..necessary_padding {
-                    padding.push(0x0);
-                }
-            }
-
-            info!("Padding length: {}", padding.len());
-
-            out.append(&mut padding);
-        }
-
-        out.insert(0, (out.len() + 1) as u8);
-
-        out.append(&mut self.payload.clone());
-
-        let out_str = unsafe { from_utf8_unchecked(&out) };
-        return write!(f, "{}", out_str);
-
-    }
-}
 
 #[cfg(test)]
 mod tests {

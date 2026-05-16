@@ -2,10 +2,9 @@ use core::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::str::{from_utf8_unchecked, FromStr};
 
+use crate::{msnp::error::PayloadError, shared::traits::IntoBytes};
 use anyhow::anyhow;
 use byteorder::{BigEndian, ByteOrder};
-use log::info;
-use crate::{msnp::error::PayloadError, shared::traits::IntoBytes};
 
 use super::{
     factories::TLVFactory,
@@ -184,71 +183,6 @@ impl P2PTransportPacket {
             self.payload_length += added_len;
         }
     }
-
-    pub fn to_vec(&self) -> Vec<u8> {
-        let mut out: Vec<u8> = Vec::new();
-        out.push(self.op_code.clone().into());
-
-        let mut buffer : [u8;4] = [0,0,0,0];
-        BigEndian::write_u32(&mut buffer, self.sequence_number);
-        out.append(&mut buffer.to_vec());
-
-        for tlv in &self.tlvs {
-            let mut tlv_serialized : Vec<u8> = tlv.to_bytes();
-            out.append(&mut tlv_serialized);
-        }
-
-        if !self.tlvs.is_empty() {
-            let mut last = self.tlvs.iter().last().unwrap().clone();
-            let mut padding : Vec<u8> = Vec::new();
-            let mut value = last.value;
-
-            let mut trailing_nul_bytes_count = 0;
-
-            while value.pop().unwrap_or(0x01) == 0x00 {
-                trailing_nul_bytes_count+=1;
-            }
-
-            let necessary_padding = 4 - trailing_nul_bytes_count;
-
-            if(necessary_padding>0) {
-                for i in 0..necessary_padding {
-                    padding.push(0x0);
-                }
-            }
-
-            info!("Padding length: {}", padding.len());
-
-            out.append(&mut padding);
-        }
-
-        let mut payload_bytes = Vec::new();
-        if let Some(payload) = &self.payload {
-            let payload = payload.to_string();
-            let payload_length = payload.len() as u16;
-
-            payload_bytes = payload.as_bytes().to_vec();
-
-            let mut buffer : [u8;2] = [0,0];
-            BigEndian::write_u16(&mut buffer, payload_length);
-            out.insert(1, buffer[0]);
-            out.insert(2, buffer[1]);
-        } else {
-            let mut buffer : [u8;2] = [0,0];
-            out.insert(1, buffer[0]);
-            out.insert(2, buffer[1]);
-        }
-
-        out.insert(0, (out.len() + 1) as u8);
-
-        out.append(&mut payload_bytes);
-
-        let padding : [u8;4] = [0,0,0,0];
-        out.append(&mut padding.to_vec());
-
-        return out;
-
-    }
 }
 
 impl TryFrom<&[u8]> for P2PTransportPacket {
@@ -302,7 +236,7 @@ impl IntoBytes for P2PTransportPacket {
         let mut out: Vec<u8> = Vec::new();
         out.push(self.op_code.into());
 
-        // Placeholder for payload_length — filled in below
+        // Placeholder for payload_length
         out.push(0);
         out.push(0);
 
@@ -318,13 +252,13 @@ impl IntoBytes for P2PTransportPacket {
 
         // Serialize the Data Layer payload and write its length into the header
         if let Some(payload) = self.payload {
-            let payload_bytes = payload.to_string().into_bytes();
+            let payload_bytes = payload.into_bytes();
             let payload_length = payload_bytes.len() as u16;
 
             let mut buffer: [u8; 2] = [0, 0];
             BigEndian::write_u16(&mut buffer, payload_length);
-            out[1] = buffer[0];
-            out[2] = buffer[1];
+            out[2] = buffer[0];
+            out[3] = buffer[1];
 
             out.extend(payload_bytes);
         }
@@ -342,15 +276,6 @@ impl FromStr for P2PTransportPacket {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let bytes = s.as_bytes();
         return P2PTransportPacket::try_from(bytes);
-    }
-}
-
-impl Display for P2PTransportPacket {
-
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut out: Vec<u8> = self.to_vec();
-        let mut out_str = unsafe { from_utf8_unchecked(&out) }.to_string();
-        return write!(f, "{}", out_str);
     }
 }
 
@@ -391,7 +316,6 @@ impl Debug for TransportOperationCode {
 }
 
 impl TransportOperationCode {
-
     pub fn set_syn(&mut self) {
         self.0 |= OperationCode::Syn as u8;
     }
@@ -409,5 +333,4 @@ impl TransportOperationCode {
         let is_syn_flag = &self.0 & OperationCode::Syn as u8;
         return is_syn_flag == OperationCode::Syn as u8;
     }
-
 }
