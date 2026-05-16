@@ -1,29 +1,24 @@
 use crate::matrix::extensions::direct::DirectRoom;
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
-use crate::switchboard::extensions::CustomStyles;
 use crate::switchboard::models::connection_phase::ConnectionPhase;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::switchboard::models::switchboard_handle::{SwitchboardHandle, SwitchboardState};
 use crate::switchboard::models::switchboard_token::SwitchboardToken;
 use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::mappers::user_id::MatrixIdCompatible;
+use crate::tachyon::repository::RepositoryStr;
 use matrix_sdk::{Client, Room, RoomMemberships};
 use msnp::msnp::switchboard::command::cal::{CalServer, CalServerFunction};
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
 use msnp::msnp::switchboard::command::iro::IroServer;
 use msnp::msnp::switchboard::command::joi::JoiServer;
-use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::switchboard::models::session_id::SessionId;
-use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
-use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use std::str::FromStr;
 use tokio::sync::mpsc::Sender;
-use msnp::shared::models::display_name::DisplayName;
-use crate::tachyon::global_state::GlobalState;
-use crate::tachyon::mappers::user_id::MatrixIdCompatible;
-use crate::tachyon::repository::RepositoryStr;
 
 const ROOM_USER_PORTAL_MODE: bool = true;
 

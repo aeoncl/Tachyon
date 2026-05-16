@@ -1,10 +1,13 @@
 use anyhow::anyhow;
 use core::fmt;
 use std::fmt::Display;
+use std::ops::Sub;
 use std::str::from_utf8_unchecked;
 use byteorder::{BigEndian, ByteOrder};
 use log::info;
+use rand::random;
 use crate::{msnp::error::PayloadError, shared::traits::IntoBytes};
+use crate::p2p::v2::factories::TLVFactory;
 use crate::p2p::v2::slp::raw_slp_payload::RawSlpPayload;
 use super::tlv::{TLVList, ValueType};
 
@@ -135,6 +138,48 @@ impl RawP2PPayload {
 
     pub fn is_chunked_packet(&self) -> bool {
         self.get_missing_bytes_count() > 0
+    }
+
+    pub fn chunk(self, chunk_size: usize) -> Vec<RawP2PPayload> {
+        let payload = self.payload;
+        let transfer_type = self.transfer_type;
+        let session_id = self.session_id;
+        let package_number = random();
+        let tlvs = self.tlvs;
+        let mut remaining_bytes: u64 = payload.len() as u64;
+
+        let mut out = Vec::with_capacity((remaining_bytes / chunk_size as u64) as usize);
+
+
+        let chunk_count = payload.len().div_ceil(chunk_size);
+
+        for (index, chunk) in payload.chunks(chunk_size).enumerate() {
+
+            let flag: u8 = if index == 0 {
+                1
+            } else {
+                0
+            };
+
+            let mut payload = RawP2PPayload::new(transfer_type, flag, session_id);
+            remaining_bytes = remaining_bytes.saturating_sub(chunk_size as u64);
+
+            if index == 0 {
+                payload.tlvs = tlvs.clone();
+            }
+
+            if index < chunk_count - 1 {
+                payload.add_tlv(TLVFactory::get_untransfered_data_size(remaining_bytes));
+
+            }
+
+            payload.package_number = package_number;
+            payload.payload = chunk.to_vec();
+
+            out.push(payload);
+        }
+
+        out
     }
 
     pub fn get_tlv_for_type(&self, value_type: &ValueType) -> Option<&super::tlv::TLV> {

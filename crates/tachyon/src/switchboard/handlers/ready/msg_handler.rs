@@ -14,7 +14,8 @@ use msnp::msnp::switchboard::command::msg::{MsgAcknowledgment, MsgClient, MsgPay
 use msnp::shared::command::nak::NakServer;
 use tokio::sync::mpsc::Sender;
 use msnp::shared::payload::msg::chunked_msg_payload::{ChunkMetadata, ChunkedMsgPayload, MsgChunks};
-use crate::p2p::p2p_handler::handle_p2p;
+use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
+use crate::p2p::p2p_handler::handle_p2p_packet;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 
 pub(super) async fn handle_msg(msg_command: MsgClient, command_sender: Sender<SwitchboardServerCommand>, tachyon_client: TachyonClient, matrix_client: Client, room: Room, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
@@ -79,7 +80,8 @@ pub fn handle_msg_payload_task(tr_id: u128, ack_type: MsgAcknowledgment, payload
                 }
             }
             MsgPayload::P2P(p2p) => {
-                handle_p2p(tachyon_client, p2p.payload).await;
+                let transport = tachyon_client.get_or_create_transport(room_clone.room_id(), &room_clone.to_msn_user_lazy().await.unwrap());
+                handle_p2p_packet(transport, p2p.payload, tachyon_client).await;
                 Ok(())
             }
             MsgPayload::Chunked(_) => {

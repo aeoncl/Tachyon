@@ -72,7 +72,7 @@ pub async fn handle_message(
 
                          if let Ok(Some(bytes)) = client.media().get_file(&image, true).await {
 
-                                 switchboard.send_msg(&message_sender.get_email_address(), message_sender.compute_display_name(), GifMsgPayload::new(bytes)).await;
+                                 switchboard.receive_msg(&message_sender.get_email_address(), message_sender.compute_display_name(), GifMsgPayload::new(bytes)).await;
 
                         }
                     }
@@ -89,7 +89,7 @@ pub async fn handle_message(
             }
             );
 
-            switchboard.send_command(msg).await.unwrap();
+            switchboard.receive_command(msg).await.unwrap();
 
         }
         MessageType::ServerNotice(server) => {
@@ -104,7 +104,7 @@ pub async fn handle_message(
             }
             );
 
-            switchboard.send_command(msg).await.unwrap();
+            switchboard.receive_command(msg).await.unwrap();
         }
         MessageType::Video(video) => {
 
@@ -134,7 +134,7 @@ pub(crate) async fn handle_typing_notice(event: SyncTypingEvent, room: Room, tac
                     }
                 };
 
-                switchboard.send_command(SwitchboardServerCommand::MSG(MsgServer {
+                switchboard.receive_command(SwitchboardServerCommand::MSG(MsgServer {
                     sender: sender.get_email_address().clone(),
                     display_name: DisplayName::new_from_ref(sender.compute_display_name()),
                     payload: MsgPayload::Control(ControlMessagePayload::new(sender.get_email_address().clone()))

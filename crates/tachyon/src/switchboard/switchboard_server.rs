@@ -3,12 +3,12 @@ use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::global_state::GlobalState;
 use anyhow::anyhow;
-use log::{debug, error, info};
+use log::{debug, error, info, logger};
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::raw_command_parser::RawCommandParser;
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
 use msnp::shared::traits::{IntoBytes, TryFromRawCommand};
-use std::str::from_utf8_unchecked;
+use std::str::{from_utf8, from_utf8_unchecked};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::tcp::OwnedWriteHalf;
 use tokio::net::{TcpListener, TcpStream};
@@ -151,9 +151,16 @@ fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> S
 
                         let bytes = command.into_bytes();
 
-                        unsafe {
-                            debug!("SB >> | {}", from_utf8_unchecked(&bytes));
-                        }
+                         match from_utf8(&bytes) {
+
+                                Ok(utf8_str) => {
+                                      debug!("SB >> | {}", utf8_str);
+                                }
+                                Err(_) => {
+                                      debug!("SB >> | MSG Containing binary blob");
+
+                                }
+                         }
 
                         let _result = write.write_all(&bytes).await;
                     }

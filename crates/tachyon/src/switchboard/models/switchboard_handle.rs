@@ -78,7 +78,7 @@ impl SwitchboardHandle {
         Ok(())
     }
 
-    pub async fn send_msg(&self, sender: &EmailAddress, sender_display_name: &str, msg: impl IntoRawMsgPayload) -> Result<(), anyhow::Error> {
+    pub async fn receive_msg(&self, sender: &EmailAddress, sender_display_name: &str, msg: impl IntoRawMsgPayload) -> Result<(), anyhow::Error> {
         let raw = msg.into_raw();
         let allow_chunking = raw.get_content_type().unwrap() != MsgContentType::P2P;
 
@@ -86,7 +86,7 @@ impl SwitchboardHandle {
             //Send chunked
             let mut chunks = MsgChunks::split_into_chunks(raw, MAX_MSG_BODY_SIZE);
             for current in chunks.chunks_mut().drain(..) {
-                self.send_command(
+                self.receive_command(
                     SwitchboardServerCommand::MSG(MsgServer {
                         sender: sender.to_owned(),
                         display_name: DisplayName::new(sender_display_name.to_owned()),
@@ -97,7 +97,7 @@ impl SwitchboardHandle {
 
         } else {
             //Send non chunked
-            self.send_command(
+            self.receive_command(
                 SwitchboardServerCommand::MSG(MsgServer {
                     sender: sender.to_owned(),
                     display_name: DisplayName::new(sender_display_name.to_owned()),
@@ -110,7 +110,7 @@ impl SwitchboardHandle {
 
     }
 
-    pub async fn send_command(&self, command: SwitchboardServerCommand) -> Result<(), anyhow::Error> {
+    pub async fn receive_command(&self, command: SwitchboardServerCommand) -> Result<(), anyhow::Error> {
 
         let state = self.state().map_err(|e| anyhow!(e))?;
 
