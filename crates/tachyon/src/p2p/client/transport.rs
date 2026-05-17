@@ -184,7 +184,7 @@ impl Transport {
 
         let next_sequence_number = current_sequence_number + transport_packet.get_payload_length();;
 
-        println!("Client<-Transport: {:?}", &transport_packet);
+        debug!("Client<-Transport: {:?}", &transport_packet);
         transport_sender_lock.send_packet(&self.inner.sender, self.inner.sender.email_addr.as_str(), &self.inner.receiver, transport_packet).await;
 
         *sequence_lock = next_sequence_number
@@ -253,11 +253,11 @@ impl Transport {
     // handles RAK
 
     pub async fn unwrap_packet(&self, packet: P2PTransportPacket) -> Result<(Option<UnwrappedP2PPacket>) , anyhow::Error> {
-        println!("Client->Transport: {:?}", &packet);
+        debug!("Client->Transport: {:?}", &packet);
 
         self.unwrap_handshake(&packet).await;
 
-        println!("Unwrapped handshake");
+        debug!("Unwrapped handshake");
         if !packet.is_syn() && packet.is_rak() {
             // Simple RAK
             self.receive_single_packet(P2PTransportPacketFactory::get_ack(packet.get_next_sequence_number())).await;
@@ -270,14 +270,14 @@ impl Transport {
         if let Some(payload) = packet.get_payload() {
             //Only unchunk transport layer packets
             if payload.session_id == 0 {
-                println!("Unchunking transport layer packet");
+                debug!("Unchunking transport layer packet");
                 let is_in_chunks = self.inner.chunks_unwraped.contains_key(&payload.package_number);
                 if payload.is_chunked_packet() {
-                    println!("Chunked -> returning none");
+                    debug!("Chunked -> returning none");
                     self.inner.chunks_unwraped.get_mut(&payload.package_number).unwrap().push(packet);
                     Ok(None)
                 } else if is_in_chunks && !payload.is_chunked_packet() {
-                    println!("Now complete -> return reformed");
+                    debug!("Now complete -> return reformed");
                     //Reform previously chunked packet
                     let (_, mut chunks) = self.inner.chunks_unwraped.remove(&payload.package_number).unwrap();
 
@@ -290,7 +290,7 @@ impl Transport {
                     let slp = reformed.get_payload().unwrap().get_payload_as_slp().unwrap();
                     Ok(Some(UnwrappedP2PPacket::Slp(slp, reformed.op_code())))
                 } else {
-                    println!("Packet not chunked, return.");
+                    debug!("Packet not chunked, return.");
                     //Packet is not chunked and is not in chunks, so it's really a non chunked packet.
                     let slp = payload.get_payload_as_slp().unwrap();
                     Ok(Some(UnwrappedP2PPacket::Slp(slp, packet.op_code())))

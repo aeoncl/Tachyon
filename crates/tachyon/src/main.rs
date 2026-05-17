@@ -112,7 +112,7 @@ fn setup_logs(path: PathBuf, config: &TachyonConfig) {
         })
         .target(env_logger::Target::Pipe(target))
         .filter(Some("v2") , LevelFilter::Debug)
-        .filter(Some("tachyon") , LevelFilter::Debug)
+        .filter(Some("tachyon") , LevelFilter::Info)
         .filter(Some("msnp") , LevelFilter::Debug)
         .filter(Some("matrix-sdk"), LevelFilter::Off)
         .filter(Some("yaserde"), LevelFilter::Warn)

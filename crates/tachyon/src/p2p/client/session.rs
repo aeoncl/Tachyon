@@ -15,11 +15,11 @@ pub type SessionId = u32;
 
 impl TachyonClient {
     pub fn create_session(&self, transport: Transport, session_type: SessionType) -> (SessionId, P2PSession) {
-        let session_id: u16 = rand::random();
-        let session = P2PSession::new(session_id as u32, transport, session_type);
+        let session_id: u32 = rand::random();
+        let session = P2PSession::new(session_id, transport, session_type);
 
-        self.inner.sessions.insert(session_id as u32, session.clone());
-        (session_id as u32, session)
+        self.inner.sessions.insert(session_id, session.clone());
+        (session_id, session)
     }
 
     pub fn get_session(&self, session_id: SessionId) -> Option<P2PSession> {

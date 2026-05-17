@@ -7,15 +7,84 @@ use byteorder::{BigEndian, ByteOrder};
 use core::fmt;
 use rand::random;
 use std::fmt::Display;
-use std::str::from_utf8_unchecked;
+
+
+
+/// Wraps the combined `tf` byte (offset 1) of a P2P Data Layer packet.
+///
+/// Bit layout: `(transfer_type << 1) | flag`
+///
+/// | `tf_byte` | T | F | Meaning |
+/// |-----------|---|---|---------|
+/// | `0x01`    | 0 | 1 | SIP text (session_id == 0) or data preparation (session_id != 0) |
+/// | `0x04`    | 2 | 0 | Binary data for MSNObject |
+/// | `0x05`    | 2 | 1 | First package of binary data for MSNObject |
+/// | `0x06`    | 3 | 0 | Binary data for file transfer |
+/// | `0x07`    | 3 | 1 | First package of binary data for file transfer |
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct TfCombination {
+    /// Bits 1–3 of the `tf` byte. Values: 0, 2, 3.
+    transfer_type: u8,
+    /// Bit 0 of the `tf` byte. Values: 0 or 1.
+    flag: u8,
+}
+
+impl TfCombination {
+    pub fn new(transfer_type: u8, flag: u8) -> Self {
+        Self {
+            transfer_type: transfer_type & 0x07,
+            flag: flag & 0x01,
+        }
+    }
+
+    /// Reconstruct from the raw `tf` byte on the wire.
+    pub fn from_byte(byte: u8) -> Self {
+        Self {
+            transfer_type: byte >> 1,
+            flag: byte & 0x01,
+        }
+    }
+
+    /// Serialize to the wire byte.
+    pub fn to_byte(self) -> u8 {
+        (self.transfer_type << 1) | self.flag
+    }
+
+    pub fn transfer_type(self) -> u8 {
+        self.transfer_type
+    }
+
+    pub fn flag(self) -> u8 {
+        self.flag
+    }
+
+    /// `true` when this is a file-transfer payload (transfer_type == 3).
+    pub fn is_file_transfer(self) -> bool {
+        self.transfer_type == 3
+    }
+
+    /// `true` when this is an MSNObject payload (transfer_type == 2).
+    pub fn is_msn_obj_transfer(self) -> bool {
+        self.transfer_type == 2
+    }
+}
+
+impl fmt::Debug for TfCombination {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "0x{:02X} (T={}, F={})",
+            self.to_byte(),
+            self.transfer_type,
+            self.flag
+        )
+    }
+}
 
 #[derive(Clone)]
 pub struct RawP2PPayload {
     pub header_length: usize,
-    /// Upper nibble (bits 7–4) of the `tf` byte at offset 1.
-    pub transfer_type: u8,
-    /// Lower nibble (bits 3–0) of the `tf` byte at offset 1.
-    pub flag: u8,
+    pub tf: TfCombination,
     pub package_number: u16,
     pub session_id: u32,
     pub tlvs: TLVList,
@@ -26,15 +95,7 @@ impl fmt::Debug for RawP2PPayload {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("P2PPayload")
             .field("header_length", &self.header_length)
-            .field(
-                "tf_byte",
-                &format!(
-                    "0x{:02X} (T={}, F={})",
-                    self.tf_byte(),
-                    self.transfer_type,
-                    self.flag
-                ),
-            )
+            .field("tf", &self.tf)
             .field("package_number", &self.package_number)
             .field("session_id", &self.session_id)
             .field("tlvs", &self.tlvs)
@@ -45,21 +106,14 @@ impl fmt::Debug for RawP2PPayload {
 
 impl RawP2PPayload {
     pub fn new(transfer_type: u8, flag: u8, session_id: u32) -> Self {
-        return RawP2PPayload {
+        RawP2PPayload {
             header_length: 0,
-            transfer_type: transfer_type & 0x0F,
-            flag: flag & 0x0F,
+            tf: TfCombination::new(transfer_type, flag),
             package_number: 0,
             session_id,
             tlvs: TLVList::new(),
             payload: Vec::new(),
-        };
-    }
-
-    /// Returns the combined `tf` byte reconstructed from
-    /// `transfer_type` (upper nibble) and `flag` (lower nibble).
-    pub fn tf_byte(&self) -> u8 {
-        (self.transfer_type << 4) | (self.flag & 0x0F)
+        }
     }
 
     /// Deserializes a `P2PPayload` from raw bytes.
@@ -91,9 +145,7 @@ impl RawP2PPayload {
             });
         }
 
-        let tf_combination = bytes[1];
-        let transfer_type = tf_combination >> 4;
-        let flag = tf_combination & 0x0F;
+        let tf = TfCombination::from_byte(bytes[1]);
         let package_number = BigEndian::read_u16(&bytes[2..4]);
         let session_id = BigEndian::read_u32(&bytes[4..8]);
         let tlvs_length = header_length - 8;
@@ -117,8 +169,7 @@ impl RawP2PPayload {
         let payload = bytes[8 + tlvs_length..total_data_length].to_owned();
         Ok(RawP2PPayload {
             header_length,
-            transfer_type,
-            flag,
+            tf,
             package_number,
             session_id,
             tlvs,
@@ -140,7 +191,7 @@ impl RawP2PPayload {
 
     pub fn chunk(self, chunk_size: usize) -> Vec<RawP2PPayload> {
         let payload = self.payload;
-        let transfer_type = self.transfer_type;
+        let transfer_type = self.tf.transfer_type();
         let session_id = self.session_id;
         let package_number = random();
         let tlvs = self.tlvs;
@@ -191,7 +242,7 @@ impl RawP2PPayload {
 
     pub fn get_payload_as_slp(&self) -> Result<RawSlpPayload, PayloadError> {
         if !self.payload.is_empty() {
-            if self.flag <= 0x01 && self.session_id == 0x0000 {
+            if self.tf.flag() <= 0x01 && self.session_id == 0x0000 {
                 return RawSlpPayload::try_from(&self.payload);
             }
         }
@@ -204,7 +255,7 @@ impl RawP2PPayload {
 
     pub fn is_file_transfer(&self) -> bool {
         if !self.payload.is_empty() {
-            if (self.flag == 6 || self.flag == 7) && self.session_id > 0 {
+            if self.tf.is_file_transfer() && self.session_id > 0 {
                 return true;
             }
         }
@@ -213,7 +264,7 @@ impl RawP2PPayload {
 
     pub fn is_msn_obj_transfer(&self) -> bool {
         if !self.payload.is_empty() {
-            if (self.flag == 4 || self.flag == 5) && self.session_id > 0 {
+            if self.tf.is_msn_obj_transfer() && self.session_id > 0 {
                 return true;
             }
         }
@@ -245,7 +296,7 @@ impl IntoBytes for RawP2PPayload {
     fn into_bytes(self) -> Vec<u8> {
         let mut out: Vec<u8> = Vec::new();
 
-        out.push(self.tf_byte());
+        out.push(self.tf.to_byte());
 
         let mut buffer: [u8; 2] = [0, 0];
         BigEndian::write_u16(&mut buffer, self.package_number);
@@ -267,15 +318,141 @@ impl IntoBytes for RawP2PPayload {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use byteorder::{BigEndian, ByteOrder};
 
     use crate::shared::traits::IntoBytes;
 
-    use super::RawP2PPayload;
+    use super::{RawP2PPayload, TfCombination};
     use crate::p2p::v2::{factories::TLVFactory, tlv::TLVList};
+
+    // ---------------------------------------------------------------
+    // TfCombination unit tests
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn tf_combination_new_stores_fields_correctly() {
+        let tf = TfCombination::new(3, 1);
+        assert_eq!(tf.transfer_type(), 3);
+        assert_eq!(tf.flag(), 1);
+    }
+
+    #[test]
+    fn tf_combination_new_masks_transfer_type_to_3_bits() {
+        // 0b1111_1111 & 0x07 = 0b0000_0111 = 7
+        let tf = TfCombination::new(0xFF, 0);
+        assert_eq!(tf.transfer_type(), 7);
+    }
+
+    #[test]
+    fn tf_combination_new_masks_flag_to_1_bit() {
+        // 0xFF & 0x01 = 1
+        let tf = TfCombination::new(0, 0xFF);
+        assert_eq!(tf.flag(), 1);
+    }
+
+    #[test]
+    fn tf_combination_to_byte_encoding() {
+        // Spec table: T=0 F=1 => 0x01
+        assert_eq!(TfCombination::new(0, 1).to_byte(), 0x01);
+        // T=2 F=0 => 0x04
+        assert_eq!(TfCombination::new(2, 0).to_byte(), 0x04);
+        // T=2 F=1 => 0x05
+        assert_eq!(TfCombination::new(2, 1).to_byte(), 0x05);
+        // T=3 F=0 => 0x06
+        assert_eq!(TfCombination::new(3, 0).to_byte(), 0x06);
+        // T=3 F=1 => 0x07
+        assert_eq!(TfCombination::new(3, 1).to_byte(), 0x07);
+    }
+
+    #[test]
+    fn tf_combination_from_byte_decoding() {
+        let tf = TfCombination::from_byte(0x06);
+        assert_eq!(tf.transfer_type(), 3);
+        assert_eq!(tf.flag(), 0);
+
+        let tf = TfCombination::from_byte(0x07);
+        assert_eq!(tf.transfer_type(), 3);
+        assert_eq!(tf.flag(), 1);
+
+        let tf = TfCombination::from_byte(0x01);
+        assert_eq!(tf.transfer_type(), 0);
+        assert_eq!(tf.flag(), 1);
+
+        let tf = TfCombination::from_byte(0x04);
+        assert_eq!(tf.transfer_type(), 2);
+        assert_eq!(tf.flag(), 0);
+
+        let tf = TfCombination::from_byte(0x05);
+        assert_eq!(tf.transfer_type(), 2);
+        assert_eq!(tf.flag(), 1);
+    }
+
+    #[test]
+    fn tf_combination_roundtrip_all_spec_values() {
+        for (transfer_type, flag, expected_byte) in [
+            (0, 1, 0x01u8),
+            (2, 0, 0x04),
+            (2, 1, 0x05),
+            (3, 0, 0x06),
+            (3, 1, 0x07),
+        ] {
+            let tf = TfCombination::new(transfer_type, flag);
+            assert_eq!(tf.to_byte(), expected_byte);
+
+            let roundtrip = TfCombination::from_byte(tf.to_byte());
+            assert_eq!(roundtrip.transfer_type(), transfer_type);
+            assert_eq!(roundtrip.flag(), flag);
+            assert_eq!(roundtrip, tf);
+        }
+    }
+
+    #[test]
+    fn tf_combination_from_byte_zero() {
+        let tf = TfCombination::from_byte(0x00);
+        assert_eq!(tf.transfer_type(), 0);
+        assert_eq!(tf.flag(), 0);
+        assert_eq!(tf.to_byte(), 0x00);
+    }
+
+    #[test]
+    fn tf_combination_equality() {
+        assert_eq!(TfCombination::new(3, 1), TfCombination::from_byte(0x07));
+        assert_ne!(TfCombination::new(3, 0), TfCombination::new(3, 1));
+        assert_ne!(TfCombination::new(2, 0), TfCombination::new(3, 0));
+    }
+
+    #[test]
+    fn tf_combination_is_file_transfer() {
+        assert!(TfCombination::new(3, 0).is_file_transfer());
+        assert!(TfCombination::new(3, 1).is_file_transfer());
+        assert!(!TfCombination::new(2, 0).is_file_transfer());
+        assert!(!TfCombination::new(0, 1).is_file_transfer());
+    }
+
+    #[test]
+    fn tf_combination_is_msn_obj_transfer() {
+        assert!(TfCombination::new(2, 0).is_msn_obj_transfer());
+        assert!(TfCombination::new(2, 1).is_msn_obj_transfer());
+        assert!(!TfCombination::new(3, 0).is_msn_obj_transfer());
+        assert!(!TfCombination::new(0, 1).is_msn_obj_transfer());
+    }
+
+    #[test]
+    fn tf_combination_debug_format() {
+        let tf = TfCombination::new(3, 0);
+        let debug = format!("{:?}", tf);
+        assert_eq!(debug, "0x06 (T=3, F=0)");
+
+        let tf = TfCombination::new(0, 1);
+        let debug = format!("{:?}", tf);
+        assert_eq!(debug, "0x01 (T=0, F=1)");
+    }
+
+    // ---------------------------------------------------------------
+    // RawP2PPayload roundtrip tests
+    // ---------------------------------------------------------------
 
     /// Helper: serialize a P2PPayload to bytes, then deserialize it back.
     /// Asserts that key fields survive the roundtrip.
@@ -309,9 +486,9 @@ mod tests {
             result.header_length, 8,
             "header should be 8 bytes (fixed fields only, no TLVs)"
         );
-        assert_eq!(result.transfer_type, 0);
-        assert_eq!(result.flag, 0x01);
-        assert_eq!(result.tf_byte(), 0x01);
+        assert_eq!(result.tf.transfer_type(), 0);
+        assert_eq!(result.tf.flag(), 0x01);
+        assert_eq!(result.tf.to_byte(), 0x01);
         assert_eq!(result.package_number, 0);
         assert_eq!(result.session_id, 0x0000);
         assert!(result.tlvs.is_empty());
@@ -329,7 +506,7 @@ mod tests {
         let result = roundtrip(original);
 
         assert_eq!(result.header_length, 8);
-        assert_eq!(result.tf_byte(), 0x01);
+        assert_eq!(result.tf.to_byte(), 0x01);
         assert_eq!(result.session_id, 0x0000);
         assert!(result.tlvs.is_empty());
         assert_eq!(
@@ -401,15 +578,16 @@ mod tests {
     // ---------------------------------------------------------------
     #[test]
     fn roundtrip_binary_payload() {
-        let mut original = RawP2PPayload::new(0, 0x07, 0xABCD1234);
+        // 0x07 = T=3, F=1 => first package of binary data for file transfer
+        let mut original = RawP2PPayload::new(3, 1, 0xABCD1234);
         original.package_number = 42;
         original.set_payload(vec![0x00, 0xFF, 0x80, 0x01, 0x00, 0x00, 0xFE, 0x7F]);
 
         let result = roundtrip(original);
 
-        assert_eq!(result.transfer_type, 0);
-        assert_eq!(result.flag, 0x07);
-        assert_eq!(result.tf_byte(), 0x07);
+        assert_eq!(result.tf.transfer_type(), 3);
+        assert_eq!(result.tf.flag(), 1);
+        assert_eq!(result.tf.to_byte(), 0x07);
         assert_eq!(result.package_number, 42);
         assert_eq!(result.session_id, 0xABCD1234);
         assert_eq!(
@@ -483,7 +661,7 @@ mod tests {
 
         let result = roundtrip(original);
 
-        assert_eq!(result.tf_byte(), 0x01);
+        assert_eq!(result.tf.to_byte(), 0x01);
         assert_eq!(result.session_id, 0x6C99FBC2);
         assert_eq!(result.payload, vec![0x00, 0x00, 0x00, 0x00]);
         assert_eq!(
@@ -550,9 +728,9 @@ mod tests {
             RawP2PPayload::deserialize(raw, raw.len()).expect("should deserialize spec example 1");
 
         assert_eq!(result.header_length, 8);
-        assert_eq!(result.transfer_type, 0);
-        assert_eq!(result.flag, 0x01);
-        assert_eq!(result.tf_byte(), 0x01);
+        assert_eq!(result.tf.transfer_type(), 0);
+        assert_eq!(result.tf.flag(), 0x01);
+        assert_eq!(result.tf.to_byte(), 0x01);
         assert_eq!(result.package_number, 0);
         assert_eq!(result.session_id, 0x6C99FBC2);
         assert!(result.tlvs.is_empty());
