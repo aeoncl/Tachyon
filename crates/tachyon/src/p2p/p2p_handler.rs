@@ -52,6 +52,9 @@ pub async fn handle_p2p_packet(transport: Transport, p2p_packet: P2PTransportPac
                                         p2p_payload.payload = file;
 
                                         session.receive_packet(&content.sender, &content.sender_display_name, &content.receiver, p2p_payload).await;
+                                        session.transport().request_for_ack().await;
+
+
 
                                         let bye = SlpPayloadFactory::get_session_bye(&content.sender, &content.receiver, session.call_id(), session_id).unwrap();
                                         let mut bye_packet = P2PPayloadFactory::get_sip_text_message();

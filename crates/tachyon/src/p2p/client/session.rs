@@ -56,13 +56,13 @@ impl P2PSession {
                 let slp_payload = SlpPayloadFactory::get_file_transfer_request(&content.sender, &content.receiver,  &PreviewData::new(content.file_size, content.filename.clone()), self.inner.session_id, &self.inner.call_id).unwrap();
                 let mut packet = P2PPayloadFactory::get_sip_text_message();
                 packet.set_payload(slp_payload.into_bytes());
-                self.inner.transport.receive_packet(&content.sender, &content.sender_display_name, &content.receiver, packet).await;
+                self.inner.transport.receive_data_packet(&content.sender, &content.sender_display_name, &content.receiver, packet).await;
             }
         }
     }
 
     pub async fn receive_packet(&self, sender: &EndpointId, sender_display_name: &str, receiver: &EndpointId, packet: RawP2PPayload){
-        self.transport().receive_packet(sender, sender_display_name, receiver, packet).await;
+        self.transport().receive_data_packet(sender, sender_display_name, receiver, packet).await;
     }
 
     pub fn session_type(&self) -> &SessionType {

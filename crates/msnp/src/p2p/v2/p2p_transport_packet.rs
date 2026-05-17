@@ -117,7 +117,7 @@ impl P2PTransportPacket {
     }
 
     pub fn set_syn(&mut self, client_info: super::tlv::TLV) {
-        self.op_code().set_syn();
+        self.op_code.set_syn();
         self.tlvs.push(client_info);
     }
 
@@ -127,7 +127,7 @@ impl P2PTransportPacket {
     }
 
     pub fn set_rak(&mut self) {
-        self.op_code().set_rak()
+        self.op_code.set_rak()
     }
 
     pub fn get_next_ack_sequence_number(&self) -> Option<u32> {
@@ -333,4 +333,35 @@ impl TransportOperationCode {
         let is_syn_flag = &self.0 & OperationCode::Syn as u8;
         return is_syn_flag == OperationCode::Syn as u8;
     }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use crate::p2p::v2::factories::TLVFactory;
+    use crate::p2p::v2::p2p_transport_packet::{P2PTransportPacket, TransportOperationCode};
+
+    #[test]
+    fn is_syn_test() {
+        let mut op_code = TransportOperationCode::default();
+        op_code.set_syn();
+
+        assert_eq!(op_code.is_syn(), true);
+    }
+
+    #[test]
+    fn transport_packet_is_syn_test() {
+        let mut packet = P2PTransportPacket::new(0, None);
+        packet.set_syn(TLVFactory::get_client_peer_info());
+
+        assert_eq!(packet.is_syn(), true);
+    }
+
+    #[test]
+    fn is_not_syn_test() {
+        let mut op_code = TransportOperationCode::default();
+        op_code.set_rak();
+
+        assert_eq!(op_code.is_syn(), false);
+    }
+
 }

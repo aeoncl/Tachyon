@@ -321,7 +321,8 @@ Context: PgIAAAIAAAB7AAAAAAAAAAEAAABiAGwAYQBiAGwAYQBiAGwAYQAuAGcAaQBmAAAAAAAAAAA
 
         let preview_data = PreviewData::new(123, "blablabla.gif".to_string());
         let session_id = 123;
-        let factory_raw = SlpPayloadFactory::get_file_transfer_request(&sender, &receiver, &preview_data, session_id).unwrap();
+        let call_id = Uuid::new();
+        let factory_raw = SlpPayloadFactory::get_file_transfer_request(&sender, &receiver, &preview_data, session_id, &call_id).unwrap();
 
         let serialized = factory_raw.to_string();
 
