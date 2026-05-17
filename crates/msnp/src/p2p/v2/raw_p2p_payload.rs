@@ -160,8 +160,9 @@ impl RawP2PPayload {
                 payload.tlvs = tlvs.clone();
             }
 
-            payload.add_tlv(TLVFactory::get_untransfered_data_size(remaining_bytes));
-
+            if index < chunk_count - 1 {
+                payload.add_tlv(TLVFactory::get_untransfered_data_size(remaining_bytes));
+            }
 
             payload.package_number = package_number;
             payload.payload = chunk.to_vec();

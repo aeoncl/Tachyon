@@ -3,7 +3,7 @@ use log::info;
 use matrix_sdk::media::{MediaFormat, MediaRequestParameters};
 use tokio::time::sleep;
 use msnp::msnp::error::PayloadError;
-use msnp::p2p::v2::factories::P2PPayloadFactory;
+use msnp::p2p::v2::factories::{P2PPayloadFactory, P2PTransportPacketFactory};
 use crate::p2p::client::transport::{Transport, UnwrappedP2PPacket};
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use msnp::p2p::v2::p2p_transport_packet::P2PTransportPacket;
@@ -23,8 +23,8 @@ pub async fn handle_p2p_packet(transport: Transport, p2p_packet: P2PTransportPac
         match packet {
             UnwrappedP2PPacket::Slp(slp_payload, transport_op) => {
                 //Handle SLP
-                let content_type = slp_payload.get_content_type().unwrap();
-                if content_type.as_str() == "application/x-msnmsgr-sessionreqbody" && slp_payload.is_200_ok() {
+                let content_type = slp_payload.get_content_type().unwrap().trim();
+                if content_type == "application/x-msnmsgr-sessionreqbody" && slp_payload.is_200_ok() {
                     //Start transfering stuff
                     let session_id = slp_payload
                         .get_body_property(&String::from("SessionID"))
@@ -52,16 +52,13 @@ pub async fn handle_p2p_packet(transport: Transport, p2p_packet: P2PTransportPac
                                         p2p_payload.payload = file;
 
                                         session.receive_packet(&content.sender, &content.sender_display_name, &content.receiver, p2p_payload).await;
-                                        session.transport().request_for_ack().await;
 
+                                        //let bye = SlpPayloadFactory::get_session_bye(&content.sender, &content.receiver, session.call_id(), session_id).unwrap();
+                                        //let mut bye_packet = P2PPayloadFactory::get_sip_text_message();
+                                        //bye_packet.set_payload(bye.into_bytes());
 
-
-                                        let bye = SlpPayloadFactory::get_session_bye(&content.sender, &content.receiver, session.call_id(), session_id).unwrap();
-                                        let mut bye_packet = P2PPayloadFactory::get_sip_text_message();
-                                        bye_packet.set_payload(bye.into_bytes());
-
-                                        sleep(Duration::from_secs(10)).await;
-                                        session.receive_packet(&content.sender, &content.sender_display_name, &content.receiver, bye_packet).await;
+                                        //sleep(Duration::from_secs(10)).await;
+                                        //session.receive_packet(&content.sender, &content.sender_display_name, &content.receiver, bye_packet).await;
                                     }
                                     Err(_) => {
                                         //TODO send err 500
@@ -75,7 +72,9 @@ pub async fn handle_p2p_packet(transport: Transport, p2p_packet: P2PTransportPac
                     });
                 }
 
-
+                if content_type == "application/x-msnmsgr-transreqbody" {
+                    transport.handle_transport_request(slp_payload).await;
+                }
             }
             UnwrappedP2PPacket::DataPacket(packet, transport_op) => {
                 let session = tachyon_client.get_session(packet.session_id).unwrap();

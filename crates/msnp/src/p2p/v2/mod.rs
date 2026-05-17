@@ -48,21 +48,21 @@ pub mod factories {
 
     impl P2PPayloadFactory {
         pub fn get_sip_text_message() -> RawP2PPayload {
-            return RawP2PPayload::new(0, 0x01, 0x0);
+            return RawP2PPayload::new(0, 1, 0);
         }
 
         pub fn get_file_transfer(session_id: u32) -> RawP2PPayload {
-            return RawP2PPayload::new(0, 0x07, session_id);
+            return RawP2PPayload::new(3, 1, session_id);
         }
 
         pub fn get_data_preparation_message(session_id: u32) -> RawP2PPayload {
-            let mut payload = RawP2PPayload::new(0, 0x01, session_id);
+            let mut payload = RawP2PPayload::new(0, 1, session_id);
             payload.set_payload([0x0, 0x0, 0x0, 0x0].to_vec());
             return payload;
         }
 
         pub fn get_msn_obj(session_id: u32) -> RawP2PPayload {
-            return RawP2PPayload::new(0, 0x05, session_id);
+            return RawP2PPayload::new(2, 1, session_id);
         }
     }
 

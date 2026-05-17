@@ -97,9 +97,9 @@ impl IntoRawMsgPayload for P2PMessagePayload {
         out.add_header("P2P-Dest", &self.receiver.to_string());
         out.add_header("P2P-Src", &self.sender.to_string());
 
-        if let Some(display_name) = self.sender_display_name {
-            out.add_header("P4-Context", display_name.as_str())
-        }
+        // if let Some(display_name) = self.sender_display_name {
+        //     out.add_header("P4-Context", display_name.as_str())
+        // }
 
         out.set_body(self.payload.into_bytes());
         out

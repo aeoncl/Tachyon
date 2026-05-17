@@ -7,12 +7,18 @@ use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::payload::msg::p2p_msg_payload::P2PMessagePayload;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use anyhow::anyhow;
+use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use lazy_static_include::syn::parse::End;
-use msnp::p2p::v2::factories::{P2PTransportPacketFactory, TLVFactory};
-use msnp::p2p::v2::slp::raw_slp_payload::RawSlpPayload;
+use log::{debug, error};
+use ruma::int;
+use msnp::p2p::v2::factories::{P2PPayloadFactory, P2PTransportPacketFactory, TLVFactory};
+use msnp::p2p::v2::slp::raw_slp_payload::{RawSlpPayload, SlpPayloadFactory};
 use msnp::shared::models::uuid::Uuid;
 use msnp::shared::traits::IntoBytes;
+use crate::p2p::client::transport::TransportStatus::HandshakeComplete;
 
 impl TachyonClient {
     pub fn get_or_create_transport(&self, room_id: &RoomId, inviter: &MsnUser) -> Transport {
@@ -54,20 +60,22 @@ impl TransportSender {
     }
 }
 
-#[derive(PartialEq)]
-enum TransportSessionStatus {
+#[derive(PartialEq, Clone)]
+enum TransportStatus {
     Initial,
     HandshakeOngoing,
-    HandshakeCompleted,
-    Negotiating(Uuid),
+    HandshakeComplete,
+    NegotiatingBridge(Uuid),
     Ready
 }
+
 
 type PackageNumber = u16;
 
 struct TransportInner {
+    transport_id: u32,
     sequence_number: tokio::sync::Mutex<u32>,
-    status: tokio::sync::Mutex<TransportSessionStatus>,
+    status: tokio::sync::RwLock<TransportStatus>,
     transport_sender: tokio::sync::Mutex<TransportSender>,
     chunks_unwraped: DashMap<PackageNumber, Vec<P2PTransportPacket>>,
     receiver: EndpointId,
@@ -84,10 +92,12 @@ const PAYLOAD_MAX_LEN: usize = 1033;
 impl Transport {
     pub fn new(initial_transport: TransportSender, sender: EndpointId, receiver: EndpointId) -> Transport {
         let sequence_number: u32 = 0;
+        let transport_id: u32 = rand::random();
         Transport {
             inner: Arc::new(TransportInner {
+                transport_id,
                 sequence_number: tokio::sync::Mutex::new(sequence_number),
-                status: tokio::sync::Mutex::new(TransportSessionStatus::Initial),
+                status: tokio::sync::RwLock::new(TransportStatus::Initial),
                 transport_sender: tokio::sync::Mutex::new(initial_transport),
                 chunks_unwraped: Default::default(),
                 receiver,
@@ -113,75 +123,161 @@ impl Transport {
     }
 
     async fn receive_single_data_packet(&self, sender: &EndpointId, sender_display_name: &str, receiver: &EndpointId, packet: RawP2PPayload) {
+        if packet.session_id != 0 {
+            self.wait_for_transport_ready(Duration::from_secs(20)).await.unwrap();
+        }
+
         let transport_packet = P2PTransportPacket::new(0, Some(packet));
-        self.receive_single_packet(sender, sender_display_name, receiver, transport_packet).await
+        self.receive_single_packet(transport_packet).await
     }
 
-    async fn receive_single_packet(&self, sender: &EndpointId, sender_display_name: &str, receiver: &EndpointId, mut transport_packet: P2PTransportPacket) {
+    async fn wait_for_transport_ready(&self, timeout: Duration) -> Result<(), anyhow::Error> {
+
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        let end = Utc::now().timestamp() + (timeout.as_secs() as i64);
+        loop {
+            interval.tick().await;
+            if *self.inner.status.read().await == TransportStatus::Ready {
+                break;
+            }
+
+            if end > Utc::now().timestamp() {
+                return Err(anyhow!("Transport still not ready after timeout limit: {:?}", timeout));
+            }
+
+        }
+
+        Ok(())
+    }
+
+    pub async fn handle_transport_request(&self, transport_req: RawSlpPayload) {
+
+        debug!("Handle Transport Request: {:?}", &transport_req);
+
+        if transport_req.get_content_type().unwrap().as_str() == "application/x-msnmsgr-transreqbody" {
+
+            let slp_transport_req_error_response = SlpPayloadFactory::get_500_error_direct_connect(
+                &transport_req,
+                String::from("TCPv1"),
+            ).unwrap();
+
+            let mut slp_transport_err_packet = P2PPayloadFactory::get_sip_text_message();
+            slp_transport_err_packet.set_payload(slp_transport_req_error_response.into_bytes());
+            let transport_packet = P2PTransportPacket::new(0, Some(slp_transport_err_packet));
+            self.receive_single_packet(transport_packet).await;
+
+            let mut write_lock = self.inner.status.write().await;
+            *write_lock = TransportStatus::Ready;
+
+        }
+    }
+
+    async fn receive_single_packet(&self, mut transport_packet: P2PTransportPacket) {
         let mut sequence_lock = self.inner.sequence_number.lock().await;
         let transport_sender_lock = self.inner.transport_sender.lock().await;
 
         let current_sequence_number = *sequence_lock;
         transport_packet.sequence_number = current_sequence_number;
 
-        {
-            let mut status_lock = self.inner.status.lock().await;
-            if *status_lock == TransportSessionStatus::Initial {
-                transport_packet.set_syn(TLVFactory::get_client_peer_info());
-                transport_packet.set_rak();
-            };
-
-            *status_lock = TransportSessionStatus::HandshakeOngoing;
-        }
+        transport_packet = self.initiate_handshake_if_needed(transport_packet).await;
 
 
         let next_sequence_number = current_sequence_number + transport_packet.get_payload_length();;
 
         println!("Client<-Transport: {:?}", &transport_packet);
-        transport_sender_lock.send_packet(sender, sender_display_name, receiver, transport_packet).await;
+        transport_sender_lock.send_packet(&self.inner.sender, self.inner.sender.email_addr.as_str(), &self.inner.receiver, transport_packet).await;
 
         *sequence_lock = next_sequence_number
     }
 
     pub async fn request_for_ack(&self) {
-        self.receive_single_packet(&self.inner.sender, self.inner.sender.email_addr.as_str(), &self.inner.receiver,  P2PTransportPacketFactory::get_rak()).await;
+        self.receive_single_packet(P2PTransportPacketFactory::get_rak()).await;
     }
 
+    async fn initiate_handshake_if_needed(&self, mut transport_packet: P2PTransportPacket) -> P2PTransportPacket {
+        let status_lock = self.inner.status.read().await.clone();
+        if status_lock == TransportStatus::Initial {
+            transport_packet.set_syn(TLVFactory::get_client_peer_info());
+            transport_packet.set_rak();
+
+            let mut write_lock = self.inner.status.write().await;
+            *write_lock = TransportStatus::HandshakeOngoing;
+        };
+
+
+
+
+        transport_packet
+    }
+
+    async fn unwrap_handshake(&self, packet: &P2PTransportPacket) {
+
+        let mut handshake_complete = false;
+
+        {
+            let guard = self.inner.status.read().await.clone();
+            match guard {
+                TransportStatus::Initial => {
+                    if packet.is_syn() && packet.is_rak() {
+                        self.receive_single_packet(P2PTransportPacketFactory::get_syn_ack(packet.get_next_sequence_number())).await;
+                        debug!("Transport ({transport_id}): Received initial SYN | RAK handshake, as expected.", transport_id = self.inner.transport_id);
+                    } else {
+                        error!("Transport ({transport_id}): Received packet without SYN | RAK while having no handshake setup.", transport_id = self.inner.transport_id);
+                    }
+                }
+                TransportStatus::HandshakeOngoing => {
+                    if  packet.is_syn() && packet.is_rak() && packet.is_ack() {
+                        debug!("Transport ({transport_id}): Received response to our SYN | RAK handshake, as expected.", transport_id = self.inner.transport_id);
+                        self.receive_single_packet(P2PTransportPacketFactory::get_ack(packet.get_next_sequence_number())).await;
+                        handshake_complete = true;
+                    }
+                }
+                _ => {
+
+                }
+            };
+        }
+
+
+        if handshake_complete {
+            debug!("Transport ({transport_id}): Handshake Complete.", transport_id = self.inner.transport_id);
+            let mut write_guard = self.inner.status.write().await;
+            *write_guard = HandshakeComplete
+        }
+
+    }
+
+    // Unwraps packets that were sent by the client throught the transport.
+    // Unchunks SLP packets
+    // Handles SYN handshake
+    // handles RAK
 
     pub async fn unwrap_packet(&self, packet: P2PTransportPacket) -> Result<(Option<UnwrappedP2PPacket>) , anyhow::Error> {
         println!("Client->Transport: {:?}", &packet);
 
-        if packet.is_syn() && packet.is_rak() {
-            // HANDSHAKE
-            if packet.is_ack() {
-                //This is a response to our initiated SYN, respond with final ACK.
-                self.receive_single_packet(&self.inner.sender, self.inner.sender.email_addr.as_str(), &self.inner.receiver,  P2PTransportPacketFactory::get_ack(packet.get_next_sequence_number())).await;
-            } else {
-                //First part of handshake, respond with SYN + RAK with ACK tlv.
-                self.receive_single_packet(&self.inner.sender, self.inner.sender.email_addr.as_str(), &self.inner.receiver,  P2PTransportPacketFactory::get_syn_ack(packet.get_next_sequence_number())).await;
-            }
+        self.unwrap_handshake(&packet).await;
 
-        }
-
+        println!("Unwrapped handshake");
         if !packet.is_syn() && packet.is_rak() {
             // Simple RAK
-            //TODO: pause transfers when ongoing RAK
-            self.receive_single_packet(&self.inner.sender, self.inner.sender.email_addr.as_str(), &self.inner.receiver,  P2PTransportPacketFactory::get_ack(packet.get_next_sequence_number())).await;
+            self.receive_single_packet(P2PTransportPacketFactory::get_ack(packet.get_next_sequence_number())).await;
         }
 
         if packet.get_payload().is_none() {
             return Ok(None);
         }
 
-
         if let Some(payload) = packet.get_payload() {
             //Only unchunk transport layer packets
             if payload.session_id == 0 {
+                println!("Unchunking transport layer packet");
                 let is_in_chunks = self.inner.chunks_unwraped.contains_key(&payload.package_number);
                 if payload.is_chunked_packet() {
+                    println!("Chunked -> returning none");
                     self.inner.chunks_unwraped.get_mut(&payload.package_number).unwrap().push(packet);
                     Ok(None)
                 } else if is_in_chunks && !payload.is_chunked_packet() {
+                    println!("Now complete -> return reformed");
                     //Reform previously chunked packet
                     let (_, mut chunks) = self.inner.chunks_unwraped.remove(&payload.package_number).unwrap();
 
@@ -194,6 +290,7 @@ impl Transport {
                     let slp = reformed.get_payload().unwrap().get_payload_as_slp().unwrap();
                     Ok(Some(UnwrappedP2PPacket::Slp(slp, reformed.op_code())))
                 } else {
+                    println!("Packet not chunked, return.");
                     //Packet is not chunked and is not in chunks, so it's really a non chunked packet.
                     let slp = payload.get_payload_as_slp().unwrap();
                     Ok(Some(UnwrappedP2PPacket::Slp(slp, packet.op_code())))
