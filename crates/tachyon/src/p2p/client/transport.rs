@@ -87,7 +87,7 @@ pub struct Transport {
     inner: Arc<TransportInner>
 }
 
-const PAYLOAD_MAX_LEN: usize = 1033;
+const PAYLOAD_MAX_LEN: usize = 2048;
 
 impl Transport {
     pub fn new(initial_transport: TransportSender, sender: EndpointId, receiver: EndpointId) -> Transport {

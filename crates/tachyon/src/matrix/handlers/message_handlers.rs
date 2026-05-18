@@ -55,29 +55,39 @@ pub async fn handle_message(
 
     match event.content.msgtype {
         MessageType::Audio(audio) => {
-
+            let size = audio.info.map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
+            let filename = audio.filename.unwrap_or(audio.body);
+            //TODO fix filename
+            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, audio.source).await;
         }
         MessageType::Emote(emote) => {
 
         }
         MessageType::File(file) => {
             let size = file.info.map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
-
-            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, file.filename.unwrap_or("file".to_string()), file.source).await;
+            let filename = file.filename.unwrap_or(file.body);
+            //TODO fix filename
+            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, file.source).await;
         }
         MessageType::Image(image) => {
-            if let Some(info) = image.info.as_ref() {
-                if let Some(mime) = info.mimetype.as_ref() {
-                    if mime.contains("gif") {
 
-                         if let Ok(Some(bytes)) = client.media().get_file(&image, true).await {
+            let size = image.info.map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
+            let filename = image.filename.unwrap_or(image.body);
+            //TODO fix filename
+            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, image.source).await;
 
-                                 switchboard.receive_msg(&message_sender.get_email_address(), message_sender.compute_display_name(), GifMsgPayload::new(bytes)).await;
-
-                        }
-                    }
-                }
-            }
+            // if let Some(info) = image.info.as_ref() {
+            //     if let Some(mime) = info.mimetype.as_ref() {
+            //         if mime.contains("gif") {
+            //
+            //              if let Ok(Some(bytes)) = client.media().get_file(&image, true).await {
+            //
+            //                      switchboard.receive_msg(&message_sender.get_email_address(), message_sender.compute_display_name(), GifMsgPayload::new(bytes)).await;
+            //
+            //             }
+            //         }
+            //     }
+            // }
         }
         MessageType::Location(_) => {}
         MessageType::Notice(message) => {
@@ -107,7 +117,10 @@ pub async fn handle_message(
             switchboard.receive_command(msg).await.unwrap();
         }
         MessageType::Video(video) => {
-
+            let size = video.info.map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
+            let filename = video.filename.unwrap_or(video.body);
+            //TODO fix filename
+            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, video.source).await;
         }
         MessageType::VerificationRequest(_) => {}
         MessageType::_Custom(_) => {}
