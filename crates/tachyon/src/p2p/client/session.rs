@@ -64,7 +64,7 @@ impl P2PSession {
     pub async fn receive_packet(&self, sender: &EndpointId, sender_display_name: &str, receiver: &EndpointId, packet: RawP2PPayload){
         self.transport().receive_data_packet(sender, sender_display_name, receiver, packet).await;
     }
-
+    
     pub fn session_type(&self) -> &SessionType {
         &self.inner.session_type
     }

@@ -1,3 +1,4 @@
+use std::slice::Chunks;
 use crate::switchboard::models::switchboard_handle::SwitchboardHandle;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use matrix_sdk::ruma::RoomId;
@@ -11,6 +12,7 @@ use std::time::Duration;
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
+use futures_util::StreamExt;
 use lazy_static_include::syn::parse::End;
 use log::{debug, error};
 use ruma::int;
@@ -19,6 +21,8 @@ use msnp::p2p::v2::slp::raw_slp_payload::{RawSlpPayload, SlpPayloadFactory};
 use msnp::shared::models::uuid::Uuid;
 use msnp::shared::traits::IntoBytes;
 use crate::p2p::client::transport::TransportStatus::HandshakeComplete;
+use itertools::Itertools;
+use tokio::task::yield_now;
 
 impl TachyonClient {
     pub fn get_or_create_transport(&self, room_id: &RoomId, inviter: &MsnUser) -> Transport {
@@ -52,6 +56,18 @@ impl TransportSender {
             TransportSender::SBBridge(handle) => {
                 let msg = P2PMessagePayload::new(sender.to_owned(), receiver.clone(), packet, Some(sender_display_name.to_string()));
                 handle.receive_msg(&sender.email_addr, sender_display_name, msg).await;
+            }
+            TransportSender::TCPv1() => {
+                todo!("TCP not yet implemented")
+            }
+        }
+    }
+
+    pub async fn send_chunks(&self, sender: &EndpointId, sender_display_name: &str, receiver: &EndpointId, packets: Vec<P2PTransportPacket>) {
+        match self {
+            TransportSender::SBBridge(handle) => {
+                let msgs: Vec<P2PMessagePayload> = packets.into_iter().map( |tp| P2PMessagePayload::new(sender.to_owned(), receiver.clone(), tp, Some(sender_display_name.to_string()))).collect();
+                handle.receive_p2p_chunks(&sender.email_addr, sender_display_name, msgs).await;
             }
             TransportSender::TCPv1() => {
                 todo!("TCP not yet implemented")
@@ -109,27 +125,29 @@ impl Transport {
 
     pub async fn receive_data_packet(&self, sender: &EndpointId, sender_display_name: &str, receiver: &EndpointId, packet: RawP2PPayload) {
 
-        if packet.payload.len() > PAYLOAD_MAX_LEN {
-            //We need to chunk
-            let chunks = packet.chunk(PAYLOAD_MAX_LEN);
-            for chunk in chunks {
-                self.receive_single_data_packet(sender, sender_display_name, receiver, chunk).await
-            }
-
-        } else {
-            self.receive_single_data_packet(sender, sender_display_name, receiver, packet).await
-        }
-
-    }
-
-    async fn receive_single_data_packet(&self, sender: &EndpointId, sender_display_name: &str, receiver: &EndpointId, packet: RawP2PPayload) {
         if packet.session_id != 0 {
             self.wait_for_transport_ready(Duration::from_secs(20)).await.unwrap();
         }
 
-        let transport_packet = P2PTransportPacket::new(0, Some(packet));
-        self.receive_single_packet(transport_packet).await
+        if packet.payload.len() > PAYLOAD_MAX_LEN {
+            //We need to chunk
+             let mut chunks: Vec<Vec<P2PTransportPacket>> = packet.chunk(PAYLOAD_MAX_LEN).into_iter().map(|chunk| P2PTransportPacket::new(0, Some(chunk)) ).chunks(100).into_iter().map(|c| c.collect())
+                 .collect();
+
+             for chunk in chunks {
+                 self.receive_packet_chunks(chunk).await;
+             }
+
+        } else {
+
+            let transport_packet = P2PTransportPacket::new(0, Some(packet));
+            self.receive_single_packet(transport_packet).await;
+
+        }
+
     }
+
+
 
     async fn wait_for_transport_ready(&self, timeout: Duration) -> Result<(), anyhow::Error> {
 
@@ -170,6 +188,21 @@ impl Transport {
             *write_lock = TransportStatus::Ready;
 
         }
+    }
+
+    async fn receive_packet_chunks(&self, mut transport_packets: Vec<P2PTransportPacket>) {
+        let mut sequence_lock = self.inner.sequence_number.lock().await;
+        let transport_sender_lock = self.inner.transport_sender.lock().await;
+
+        let mut current_sequence_number = *sequence_lock;
+
+        for transport_packet in transport_packets.iter_mut() {
+            transport_packet.sequence_number = current_sequence_number;
+            current_sequence_number = current_sequence_number + transport_packet.get_payload_length();
+        }
+
+        transport_sender_lock.send_chunks(&self.inner.sender, self.inner.sender.email_addr.as_str(), &self.inner.receiver, transport_packets).await;
+        *sequence_lock = current_sequence_number;
     }
 
     async fn receive_single_packet(&self, mut transport_packet: P2PTransportPacket) {

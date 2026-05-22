@@ -1,17 +1,20 @@
+use crate::switchboard::switchboard_server::SwitchboardSenderMsg;
 use anyhow::anyhow;
 use matrix_sdk::ruma::OwnedRoomId;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
-use msnp::msnp::switchboard::models::session_id::SessionId;
-use std::mem;
-use std::sync::{Arc, Mutex};
-use matrix_sdk::Room;
-use tokio::sync::mpsc;
 use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
+use msnp::msnp::switchboard::models::session_id::SessionId;
 use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::email_address::EmailAddress;
-use msnp::shared::payload::msg::chunked_msg_payload::{ChunkedMsgPayload, MsgChunks};
-use msnp::shared::payload::msg::raw_msg_payload::MsgContentType;
+use msnp::shared::payload::msg::chunked_msg_payload::MsgChunks;
+use msnp::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
 use msnp::shared::traits::IntoRawMsgPayload;
+use std::mem;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tokio::sync::mpsc;
+use msnp::p2p::v2::p2p_transport_packet::P2PTransportPacket;
+use msnp::shared::payload::msg::p2p_msg_payload::P2PMessagePayload;
 
 #[derive(Clone)]
 pub struct SwitchboardHandle {
@@ -31,9 +34,7 @@ impl SwitchboardHandle {
                 self.pending_events.lock().map_err(|e| anyhow!("Failed to acquire pending events lock: {}", e))?.drain(..).collect()
             };
 
-            for event in events {
-                msnp_sender.send(event).await?;
-            }
+            msnp_sender.send(SwitchboardSenderMsg::Chunks(events)).await?;
         }
         Ok(())
     }
@@ -49,7 +50,7 @@ impl SwitchboardHandle {
         }
     }
 
-    pub fn new_ready(session_id: SessionId, room_id: OwnedRoomId, msnp_sender: mpsc::Sender<SwitchboardServerCommand>) -> Self {
+    pub fn new_ready(session_id: SessionId, room_id: OwnedRoomId, msnp_sender: mpsc::Sender<SwitchboardSenderMsg>) -> Self {
         Self {
             session_id,
             room_id,
@@ -75,6 +76,18 @@ impl SwitchboardHandle {
             self.send_pending_events().await?
         }
 
+        Ok(())
+    }
+
+    pub async fn receive_p2p_chunks(&self, sender: &EmailAddress, sender_display_name: &str, packet: Vec<P2PMessagePayload>) -> Result<(), anyhow::Error> {
+        let commands: Vec<SwitchboardServerCommand> = packet.into_iter()
+            .map(|p|  SwitchboardServerCommand::MSG(MsgServer {
+            sender: sender.clone(),
+            display_name: DisplayName::new(sender_display_name.to_owned()),
+            payload: MsgPayload::P2P(p),
+        })  ).collect();
+
+        self.receive_chunked_commands(commands).await?;
         Ok(())
     }
 
@@ -122,7 +135,25 @@ impl SwitchboardHandle {
             SwitchboardState::Ready {
                 msnp_sender
             } => {
-                msnp_sender.send(command).await?;
+                msnp_sender.send(SwitchboardSenderMsg::Single(command)).await?;
+                Ok(())
+            }
+        }
+    }
+
+    pub async fn receive_chunked_commands(&self, mut commands: Vec<SwitchboardServerCommand>) -> Result<(), anyhow::Error> {
+
+        let state = self.state().map_err(|e| anyhow!(e))?;
+
+        match state {
+            SwitchboardState::Initializing => {
+                self.pending_events.lock().map_err(|e| anyhow!("Lock error: {}", e))?.append(&mut commands);
+                Ok(())
+            }
+            SwitchboardState::Ready {
+                msnp_sender
+            } => {
+                msnp_sender.send(SwitchboardSenderMsg::Chunks(commands)).await?;
                 Ok(())
             }
         }
@@ -134,7 +165,7 @@ impl SwitchboardHandle {
 pub enum SwitchboardState {
     Initializing,
     Ready {
-        msnp_sender: mpsc::Sender<SwitchboardServerCommand>
+        msnp_sender: mpsc::Sender<SwitchboardSenderMsg>
     }
 }
 

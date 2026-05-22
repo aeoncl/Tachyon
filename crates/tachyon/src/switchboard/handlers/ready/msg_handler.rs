@@ -16,9 +16,10 @@ use tokio::sync::mpsc::Sender;
 use msnp::shared::payload::msg::chunked_msg_payload::{ChunkMetadata, ChunkedMsgPayload, MsgChunks};
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::p2p::p2p_handler::handle_p2p_packet;
+use crate::switchboard::switchboard_server::SwitchboardSenderMsg;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 
-pub(super) async fn handle_msg(msg_command: MsgClient, command_sender: Sender<SwitchboardServerCommand>, tachyon_client: TachyonClient, matrix_client: Client, room: Room, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
+pub(super) async fn handle_msg(msg_command: MsgClient, command_sender: Sender<SwitchboardSenderMsg>, tachyon_client: TachyonClient, matrix_client: Client, room: Room, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
 
     if let MsgPayload::Chunked(chunk) = msg_command.payload {
         if let Some(complete) = handle_chunked(chunk, local_switchboard_data).await? {
@@ -50,7 +51,7 @@ pub async fn handle_chunked(chunk: ChunkedMsgPayload, local_switchboard_data: &m
     Ok(None)
 }
 
-pub fn handle_msg_payload_task(tr_id: u128, ack_type: MsgAcknowledgment, payload: MsgPayload, room: &Room, command_sender: &Sender<SwitchboardServerCommand>, tachyon_client: TachyonClient) {
+pub fn handle_msg_payload_task(tr_id: u128, ack_type: MsgAcknowledgment, payload: MsgPayload, room: &Room, command_sender: &Sender<SwitchboardSenderMsg>, tachyon_client: TachyonClient) {
 
     let room_clone = room.clone();
     let command_sender_clone = command_sender.clone();
@@ -99,14 +100,14 @@ pub fn handle_msg_payload_task(tr_id: u128, ack_type: MsgAcknowledgment, payload
             error!("Could not send message {:?}", e);
             match ack_type {
                 MsgAcknowledgment::AckOnFailure | MsgAcknowledgment::AckA | MsgAcknowledgment::AckD => {
-                    command_sender_clone.send(SwitchboardServerCommand::NAK(NakServer::new(tr_id))).await;
+                    command_sender_clone.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::NAK(NakServer::new(tr_id)))).await;
                 }
                 _ => {}
             }
         } else {
             match ack_type {
                 MsgAcknowledgment::AckA | MsgAcknowledgment::AckD => {
-                    command_sender_clone.send(SwitchboardServerCommand::ACK(AckServer::new(tr_id))).await;
+                    command_sender_clone.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::ACK(AckServer::new(tr_id)))).await;
                 }
                 _ => {}
             }

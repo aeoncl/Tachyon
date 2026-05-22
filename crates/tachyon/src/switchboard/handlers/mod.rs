@@ -4,14 +4,15 @@ use crate::switchboard::models::connection_phase::ConnectionPhase;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::tachyon::global_state::GlobalState;
 use anyhow::anyhow;
-use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};
+use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand};
 use tokio::sync::mpsc::Sender;
+use crate::switchboard::switchboard_server::SwitchboardSenderMsg;
 use crate::tachyon::repository::RepositoryStr;
 
 mod bootstrap_handlers;
 mod ready;
 
-pub(crate) async fn handle_command(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardServerCommand>, tachyon_state: &GlobalState, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_command(command: SwitchboardClientCommand, command_sender: Sender<SwitchboardSenderMsg>, tachyon_state: &GlobalState, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
 
     match local_switchboard_data.phase {
         ConnectionPhase::Authenticating => {
