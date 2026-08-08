@@ -1,24 +1,20 @@
 use crate::matrix::extensions::direct::DirectRoom;
 use crate::matrix::extensions::message_dedup::SendWithDedup;
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
-use crate::matrix::handlers::context::TachyonContext;
 use crate::switchboard::extensions::CustomStyles;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
-use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::events::room::message::{MessageType, OriginalSyncRoomMessageEvent};
 use matrix_sdk::ruma::events::typing::SyncTypingEvent;
 use matrix_sdk::{Client, Room};
-use ruma::UInt;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
 use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
-use msnp::shared::payload::msg::chunked_msg_payload::ChunkedMsgPayload;
 use msnp::shared::payload::msg::control_msg::ControlMessagePayload;
-use msnp::shared::payload::msg::gif_msg::GifMsgPayload;
+use msnp::shared::payload::msg::datacast_msg::DatacastMessagePayload;
 use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
-use crate::tachyon::client::tachyon_client::TachyonClient;
 
 pub async fn handle_message(
     event: OriginalSyncRoomMessageEvent,
@@ -53,41 +49,28 @@ pub async fn handle_message(
     };
 
 
-    match event.content.msgtype {
+    match &event.content.msgtype {
         MessageType::Audio(audio) => {
-            let size = audio.info.map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
-            let filename = audio.filename.unwrap_or(audio.body);
+            let size = audio.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
+            let filename = audio.filename.as_ref().unwrap_or(&audio.body).to_owned();
             //TODO fix filename
-            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, audio.source).await;
+            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, audio.source.clone()).await;
         }
         MessageType::Emote(emote) => {
 
         }
         MessageType::File(file) => {
-            let size = file.info.map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
-            let filename = file.filename.unwrap_or(file.body);
+            let size = file.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
+            let filename = file.filename.as_ref().unwrap_or(&file.body).to_owned();
             //TODO fix filename
-            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, file.source).await;
+            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, file.source.clone()).await;
         }
         MessageType::Image(image) => {
 
-            let size = image.info.map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
-            let filename = image.filename.unwrap_or(image.body);
+            let size = image.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
+            let filename = image.filename.as_ref().unwrap_or(&image.body).to_owned();
             //TODO fix filename
-            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, image.source).await;
-
-            // if let Some(info) = image.info.as_ref() {
-            //     if let Some(mime) = info.mimetype.as_ref() {
-            //         if mime.contains("gif") {
-            //
-            //              if let Ok(Some(bytes)) = client.media().get_file(&image, true).await {
-            //
-            //                      switchboard.receive_msg(&message_sender.get_email_address(), message_sender.compute_display_name(), GifMsgPayload::new(bytes)).await;
-            //
-            //             }
-            //         }
-            //     }
-            // }
+            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, image.source.clone()).await;
         }
         MessageType::Location(_) => {}
         MessageType::Notice(message) => {
@@ -117,13 +100,29 @@ pub async fn handle_message(
             switchboard.receive_command(msg).await.unwrap();
         }
         MessageType::Video(video) => {
-            let size = video.info.map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
-            let filename = video.filename.unwrap_or(video.body);
+            let size = video.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
+            let filename = video.filename.as_ref().unwrap_or(&video.body).to_owned();
             //TODO fix filename
-            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, video.source).await;
+            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, video.source.clone()).await;
         }
         MessageType::VerificationRequest(_) => {}
-        MessageType::_Custom(_) => {}
+        MessageType::_Custom(_) => {
+
+            match event.content.msgtype.msgtype() {
+                "chat.tachyon.buzz" => {
+
+                    let nudge = SwitchboardServerCommand::MSG(MsgServer {
+                        sender: message_sender.get_email_address().clone(),
+                        display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
+                        payload: MsgPayload::Datacast(DatacastMessagePayload::new_nudge()),
+                    }
+                    );
+
+                    switchboard.receive_command(nudge).await.unwrap();
+                },
+                &_ => {}
+            }
+        }
         _ => {}
     }
 

@@ -8,13 +8,16 @@ use matrix_sdk::{Client, Error, Room};
 use matrix_sdk::attachment::AttachmentConfig;
 use matrix_sdk::room::futures::SendMessageLikeEventResult;
 use mime::Mime;
+use ruma::events::room::message::MessageType;
 use msnp::msnp::switchboard::command::ack::AckServer;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::msnp::switchboard::command::msg::{MsgAcknowledgment, MsgClient, MsgPayload};
 use msnp::shared::command::nak::NakServer;
 use tokio::sync::mpsc::Sender;
 use msnp::shared::payload::msg::chunked_msg_payload::{ChunkMetadata, ChunkedMsgPayload, MsgChunks};
+use msnp::shared::payload::msg::datacast_msg::DatacastType;
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
+use crate::matrix::nudge_custom_event::{create_buzz_message};
 use crate::p2p::p2p_handler::handle_p2p_packet;
 use crate::switchboard::switchboard_server::SwitchboardSenderMsg;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
@@ -68,6 +71,17 @@ pub fn handle_msg_payload_task(tr_id: u128, ack_type: MsgAcknowledgment, payload
             }
             MsgPayload::Datacast(datacast) => {
                 debug!("received DATACAST {:?}", &datacast.get_type() );
+
+                match datacast.get_type() {
+                    DatacastType::Nudge => {
+                        let buzz = create_buzz_message(tachyon_client.own_user().compute_display_name());
+                        room_clone.send(buzz).await.unwrap();
+                    }
+                    DatacastType::Wink => {}
+                    DatacastType::MsnObject => {}
+                    DatacastType::ActionMsg => {}
+                }
+
                 Ok(())
             }
             MsgPayload::Control(control) => {
