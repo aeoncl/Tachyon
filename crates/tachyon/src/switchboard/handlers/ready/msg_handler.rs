@@ -26,10 +26,10 @@ pub(super) async fn handle_msg(msg_command: MsgClient, command_sender: Sender<Sw
 
     if let MsgPayload::Chunked(chunk) = msg_command.payload {
         if let Some(complete) = handle_chunked(chunk, local_switchboard_data).await? {
-            handle_msg_payload_task(msg_command.tr_id, msg_command.ack_type, complete, &room, &command_sender, tachyon_client.clone());
+            dispatch_msg_payload(msg_command.tr_id, msg_command.ack_type, complete, &room, &command_sender, tachyon_client.clone()).await;
         }
     } else {
-        handle_msg_payload_task(msg_command.tr_id, msg_command.ack_type, msg_command.payload, &room, &command_sender, tachyon_client.clone());
+        dispatch_msg_payload(msg_command.tr_id, msg_command.ack_type, msg_command.payload, &room, &command_sender, tachyon_client.clone()).await;
     };
 
     Ok(())
@@ -54,12 +54,21 @@ pub async fn handle_chunked(chunk: ChunkedMsgPayload, local_switchboard_data: &m
     Ok(None)
 }
 
-pub fn handle_msg_payload_task(tr_id: u128, ack_type: MsgAcknowledgment, payload: MsgPayload, room: &Room, command_sender: &Sender<SwitchboardSenderMsg>, tachyon_client: TachyonClient) {
+pub async fn dispatch_msg_payload(tr_id: u128, ack_type: MsgAcknowledgment, payload: MsgPayload, room: &Room, command_sender: &Sender<SwitchboardSenderMsg>, tachyon_client: TachyonClient) {
 
     let room_clone = room.clone();
     let command_sender_clone = command_sender.clone();
 
-    tokio::spawn(async move {
+    if matches!(payload, MsgPayload::P2P(_)) {
+        //P2P packets must be handled in the order they were received:
+        //chunk reassembly and the transport handshake break if a later packet overtakes an earlier one.
+        handle_msg_payload(tr_id, ack_type, payload, room_clone, command_sender_clone, tachyon_client).await;
+    } else {
+        tokio::spawn(handle_msg_payload(tr_id, ack_type, payload, room_clone, command_sender_clone, tachyon_client));
+    }
+}
+
+async fn handle_msg_payload(tr_id: u128, ack_type: MsgAcknowledgment, payload: MsgPayload, room_clone: Room, command_sender_clone: Sender<SwitchboardSenderMsg>, tachyon_client: TachyonClient) {
         let result: Result<(), Error> = match payload {
             MsgPayload::Raw(_) => {
                 Ok(())
@@ -126,6 +135,4 @@ pub fn handle_msg_payload_task(tr_id: u128, ack_type: MsgAcknowledgment, payload
                 _ => {}
             }
         }
-    });
-
 }

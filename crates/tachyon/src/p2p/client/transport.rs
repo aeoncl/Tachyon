@@ -26,17 +26,12 @@ use tokio::task::yield_now;
 
 impl TachyonClient {
     pub fn get_or_create_transport(&self, room_id: &RoomId, inviter: &MsnUser) -> Transport {
-        match self.inner.transports.get(room_id) {
-            None => {
+        self.inner.transports.entry(room_id.to_owned())
+            .or_insert_with(|| {
                 let switchboard_handle = self.switchboards().get_or_initialize(room_id, inviter);
-                let transport = Transport::new(TransportSender::SBBridge(switchboard_handle), inviter.endpoint_id.clone(), self.own_user().endpoint_id);
-                self.inner.transports.insert(room_id.to_owned(), transport.clone());
-                transport
-            }
-            Some(transport) => {
-                transport.value().clone()
-            }
-        }
+                Transport::new(TransportSender::SBBridge(switchboard_handle), inviter.endpoint_id.clone(), self.own_user().endpoint_id)
+            })
+            .clone()
     }
 
     pub fn remove_transport(self, room_id: &RoomId) {
@@ -307,25 +302,28 @@ impl Transport {
                 let is_in_chunks = self.inner.chunks_unwraped.contains_key(&payload.package_number);
                 if payload.is_chunked_packet() {
                     debug!("Chunked -> returning none");
-                    self.inner.chunks_unwraped.get_mut(&payload.package_number).unwrap().push(packet);
+                    self.inner.chunks_unwraped.entry(payload.package_number).or_default().push(packet);
                     Ok(None)
                 } else if is_in_chunks && !payload.is_chunked_packet() {
                     debug!("Now complete -> return reformed");
                     //Reform previously chunked packet
                     let (_, mut chunks) = self.inner.chunks_unwraped.remove(&payload.package_number).unwrap();
 
-                    let reformed = chunks.drain(..).reduce( |mut acc, mut e| {
+                    let mut reformed = chunks.drain(..).reduce( |mut acc, mut e| {
                         acc.append_chunk(&e);
                         acc
                     }
                     ).expect("not to be empty");
 
-                    let slp = reformed.get_payload().unwrap().get_payload_as_slp().unwrap();
+                    //The current packet is the final chunk: append it too
+                    reformed.append_chunk(&packet);
+
+                    let slp = reformed.get_payload().unwrap().get_payload_as_slp()?;
                     Ok(Some(UnwrappedP2PPacket::Slp(slp, reformed.op_code())))
                 } else {
                     debug!("Packet not chunked, return.");
                     //Packet is not chunked and is not in chunks, so it's really a non chunked packet.
-                    let slp = payload.get_payload_as_slp().unwrap();
+                    let slp = payload.get_payload_as_slp()?;
                     Ok(Some(UnwrappedP2PPacket::Slp(slp, packet.op_code())))
                 }
             } else {

@@ -1,5 +1,5 @@
 use std::time::Duration;
-use log::info;
+use log::{debug, info};
 use matrix_sdk::media::{MediaFormat, MediaRequestParameters};
 use tokio::time::sleep;
 use msnp::msnp::error::PayloadError;
@@ -16,14 +16,28 @@ use crate::p2p::client::session::SessionType;
 
 pub async fn handle_p2p_packet(transport: Transport, p2p_packet: P2PTransportPacket, tachyon_client: TachyonClient) {
 
-    let sorted_packet = transport.unwrap_packet(p2p_packet).await.unwrap();
+    let sorted_packet = match transport.unwrap_packet(p2p_packet).await {
+        Ok(packet) => packet,
+        Err(e) => {
+            log::error!("Could not unwrap P2P packet: {:?}", e);
+            return;
+        }
+    };
 
     if let Some(packet) = sorted_packet {
 
         match packet {
             UnwrappedP2PPacket::Slp(slp_payload, transport_op) => {
+
+                let debugg = slp_payload.to_string();
+                debug!("UnwrappedSLP debug: {}", debugg);
+
                 //Handle SLP
-                let content_type = slp_payload.get_content_type().unwrap().trim();
+                let Some(content_type) = slp_payload.get_content_type() else {
+                    log::warn!("SLP payload without Content-Type, ignoring: {}", slp_payload.to_string());
+                    return;
+                };
+                let content_type = content_type.trim();
                 if content_type == "application/x-msnmsgr-sessionreqbody" && slp_payload.is_200_ok() {
                     //Start transfering stuff
                     let session_id = slp_payload
@@ -50,15 +64,7 @@ pub async fn handle_p2p_packet(transport: Transport, p2p_packet: P2PTransportPac
                                     Ok(file) => {
                                         let mut p2p_payload = P2PPayloadFactory::get_file_transfer(session_id);
                                         p2p_payload.payload = file;
-
                                         session.receive_packet(&content.sender, &content.sender_display_name, &content.receiver, p2p_payload).await;
-
-                                        //let bye = SlpPayloadFactory::get_session_bye(&content.sender, &content.receiver, session.call_id(), session_id).unwrap();
-                                        //let mut bye_packet = P2PPayloadFactory::get_sip_text_message();
-                                        //bye_packet.set_payload(bye.into_bytes());
-
-                                        //sleep(Duration::from_secs(10)).await;
-                                        //session.receive_packet(&content.sender, &content.sender_display_name, &content.receiver, bye_packet).await;
                                     }
                                     Err(_) => {
                                         //TODO send err 500
