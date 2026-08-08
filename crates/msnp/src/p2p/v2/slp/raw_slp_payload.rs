@@ -167,7 +167,12 @@ impl Display for RawSlpPayload {
             headers.push_str(format!("{key}: {value}\r\n", key = &key, value = &value).as_str());
         }
 
-        headers.push_str(format!("Content-Length: {value}\r\n", value = body.len()).as_str());
+
+        //This sucks a bit, when we deserialize, we get the header in the map, but when we serialize we compute it
+        //TODO: find a better way to do this so that it's not confusing.
+        if !&self.headers.contains_key("Content-Length") {
+            headers.push_str(format!("Content-Length: {value}\r\n", value = body.len()).as_str());
+        }
 
         out.push_str(headers.as_str());
         out.push_str("\r\n");
