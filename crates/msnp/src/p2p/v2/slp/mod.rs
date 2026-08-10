@@ -190,6 +190,13 @@ impl SlpHeaders {
         })
     }
 
+    pub fn sender(&self) -> &EndpointId {
+        &self.sender
+    }
+
+    pub fn receiver(&self) -> &EndpointId {
+        &self.receiver
+    }
 }
 
 impl Into<LinkedHashMap<String, String>> for SlpHeaders {

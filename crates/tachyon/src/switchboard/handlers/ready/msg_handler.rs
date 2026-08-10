@@ -105,7 +105,8 @@ async fn handle_msg_payload(tr_id: u128, ack_type: MsgAcknowledgment, payload: M
             }
             MsgPayload::P2P(p2p) => {
                 let transport = tachyon_client.get_or_create_transport(room_clone.room_id(), &room_clone.to_msn_user_lazy().await.unwrap());
-                handle_p2p_packet(transport, p2p.payload, tachyon_client).await;
+
+                handle_p2p_packet(room_clone.room_id(), transport, p2p.payload, tachyon_client).await;
                 Ok(())
             }
             MsgPayload::Chunked(_) => {

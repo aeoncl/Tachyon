@@ -8,14 +8,19 @@ use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::traits::IntoBytes;
 use std::sync::{Arc, Mutex};
 use anyhow::anyhow;
+use ruma::{OwnedRoomId, RoomId};
 use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
 use msnp::shared::models::uuid::Uuid;
 
 pub type SessionId = u32;
 
 impl TachyonClient {
-    pub fn create_session(&self, transport: Transport, session_type: SessionType) -> (SessionId, P2PSession) {
+    pub fn create_session_with_random_id(&self, transport: Transport, session_type: SessionType) -> (SessionId, P2PSession) {
         let session_id: u32 = rand::random();
+        self.create_session(transport, session_type, session_id)
+    }
+
+    pub fn create_session(&self, transport: Transport, session_type: SessionType, session_id: SessionId) -> (SessionId, P2PSession) {
         let session = P2PSession::new(session_id, transport, session_type);
 
         self.inner.sessions.insert(session_id, session.clone());
@@ -58,6 +63,7 @@ impl P2PSession {
                 packet.set_payload(slp_payload.into_bytes());
                 self.inner.transport.receive_data_packet(&content.sender, &content.sender_display_name, &content.receiver, packet).await;
             }
+            SessionType::SendFile(_) => {}
         }
     }
 
@@ -103,7 +109,8 @@ impl P2PSession {
 }
 
 pub enum SessionType {
-    ReceiveFile(ReceiveFileContent)
+    ReceiveFile(ReceiveFileContent),
+    SendFile(SendFileContent),
 }
 
 pub struct ReceiveFileContent {
@@ -113,4 +120,11 @@ pub struct ReceiveFileContent {
     pub media_source: MediaSource,
     pub file_size: usize,
     pub filename: String
+}
+
+pub struct SendFileContent {
+    pub room_id: OwnedRoomId,
+    pub file_size: usize,
+    pub filename: String
+
 }

@@ -1,20 +1,23 @@
 use std::time::Duration;
 use log::{debug, info};
 use matrix_sdk::media::{MediaFormat, MediaRequestParameters};
+use ruma::RoomId;
 use tokio::time::sleep;
 use msnp::msnp::error::PayloadError;
 use msnp::p2p::v2::factories::{P2PPayloadFactory, P2PTransportPacketFactory};
 use crate::p2p::client::transport::{Transport, UnwrappedP2PPacket};
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use msnp::p2p::v2::p2p_transport_packet::P2PTransportPacket;
-use msnp::p2p::v2::slp::raw_slp_payload::{RawSlpPayload, SlpPayloadFactory};
-use msnp::p2p::v2::slp::SlpPayload;
+use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
+use msnp::p2p::v2::slp::raw_slp_payload::{RawSlpPayload, SlpPayloadFactory, TryFromRawSlpPayload};
+use msnp::p2p::v2::slp::{SlpHeaders, SlpPayload};
+use msnp::p2p::v2::slp::session_slp_payload::{SessionInviteRequestPayload, SessionReqInviteContext};
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::traits::IntoBytes;
-use crate::p2p::client::session::SessionType;
+use crate::p2p::client::session::{SendFileContent, SessionType};
 
-pub async fn handle_p2p_packet(transport: Transport, p2p_packet: P2PTransportPacket, tachyon_client: TachyonClient) {
+pub async fn handle_p2p_packet(room_id: &RoomId, transport: Transport, p2p_packet: P2PTransportPacket, tachyon_client: TachyonClient) {
 
     let sorted_packet = match transport.unwrap_packet(p2p_packet).await {
         Ok(packet) => packet,
@@ -47,12 +50,14 @@ pub async fn handle_p2p_packet(transport: Transport, p2p_packet: P2PTransportPac
 
                     let session = tachyon_client.get_session(session_id).unwrap();
                     session.accept().unwrap();
+
+                    let matrix_client = tachyon_client.matrix_client();
                     tokio::spawn(async move {
 
                         let session_type = session.session_type();
                         match session_type {
                             SessionType::ReceiveFile(content) => {
-                                let file = tachyon_client.matrix_client().media().get_media_content(
+                                let file = matrix_client.media().get_media_content(
                                     &MediaRequestParameters {
                                         source: content.media_source.clone(),
                                         format: MediaFormat::File,
@@ -72,10 +77,46 @@ pub async fn handle_p2p_packet(transport: Transport, p2p_packet: P2PTransportPac
                                 }
 
                             }
+                            _ => {}
                         }
 
 
                     });
+                }
+
+                if content_type == "application/x-msnmsgr-sessionreqbody" && slp_payload.is_invite() {
+
+                    let invite = SessionInviteRequestPayload::try_from_raw_slp_payload(slp_payload.clone()).unwrap();
+
+                    match invite.context() {
+                        SessionReqInviteContext::MsnObject(_) => {}
+                        SessionReqInviteContext::FileTransfer(transfer) => {
+
+                            let (_, session) = tachyon_client.create_session(transport.clone(), SessionType::SendFile(SendFileContent {
+                                room_id: room_id.to_owned(),
+                                file_size: transfer.get_size(),
+                                filename: transfer.get_filename(),
+                            }), invite.session_id());
+
+                            let sender =  invite.headers().sender();
+                            let receiver = invite.headers().receiver();
+
+                            let response = SlpPayloadFactory::get_200_ok_session(&slp_payload).unwrap();
+
+                            let mut packet = P2PPayloadFactory::get_sip_text_message();
+                            packet.set_payload(response.into_bytes());
+
+                            session.receive_packet(receiver, "", sender, packet).await;
+                            session.accept();
+                        }
+                        SessionReqInviteContext::MediaReceiveOnly => {}
+                        SessionReqInviteContext::MediaSession => {}
+                        SessionReqInviteContext::SharePhoto => {}
+                        SessionReqInviteContext::Activity => {}
+                    }
+
+
+
                 }
 
                 if content_type == "application/x-msnmsgr-transreqbody" {
@@ -83,6 +124,7 @@ pub async fn handle_p2p_packet(transport: Transport, p2p_packet: P2PTransportPac
                 }
             }
             UnwrappedP2PPacket::DataPacket(packet, transport_op) => {
+                debug!("Received data packet");
                 let session = tachyon_client.get_session(packet.session_id).unwrap();
 
 

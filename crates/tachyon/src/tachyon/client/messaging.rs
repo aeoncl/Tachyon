@@ -9,7 +9,7 @@ impl TachyonClient {
 
 
         let transport = self.get_or_create_transport(room_id, inviter);
-        let (session_id, session) = self.create_session(transport, SessionType::ReceiveFile(ReceiveFileContent {
+        let (session_id, session) = self.create_session_with_random_id(transport, SessionType::ReceiveFile(ReceiveFileContent {
             sender: inviter.endpoint_id.clone(),
             sender_display_name: sender.compute_display_name().to_string(),
             receiver: self.own_user().endpoint_id,
