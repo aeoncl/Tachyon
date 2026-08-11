@@ -7,6 +7,7 @@ use msnp::msnp::notification::command::uum::{UumClient, UumPayload};
 use msnp::shared::models::font_style::FontStyle;
 use tokio::sync::mpsc::Sender;
 use msnp::shared::models::email_address::EmailAddress;
+use msnp::shared::traits::IntoBytes;
 use crate::matrix::extensions::msn_user_resolver::FindRoomFromEmail;
 
 pub async fn handle_uum(command: UumClient, client_data: TachyonClient, matrix_client: Client, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
@@ -73,7 +74,8 @@ pub async fn handle_uum(command: UumClient, client_data: TachyonClient, matrix_c
             todo!()
 
         }
-        UumPayload::Raw(_) => {
+        UumPayload::Raw(raw) => {
+            println!("UUM: {}", String::from_utf8(raw.into_bytes()).unwrap());
             todo!()
         }
     }

@@ -21,7 +21,9 @@ use crate::msnp::notification::command::xfr::{XfrClient, XfrServer};
 use crate::msnp::{error::CommandError, raw_command_parser::RawCommand};
 use crate::msnp::notification::command::fqy::{FqyClient, FqyServer};
 use crate::msnp::notification::command::ubm::UbmServer;
+use crate::msnp::notification::command::ubn::UbnServer;
 use crate::msnp::notification::command::url::{UrlClient, UrlServer};
+use crate::shared::command::err::ErrCommand;
 use crate::shared::command::nak::NakServer;
 use crate::shared::command::ok::OkCommand;
 use crate::shared::traits::{IntoBytes, TryFromRawCommand};
@@ -111,6 +113,8 @@ pub enum NotificationServerCommand {
     RNG(RngServer),
     PRP(PrpServer),
     URL(UrlServer),
+    UBN(UbnServer),
+    ERR(ErrCommand),
     OUT,
     RAW(RawCommand)
 }
@@ -153,6 +157,8 @@ impl IntoBytes for NotificationServerCommand {
             NotificationServerCommand::FQY(content) => { content.into_bytes() }
             NotificationServerCommand::NAK(content) => { content.into_bytes() }
             NotificationServerCommand::URL(content) => { content.into_bytes() }
+            NotificationServerCommand::ERR(content) => { content.into_bytes() }
+            NotificationServerCommand::UBN(content) => { content.into_bytes() }
         }
     }
 }

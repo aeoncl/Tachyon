@@ -38,6 +38,16 @@ pub async fn handle_p2p_packet(room_id: &RoomId, transport: Transport, p2p_packe
                     return;
                 };
                 let content_type = content_type.trim();
+
+                if content_type == "application/x-msnmsgr-sessionclosebody" {
+                    let session_id = slp_payload
+                        .get_body_property(&String::from("SessionID"))
+                        .ok_or(PayloadError::MandatoryPartNotFound { name: "SessionID".to_string(), payload: slp_payload.to_string() }).unwrap()
+                        .parse::<u32>().unwrap();
+
+                    tachyon_client.clear_session(session_id);
+                }
+
                 if content_type == "application/x-msnmsgr-sessionreqbody" && slp_payload.is_200_ok() {
 
                     let session_id = slp_payload
