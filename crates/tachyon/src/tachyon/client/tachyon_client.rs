@@ -14,6 +14,7 @@ use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::{Arc, Mutex, RwLockWriteGuard};
 use tokio::sync::{broadcast, mpsc};
+use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
 use crate::p2p::client::session::{P2PSession, SessionId};
 use crate::p2p::client::transport::Transport;
 
@@ -31,13 +32,15 @@ pub struct TachyonClientInner {
     pub client_shutdown_snd: broadcast::Sender<()>,
     pub client_shutdown_recv: broadcast::Receiver<()>,
     pub transports: DashMap<OwnedRoomId, Transport>,
-    pub sessions: DashMap<SessionId, P2PSession>
+    pub sessions: DashMap<SessionId, P2PSession>,
+    pub chunked_uploads: DashMap<SessionId, Vec<RawP2PPayload>>
 }
 
 #[derive(Clone)]
 pub struct TachyonClient {
     pub inner: Arc<TachyonClientInner>
 }
+
 
 impl TachyonClient {
     pub fn new(
@@ -65,6 +68,7 @@ impl TachyonClient {
                 client_shutdown_recv,
                 transports: Default::default(),
                 sessions: Default::default(),
+                chunked_uploads: Default::default(),
             })
         }
     }

@@ -58,6 +58,13 @@ impl TfCombination {
         self.flag
     }
 
+    pub fn is_first(self) -> bool {
+        self.flag == 1
+    }
+
+    /// `true` when this is SIP text (session_id == 0) or data preparation (session_id != 0) && (tranfer_type == 0)
+    pub fn is_metadata(self) -> bool { self.transfer_type == 0 }
+
     /// `true` when this is a file-transfer payload (transfer_type == 3).
     pub fn is_file_transfer(self) -> bool {
         self.transfer_type == 3
@@ -186,7 +193,7 @@ impl RawP2PPayload {
     }
 
     pub fn is_chunked_packet(&self) -> bool {
-        self.get_missing_bytes_count() > 0
+        self.get_remaining_bytes_tlv().is_some()
     }
 
     pub fn chunk(self, chunk_size: usize) -> Vec<RawP2PPayload> {

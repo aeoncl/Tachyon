@@ -31,6 +31,11 @@ impl TachyonClient {
         self.inner.sessions.get(&session_id).map(|r| r.value().clone())
     }
 
+    pub fn clear_session(&self, session_id: SessionId) {
+        self.inner.sessions.remove(&session_id);
+        self.inner.chunked_uploads.remove(&session_id);
+    }
+
 }
 
 pub struct P2PSessionInner {

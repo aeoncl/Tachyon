@@ -32,9 +32,6 @@ pub async fn handle_p2p_packet(room_id: &RoomId, transport: Transport, p2p_packe
         match packet {
             UnwrappedP2PPacket::Slp(slp_payload, transport_op) => {
 
-                let debugg = slp_payload.to_string();
-                debug!("UnwrappedSLP debug: {}", debugg);
-
                 //Handle SLP
                 let Some(content_type) = slp_payload.get_content_type() else {
                     log::warn!("SLP payload without Content-Type, ignoring: {}", slp_payload.to_string());
@@ -42,7 +39,7 @@ pub async fn handle_p2p_packet(room_id: &RoomId, transport: Transport, p2p_packe
                 };
                 let content_type = content_type.trim();
                 if content_type == "application/x-msnmsgr-sessionreqbody" && slp_payload.is_200_ok() {
-                    //Start transfering stuff
+
                     let session_id = slp_payload
                         .get_body_property(&String::from("SessionID"))
                         .ok_or(PayloadError::MandatoryPartNotFound { name: "SessionID".to_string(), payload: slp_payload.to_string() }).unwrap()
@@ -89,7 +86,7 @@ pub async fn handle_p2p_packet(room_id: &RoomId, transport: Transport, p2p_packe
                     let invite = SessionInviteRequestPayload::try_from_raw_slp_payload(slp_payload.clone()).unwrap();
 
                     match invite.context() {
-                        SessionReqInviteContext::MsnObject(_) => {}
+                        SessionReqInviteContext::MsnObject(obj) => {}
                         SessionReqInviteContext::FileTransfer(transfer) => {
 
                             let (_, session) = tachyon_client.create_session(transport.clone(), SessionType::SendFile(SendFileContent {
@@ -124,10 +121,14 @@ pub async fn handle_p2p_packet(room_id: &RoomId, transport: Transport, p2p_packe
                 }
             }
             UnwrappedP2PPacket::DataPacket(packet, transport_op) => {
-                debug!("Received data packet");
                 let session = tachyon_client.get_session(packet.session_id).unwrap();
 
-
+                match session.session_type() {
+                    SessionType::ReceiveFile(_) => {}
+                    SessionType::SendFile(content) => {
+                        tachyon_client.send_file_buffered(packet.session_id, packet, room_id, &content.filename, content.file_size).await.unwrap();
+                    }
+                }
             }
         }
 
