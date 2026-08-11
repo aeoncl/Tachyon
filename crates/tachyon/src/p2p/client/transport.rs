@@ -10,7 +10,6 @@ use msnp::shared::payload::msg::p2p_msg_payload::P2PMessagePayload;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use anyhow::anyhow;
-use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use futures_util::StreamExt;
 use lazy_static_include::syn::parse::End;
@@ -76,7 +75,6 @@ enum TransportStatus {
     Initial,
     HandshakeOngoing,
     HandshakeComplete,
-    NegotiatingBridge(Uuid),
     Ready
 }
 
@@ -121,7 +119,10 @@ impl Transport {
     pub async fn receive_data_packet(&self, sender: &EndpointId, sender_display_name: &str, receiver: &EndpointId, packet: RawP2PPayload) {
 
         if packet.session_id != 0 {
-            self.wait_for_transport_ready(Duration::from_secs(20)).await.unwrap();
+            if let Err(e) = self.wait_for_transport_ready(Duration::from_secs(20)).await {
+                error!("Dropping outgoing data packet for session {}: {}", packet.session_id, e);
+                return;
+            }
         }
 
         if packet.payload.len() > PAYLOAD_MAX_LEN {
@@ -142,25 +143,23 @@ impl Transport {
 
     }
 
-
-
     async fn wait_for_transport_ready(&self, timeout: Duration) -> Result<(), anyhow::Error> {
-
-        let mut interval = tokio::time::interval(Duration::from_secs(1));
-        let end = Utc::now().timestamp() + (timeout.as_secs() as i64);
+        let deadline = tokio::time::Instant::now() + timeout;
+        let mut interval = tokio::time::interval(Duration::from_millis(100));
         loop {
             interval.tick().await;
-            if *self.inner.status.read().await == TransportStatus::Ready {
-                break;
+
+            //We ignore trans-req to upgrade to another transport than the switchboard so we check for Ready or HandhsakeComplete
+            //Since the client doesn't always send a trans-req-body.
+            let status = self.inner.status.read().await.clone();
+            if matches!(status, TransportStatus::Ready | TransportStatus::HandshakeComplete) {
+                return Ok(());
             }
 
-            if end > Utc::now().timestamp() {
+            if tokio::time::Instant::now() >= deadline {
                 return Err(anyhow!("Transport still not ready after timeout limit: {:?}", timeout));
             }
-
         }
-
-        Ok(())
     }
 
     pub async fn handle_transport_request(&self, transport_req: RawSlpPayload) {
