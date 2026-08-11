@@ -89,8 +89,9 @@ impl RawCommandParser {
                     bytes_to_handle=&bytes_to_handle[terminators_index+1..bytes_to_handle.len()];
                     out.push(raw_command);
                 } else {
-                    //We have payload
-                    if payload_size > bytes_to_handle.len(){
+                    //We have a payload
+                    //Compare against the bytes available after the command line
+                    if payload_size > bytes_to_handle.len() - after_term_index {
                         //Chunked
                         let payload = &bytes_to_handle[after_term_index..bytes_to_handle.len()];
 
@@ -399,6 +400,25 @@ mod tests {
         assert_eq!("ANS", parsed[0].get_operand());
         assert_eq!(5, parsed[0].command_split.len());
         assert_eq!(0, parsed[0].expected_payload_size);
+    }
+
+    #[test]
+    fn test_chunked_payload_shorter_than_command_line() {
+        // The read ends with more bytes remaining than the payload size, but part of
+        // them belong to the command line: this used to slice out of bounds.
+        let mut parser = RawCommandParser::new();
+        let payload = vec![b'A'; 100];
+
+        let mut first_message = b"MSG 1 U 100\r\n".to_vec();
+        first_message.extend_from_slice(&payload[..95]);
+
+        let parsed = parser.parse_message(&first_message).unwrap();
+        assert!(parsed.is_empty());
+
+        let mut parsed = parser.parse_message(&payload[95..]).unwrap();
+        let command = parsed.pop().unwrap();
+        assert!(command.is_complete());
+        assert_eq!(command.payload, payload);
     }
 
     #[test]
