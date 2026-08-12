@@ -1,10 +1,10 @@
 use core::fmt;
-use std::str::FromStr;
-
-use anyhow::anyhow;
-use byteorder::{BigEndian, ByteOrder};
+use std::fmt::{Debug, Display, Formatter};
+use std::str::{from_utf8_unchecked, FromStr};
 
 use crate::{msnp::error::PayloadError, shared::traits::IntoBytes};
+use anyhow::anyhow;
+use byteorder::{BigEndian, ByteOrder};
 
 use super::{
     factories::TLVFactory,
@@ -19,7 +19,7 @@ AND our fake client must be MPOP enabled. (which means adding endpoint data in N
 #[derive(Clone)]
 pub struct P2PTransportPacket {
     pub header_length: usize,
-    pub op_code: u8,
+    op_code: TransportOperationCode,
     pub payload_length: usize,
     pub sequence_number: u32,
     pub tlvs: TLVList,
@@ -51,7 +51,7 @@ impl P2PTransportPacket {
     pub fn new(sequence_number: u32, payload: Option<RawP2PPayload>) -> Self {
         return P2PTransportPacket {
             header_length: 0,
-            op_code: 0,
+            op_code: TransportOperationCode::default(),
             payload_length: 0,
             sequence_number,
             tlvs: TLVList::new(),
@@ -87,13 +87,15 @@ impl P2PTransportPacket {
     }
 
     pub fn is_rak(&self) -> bool {
-        let has_rak_flag = &self.op_code & OperationCode::RequestForAck as u8;
-        return has_rak_flag == OperationCode::RequestForAck as u8;
+        self.op_code.is_rak()
     }
 
     pub fn is_syn(&self) -> bool {
-        let is_syn_flag = &self.op_code & OperationCode::Syn as u8;
-        return is_syn_flag == OperationCode::Syn as u8;
+        self.op_code.is_syn()
+    }
+
+    pub fn op_code(&self) -> TransportOperationCode {
+        self.op_code.clone()
     }
 
     pub fn add_tlv(&mut self, tlv: super::tlv::TLV) {
@@ -115,7 +117,7 @@ impl P2PTransportPacket {
     }
 
     pub fn set_syn(&mut self, client_info: super::tlv::TLV) {
-        self.op_code |= OperationCode::Syn as u8;
+        self.op_code.set_syn();
         self.tlvs.push(client_info);
     }
 
@@ -125,7 +127,7 @@ impl P2PTransportPacket {
     }
 
     pub fn set_rak(&mut self) {
-        self.op_code |= OperationCode::RequestForAck as u8;
+        self.op_code.set_rak()
     }
 
     pub fn get_next_ack_sequence_number(&self) -> Option<u32> {
@@ -164,6 +166,7 @@ impl P2PTransportPacket {
         return None;
     }
 
+    //FIXME make this consume chunk to avoid copying payload
     pub fn append_chunk(&mut self, chunk: &P2PTransportPacket) {
         if let Some(chunk_payload) = chunk.get_payload() {
             let mut chunk_payload = chunk_payload.to_owned();
@@ -198,7 +201,7 @@ impl TryFrom<&[u8]> for P2PTransportPacket {
             });
         }
 
-        let op_code = bytes.get(1).unwrap_or(&0).to_owned();
+        let op_code = bytes.get(1).unwrap_or(&0).to_owned().into();
         let payload_length = BigEndian::read_u16(&bytes[2..4]) as usize;
         let sequence_number = BigEndian::read_u32(&bytes[4..8]);
         let tlvs_length = header_length - 8;
@@ -231,9 +234,9 @@ impl TryFrom<&[u8]> for P2PTransportPacket {
 impl IntoBytes for P2PTransportPacket {
     fn into_bytes(self) -> Vec<u8> {
         let mut out: Vec<u8> = Vec::new();
-        out.push(self.op_code);
+        out.push(self.op_code.into());
 
-        // Placeholder for payload_length — filled in below
+        // Placeholder for payload_length
         out.push(0);
         out.push(0);
 
@@ -254,8 +257,8 @@ impl IntoBytes for P2PTransportPacket {
 
             let mut buffer: [u8; 2] = [0, 0];
             BigEndian::write_u16(&mut buffer, payload_length);
-            out[1] = buffer[0];
-            out[2] = buffer[1];
+            out[2] = buffer[0];
+            out[3] = buffer[1];
 
             out.extend(payload_bytes);
         }
@@ -274,4 +277,91 @@ impl FromStr for P2PTransportPacket {
         let bytes = s.as_bytes();
         return P2PTransportPacket::try_from(bytes);
     }
+}
+
+#[derive(Clone)]
+pub struct TransportOperationCode(u8);
+
+impl Default for TransportOperationCode {
+    fn default() -> Self {
+        Self(0)
+    }
+}
+
+impl Into<u8> for TransportOperationCode {
+    fn into(self) -> u8 {
+        self.0
+    }
+}
+
+impl From<u8> for TransportOperationCode {
+    fn from(value: u8) -> Self {
+        Self(value)
+    }
+}
+
+impl Debug for TransportOperationCode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "TransportOperationCode({flag}", flag = self.0)?;
+        if self.is_syn() {
+            write!(f, " | SYN")?;
+        }
+
+        if self.is_rak() {
+            write!(f, "| RAK")?;
+        }
+
+        write!(f, ")")
+    }
+}
+
+impl TransportOperationCode {
+    pub fn set_syn(&mut self) {
+        self.0 |= OperationCode::Syn as u8;
+    }
+
+    pub fn set_rak(&mut self) {
+        self.0 |= OperationCode::RequestForAck as u8;
+    }
+
+    pub fn is_rak(&self) -> bool {
+        let has_rak_flag = &self.0 & OperationCode::RequestForAck as u8;
+        return has_rak_flag == OperationCode::RequestForAck as u8;
+    }
+
+    pub fn is_syn(&self) -> bool {
+        let is_syn_flag = &self.0 & OperationCode::Syn as u8;
+        return is_syn_flag == OperationCode::Syn as u8;
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use crate::p2p::v2::factories::TLVFactory;
+    use crate::p2p::v2::p2p_transport_packet::{P2PTransportPacket, TransportOperationCode};
+
+    #[test]
+    fn is_syn_test() {
+        let mut op_code = TransportOperationCode::default();
+        op_code.set_syn();
+
+        assert_eq!(op_code.is_syn(), true);
+    }
+
+    #[test]
+    fn transport_packet_is_syn_test() {
+        let mut packet = P2PTransportPacket::new(0, None);
+        packet.set_syn(TLVFactory::get_client_peer_info());
+
+        assert_eq!(packet.is_syn(), true);
+    }
+
+    #[test]
+    fn is_not_syn_test() {
+        let mut op_code = TransportOperationCode::default();
+        op_code.set_rak();
+
+        assert_eq!(op_code.is_syn(), false);
+    }
+
 }

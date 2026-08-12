@@ -15,6 +15,13 @@ pub struct DatacastMessagePayload {
 }
 
 impl DatacastMessagePayload {
+    
+    pub fn new_nudge() -> Self {
+        Self {
+            data: Datacast::Nudge,
+        }
+    }
+    
     pub fn get_type(&self) -> DatacastType {
         self.data.get_type()
     }
@@ -54,7 +61,7 @@ impl TryFromRawMsgPayload for DatacastMessagePayload {
 
         let raw_datacast_type = u8::from_str(body_map.remove("ID").ok_or(PayloadError::MandatoryPartNotFound{ name: "ID".to_string(), payload: "".to_string() })?)?;
         let datacast_type =  DatacastType::from_u8(raw_datacast_type).ok_or(anyhow!("Unknown datacast type: {}", raw_datacast_type))?;
-        let data = body_map.remove("Data").ok_or(PayloadError::MandatoryPartNotFound{ name: "Data".to_string(), payload: "".to_string() })?;
+        let data = body_map.remove("Data");
 
         let content = match datacast_type {
             DatacastType::Nudge => {
@@ -64,17 +71,17 @@ impl TryFromRawMsgPayload for DatacastMessagePayload {
             }
             DatacastType::MsnObject => {
                 DatacastMessagePayload {
-                    data: Datacast::MsnObject(MsnObject::from_str(data)?),
+                    data: Datacast::MsnObject(MsnObject::from_str(data.ok_or(PayloadError::MandatoryPartNotFound{ name: "Data".to_string(), payload: "".to_string() })?)?),
                 }
             }
             DatacastType::ActionMsg => {
                 DatacastMessagePayload {
-                    data: Datacast::ActionMsg(data.to_string())
+                    data: Datacast::ActionMsg(data.ok_or(PayloadError::MandatoryPartNotFound{ name: "Data".to_string(), payload: "".to_string() })?.to_string())
                 }
             }
             DatacastType::Wink => {
                 DatacastMessagePayload {
-                    data: Datacast::Wink(MsnObject::from_str(data)?),
+                    data: Datacast::Wink(MsnObject::from_str(data.ok_or(PayloadError::MandatoryPartNotFound{ name: "Data".to_string(), payload: "".to_string() })?)?),
                 }
             }
         };

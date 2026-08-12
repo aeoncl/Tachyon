@@ -1,16 +1,17 @@
 use std::str::from_utf8;
+use std::vec::Drain;
 use anyhow::anyhow;
+use bytes::{Bytes, BytesMut};
 use log::debug;
 use crate::msnp::error::PayloadError;
 use crate::msnp::switchboard::command::msg::MsgPayload;
+use crate::shared::models::uuid::Uuid;
 use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
 use crate::shared::traits::{TryFromRawMsgPayload, TryFromBytes, IntoBytes};
 
 
 pub enum ChunkMetadata {
     First {
-        mime_version: String,
-        content_type: MsgContentType,
         message_id: String,
         chunks: u32
     },
@@ -30,17 +31,21 @@ impl ChunkMetadata {
 }
 
 pub struct ChunkedMsgPayload {
-    pub body: Vec<u8>,
+    pub raw_msg_payload: RawMsgPayload,
     pub metadata: ChunkMetadata,
 }
 
 impl ChunkedMsgPayload {
-    pub fn new(body: Vec<u8>, metadata: ChunkMetadata) -> Self {
-        Self { body, metadata }
+    pub fn new(raw_msg_payload: RawMsgPayload, metadata: ChunkMetadata) -> Self {
+        Self { raw_msg_payload, metadata }
     }
 
-    pub fn body(&self) -> &Vec<u8> {
-        &self.body
+    pub fn body(&self) -> &[u8] {
+        self.raw_msg_payload.body.as_ref()
+    }
+
+    pub fn body_owned(&self) -> Bytes {
+        self.raw_msg_payload.body.clone()
     }
 
     pub fn metadata(&self) -> &ChunkMetadata {
@@ -49,7 +54,7 @@ impl ChunkedMsgPayload {
 
     pub fn message_id(&self) -> String {
         match &self.metadata {
-            ChunkMetadata::First { mime_version, content_type, message_id, chunks } => {
+            ChunkMetadata::First { message_id, chunks } => {
                 message_id.clone()
             }
             ChunkMetadata::Chunk { message_id, chunk } => {
@@ -69,13 +74,10 @@ impl ChunkedMsgPayload {
 
 impl Into<RawMsgPayload> for ChunkedMsgPayload {
     fn into(self) -> RawMsgPayload {
-        let mut out = RawMsgPayload::default();
-        out.body = self.body;
+        let mut out = self.raw_msg_payload;
 
         match self.metadata {
-            ChunkMetadata::First { mime_version, content_type, message_id, chunks } => {
-                out.add_header_owned("MIME-Version".to_string(), mime_version);
-                out.add_header_owned("Content-Type".to_string(), content_type.to_string());
+            ChunkMetadata::First { message_id, chunks } => {
                 out.add_header_owned("Message-ID".to_string(), message_id);
                 out.add_header_owned("Chunks".to_string(), chunks.to_string());
             }
@@ -92,25 +94,22 @@ impl Into<RawMsgPayload> for ChunkedMsgPayload {
 impl TryFromRawMsgPayload for ChunkedMsgPayload {
     type Err = PayloadError;
 
-    fn try_from_raw(raw: RawMsgPayload) -> Result<Self, Self::Err>
+    fn try_from_raw(mut raw: RawMsgPayload) -> Result<Self, Self::Err>
     where
         Self: Sized
     {
-        let chunked_metadata = if let Some(chunks) = raw.get_header("Chunks") {
-            let mime_version = raw.get_header("MIME-Version").ok_or_else(|| anyhow!("Missing MIME-Version header"))?.to_string();
-            let content_type = raw.get_content_type().map_err(|e| anyhow!("Failed to get content type: {}", e))?;
-            let message_id = raw.get_header("Message-ID").ok_or_else(|| anyhow!("Missing Message-ID header"))?.to_string();
+        let chunked_metadata = if let Some(chunks) = raw.remove_header("Chunks") {
+            let message_id = raw.remove_header("Message-ID").ok_or_else(|| anyhow!("Missing Message-ID header"))?;
             let chunks = chunks.parse::<u32>().map_err(|_| anyhow!("Invalid chunks header value"))?;
 
             ChunkMetadata::First {
-                mime_version,
-                content_type,
                 message_id,
                 chunks
             }
-        } else if let Some(chunk) = raw.get_header("Chunk") {
+
+        } else if let Some(chunk) = raw.remove_header("Chunk") {
             let chunk = chunk.parse::<u32>().map_err(|_| anyhow!("Invalid chunk header value"))?;
-            let message_id = raw.get_header("Message-ID").ok_or_else(|| anyhow!("Missing Message-ID header"))?.to_string();
+            let message_id = raw.remove_header("Message-ID").ok_or_else(|| anyhow!("Missing Message-ID header"))?;
                 ChunkMetadata::Chunk {
                     message_id,
                     chunk
@@ -120,7 +119,7 @@ impl TryFromRawMsgPayload for ChunkedMsgPayload {
         };
 
         Ok(Self {
-            body: raw.body,
+            raw_msg_payload: raw,
             metadata: chunked_metadata
         })
     }
@@ -142,7 +141,7 @@ impl MsgChunks {
 
     pub fn from_first_chunk(first: ChunkedMsgPayload) -> Result<Self, PayloadError> {
 
-        if let ChunkMetadata::First { mime_version, content_type, message_id, chunks } = &first.metadata {
+        if let ChunkMetadata::First {message_id, chunks } = &first.metadata {
             let mut chunks_vec = Vec::new();
             chunks_vec.push(first);
             Ok(Self {
@@ -151,6 +150,48 @@ impl MsgChunks {
         } else {
             Err(PayloadError::MandatoryPartNotFound { name: "First Chunk".to_string(), payload: "MSG".to_string() })
         }
+    }
+
+    pub fn split_into_chunks(mut raw_msg_payload: RawMsgPayload, chunk_size: usize) -> MsgChunks {
+        let msg_id = Uuid::new();
+
+        let total_chunks = raw_msg_payload.body.len().div_ceil(chunk_size);
+        let mut out = MsgChunks {
+            chunks: Vec::with_capacity(total_chunks),
+        };
+
+        let body: Bytes = raw_msg_payload.body.clone();
+
+        let mut start = 0;
+        for (index, _) in (0..total_chunks).enumerate() {
+            let end = std::cmp::min(start + chunk_size, body.len());
+
+            let chunk_body = body.slice(start..end);
+            start = end;
+
+            let chunked_msg_payload = if index == 0 {
+
+                let metadata = ChunkMetadata::First {
+                    message_id: msg_id.to_string(),
+                    chunks: total_chunks as u32,
+                };
+
+                //Copy first chunk to steal all of it's headers
+                let mut first_chunk_raw_msg = raw_msg_payload.clone();
+                first_chunk_raw_msg.body = chunk_body;
+
+                ChunkedMsgPayload::new(first_chunk_raw_msg, metadata)
+            } else {
+                let metadata = ChunkMetadata::Chunk { message_id: msg_id.to_string(), chunk: index as u32 };
+                let mut chunk_raw_msg = raw_msg_payload.clone();
+                chunk_raw_msg.body = chunk_body;
+                ChunkedMsgPayload::new(chunk_raw_msg, metadata)
+            };
+
+            out.append_chunk(chunked_msg_payload);
+        }
+
+        out
     }
 
     pub fn append_chunk(&mut self, chunk: ChunkedMsgPayload) {
@@ -166,7 +207,7 @@ impl MsgChunks {
     }
 
     pub fn get_chunk_count(&self) -> Result<u32, PayloadError> {
-        if let ChunkMetadata::First { mime_version, content_type, message_id, chunks } = &self.first().metadata {
+        if let ChunkMetadata::First { message_id, chunks } = &self.first().metadata {
             Ok(*chunks)
         } else {
             Err(PayloadError::MandatoryPartNotFound { name: "Chunks".to_string(), payload: "MSG".to_string() })
@@ -178,10 +219,16 @@ impl MsgChunks {
         Ok(self.chunks.len() as u32 == self.get_chunk_count()?)
     }
 
-    pub fn drain_chunks(mut self) -> Result<MsgPayload, PayloadError> {
+    pub fn chunks_mut(&mut self) -> &mut Vec<ChunkedMsgPayload> {
+        &mut self.chunks
+    }
+
+    pub fn merge_chunks(mut self) -> Result<MsgPayload, PayloadError> {
         let total_chunks = self.get_chunk_count()?;
         let mut first: RawMsgPayload = self.take_first().into();
         let _ = first.headers.remove("Chunks").ok_or_else(|| PayloadError::MandatoryPartNotFound { name: "Chunks".to_string(), payload: "MSG Payload".to_string() })?;
+
+        let mut reassembled_body = BytesMut::from(&first.body[..]);
 
         for current_chunk in 1..total_chunks {
             match self.chunks.iter().position(|chunk| chunk.chunk() == current_chunk) {
@@ -189,17 +236,18 @@ impl MsgChunks {
                     return Err(PayloadError::MandatoryPartNotFound { name: format!("Chunk {}", current_chunk), payload: "MSG".to_string() });
                 }
                 Some(found_index) => {
-                    let mut found_body = self.chunks.remove(found_index).body;
+                    let found_chunk = self.chunks.remove(found_index);
+                    let mut found_body = found_chunk.body();
 
                     let test = from_utf8(&found_body).unwrap();
                     let vec: Vec<&str> = test.split("\r\n").collect();
-                    debug!("Chunk {} found with {} lines", current_chunk, vec.len());
-                    debug!("{}", &test);
-                    debug!("{:?}", &vec);
-                    first.body.append(&mut found_body)
+
+                    reassembled_body.extend_from_slice(&mut found_body)
                 }
             }
         }
+
+        first.body = reassembled_body.freeze();
 
         MsgPayload::try_from_raw(first)
     }

@@ -26,11 +26,13 @@ mod web;
 mod switchboard;
 mod matrix;
 mod tachyon;
+mod p2p;
 
 #[tokio::main]
 async fn main() {
+    //console_subscriber::init();
 
-    let tachyon_path = paths::get_tachyon_path().expect("Tachyon Path to be availlable");
+    let tachyon_path = paths::get_tachyon_path();
     create_dirs(&tachyon_path);
 
     let config = setup_config(tachyon_path.config_dir().to_path_buf());

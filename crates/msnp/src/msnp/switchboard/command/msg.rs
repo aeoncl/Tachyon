@@ -18,7 +18,9 @@ use crate::shared::models::email_address::EmailAddress;
 use crate::shared::payload::msg::chunked_msg_payload::ChunkedMsgPayload;
 use crate::shared::payload::msg::control_msg::ControlMessagePayload;
 use crate::shared::payload::msg::datacast_msg::DatacastMessagePayload;
-use crate::shared::payload::msg::msn_msgr_p2p_msg_payload::MsnMsgrP2PMessagePayload;
+use crate::shared::payload::msg::gif_msg::GifMsgPayload;
+use crate::shared::payload::msg::ink_msg::InkMessagePayload;
+use crate::shared::payload::msg::p2p_msg_payload::P2PMessagePayload;
 use crate::shared::payload::msg::raw_msg_payload::{MsgContentType, RawMsgPayload};
 use crate::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 use crate::shared::traits::{IntoBytes, TryFromBytes, TryFromRawCommand, TryFromRawMsgPayload};
@@ -94,7 +96,9 @@ pub enum MsgPayload {
     TextPlain(TextPlainMessagePayload),
     Datacast(DatacastMessagePayload),
     Control(ControlMessagePayload),
-    P2P(MsnMsgrP2PMessagePayload)
+    P2P(P2PMessagePayload),
+    Gif(GifMsgPayload),
+    Ink(InkMessagePayload)
 }
 
 impl TryFromRawMsgPayload for MsgPayload {
@@ -119,9 +123,11 @@ impl TryFromRawMsgPayload for MsgPayload {
             MsgContentType::ServiceMessage => {Ok(MsgPayload::Raw(raw_msg_payload))}
             MsgContentType::Control => {Ok(MsgPayload::Control(ControlMessagePayload::try_from_raw(raw_msg_payload)?))}
             MsgContentType::Datacast => {Ok(MsgPayload::Datacast(DatacastMessagePayload::try_from_raw(raw_msg_payload)?))}
-            MsgContentType::P2P => {Ok(MsgPayload::Raw(raw_msg_payload))}
+            MsgContentType::P2P => {Ok(MsgPayload::P2P(P2PMessagePayload::try_from_raw(raw_msg_payload)?))}
             MsgContentType::None => {Ok(MsgPayload::Raw(raw_msg_payload))}
             MsgContentType::MailDataNotification => {Ok(MsgPayload::Raw(raw_msg_payload))}
+            MsgContentType::Gif => { Ok(MsgPayload::Gif(GifMsgPayload::try_from_raw(raw_msg_payload)?)) }
+            MsgContentType::Ink => { Ok(MsgPayload::Ink(InkMessagePayload::try_from_raw(raw_msg_payload)?)) }
         }
     }
 }
@@ -134,8 +140,10 @@ impl IntoBytes for MsgPayload {
             MsgPayload::TextPlain(payload) => { payload.into_bytes() }
             MsgPayload::Datacast(payload) => payload.into_bytes(),
             MsgPayload::Control(payload) => {payload.into_bytes()}
-            MsgPayload::P2P(payload) => {todo!()}
+            MsgPayload::P2P(payload) => { payload.into_bytes() }
             MsgPayload::Chunked(payload) => payload.into_bytes(),
+            MsgPayload::Gif(payload) => { payload.into_bytes() }
+            MsgPayload::Ink(payload) => { payload.into_bytes() }
         }
     }
 }

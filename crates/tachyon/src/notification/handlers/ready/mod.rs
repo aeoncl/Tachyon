@@ -14,6 +14,7 @@ use usr_handler::handle_usr;
 use uum_handler::handle_uum;
 use uux_handler::handle_uux;
 use xfr_handler::handle_xfr;
+use crate::notification::handlers::ready::uun_handler::handle_uun;
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::config::tachyon_config::TachyonConfig;
@@ -30,6 +31,7 @@ mod xfr_handler;
 mod prp_handler;
 mod fqy_handler;
 mod url_handler;
+mod uun_handler;
 
 pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, tachyon_client: TachyonClient, matrix_client: Client, local_store: &mut LocalClientData, config: &TachyonConfig) -> Result<(), anyhow::Error> {
     match raw_command {
@@ -46,7 +48,7 @@ pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command
         }
         NotificationClientCommand::CHG(command) => handle_chg(command, local_store, tachyon_client, matrix_client, command_sender).await,
         NotificationClientCommand::PRP(command) => handle_prp(command, local_store, tachyon_client, command_sender).await,
-        NotificationClientCommand::UUN(_command) => {Ok(())},
+        NotificationClientCommand::UUN(command) => handle_uun(command, tachyon_client, matrix_client, command_sender).await,
         NotificationClientCommand::RAW(command) => {
             warn!("Received RAW command: {:?}", command);
             Ok(())

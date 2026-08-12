@@ -14,6 +14,10 @@ use msnp::shared::models::presence_status::PresenceStatus;
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tokio::time::sleep;
+use msnp::msnp::notification::models::endpoint_data::EndpointData;
+use msnp::msnp::notification::models::endpoint_guid::EndpointGuid;
+use msnp::shared::models::capabilities::ClientCapabilities;
+use msnp::shared::models::endpoint_id::EndpointId;
 
 pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, matrix_client: Client, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     debug!("ADL: {:?}", &command);
@@ -54,6 +58,9 @@ pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, matri
                 email: contact.email_address.clone(),
             };
 
+            let endpoint_id = EndpointId::from_email_addr(network_id_email.email.clone());
+            let endpoint_guid = endpoint_id.endpoint_guid.expect("to be here");
+
             let _ = command_sender.send(NotificationServerCommand::NLN(NlnServer{
                 presence_status: PresenceStatus::NLN,
                 target_user: network_id_email.clone(),
@@ -64,13 +71,14 @@ pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, matri
                 badge_url: None,
             })).await;
 
+            //If we don't set the EndpointData here, we don't get P2P Transport Requests because the client has no information about the presence of this Endpoint.
             let _ = command_sender.send(NotificationServerCommand::UBX(UbxServer {
                 target_user: network_id_email,
                 via: None,
                 payload: UbxPayload::ExtendedPresence(ExtendedPresenceContent {
                     psm: "".to_string(),
                     current_media: "".to_string(),
-                    endpoint_data: Default::default(),
+                    endpoint_data: EndpointData::new(Some(endpoint_guid), ClientCapabilities::default()),
                     private_endpoint_data: None,
                 }),
             })).await;

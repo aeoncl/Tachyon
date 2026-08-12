@@ -10,6 +10,9 @@ use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::network_id_email::NetworkIdEmail;
 use msnp::shared::models::presence_status::PresenceStatus;
 use tokio::sync::mpsc::Sender;
+use msnp::msnp::notification::models::endpoint_data::EndpointData;
+use msnp::shared::models::capabilities::ClientCapabilities;
+use msnp::shared::models::endpoint_id::EndpointId;
 use crate::tachyon::identifiers::is_sha1::IsSha1;
 
 pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, client_data: TachyonClient, matrix_client: Client, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
@@ -49,6 +52,9 @@ pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, c
                     email: contact.email_address.clone(),
                 };
 
+                let endpoint_id = EndpointId::from_email_addr(network_id_email.email.clone());
+                let endpoint_guid = endpoint_id.endpoint_guid.expect("to be here");
+
                 let _ = command_sender.send(NotificationServerCommand::ILN(IlnServer{
                     tr_id: command.tr_id,
                     presence_status: PresenceStatus::NLN,
@@ -60,13 +66,14 @@ pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, c
                     badge_url: None,
                 })).await;
 
+                //If we don't set the EndpointData here, we don't get P2P Transport Requests because the client has no information about the presence of this Endpoint.
                 let _ = command_sender.send(NotificationServerCommand::UBX(UbxServer {
                     target_user: network_id_email,
                     via: None,
                     payload: UbxPayload::ExtendedPresence(ExtendedPresenceContent {
                         psm: "".to_string(),
                         current_media: "".to_string(),
-                        endpoint_data: Default::default(),
+                        endpoint_data: EndpointData::new(Some(endpoint_guid), ClientCapabilities::default()),
                         private_endpoint_data: None,
                     }),
                 })).await;

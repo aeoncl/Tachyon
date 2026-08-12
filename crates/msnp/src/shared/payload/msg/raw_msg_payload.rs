@@ -1,10 +1,11 @@
 use anyhow::anyhow;
 use linked_hash_map::LinkedHashMap;
-use log::warn;
+use log::{debug, info, warn};
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::str::{from_utf8, Utf8Error};
 use std::string::FromUtf8Error;
+use bytes::{Bytes, BytesMut};
 use strum_macros::{Display, EnumString};
 
 use crate::msnp::error::PayloadError;
@@ -54,6 +55,12 @@ pub enum MsgContentType {
     #[strum(serialize = "application/x-msnmsgrp2p", ascii_case_insensitive)]
     P2P,
 
+    #[strum(serialize = "image/gif", ascii_case_insensitive)]
+    Gif,
+
+    #[strum(serialize = "application/x-ms-ink", ascii_case_insensitive)]
+    Ink,
+
     None,
 }
 
@@ -65,9 +72,9 @@ impl Default for MsgContentType {
 
 #[derive(Clone, Debug)]
 pub struct RawMsgPayload {
-    enable_trailing_terminators: bool,
+    pub enable_trailing_terminators: bool,
     pub headers: LinkedHashMap<String, String>,
-    pub body: Vec<u8>,
+    pub body: bytes::Bytes,
 }
 
 impl Default for RawMsgPayload {
@@ -75,7 +82,7 @@ impl Default for RawMsgPayload {
         Self {
             enable_trailing_terminators: false,
             headers: Default::default(),
-            body: vec![],
+            body: bytes::Bytes::new(),
         }
     }
 }
@@ -89,9 +96,13 @@ impl RawMsgPayload {
 
         return RawMsgPayload {
             headers,
-            body: Vec::new(),
+            body: Bytes::new(),
             enable_trailing_terminators,
         };
+    }
+
+    pub fn mime_version(&self) -> Option<&str> {
+        self.headers.get("MIME-Version").map(|s| s.as_str())
     }
 
     pub fn get_content_type(&self) -> Result<MsgContentType, PayloadError> {
@@ -114,24 +125,32 @@ impl RawMsgPayload {
         self.headers.insert(name, value);
     }
 
+    pub fn remove_header(&mut self, name: &str) -> Option<String> {
+        self.headers.remove(name)
+    }
+
     pub fn get_header(&self, name: &str) -> Option<&str> {
         return self.headers.get(name).map(|e| e.as_str());
     }
     pub fn set_body(&mut self, body: Vec<u8>) {
-        self.body = body;
+        self.body = Bytes::from(body);
     }
     pub fn set_body_str(&mut self, body: &str) {
-        self.body = body.as_bytes().to_owned();
+        self.body = Bytes::from(body.to_owned().into_bytes())
     }
     pub fn set_body_string(&mut self, body: String) {
-        self.body = body.into_bytes();
+        self.body = Bytes::from(body.into_bytes());
     }
     pub fn get_body_as_str(&self) -> Result<&str, Utf8Error> {
         from_utf8(&self.body)
     }
 
     pub fn get_body_as_string(self) -> Result<String, FromUtf8Error> {
-        String::from_utf8(self.body)
+        String::from_utf8(self.body.to_vec())
+    }
+
+    pub fn body_len(&self) -> usize {
+        self.body.len()
     }
 
     pub fn is_chunked(&self) -> bool {
@@ -142,18 +161,10 @@ impl RawMsgPayload {
 impl TryFromBytes for RawMsgPayload {
     type Err = PayloadError;
 
-    fn try_from_bytes(mut bytes: Vec<u8>) -> Result<Self, Self::Err> {
-        let header_body_split_index = bytes.windows(4).enumerate().find_map(|(index, content)| {
-            if content[0] as char == '\r'
-                && content[1] as char == '\n'
-                && content[2] as char == '\r'
-                && content[3] as char == '\n'
-            {
-                Some(index + 1)
-            } else {
-                None
-            }
-        });
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> {
+        let bytes_1 = Bytes::from(bytes);
+
+        let header_body_split_index = bytes_1.windows(4).position(|w| w == b"\r\n\r\n");
 
         if header_body_split_index.is_none() {
             return Err(PayloadError::AnyError(anyhow!("Malformed Payload")));
@@ -161,11 +172,13 @@ impl TryFromBytes for RawMsgPayload {
 
         let mut out = RawMsgPayload::default();
 
-        let header_body_split_index = header_body_split_index.expect("to never fail");
+        // Add 4 to skip past the "\r\n\r\n" itself
+        let split_at = header_body_split_index.expect("to never fail") + 4;
 
-        let (headers, body) = bytes.split_at_mut(header_body_split_index);
+        let headers_bytes = bytes_1.slice(..split_at);
+        let body_bytes = bytes_1.slice(split_at..);
 
-        let headers = from_utf8(headers)?;
+        let headers = from_utf8(&headers_bytes)?;
         let headers_split: Vec<&str> = headers.split("\r\n").collect();
 
         for current in headers_split {
@@ -179,20 +192,38 @@ impl TryFromBytes for RawMsgPayload {
             }
         }
 
-        out.body = body.trim_ascii().to_vec();
+        // Since Bytes doesn't have trim_ascii(), we find the offsets on the slice,
+        // and then slice the Bytes object itself.
+        let body_slice = &body_bytes[..];
+        let trimmed_slice = body_slice.trim_ascii();
+
+        // Calculate the start and end indices relative to the original Bytes object
+        let mut start = 0;
+        let mut end = body_bytes.len();
+
+        while start < end && body_bytes[start].is_ascii_whitespace() {
+            start += 1;
+        }
+        while end > start && body_bytes[end - 1].is_ascii_whitespace() {
+            end -= 1;
+        }
+
+        // slice() is O(1) and zero-copy! It just adjusts internal pointers.
+        out.body = body_bytes.slice(start..end);
+
         Ok(out)
     }
-
-    /*
-    MIME-Version: 1.0\r\n
-    Content-Type: text/x-msmsgsoimnotification; charset=UTF-8\r\n
-    Header: Value\r\n
-    Header2: Value\r\n
-    \r\n
-    Body
-    \r\n (sometimes)
-    */
 }
+
+/*
+MIME-Version: 1.0\r\n
+Content-Type: text/x-msmsgsoimnotification; charset=UTF-8\r\n
+Header: Value\r\n
+Header2: Value\r\n
+\r\n
+Body
+\r\n (sometimes)
+*/
 
 impl IntoBytes for RawMsgPayload {
     fn into_bytes(mut self) -> Vec<u8> {
@@ -204,7 +235,7 @@ impl IntoBytes for RawMsgPayload {
 
         out.extend_from_slice(b"\r\n");
 
-        out.append(&mut self.body);
+        out.extend_from_slice(&self.body);
 
         if self.enable_trailing_terminators {
             out.extend_from_slice(b"\r\n");
@@ -339,20 +370,19 @@ pub mod factories {
             if plugin_context {
                 out.add_header("PlugIn-Context", "1");
             }
-            out.body = format!("ID: 4\r\nData: {}\r\n", text).into_bytes();
+            out.set_body(format!("ID: 4\r\nData: {}\r\n", text).into_bytes());
             return out;
         }
 
         pub fn get_nudge() -> RawMsgPayload {
             let mut out = RawMsgPayload::new(MsgContentType::Datacast, true);
-            out.body = b"ID: 1".into();
+            out.set_body(b"ID: 1".into());
             return out;
         }
 
         pub fn get_msnobj_datacast(msn_object: &MsnObject) -> RawMsgPayload {
             let mut out = RawMsgPayload::new(MsgContentType::Datacast, true);
-            out.body =
-                format!("ID: 3\r\nData: {}\r\n", msn_object.to_string_not_encoded()).into_bytes();
+            out.set_body(format!("ID: 3\r\nData: {}\r\n", msn_object.to_string_not_encoded()).into_bytes());
             out
         }
 
@@ -364,7 +394,7 @@ pub mod factories {
             let mut out = RawMsgPayload::new(MsgContentType::P2P, false);
             out.add_header("P2P-Dest", &destination.endpoint_id.to_string());
             out.add_header("P2P-Src", &source.endpoint_id.to_string());
-            out.body = payload.into_bytes();
+            out.set_body(payload.into_bytes());
             return out;
         }
 

@@ -129,7 +129,7 @@ pub struct ClientCapabilities {
 impl Default for ClientCapabilities {
     fn default() -> Self {
       const STANDARD_CAP: u32 = Capabilities::RendersGifs as u32
-          + Capabilities::RendersIsf as u32
+     // + Capabilities::RendersIsf as u32
       + Capabilities::WebcamDetected as u32
       + Capabilities::SupportsTunneledSip as u32
       + Capabilities::SupportsChunking as u32
@@ -164,8 +164,8 @@ impl Default for ClientCapabilities {
       + ExtendedCapabilities::VoiceClipSupportsCircleIM as u32;
 
 
-  //      ClientCapabilities::new(STANDARD_CAP, EXTENDED_CAP)
-        ClientCapabilities::new(2789003324, 48)
+        ClientCapabilities::new(STANDARD_CAP, EXTENDED_CAP)
+  //      ClientCapabilities::new(2789003324, 48)
   }
 }
 

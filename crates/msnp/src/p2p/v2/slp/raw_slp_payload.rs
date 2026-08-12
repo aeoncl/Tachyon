@@ -3,35 +3,41 @@
  */
 
 use anyhow::anyhow;
+use base64::{engine::general_purpose, Engine};
+use linked_hash_map::LinkedHashMap;
+use num::FromPrimitive;
 use std::{
     fmt::Display,
     str::{from_utf8, FromStr},
 };
 
-use base64::{engine::general_purpose, Engine};
-use linked_hash_map::LinkedHashMap;
-use log::warn;
-use num::FromPrimitive;
-
+use crate::p2p::v2::slp::session_slp_context::{PreviewData, SlpContext};
 use crate::shared::models::endpoint_id::EndpointId;
+use crate::shared::traits::IntoBytes;
 use crate::{
     msnp::error::PayloadError,
     shared::models::{msn_object::MsnObject, msn_user::MsnUser, uuid::Uuid},
 };
 
-use crate::p2p::v2::app_id::AppID;
-use crate::p2p::v2::slp::slp_context::{PreviewData, SlpContext};
+pub trait TryFromRawSlpPayload {
+    type Err;
+    fn try_from_raw_slp_payload(payload: RawSlpPayload) -> Result<Self, Self::Err> where Self: Sized;
+}
+
+pub trait IntoRawSlpPayload {
+    fn into_raw_slp_payload(self) -> RawSlpPayload;
+}
 
 #[derive(Clone, Debug)]
-pub struct SlpPayload {
+pub struct RawSlpPayload {
     pub first_line: String,
     pub headers: LinkedHashMap<String, String>,
     pub body: LinkedHashMap<String, String>,
 }
 
-impl SlpPayload {
+impl RawSlpPayload {
     pub fn new() -> Self {
-        return SlpPayload {
+        return RawSlpPayload {
             first_line: String::new(),
             headers: LinkedHashMap::new(),
             body: LinkedHashMap::new(),
@@ -58,83 +64,6 @@ impl SlpPayload {
         return self.get_header(&String::from("Content-Type"));
     }
 
-    //TODO Error handling here
-    pub fn get_sender(&self) -> Option<MsnUser> {
-        if let Some(from) = self.get_header(&String::from("From")) {
-            let from_trimmed = from.to_owned()[9..from.len() - 1].to_string();
-
-            let sender = MsnUser::new(EndpointId::from_str(&from_trimmed).unwrap());
-            return Some(sender);
-        }
-        return None;
-    }
-
-    pub fn get_receiver(&self) -> Option<MsnUser> {
-        if let Some(to) = self.get_header(&String::from("To")) {
-            let to_trimmed = to.to_owned()[9..to.len() - 1].to_string();
-            let receiver = MsnUser::new(EndpointId::from_str(&to_trimmed).unwrap());
-            return Some(receiver);
-        }
-        return None;
-    }
-
-    pub fn get_context_as_preview_data(&self) -> Option<PreviewData> {
-        if let Some(context) = self.get_body_property(&String::from("Context")) {
-            if let Ok(decoded) = general_purpose::STANDARD.decode(context) {
-                return PreviewData::from_slp_context(&decoded);
-            } else {
-                warn!("Couldn't decode base64 slp context: {}", context);
-            }
-        }
-
-        return None;
-    }
-
-    pub fn get_euf_guid(&self) -> Result<Option<EufGUID>, PayloadError> {
-        let euf_guid = self.get_body_property(&String::from("EUF-GUID"));
-        if euf_guid.is_none() {
-            return Ok(None);
-        }
-
-        let euf_guid = euf_guid.unwrap();
-        let euf_guid = EufGUID::try_from(euf_guid)?;
-        return Ok(Some(euf_guid));
-    }
-
-    pub fn get_app_id(&self) -> Result<Option<AppID>, PayloadError> {
-        let app_id = self.get_body_property(&String::from("AppID"));
-        if app_id.is_none() {
-            return Ok(None);
-        }
-
-        let app_id = app_id.unwrap();
-        let app_id = u32::from_str(app_id)?;
-        let app_id: Option<AppID> = FromPrimitive::from_u32(app_id);
-        return Ok(app_id);
-    }
-
-    pub fn get_call_id(&self) -> Result<Option<Uuid>, PayloadError> {
-        let call_id = self.get_header(&"Call-ID".into());
-        if call_id.is_none() {
-            return Ok(None);
-        }
-
-        let mut call_id = call_id.unwrap().as_str();
-        call_id = call_id.trim().strip_prefix("{").unwrap_or(call_id);
-
-        call_id = call_id.strip_suffix("}").unwrap_or(call_id);
-
-        return Ok(Some(Uuid::from_str(call_id).unwrap())); //TODO HANDLE ERROR CORRECTLY
-    }
-
-    pub fn get_context_as_msnobj(&self) -> Option<MsnObject> {
-        let context = self.get_body_property("Context");
-        match context {
-            None => None,
-            Some(context) => MsnObject::from_slp_context(&context.as_bytes()),
-        }
-    }
-
     pub fn is_invite(&self) -> bool {
         return self.first_line.contains("INVITE");
     }
@@ -144,7 +73,7 @@ impl SlpPayload {
     }
 }
 
-impl FromStr for SlpPayload {
+impl FromStr for RawSlpPayload {
     type Err = PayloadError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -154,7 +83,7 @@ impl FromStr for SlpPayload {
                     payload: s.to_string(),
                     source: anyhow!("There was no header body boundary in Slp Payload"),
                 })?;
-        let mut out = SlpPayload::new();
+        let mut out = RawSlpPayload::new();
         let headers_split: Vec<&str> = headers.split("\r\n").collect();
 
         out.first_line = headers_split
@@ -208,7 +137,7 @@ impl FromStr for SlpPayload {
     }
 }
 
-impl TryFrom<&Vec<u8>> for SlpPayload {
+impl TryFrom<&Vec<u8>> for RawSlpPayload {
     type Error = PayloadError;
 
     fn try_from(value: &Vec<u8>) -> Result<Self, Self::Error> {
@@ -216,11 +145,11 @@ impl TryFrom<&Vec<u8>> for SlpPayload {
             payload: value.to_owned(),
             source: anyhow!(e),
         })?;
-        return SlpPayload::from_str(str);
+        return RawSlpPayload::from_str(str);
     }
 }
 
-impl Display for SlpPayload {
+impl Display for RawSlpPayload {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut out = self.first_line.clone();
         out.push_str("\r\n");
@@ -238,12 +167,23 @@ impl Display for SlpPayload {
             headers.push_str(format!("{key}: {value}\r\n", key = &key, value = &value).as_str());
         }
 
-        headers.push_str(format!("Content-Length: {value}\r\n", value = body.len()).as_str());
+
+        //This sucks a bit, when we deserialize, we get the header in the map, but when we serialize we compute it
+        //TODO: find a better way to do this so that it's not confusing.
+        if !&self.headers.contains_key("Content-Length") {
+            headers.push_str(format!("Content-Length: {value}\r\n", value = body.len()).as_str());
+        }
 
         out.push_str(headers.as_str());
         out.push_str("\r\n");
         out.push_str(body.as_str());
         return write!(f, "{}", out);
+    }
+}
+
+impl IntoBytes for RawSlpPayload {
+    fn into_bytes(self) -> Vec<u8> {
+        self.to_string().into_bytes()
     }
 }
 
@@ -272,10 +212,11 @@ impl Display for EufGUID {
     }
 }
 
-impl TryFrom<&str> for EufGUID {
-    type Error = PayloadError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+impl FromStr for EufGUID {
+    type Err = PayloadError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value.to_uppercase().as_str() {
             "{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}" => {
                 return Ok(EufGUID::MSNObject);
@@ -304,28 +245,27 @@ impl TryFrom<&str> for EufGUID {
         }
     }
 }
-
 pub struct SlpPayloadFactory;
 
 impl SlpPayloadFactory {
     pub fn get_session_bye(
-        sender: &MsnUser,
-        receiver: &MsnUser,
-        call_id: Uuid,
-        session_id: String,
-    ) -> Result<SlpPayload, PayloadError> {
-        let mut out = SlpPayload::new();
+        sender: &EndpointId,
+        receiver: &EndpointId,
+        call_id: &Uuid,
+        session_id: u32,
+    ) -> Result<RawSlpPayload, PayloadError> {
+        let mut out = RawSlpPayload::new();
         out.first_line = format!(
             "BYE MSNMSGR:{mpop_id} MSNSLP/1.0",
-            mpop_id = receiver.endpoint_id
+            mpop_id = receiver
         );
         out.add_header(
             String::from("To"),
-            format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.endpoint_id),
+            format!("<msnmsgr:{mpop_id}>", mpop_id = receiver),
         );
         out.add_header(
             String::from("From"),
-            format!("<msnmsgr:{mpop_id}>", mpop_id = sender.endpoint_id),
+            format!("<msnmsgr:{mpop_id}>", mpop_id = sender),
         );
         out.add_header(
             String::from("Via"),
@@ -344,12 +284,12 @@ impl SlpPayloadFactory {
             String::from("Content-Type"),
             String::from("application/x-msnmsgr-sessionclosebody"),
         );
-        out.add_body_property(String::from("SessionID"), session_id);
+        out.add_body_property(String::from("SessionID"), session_id.to_string());
         return Ok(out);
     }
 
-    pub fn get_200_ok_session(invite: &SlpPayload) -> Result<SlpPayload, PayloadError> {
-        let mut out = SlpPayload::new();
+    pub fn get_200_ok_session(invite: &RawSlpPayload) -> Result<RawSlpPayload, PayloadError> {
+        let mut out = RawSlpPayload::new();
         out.first_line = String::from("MSNSLP/1.0 200 OK");
         out.add_header(
             String::from("To"),
@@ -428,20 +368,21 @@ impl SlpPayloadFactory {
     }
 
     pub fn get_file_transfer_request(
-        sender: &MsnUser,
-        receiver: &MsnUser,
+        sender: &EndpointId,
+        receiver: &EndpointId,
         context: &PreviewData,
         session_id: u32,
-    ) -> Result<SlpPayload, PayloadError> {
-        let mut out = SlpPayload::new();
-        out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver.endpoint_id);
+        call_id: &Uuid
+    ) -> Result<RawSlpPayload, PayloadError> {
+        let mut out = RawSlpPayload::new();
+        out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver);
         out.add_header(
             String::from("To"),
-            format!("<msnmsgr:{mpop_id}>", mpop_id = receiver.endpoint_id),
+            format!("<msnmsgr:{mpop_id}>", mpop_id = receiver),
         );
         out.add_header(
             String::from("From"),
-            format!("<msnmsgr:{mpop_id}>", mpop_id = sender.endpoint_id),
+            format!("<msnmsgr:{mpop_id}>", mpop_id = sender),
         );
         out.add_header(
             String::from("Via"),
@@ -454,7 +395,7 @@ impl SlpPayloadFactory {
         out.add_header(String::from("CSeq"), String::from("0"));
         out.add_header(
             String::from("Call-ID"),
-            format!("{{{call_id}}}", call_id = Uuid::new().to_string()),
+            format!("{{{call_id}}}", call_id = call_id.to_string()),
         );
         out.add_header(String::from("Max-Forwards"), String::from("0"));
         out.add_header(
@@ -477,10 +418,10 @@ impl SlpPayloadFactory {
         receiver: &MsnUser,
         context: &MsnObject,
         session_id: u32,
-    ) -> Result<SlpPayload, PayloadError> {
+    ) -> Result<RawSlpPayload, PayloadError> {
         let context_b64 = general_purpose::STANDARD.encode(context.to_string_not_encoded());
 
-        let mut out = SlpPayload::new();
+        let mut out = RawSlpPayload::new();
         out.first_line = format!("INVITE MSNMSGR:{} MSNSLP/1.0", receiver.endpoint_id);
         out.add_header(
             String::from("To"),
@@ -518,15 +459,15 @@ impl SlpPayloadFactory {
     }
 
     pub fn get_200_ok_indirect_connect(
-        invite: &SlpPayload,
-    ) -> Result<SlpPayload, PayloadError> {
+        invite: &RawSlpPayload,
+    ) -> Result<RawSlpPayload, PayloadError> {
         let mut out = SlpPayloadFactory::get_200_ok_direct_connect(invite)?;
         out.add_body_property(String::from("Bridge"), String::from("SBBridge"));
         return Ok(out);
     }
 
-    pub fn get_200_ok_direct_connect(invite: &SlpPayload) -> Result<SlpPayload, PayloadError> {
-        let mut out = SlpPayload::new();
+    pub fn get_200_ok_direct_connect(invite: &RawSlpPayload) -> Result<RawSlpPayload, PayloadError> {
+        let mut out = RawSlpPayload::new();
         out.first_line = String::from("MSNSLP/1.0 200 OK");
 
         out.add_header(
@@ -623,9 +564,9 @@ impl SlpPayloadFactory {
     }
 
     pub fn get_200_ok_direct_connect_bad_port(
-        invite: &SlpPayload,
-    ) -> Result<SlpPayload, PayloadError> {
-        let mut out = SlpPayload::new();
+        invite: &RawSlpPayload,
+    ) -> Result<RawSlpPayload, PayloadError> {
+        let mut out = RawSlpPayload::new();
         out.first_line = String::from("MSNSLP/1.0 200 OK");
 
         out.add_header(
@@ -721,10 +662,10 @@ impl SlpPayloadFactory {
     }
 
     pub fn get_500_error_direct_connect(
-        invite: &SlpPayload,
+        invite: &RawSlpPayload,
         bridge: String,
-    ) -> Result<SlpPayload, PayloadError> {
-        let mut out = SlpPayload::new();
+    ) -> Result<RawSlpPayload, PayloadError> {
+        let mut out = RawSlpPayload::new();
         out.first_line = String::from("MSNSLP/1.0 500 Internal Error");
 
         out.add_header(
@@ -798,8 +739,8 @@ impl SlpPayloadFactory {
         return Ok(out);
     }
 
-    pub fn get_transport_request(sender: &MsnUser, receiver: &MsnUser) -> SlpPayload {
-        let mut out = SlpPayload::new();
+    pub fn get_transport_request(sender: &MsnUser, receiver: &MsnUser) -> RawSlpPayload {
+        let mut out = RawSlpPayload::new();
 
         out.first_line = format!(
             "INVITE MSNMSGR:{mpop_id} MSNSLP/1.0",
@@ -860,14 +801,13 @@ impl SlpPayloadFactory {
 }
 
 mod tests {
-
-    use crate::p2p::v2::slp::slp_payload::SlpPayload;
+    use std::str::FromStr;
 
     use super::EufGUID;
 
     #[test]
     fn test_euf_guid_try_from_str() {
-        let test = EufGUID::try_from("{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}").unwrap();
+        let test = EufGUID::from_str("{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}").unwrap();
         assert_eq!(test, EufGUID::MSNObject);
     }
 
@@ -875,24 +815,5 @@ mod tests {
     fn test_euf_guid_to_str() {
         let test = EufGUID::MSNObject.to_string();
         assert_eq!("{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}", test.as_str());
-    }
-
-    #[test]
-    fn test_slp_payload_get_euf_guid_success() {
-        let mut payload = SlpPayload::new();
-        payload.add_body_property(
-            String::from("EUF-GUID"),
-            String::from("{A4268EEC-FEC5-49E5-95C3-F126696BDBF6}"),
-        );
-
-        let result = payload.get_euf_guid().unwrap().unwrap();
-        assert_eq!(result, EufGUID::MSNObject);
-    }
-
-    #[test]
-    fn test_slp_payload_get_euf_guid_none() {
-        let payload = SlpPayload::new();
-        let result = payload.get_euf_guid().unwrap();
-        assert_eq!(result.is_none(), true);
     }
 }

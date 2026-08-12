@@ -4,8 +4,8 @@ use directories::ProjectDirs;
 use matrix_sdk::ruma::UserId;
 use msnp::shared::models::uuid::Uuid;
 
-pub fn get_tachyon_path() -> Option<ProjectDirs> {
-    directories::ProjectDirs::from("", "","Tachyon")
+pub fn get_tachyon_path() -> ProjectDirs {
+    directories::ProjectDirs::from("", "","Tachyon").expect("Could not resolve root configuration directory")
 }
 
 pub fn create_dirs(dirs: &ProjectDirs) {
@@ -18,7 +18,7 @@ pub fn create_dirs(dirs: &ProjectDirs) {
     create_dir(local_data_path);
 }
 
-fn create_dir(path: &Path) {
+pub fn create_dir(path: &Path) {
     println!("Path: {:?}", &path);
     if let Err(e) = path.read_dir() {
         println!("Could'nt read Tachyon Folder, creating it...{:?}", e);
@@ -31,10 +31,10 @@ pub fn sanitize_user_id(user_id: &UserId) -> String {
     Uuid::from_seed(user_id.as_str()).to_string()
 }
 
-pub fn get_user_data(user_id: &UserId) -> Option<PathBuf> {
-    Some(get_tachyon_path()?.data_local_dir().join(sanitize_user_id(user_id)))
+pub fn get_user_data(user_id: &UserId) -> PathBuf {
+    get_tachyon_path().data_local_dir().join(sanitize_user_id(user_id))
 }
 
-pub fn get_store_path(user_id: &UserId) -> Option<PathBuf> {
-    Some(get_user_data(user_id)?.join("store"))
+pub fn get_store_path(user_id: &UserId) -> PathBuf {
+    get_user_data(user_id).join("store")
 }

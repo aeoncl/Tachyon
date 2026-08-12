@@ -1,17 +1,19 @@
-use anyhow::anyhow;
-use log::debug;
+use anyhow::{anyhow, Error};
+use log::{debug, error};
+use std::fs;
 
-use matrix_sdk::{async_trait, AuthSession, Client, ClientBuilder, ServerName, SessionTokens};
 use matrix_sdk::authentication::matrix::MatrixSession;
-use matrix_sdk::ruma::{device_id, OwnedUserId};
 use matrix_sdk::ruma::api::client::uiaa;
 use matrix_sdk::ruma::api::client::uiaa::AuthData;
-use matrix_sdk_ui::sync_service::SyncService;
 use matrix_sdk::ruma::UserId;
+use matrix_sdk::ruma::{device_id, DeviceId, OwnedDeviceId, OwnedUserId};
+use matrix_sdk::{async_trait, AuthSession, Client, ClientBuilder, ServerName, SessionTokens};
+use matrix_sdk_ui::sync_service::SyncService;
+use tokio::fs::create_dir_all;
 use msnp::shared::models::ticket_token::TicketToken;
 
+use crate::tachyon::config::paths::{create_dir, create_dirs, get_store_path, get_user_data};
 use crate::tachyon::error::{MatrixConversionError, TachyonError};
-use crate::tachyon::config::paths::get_store_path;
 use crate::tachyon::identifiers::tachyon_device_id::TachyonDeviceId;
 
 pub(crate) type AccessToken = String;
@@ -35,13 +37,8 @@ impl MatrixLoginServiceImpl {
 #[async_trait]
 impl MatrixLoginService for MatrixLoginServiceImpl {
     async fn login_with_token(&self, user_id: &UserId, token: &str, disable_ssl: bool) -> Result<Client, TachyonError> {
-        let device_id_str = get_device_id()?.to_string();
-        let device_id = device_id!(device_id_str.as_str()).to_owned();
-
-        let _test: SyncService;
-
-        let store_path = get_store_path(user_id).ok_or(anyhow!("Couldn't get store path"))?;
-        debug!("storepath: {:?}", &store_path);
+        let device_id = get_device_id(user_id)?;
+        let store_path = get_store_path(user_id);
 
         let client = get_matrix_client_builder(user_id.server_name(), None, disable_ssl)
             .sqlite_store(store_path, None)
@@ -59,17 +56,30 @@ impl MatrixLoginService for MatrixLoginServiceImpl {
 
 
     async fn login_with_password(&self, matrix_id: &UserId, password: &str, disable_ssl: bool) -> Result<(AccessToken, Client), TachyonError> {
+        create_dir(get_user_data(matrix_id).as_path());
+
         let client = get_matrix_client_builder(matrix_id.server_name(), None, disable_ssl).build().await?;
+        let device_id = get_device_id(matrix_id).ok();
 
-        let device_id = get_device_id()?;
-        let device_id_as_str = device_id.to_string();
 
-        let result = client.matrix_auth()
+        let mut login_builder = client.matrix_auth()
             .login_username(&matrix_id, password)
-            .device_id(&device_id_as_str)
-            .initial_device_display_name(get_device_display_name(&device_id).as_str())
-            .send()
-            .await?;
+            .initial_device_display_name("Windows Live Messenger (Tachyon)");
+
+
+        if let Some(device_id) = device_id.as_ref() {
+            login_builder = login_builder
+                .device_id(device_id.to_string().as_str())
+        }
+
+        let login_result = login_builder.send().await?;
+
+        if device_id.is_none() {
+           if let Err(e) = store_device_id(&login_result.user_id, &login_result.device_id) {
+               error!("Fatal: Could not persist device Id, logging out... cause: {}", e);
+               client.logout().await?;
+           }
+        }
 
         if let Err(e) = client.encryption().bootstrap_cross_signing_if_needed(None).await {
             if let Some(response) = e.as_uiaa_response() {
@@ -88,21 +98,29 @@ impl MatrixLoginService for MatrixLoginServiceImpl {
                 panic!("Error during cross signing bootstrap {:#?}", e);
             }
         }
-
-        Ok((result.access_token, client))
+        Ok((login_result.access_token, client))
     }
 }
 
-fn get_device_id() -> Result<TachyonDeviceId, MatrixConversionError> {
-    TachyonDeviceId::from_hostname()
+fn store_device_id(user_id: &UserId, device_id: &DeviceId) -> Result<(), anyhow::Error> {
+    let device_id_file = get_user_data(user_id).join(".device_id");
+    fs::write(device_id_file, device_id.to_string().as_bytes()).map_err(|e| anyhow!(e))
 }
 
-fn get_device_display_name(device_id: &TachyonDeviceId) -> String {
+fn get_device_id(user_id: &UserId) -> Result<OwnedDeviceId, anyhow::Error> {
+    let device_id_file = get_user_data(user_id).join(".device_id");
+    let raw_device_id = fs::read_to_string(device_id_file).map_err(|e| anyhow!(e))?;
+    Ok(OwnedDeviceId::try_from(raw_device_id)?)
+}
+
+fn get_device_display_name(device_id: &DeviceId) -> String {
     format!("Tachyon-{}", &device_id)
 }
 
 fn get_matrix_client_builder(server_name: &ServerName, homeserver_url: Option<String>, disable_ssl: bool) -> ClientBuilder {
     let mut client_builder = Client::builder();
+
+    client_builder = client_builder.handle_refresh_tokens();
 
     if disable_ssl {
         client_builder = client_builder.disable_ssl_verification();

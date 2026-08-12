@@ -16,6 +16,10 @@ pub trait TryFromRawMsgPayload {
         Self: Sized;
 }
 
+pub trait IntoRawMsgPayload {
+    fn into_raw(self) -> RawMsgPayload;
+}
+
 pub trait TryFromRawCommand {
     type Err;
     fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err>

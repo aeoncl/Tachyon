@@ -1,18 +1,19 @@
 use std::{fmt::Display, str::{from_utf8, FromStr}};
 
 use anyhow::anyhow;
-use num_derive::FromPrimitive;
+use num_derive::{FromPrimitive, ToPrimitive};
 use yaserde::{de::from_str, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
 use crate::shared::models::endpoint_id::EndpointId;
 use crate::shared::traits::{IntoBytes, TryFromBytes, TryFromRawCommand};
 use crate::{msnp::{error::{CommandError, PayloadError}, raw_command_parser::RawCommand}, shared::command::ok::OkCommand};
+use crate::p2p::v2::slp::raw_slp_payload::RawSlpPayload;
 
 pub struct UunClient {
-    tr_id: u128,
-    destination: EndpointId,
-    payload: UunPayload
+    pub tr_id: u128,
+    pub destination: EndpointId,
+    pub payload: UunPayload
 }
 
 impl UunClient {
@@ -51,6 +52,7 @@ pub enum UunPayload {
     ConversationWindowClosed { email_addr: String },
     DismissUserInvite{email_addr: String, unknown: u32},
     Resynchronize(UunSoapStatePayload),
+    P2PData(RawSlpPayload),
     Unknown(Vec<u8>)
 }
 
@@ -72,6 +74,7 @@ impl IntoBytes for UunPayload {
             UunPayload::ConversationWindowClosed { email_addr: _ } => todo!(),
             UunPayload::DismissUserInvite { email_addr, unknown } => format!("{} {}", email_addr, unknown).as_bytes().to_vec(),
             UunPayload::Resynchronize(payload) => payload.to_string().as_bytes().to_vec(),
+            UunPayload::P2PData(payload) => payload.into_bytes(),
             UunPayload::Unknown(payload) => payload.to_owned(),
         }
     }
@@ -90,7 +93,11 @@ impl UunPayload {
             },
             UserNotificationType::DisconnectAllClients => {
                 Self::DisconnectAllClients
-            }
+            },
+            UserNotificationType::P2PData => {
+                let payload = RawSlpPayload::from_str(from_utf8(&payload)?)?;
+                Self::P2PData(payload)
+            },
             _ => {
                 Self::Unknown(payload)
             }
@@ -115,7 +122,7 @@ pub struct UunService {
     reason: u32
 }
 
-#[derive(Clone, Debug, FromPrimitive)]
+#[derive(Clone, Debug, FromPrimitive, ToPrimitive)]
 pub enum UserNotificationType {
     XmlData = 1,
     SipInvite = 2,
@@ -138,13 +145,14 @@ impl From<&UunPayload> for UserNotificationType {
             UunPayload::DismissUserInvite { email_addr: _, unknown: _ } => UserNotificationType::DismissUserInvite,
             UunPayload::Resynchronize(_) => UserNotificationType::Resynchronize,
             UunPayload::Unknown(_) => todo!(),
+            UunPayload::P2PData(_) => { UserNotificationType::P2PData }
         }
     }
 }
 
 //TODO
 pub enum UunServiceType {
-    AdressBook,
+    AddressBook,
     Membership,
     Unknown(String)
 }
@@ -166,33 +174,5 @@ impl Display for UunSoapStatePayload {
             Err(std::fmt::Error)
         }
      
-    }
-}
-
-
-pub type UbnPayload = UunPayload;
-pub struct UbnServer {
-    destination: EndpointId,
-    payload: UbnPayload
-}
-
-impl TryFromRawCommand for UbnServer {
-    type Err = CommandError;
-
-    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
-        todo!()
-    }
-    
-}
-
-impl IntoBytes for UbnServer {
-    fn into_bytes(self) -> Vec<u8> {
-        let payload_type  = UserNotificationType::from(&self.payload);
-
-        let mut payload = self.payload.into_bytes();
-        let mut command = format!("UBN {dest} {payload_type} {payload_size}\r\n", dest = self.destination, payload_type = payload_type as u32, payload_size = payload.len()).into_bytes();
-
-        command.append(&mut payload);
-        command
     }
 }
