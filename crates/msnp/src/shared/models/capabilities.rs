@@ -139,7 +139,8 @@ impl Default for ClientCapabilities {
       + Capabilities::SupportsVoiceIM as u32
       + Capabilities::SupportsSipInvite as u32
       + Capabilities::MsgrVersion10 as u32
-      + Capabilities::SupportsP2PTurn as u32
+          //Disabled P2PTurn as when we deny direct transport the original client tries to reach the turn server which makes us loose time.
+  //    + Capabilities::SupportsP2PTurn as u32
       + Capabilities::SupportsP2PBootstrapViaUUN as u32;
 
   const EXTENDED_CAP: u32 = ExtendedCapabilities::RTCVideoEnabled as u32

@@ -1,24 +1,24 @@
-use matrix_sdk::Client;
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::identifiers::is_sha1::IsSha1;
+use matrix_sdk::Client;
 use msnp::msnp::notification::command::chg::ChgClient;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::iln::IlnServer;
 use msnp::msnp::notification::command::ubx::{ExtendedPresenceContent, UbxPayload, UbxServer};
+use msnp::msnp::notification::models::endpoint_data::EndpointData;
+use msnp::shared::models::capabilities::ClientCapabilities;
 use msnp::shared::models::display_name::DisplayName;
+use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::network_id_email::NetworkIdEmail;
 use msnp::shared::models::presence_status::PresenceStatus;
 use tokio::sync::mpsc::Sender;
-use msnp::msnp::notification::models::endpoint_data::EndpointData;
-use msnp::shared::models::capabilities::ClientCapabilities;
-use msnp::shared::models::endpoint_id::EndpointId;
-use crate::tachyon::identifiers::is_sha1::IsSha1;
 
 pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, client_data: TachyonClient, matrix_client: Client, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     command_sender.send(NotificationServerCommand::CHG(command.clone())).await?;
 
-    let client_data = client_data.clone();
+    let tachyon_client = client_data.clone();
 
 
     if local_store.needs_initial_presence {
@@ -27,7 +27,7 @@ pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, c
         tokio::spawn( async move {
 
             let contacts = {
-                client_data.get_contact_list().lock().unwrap().get_forward_list()
+                tachyon_client.get_contact_list().lock().unwrap().get_forward_list()
             };
 
             for contact in contacts {
@@ -36,7 +36,10 @@ pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, c
                     continue;
                 }
 
-               let display_name = if let Ok(Some(room)) = matrix_client.find_room_from_email(&contact.email_address) {
+
+               let found_room =  matrix_client.find_room_from_email(&contact.email_address);
+
+               let display_name = if let Ok(Some(room)) = &found_room {
                    if let Ok(msn_user) = room.to_msn_user_lazy().await {
                        msn_user.display_name
                    } else {
@@ -46,6 +49,10 @@ pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, c
                 } else {
                     None
                 };
+
+                let avatar = if let Ok(Some(room)) = &found_room {
+                    tachyon_client.get_avatar_as_msn_object(room.room_id()).await.unwrap()
+                } else { None };
 
                 let network_id_email = NetworkIdEmail {
                     network_id: contact.network_id.clone(),
@@ -62,7 +69,7 @@ pub async fn handle_chg(command: ChgClient, local_store: &mut LocalClientData, c
                     via: None,
                     display_name: display_name.map(|name| DisplayName::new(name) ).unwrap_or_default(),
                     client_capabilities: Default::default(),
-                    avatar: None,
+                    avatar,
                     badge_url: None,
                 })).await;
 

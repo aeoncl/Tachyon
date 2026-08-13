@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::anyhow;
 use ruma::{OwnedRoomId, RoomId};
 use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
+use msnp::shared::models::msn_object::MsnObject;
 use msnp::shared::models::uuid::Uuid;
 
 pub type SessionId = u32;
@@ -69,6 +70,9 @@ impl P2PSession {
                 self.inner.transport.receive_data_packet(&content.sender, &content.sender_display_name, &content.receiver, packet).await;
             }
             SessionType::SendFile(_) => {}
+            SessionType::ReceiveMsnObject(content) => {
+
+            }
         }
     }
 
@@ -115,6 +119,7 @@ impl P2PSession {
 
 pub enum SessionType {
     ReceiveFile(ReceiveFileContent),
+    ReceiveMsnObject(ReceiveMsnObject),
     SendFile(SendFileContent),
 }
 
@@ -125,6 +130,10 @@ pub struct ReceiveFileContent {
     pub media_source: MediaSource,
     pub file_size: usize,
     pub filename: String
+}
+
+pub struct ReceiveMsnObject {
+    pub msn_object: MsnObject
 }
 
 pub struct SendFileContent {

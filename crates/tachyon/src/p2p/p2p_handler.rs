@@ -1,21 +1,25 @@
-use std::time::Duration;
-use log::{debug, info};
-use matrix_sdk::media::{MediaFormat, MediaRequestParameters};
-use ruma::RoomId;
-use tokio::time::sleep;
-use msnp::msnp::error::PayloadError;
-use msnp::p2p::v2::factories::{P2PPayloadFactory, P2PTransportPacketFactory};
+use crate::matrix::extensions::msn_user_resolver::FindRoomFromEmail;
+use crate::p2p::client::session::{ReceiveMsnObject, SendFileContent, SessionType};
 use crate::p2p::client::transport::{Transport, UnwrappedP2PPacket};
 use crate::tachyon::client::tachyon_client::TachyonClient;
+use log::{debug, info};
+use matrix_sdk::media::{MediaFormat, MediaRequestParameters};
+use msnp::msnp::error::PayloadError;
+use msnp::p2p::v2::factories::{P2PPayloadFactory, P2PTransportPacketFactory};
 use msnp::p2p::v2::p2p_transport_packet::P2PTransportPacket;
 use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
 use msnp::p2p::v2::slp::raw_slp_payload::{RawSlpPayload, SlpPayloadFactory, TryFromRawSlpPayload};
-use msnp::p2p::v2::slp::{SlpHeaders, SlpPayload};
 use msnp::p2p::v2::slp::session_slp_payload::{SessionInviteRequestPayload, SessionReqInviteContext};
+use msnp::p2p::v2::slp::{SlpHeaders, SlpPayload};
+use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::endpoint_id::EndpointId;
+use msnp::shared::models::msn_object::MsnObjectType;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::traits::IntoBytes;
-use crate::p2p::client::session::{SendFileContent, SessionType};
+use ruma::RoomId;
+use std::str::FromStr;
+use std::time::Duration;
+use tokio::time::sleep;
 
 pub async fn handle_p2p_packet(room_id: &RoomId, transport: Transport, p2p_packet: P2PTransportPacket, tachyon_client: TachyonClient) {
 
@@ -96,7 +100,62 @@ pub async fn handle_p2p_packet(room_id: &RoomId, transport: Transport, p2p_packe
                     let invite = SessionInviteRequestPayload::try_from_raw_slp_payload(slp_payload.clone()).unwrap();
 
                     match invite.context() {
-                        SessionReqInviteContext::MsnObject(obj) => {}
+                        SessionReqInviteContext::MsnObject(obj) => {
+
+                            let (session_id, session) = tachyon_client.create_session(transport.clone(), SessionType::ReceiveMsnObject(ReceiveMsnObject {
+                               msn_object: obj.clone()
+                            }), invite.session_id());
+
+                            match obj.obj_type {
+                                MsnObjectType::Avatar => {}
+                                MsnObjectType::CustomEmoticon => {}
+                                MsnObjectType::DisplayPicture => {
+
+                                    let sender =  invite.headers().sender().clone();
+                                    let receiver = invite.headers().receiver().clone();
+
+                                    let response = SlpPayloadFactory::get_200_ok_session(&slp_payload).unwrap();
+
+                                    let mut packet = P2PPayloadFactory::get_sip_text_message();
+                                    packet.set_payload(response.into_bytes());
+
+                                    session.receive_packet(&receiver, "", &sender, packet).await;
+                                    session.accept();
+
+                                    let client = tachyon_client.clone();
+                                    let proxy_room_email =  EmailAddress::from_str(&obj.creator).unwrap();
+                                    let room = client.matrix_client().find_room_from_email(&proxy_room_email).unwrap().unwrap();
+                                    tokio::spawn(async move {
+                                        let (_, bytes) = client.get_avatar_thumbnail(&room).await.unwrap().unwrap();
+
+                                        //The client expects a data preparation packet before the first data packet of the session.
+                                        let data_preparation = P2PPayloadFactory::get_data_preparation_message(session_id);
+                                        session.receive_packet(&receiver, "blablabla", &sender, data_preparation).await;
+
+                                        let mut p2p_payload = P2PPayloadFactory::get_msn_obj(session_id);
+                                        p2p_payload.payload = bytes;
+                                        session.receive_packet(&receiver, "blablabla", &sender, p2p_payload).await;
+                                    });
+
+
+                                }
+                                MsnObjectType::SharedFile => {}
+                                MsnObjectType::Background => {}
+                                MsnObjectType::History => {}
+                                MsnObjectType::DynamicDisplayPicture => {}
+                                MsnObjectType::Wink => {}
+                                MsnObjectType::MapFile => {}
+                                MsnObjectType::DynamicBackground => {}
+                                MsnObjectType::VoiceClip => {}
+                                MsnObjectType::PluginState => {}
+                                MsnObjectType::RoamingObject => {}
+                                MsnObjectType::SignatureSound => {}
+                                MsnObjectType::UnknownYet => {}
+                                MsnObjectType::Scene => {}
+                                MsnObjectType::WebcamDynamicDisplayPicture => {}
+                            }
+
+                        }
                         SessionReqInviteContext::FileTransfer(transfer) => {
 
                             let (_, session) = tachyon_client.create_session(transport.clone(), SessionType::SendFile(SendFileContent {
@@ -138,6 +197,7 @@ pub async fn handle_p2p_packet(room_id: &RoomId, transport: Transport, p2p_packe
                     SessionType::SendFile(content) => {
                         tachyon_client.send_file_buffered(packet.session_id, packet, room_id, &content.filename, content.file_size).await.unwrap();
                     }
+                    SessionType::ReceiveMsnObject(_) => {}
                 }
             }
         }

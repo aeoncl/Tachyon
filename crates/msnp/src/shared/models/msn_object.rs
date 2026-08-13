@@ -1,5 +1,5 @@
-use std::{fmt::{self, Display}, str::FromStr};
 use std::fmt::Formatter;
+use std::{fmt::{self, Display}, str::FromStr};
 
 use anyhow::anyhow;
 use base64::{engine::general_purpose, Engine};
@@ -8,12 +8,11 @@ use sha1::{Digest, Sha1};
 use strum_macros::EnumString;
 use yaserde::{de::{self, from_str}, ser::to_string_with_config};
 
-use crate::msnp::error::PayloadError;
 use crate::msnp::error::CommandError;
+use crate::msnp::error::PayloadError;
 use crate::p2p::v2::slp::session_slp_context::SlpContext;
 use crate::shared::models::email_address::EmailAddress;
-
-
+use crate::shared::models::url_encoded_string::UrlEncodedString;
 // Documentation source: https://wiki.nina.chat/wiki/Protocols/MSNP/MSNC/MSN_Object
 
 
@@ -273,6 +272,22 @@ impl MsnObject {
     }
 }
 
+impl Display for MsnObject {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+
+        let yaserde_cfg = yaserde::ser::Config{
+            perform_indent: false,
+            write_document_declaration: false,
+            indent_string: None
+        };
+
+        let serialized = to_string_with_config(self, &yaserde_cfg).unwrap();
+        let encoded = UrlEncodedString::new(serialized).to_string();
+        return write!(f, "{}", encoded.as_str());
+    }
+}
+
 
 
 #[derive(Clone, Debug)]
@@ -378,20 +393,7 @@ impl Default for FriendlyName {
 
 
 
-impl Display for MsnObject {
 
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        
-        let yaserde_cfg = yaserde::ser::Config{
-            perform_indent: false,
-            write_document_declaration: false,
-            indent_string: None
-        };
-
-        let serialized = to_string_with_config(self, &yaserde_cfg).unwrap();
-        return write!(f, "{}", serialized.as_str());
-    }
-}
 
 #[derive(Clone, Debug, EnumString, PartialEq)]
 pub enum MsnObjectContentType {
@@ -528,11 +530,10 @@ fn map_empty_string_to_option(value: String) -> Option<String> {
 mod tests {
     use std::str::FromStr;
 
-    use lazy_static_include::lazy_static_include_bytes;
-    use crate::shared::models::msn_object::{compute_sha1, MSNObjectFactory, MsnObject, MsnObjectContentType, MsnObjectType};
-    use crate::p2p::v2::slp::session_slp_context::SlpContext;
     use crate::shared::models::email_address::EmailAddress;
     use crate::shared::models::msn_object::FriendlyName;
+    use crate::shared::models::msn_object::{compute_sha1, MSNObjectFactory, MsnObject, MsnObjectContentType, MsnObjectType};
+    use lazy_static_include::lazy_static_include_bytes;
 
 
     lazy_static_include_bytes! {

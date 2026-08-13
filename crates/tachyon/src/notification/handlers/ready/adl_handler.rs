@@ -42,7 +42,9 @@ pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, matri
                 continue;
             }
 
-            let display_name = if let Ok(Some(room)) = matrix_client.find_room_from_email(&contact.email_address) {
+            let found_room = matrix_client.find_room_from_email(&contact.email_address);
+
+            let display_name = if let Ok(Some(room)) = &found_room {
                 if let Ok(msn_user) = room.to_msn_user_lazy().await {
                     msn_user.display_name
                 } else {
@@ -52,6 +54,11 @@ pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, matri
             } else {
                 None
             };
+
+            let avatar = if let Ok(Some(room)) = &found_room {
+                tachyon_client.get_avatar_as_msn_object(room.room_id()).await.unwrap()
+            } else { None };
+
 
             let network_id_email = NetworkIdEmail {
                 network_id: contact.network_id.clone(),
@@ -67,7 +74,7 @@ pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, matri
                 via: None,
                 display_name: display_name.map(|name| DisplayName::new(name) ).unwrap_or_default(),
                 client_capabilities: Default::default(),
-                avatar: None,
+                avatar,
                 badge_url: None,
             })).await;
 

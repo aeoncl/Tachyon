@@ -12,10 +12,10 @@ pub async fn handle_direct_member_profile_changed(
     context: Ctx<TachyonContext>,
     client: Client,
 ) {
-    if room.is_valid_one_to_one_direct() {
         if let Some(original) = event.as_original() {
 
             if room.is_valid_one_to_one_direct() {
+
                 if let Some(direct_target) = room.get_single_direct_target() {
                     if event.state_key() == <matrix_sdk::ruma::OwnedUserId as AsRef<UserId>>::as_ref(&direct_target) {
                         if let MembershipChange::ProfileChanged { avatar_url_change, displayname_change } = original.membership_change() {
@@ -25,7 +25,7 @@ pub async fn handle_direct_member_profile_changed(
                 }
             }
         }
-    }
+
 }
 
 //TODO handle when a 101 dm room has more than 1 member, it should not show the user name anymore but the room.display_name
