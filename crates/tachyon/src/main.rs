@@ -27,6 +27,7 @@ mod switchboard;
 mod matrix;
 mod tachyon;
 mod p2p;
+mod audio;
 
 #[tokio::main]
 async fn main() {

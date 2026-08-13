@@ -4,6 +4,7 @@ use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::switchboard::extensions::CustomStyles;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
+use log::info;
 use matrix_sdk::ruma::events::room::message::{MessageType, OriginalSyncRoomMessageEvent};
 use matrix_sdk::ruma::events::typing::SyncTypingEvent;
 use matrix_sdk::{Client, Room};
@@ -51,10 +52,26 @@ pub async fn handle_message(
 
     match &event.content.msgtype {
         MessageType::Audio(audio) => {
-            let size = audio.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
-            let filename = audio.filename.as_ref().unwrap_or(&audio.body).to_owned();
-            //TODO fix filename
-            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, audio.source.clone()).await;
+            //Audio goes out as a WLM voice clip when it fits in one, and as a plain file otherwise.
+            match tachyon_client.prepare_voice_clip(&message_sender, audio).await {
+                Ok(msn_object) => {
+                    let voice_clip = SwitchboardServerCommand::MSG(MsgServer {
+                        sender: message_sender.get_email_address().clone(),
+                        display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
+                        payload: MsgPayload::Datacast(DatacastMessagePayload::new_msn_object(msn_object)),
+                    });
+
+                    switchboard.receive_command(voice_clip).await.unwrap();
+                }
+                Err(e) => {
+                    info!("Could not send audio message as a voice clip, falling back to a file transfer: {}", e);
+
+                    let size = audio.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
+                    let filename = audio.filename.as_ref().unwrap_or(&audio.body).to_owned();
+                    //TODO fix filename
+                    tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, audio.source.clone()).await;
+                }
+            }
         }
         MessageType::Emote(emote) => {
 

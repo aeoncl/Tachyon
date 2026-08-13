@@ -21,7 +21,13 @@ impl DatacastMessagePayload {
             data: Datacast::Nudge,
         }
     }
-    
+
+    pub fn new_msn_object(msn_object: MsnObject) -> Self {
+        Self {
+            data: Datacast::MsnObject(msn_object),
+        }
+    }
+
     pub fn get_type(&self) -> DatacastType {
         self.data.get_type()
     }

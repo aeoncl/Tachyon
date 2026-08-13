@@ -16,6 +16,11 @@ There are three distinct components making Tachyon tick:
 	 - **Storage Service**: Handles updating and getting your profile
 	 - **RST2, Request Security Token**: The SOAP Service responsible for authenticating the client
 
+## Building
+Clone with submodules (`git clone --recursive`, or `git submodule update --init`): `lib/matrix-rust-sdk` and `lib/libsiren` are both required. 
+libsiren is compiled from source by Tachyon's build script, so a C compiler must be available.
+**ffmpeg** must be installed and on the `PATH` at runtime, built with the `msnsiren` decoder and `libopus`. It is used to transcode voice clips both ways; without it, audio messages degrade to plain file transfers.
+
 ## Special Thanks
  - The Escargot Project
  - Luis Mariano Guerra and his project Emesene

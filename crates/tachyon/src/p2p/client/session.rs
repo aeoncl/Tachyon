@@ -11,6 +11,7 @@ use anyhow::anyhow;
 use ruma::{OwnedRoomId, RoomId};
 use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
 use msnp::shared::models::msn_object::MsnObject;
+use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::uuid::Uuid;
 
 pub type SessionId = u32;
@@ -73,6 +74,12 @@ impl P2PSession {
             SessionType::ReceiveMsnObject(content) => {
 
             }
+            SessionType::SendMsnObject(content) => {
+                let slp_payload = SlpPayloadFactory::get_msn_object_request(&content.requester, &content.owner, &content.msn_object, self.inner.session_id).unwrap();
+                let mut packet = P2PPayloadFactory::get_sip_text_message();
+                packet.set_payload(slp_payload.into_bytes());
+                self.inner.transport.receive_data_packet(&content.requester.endpoint_id, content.requester.compute_display_name(), &content.owner.endpoint_id, packet).await;
+            }
         }
     }
 
@@ -121,6 +128,7 @@ pub enum SessionType {
     ReceiveFile(ReceiveFileContent),
     ReceiveMsnObject(ReceiveMsnObject),
     SendFile(SendFileContent),
+    SendMsnObject(SendMsnObjectContent),
 }
 
 pub struct ReceiveFileContent {
@@ -141,4 +149,11 @@ pub struct SendFileContent {
     pub file_size: usize,
     pub filename: String
 
+}
+
+pub struct SendMsnObjectContent {
+    pub room_id: OwnedRoomId,
+    pub requester: MsnUser,
+    pub owner: MsnUser,
+    pub msn_object: MsnObject,
 }

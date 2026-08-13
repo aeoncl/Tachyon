@@ -17,6 +17,7 @@ use tokio::sync::{broadcast, mpsc};
 use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
 use crate::p2p::client::session::{P2PSession, SessionId};
 use crate::p2p::client::transport::Transport;
+use crate::tachyon::client::voice_clip::VoiceClipStore;
 
 pub struct TachyonClientInner {
     matrix_client: matrix_sdk::Client,
@@ -33,7 +34,8 @@ pub struct TachyonClientInner {
     pub client_shutdown_recv: broadcast::Receiver<()>,
     pub transports: DashMap<OwnedRoomId, Transport>,
     pub sessions: DashMap<SessionId, P2PSession>,
-    pub chunked_uploads: DashMap<SessionId, Vec<RawP2PPayload>>
+    pub chunked_uploads: DashMap<SessionId, Vec<RawP2PPayload>>,
+    pub voice_clips: VoiceClipStore,
 }
 
 #[derive(Clone)]
@@ -69,6 +71,7 @@ impl TachyonClient {
                 transports: Default::default(),
                 sessions: Default::default(),
                 chunked_uploads: Default::default(),
+                voice_clips: Default::default(),
             })
         }
     }

@@ -146,7 +146,38 @@ pub async fn handle_p2p_packet(room_id: &RoomId, transport: Transport, p2p_packe
                                 MsnObjectType::Wink => {}
                                 MsnObjectType::MapFile => {}
                                 MsnObjectType::DynamicBackground => {}
-                                MsnObjectType::VoiceClip => {}
+                                MsnObjectType::VoiceClip => {
+
+                                    let sender = invite.headers().sender().clone();
+                                    let receiver = invite.headers().receiver().clone();
+
+                                    let response = SlpPayloadFactory::get_200_ok_session(&slp_payload).unwrap();
+
+                                    let mut packet = P2PPayloadFactory::get_sip_text_message();
+                                    packet.set_payload(response.into_bytes());
+
+                                    session.receive_packet(&receiver, "", &sender, packet).await;
+                                    session.accept();
+
+                                    let client = tachyon_client.clone();
+                                    let sha1d = obj.sha1d.clone();
+                                    tokio::spawn(async move {
+                                        let Some(voice_clip) = client.take_voice_clip(&sha1d) else {
+                                            log::error!("Client requested a voice clip we no longer hold: {}", sha1d);
+                                            //TODO send err 500
+                                            return;
+                                        };
+
+                                        //The client expects a data preparation packet before the first data packet of the session.
+                                        let data_preparation = P2PPayloadFactory::get_data_preparation_message(session_id);
+                                        session.receive_packet(&receiver, "", &sender, data_preparation).await;
+
+                                        let mut p2p_payload = P2PPayloadFactory::get_msn_obj(session_id);
+                                        p2p_payload.payload = voice_clip;
+                                        session.receive_packet(&receiver, "", &sender, p2p_payload).await;
+                                    });
+
+                                }
                                 MsnObjectType::PluginState => {}
                                 MsnObjectType::RoamingObject => {}
                                 MsnObjectType::SignatureSound => {}
@@ -198,6 +229,11 @@ pub async fn handle_p2p_packet(room_id: &RoomId, transport: Transport, p2p_packe
                         tachyon_client.send_file_buffered(packet.session_id, packet, room_id, &content.filename, content.file_size).await.unwrap();
                     }
                     SessionType::ReceiveMsnObject(_) => {}
+                    SessionType::SendMsnObject(content) => {
+                        if let Err(e) = tachyon_client.send_msn_object_buffered(packet.session_id, packet, content).await {
+                            log::error!("Could not forward the MSNObject sent by the client: {:?}", e);
+                        }
+                    }
                 }
             }
         }

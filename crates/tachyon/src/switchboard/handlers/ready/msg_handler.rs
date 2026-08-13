@@ -15,7 +15,8 @@ use msnp::msnp::switchboard::command::msg::{MsgAcknowledgment, MsgClient, MsgPay
 use msnp::shared::command::nak::NakServer;
 use tokio::sync::mpsc::Sender;
 use msnp::shared::payload::msg::chunked_msg_payload::{ChunkMetadata, ChunkedMsgPayload, MsgChunks};
-use msnp::shared::payload::msg::datacast_msg::DatacastType;
+use msnp::shared::models::msn_object::MsnObjectType;
+use msnp::shared::payload::msg::datacast_msg::{Datacast, DatacastType};
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::matrix::nudge_custom_event::{create_buzz_message};
 use crate::p2p::p2p_handler::handle_p2p_packet;
@@ -87,7 +88,21 @@ async fn handle_msg_payload(tr_id: u128, ack_type: MsgAcknowledgment, payload: M
                         room_clone.send(buzz).await.unwrap();
                     }
                     DatacastType::Wink => {}
-                    DatacastType::MsnObject => {}
+                    DatacastType::MsnObject => {
+                        //The datacast only announces the object, its bytes have to be fetched over P2P.
+                        if let Datacast::MsnObject(msn_object) = datacast.data {
+                            match msn_object.obj_type {
+                                MsnObjectType::VoiceClip => {
+                                    if let Err(e) = tachyon_client.request_msn_object(&room_clone, msn_object).await {
+                                        error!("Could not request the voice clip announced by the client: {:?}", e);
+                                    }
+                                }
+                                _ => {
+                                    debug!("Received a yet unsupported MSNObject datacast: {:?}", msn_object);
+                                }
+                            }
+                        }
+                    }
                     DatacastType::ActionMsg => {}
                 }
 
