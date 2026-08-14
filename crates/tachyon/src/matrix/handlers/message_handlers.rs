@@ -56,15 +56,43 @@ pub async fn handle_message(
             match tachyon_client.prepare_voice_clip(&room_user, audio).await {
                 Ok(msn_object) => {
                     let voice_clip = SwitchboardServerCommand::MSG(MsgServer {
-                        sender: message_sender.get_email_address().clone(),
+                        sender: room_user.get_email_address().clone(),
                         display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
                         payload: MsgPayload::Datacast(DatacastMessagePayload::new_msn_object(msn_object)),
                     });
+                    
+                    let notice = SwitchboardServerCommand::MSG(MsgServer {
+                       sender: message_sender.get_email_address().clone(), 
+                        display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
+                        payload: MsgPayload::TextPlain(TextPlainMessagePayload {
+                            font_family: Default::default(),
+                            right_to_left: false,
+                            font_styles: Default::default(),
+                            font_color: Default::default(),
+                            body: "has sent you an audio message".to_string(),
+                        })
 
+                    });
+                    
+                    switchboard.receive_command(notice).await.unwrap();
                     switchboard.receive_command(voice_clip).await.unwrap();
                 }
                 Err(e) => {
                     info!("Could not send audio message as a voice clip, falling back to a file transfer: {}", e);
+
+                    let notice = SwitchboardServerCommand::MSG(MsgServer {
+                        sender: message_sender.get_email_address().clone(),
+                        display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
+                        payload: MsgPayload::TextPlain(TextPlainMessagePayload {
+                            font_family: Default::default(),
+                            right_to_left: false,
+                            font_styles: Default::default(),
+                            font_color: Default::default(),
+                            body: "has sent you a file".to_string(),
+                        })
+                    });
+
+                    switchboard.receive_command(notice).await.unwrap();
 
                     let size = audio.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
                     let filename = audio.filename.as_ref().unwrap_or(&audio.body).to_owned();

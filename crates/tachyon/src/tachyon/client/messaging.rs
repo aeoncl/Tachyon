@@ -2,10 +2,15 @@ use crate::p2p::client::session::{ReceiveFileContent, SessionType};
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::RoomId;
+use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
+use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
+use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::msn_user::MsnUser;
+use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 
 impl TachyonClient {
     pub async fn receive_file(&self, room_id: &RoomId, inviter: &MsnUser, sender: &MsnUser, file_size: usize, filename: String, media_source: MediaSource) {
+
 
 
         let transport = self.get_or_create_transport(room_id, inviter);

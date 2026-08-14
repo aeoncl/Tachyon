@@ -392,6 +392,7 @@ pub mod factories {
             payload: P2PTransportPacket,
         ) -> RawMsgPayload {
             let mut out = RawMsgPayload::new(MsgContentType::P2P, false);
+
             out.add_header("P2P-Dest", &destination.endpoint_id.to_string());
             out.add_header("P2P-Src", &source.endpoint_id.to_string());
             out.set_body(payload.into_bytes());
