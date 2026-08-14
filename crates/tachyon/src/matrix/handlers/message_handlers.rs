@@ -56,7 +56,7 @@ pub async fn handle_message(
             match tachyon_client.prepare_voice_clip(&message_sender, audio).await {
                 Ok(msn_object) => {
                     let voice_clip = SwitchboardServerCommand::MSG(MsgServer {
-                        sender: message_sender.get_email_address().clone(),
+                        sender: room_user.get_email_address().clone(),
                         display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
                         payload: MsgPayload::Datacast(DatacastMessagePayload::new_msn_object(msn_object)),
                     });
