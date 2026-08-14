@@ -53,10 +53,10 @@ pub async fn handle_message(
     match &event.content.msgtype {
         MessageType::Audio(audio) => {
             //Audio goes out as a WLM voice clip when it fits in one, and as a plain file otherwise.
-            match tachyon_client.prepare_voice_clip(&message_sender, audio).await {
+            match tachyon_client.prepare_voice_clip(&room_user, audio).await {
                 Ok(msn_object) => {
                     let voice_clip = SwitchboardServerCommand::MSG(MsgServer {
-                        sender: room_user.get_email_address().clone(),
+                        sender: message_sender.get_email_address().clone(),
                         display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
                         payload: MsgPayload::Datacast(DatacastMessagePayload::new_msn_object(msn_object)),
                     });
