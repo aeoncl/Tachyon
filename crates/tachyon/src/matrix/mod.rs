@@ -11,3 +11,4 @@ mod errors;
 pub mod cross_signing;
 pub mod verification_request_repository;
 pub mod nudge_custom_event;
+pub mod client;

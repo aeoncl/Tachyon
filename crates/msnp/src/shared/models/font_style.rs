@@ -16,7 +16,23 @@ impl FontStyles {
         let styles = styles.iter().fold(0, |acc, style| acc | (*style as u32));
         Self(styles)
     }
-    
+
+    pub fn bold(&mut self) {
+        self.0 = self.0 * FontStyle::Bold as u32;
+    }
+
+    pub fn italic(&mut self) {
+        self.0 = self.0 * FontStyle::Italic as u32;
+    }
+
+    pub fn strikethrough(&mut self) {
+        self.0 = self.0 * FontStyle::StrikeThrough as u32;
+    }
+
+    pub fn underline(&mut self) {
+        self.0 = self.0 * FontStyle::Underline as u32;
+    }
+
     pub fn value(&self) -> u32 {
         self.0
     }

@@ -15,6 +15,7 @@ use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::{Arc, Mutex, RwLockWriteGuard};
 use tokio::sync::{broadcast, mpsc};
 use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
+use crate::matrix::client::room_proxy_mapping::RoomMappingIdCache;
 use crate::p2p::client::session::{P2PSession, SessionId};
 use crate::p2p::client::transport::Transport;
 use crate::tachyon::client::voice_clip::VoiceClipStore;
@@ -36,6 +37,7 @@ pub struct TachyonClientInner {
     pub sessions: DashMap<SessionId, P2PSession>,
     pub chunked_uploads: DashMap<SessionId, Vec<RawP2PPayload>>,
     pub voice_clips: VoiceClipStore,
+    pub room_id_mapping_cache: RoomMappingIdCache,
 }
 
 #[derive(Clone)]
@@ -72,6 +74,7 @@ impl TachyonClient {
                 sessions: Default::default(),
                 chunked_uploads: Default::default(),
                 voice_clips: Default::default(),
+                room_id_mapping_cache: Default::default(),
             })
         }
     }

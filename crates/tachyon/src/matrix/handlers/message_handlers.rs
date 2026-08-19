@@ -134,7 +134,6 @@ pub async fn handle_message(
 
         }
         MessageType::Text(message) => {
-
             let msg = SwitchboardServerCommand::MSG(MsgServer {
                 sender: message_sender.get_email_address().clone(),
                 display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
