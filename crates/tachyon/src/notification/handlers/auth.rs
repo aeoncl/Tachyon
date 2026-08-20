@@ -198,8 +198,7 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
             .await;
 
         //Todo check the device state before we sync
-
-        let sync_join_handle = sync(tachyon_client, matrix_client_clone, client_shutdown_snd, client_shutdown_recv).await;
+        let sync_join_handle = tachyon_client.sync_service().start_sync(client_shutdown_snd, client_shutdown_recv).await;
 
         let initial_mail_data = NotificationServerCommand::MSG(MsgServer {
             sender: "Hotmail".to_string(),
