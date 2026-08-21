@@ -1,7 +1,7 @@
 use crate::matrix::extensions::direct::DirectRoom;
 use crate::matrix::extensions::message_dedup::SendWithDedup;
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
-use crate::switchboard::extensions::CustomStyles;
+use crate::msn::switchboard::extensions::CustomStyles;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use log::info;

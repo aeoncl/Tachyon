@@ -10,7 +10,7 @@ use msnp::soap::traits::xml::{ToXml, TryFromXml};
 use reqwest::Url;
 use std::str::FromStr;
 
-use crate::tachyon::global_state::GlobalState;
+use crate::app_state::AppState;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::mappers::uuid::ToUuid;
 use crate::web::soap::error::RST2Error;
@@ -18,7 +18,7 @@ use crate::web::soap::shared;
 
 pub const MAGIC_PASSWORD: &str ="tachyon";
 
-pub async fn rst2_handler(headers: HeaderMap, State(state): State<GlobalState>, body: String) -> Result<Response, RST2Error> {
+pub async fn rst2_handler(headers: HeaderMap, State(state): State<AppState>, body: String) -> Result<Response, RST2Error> {
 
     let request = RST2RequestMessageSoapEnvelope::try_from_xml(&body)?;
 

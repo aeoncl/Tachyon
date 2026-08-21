@@ -5,7 +5,7 @@ mod login;
 mod confirm_device;
 mod verification;
 
-use crate::tachyon::global_state::GlobalState;
+use crate::app_state::AppState;
 use axum::body::Body;
 use axum::extract::Path;
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE, ETAG, IF_NONE_MATCH};
@@ -108,7 +108,7 @@ lazy_static_include_bytes! {
 }
 
 
-pub fn tachyon_router(state: GlobalState) -> Router<GlobalState> {
+pub fn tachyon_router(state: AppState) -> Router<AppState> {
     Router::new()
         //Secured v
         .route("/test", get(serve_index))

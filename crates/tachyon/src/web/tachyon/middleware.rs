@@ -7,12 +7,12 @@ use axum::http::header::{CONTENT_TYPE, COOKIE, LOCATION, SET_COOKIE};
 use http_body_util::BodyExt;
 use log::error;
 use maud::html;
-use crate::tachyon::global_state::GlobalState;
+use crate::app_state::AppState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::{layout, Params};
 
 pub async fn is_authenticated(
-    State(state): State<GlobalState>,
+    State(state): State<AppState>,
     req: Request<Body>,
     next: Next,
 ) -> impl IntoResponse {

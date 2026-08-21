@@ -1,5 +1,5 @@
-use crate::switchboard::models::switchboard_handle::{SwitchboardHandle, SwitchboardState};
-use crate::switchboard::models::switchboard_token::SwitchboardToken;
+use crate::msn::domain::switchboard::switchboard_handle::{SwitchboardHandle, SwitchboardState};
+use crate::msn::presentation::switchboard::switchboard_token::SwitchboardToken;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use anyhow::anyhow;
 use matrix_sdk::ruma::RoomId;

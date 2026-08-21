@@ -1,4 +1,4 @@
-use crate::tachyon::global_state::GlobalState;
+use crate::app_state::AppState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::soap::ab_service::ab_contact_add::ab_contact_add;
 use crate::web::soap::ab_service::ab_contact_delete::ab_contact_delete;
@@ -21,7 +21,7 @@ use msnp::soap::abch::request_header::AuthHeaderSoapEnvelope;
 use msnp::soap::traits::xml::TryFromXml;
 use std::str::FromStr;
 #[debug_handler]
-pub async fn address_book_service(headers: HeaderMap, State(state): State<GlobalState>, body: String) -> Result<Response, ABError> {
+pub async fn address_book_service(headers: HeaderMap, State(state): State<AppState>, body: String) -> Result<Response, ABError> {
 
     let soap_action = headers.get("SOAPAction").ok_or(ABError::MissingHeader("SOAPAction".into()))?.to_str()?.trim_start_matches("\"").trim_end_matches("\"");
 

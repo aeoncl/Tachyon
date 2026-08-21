@@ -1,4 +1,4 @@
-use crate::tachyon::global_state::GlobalState;
+use crate::app_state::AppState;
 use crate::web::soap::error::RST2Error;
 use crate::web::tachyon::{layout, Params};
 use anyhow::anyhow;
@@ -28,7 +28,7 @@ pub async fn get_auth(
 }
 
 pub async fn post_auth(
-    State(state): State<GlobalState>,
+    State(state): State<AppState>,
     axum::extract::Form(form_data): axum::extract::Form<Params>,
 ) -> Html<String> {
 

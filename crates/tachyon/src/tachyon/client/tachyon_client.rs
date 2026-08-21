@@ -1,7 +1,7 @@
-use crate::notification::circle_store::CircleStore;
-use crate::notification::models::notification_handle::NotificationHandle;
-use crate::notification::models::soap_holder::SoapHolder;
-use crate::switchboard::models::switchboard_handle::SwitchboardHandle;
+use crate::msn::notification::models::circle_store::CircleStore;
+use crate::msn::notification::models::notification_handle::NotificationHandle;
+use crate::msn::notification::models::soap_holder::SoapHolder;
+use crate::msn::domain::switchboard::switchboard_handle::SwitchboardHandle;
 use crate::tachyon::alert::Alert;
 use crate::tachyon::config::tachyon_config::TachyonConfig;
 use crate::tachyon::switchboard_service::SwitchboardService;
@@ -16,8 +16,8 @@ use std::sync::{Arc, Mutex, RwLockWriteGuard};
 use tokio::sync::{broadcast, mpsc};
 use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
 use crate::matrix::client::room_proxy_mapping::RoomMappingIdCache;
-use crate::p2p::client::session::{P2PSession, SessionId};
-use crate::p2p::client::transport::Transport;
+use crate::msn::application::::client::session::{P2PSession, SessionId};
+use crate::msn::application::::client::transport::Transport;
 use crate::tachyon::client::voice_clip::VoiceClipStore;
 
 pub struct TachyonClientInner {

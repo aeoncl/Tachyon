@@ -1,5 +1,5 @@
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
-use crate::notification::models::soap_holder::AddressBookContact;
+use crate::msn::notification::models::soap_holder::AddressBookContact;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use matrix_sdk::deserialized_responses::RawSyncOrStrippedState;
 use matrix_sdk::ruma::events::room::member::{MembershipState, RoomMemberEventContent, StrippedRoomMemberEvent, SyncRoomMemberEvent};

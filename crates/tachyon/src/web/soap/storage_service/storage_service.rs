@@ -1,4 +1,4 @@
-use crate::tachyon::global_state::GlobalState;
+use crate::app_state::AppState;
 use crate::tachyon::mappers::user_id;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::mappers::uuid::ToUuid;
@@ -29,7 +29,7 @@ use msnp::soap::storage_service::update_profile::request::UpdateProfileMessageSo
 use msnp::soap::storage_service::update_profile::response::UpdateProfileResponseMessageSoapEnvelope;
 use msnp::soap::traits::xml::{ToXml, TryFromXml};
 use std::str::FromStr;
-pub async fn storage_service(headers: HeaderMap, State(state): State<GlobalState>, body: String) -> Result<Response, ABError> {
+pub async fn storage_service(headers: HeaderMap, State(state): State<AppState>, body: String) -> Result<Response, ABError> {
 
     let soap_action = headers.get("SOAPAction").ok_or(ABError::MissingHeader("SOAPAction".into()))?.to_str()?.trim_start_matches("\"").trim_end_matches("\"");
 

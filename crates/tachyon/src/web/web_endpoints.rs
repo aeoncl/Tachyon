@@ -11,7 +11,7 @@ use matrix_sdk::media::{MediaFormat, MediaRequestParameters, MediaThumbnailSetti
 use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::{OwnedMxcUri, UInt};
 use regex::Regex;
-use crate::tachyon::global_state::GlobalState;
+use crate::app_state::AppState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::soap::shared::build_soap_response;
 
@@ -32,7 +32,7 @@ pub async fn firewall_test() -> StatusCode {
     StatusCode::OK
 }
 
-pub async fn get_msgr_config(State(state): State<GlobalState>) -> Response<Body> {
+pub async fn get_msgr_config(State(state): State<AppState>) -> Response<Body> {
     let data: &'static [u8] = *MSGR_CONFIG_XML;
     let str = from_utf8(data).expect("MsgrConfig to be valid").to_string();
     let out = str.replace("%port%", state.get_config().http_port.to_string().as_str());
@@ -78,7 +78,7 @@ pub async fn ppcrlcheck() -> Response<Body> {
 
 }
 
-pub async fn get_profile_pic(Path((image_mxid, _image_type)): Path<(String, String)>, State(state): State<GlobalState>) -> Response<Body> {
+pub async fn get_profile_pic(Path((image_mxid, _image_type)): Path<(String, String)>, State(state): State<AppState>) -> Response<Body> {
 
     //Todo handle errors
     let image_mxid = String::from_utf8(general_purpose::STANDARD.decode(image_mxid.as_bytes()).unwrap()).unwrap();

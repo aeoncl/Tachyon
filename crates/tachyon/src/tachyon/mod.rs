@@ -1,9 +1,10 @@
 pub mod error;
 pub mod repository;
 pub mod identifiers;
-pub(crate) mod global_state;
 pub mod alert;
 pub mod mappers;
 pub mod switchboard_service;
 pub mod client;
 pub mod config;
+pub mod application;
+mod infrastructure;

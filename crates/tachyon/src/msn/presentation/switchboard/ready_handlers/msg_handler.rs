@@ -1,0 +1,154 @@
+use futures_util::FutureExt;
+use log::{debug, error};
+use crate::matrix::extensions::message_dedup::SendWithDedup;
+use crate::msn::presentation::switchboard::local_switchboard_data::LocalSwitchboardData;
+use crate::tachyon::client::tachyon_client::TachyonClient;
+use matrix_sdk::ruma::events::room::message::{ImageMessageEventContent, RoomMessageEventContent};
+use matrix_sdk::{Client, Error, Room};
+use matrix_sdk::attachment::AttachmentConfig;
+use matrix_sdk::room::futures::SendMessageLikeEventResult;
+use mime::Mime;
+use ruma::events::room::message::MessageType;
+use msnp::msnp::switchboard::command::ack::AckServer;
+use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
+use msnp::msnp::switchboard::command::msg::{MsgAcknowledgment, MsgClient, MsgPayload};
+use msnp::shared::command::nak::NakServer;
+use tokio::sync::mpsc::Sender;
+use msnp::shared::payload::msg::chunked_msg_payload::{ChunkMetadata, ChunkedMsgPayload, MsgChunks};
+use msnp::shared::models::msn_object::MsnObjectType;
+use msnp::shared::payload::msg::datacast_msg::{Datacast, DatacastType};
+use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
+use crate::matrix::nudge_custom_event::{create_buzz_message};
+use crate::msn::application::p2p::p2p_handler::handle_p2p_packet;
+use crate::msn::presentation::switchboard_server::SwitchboardSenderMsg;
+use crate::tachyon::mappers::user_id::MatrixIdCompatible;
+
+pub(crate) async fn handle_msg(msg_command: MsgClient, command_sender: Sender<SwitchboardSenderMsg>, tachyon_client: TachyonClient, matrix_client: Client, room: Room, local_switchboard_data: &mut LocalSwitchboardData) -> Result<(), anyhow::Error> {
+
+    if let MsgPayload::Chunked(chunk) = msg_command.payload {
+        if let Some(complete) = handle_chunked(chunk, local_switchboard_data).await? {
+            dispatch_msg_payload(msg_command.tr_id, msg_command.ack_type, complete, &room, &command_sender, tachyon_client.clone()).await;
+        }
+    } else {
+        dispatch_msg_payload(msg_command.tr_id, msg_command.ack_type, msg_command.payload, &room, &command_sender, tachyon_client.clone()).await;
+    };
+
+    Ok(())
+}
+
+pub async fn handle_chunked(chunk: ChunkedMsgPayload, local_switchboard_data: &mut LocalSwitchboardData) -> Result<Option<MsgPayload>, anyhow::Error> {
+    let message_id = chunk.message_id();
+    match local_switchboard_data.chunks.remove(&message_id) {
+        Some(mut chunks) => {
+            chunks.append_chunk(chunk);
+            if chunks.is_complete()? {
+                return Ok(Some(chunks.merge_chunks()?));
+            } else {
+                local_switchboard_data.chunks.insert(message_id, chunks);
+            }
+        }
+        None => {
+            local_switchboard_data.chunks.insert(message_id, MsgChunks::from_first_chunk(chunk)?);
+        }
+    }
+
+    Ok(None)
+}
+
+pub async fn dispatch_msg_payload(tr_id: u128, ack_type: MsgAcknowledgment, payload: MsgPayload, room: &Room, command_sender: &Sender<SwitchboardSenderMsg>, tachyon_client: TachyonClient) {
+
+    let room_clone = room.clone();
+    let command_sender_clone = command_sender.clone();
+
+    if matches!(payload, MsgPayload::P2P(_)) {
+        //P2P packets must be handled in the order they were received:
+        //chunk reassembly and the transport handshake break if a later packet overtakes an earlier one.
+        handle_msg_payload(tr_id, ack_type, payload, room_clone, command_sender_clone, tachyon_client).await;
+    } else {
+        tokio::spawn(handle_msg_payload(tr_id, ack_type, payload, room_clone, command_sender_clone, tachyon_client));
+    }
+}
+
+async fn handle_msg_payload(tr_id: u128, ack_type: MsgAcknowledgment, payload: MsgPayload, room_clone: Room, command_sender_clone: Sender<SwitchboardSenderMsg>, tachyon_client: TachyonClient) {
+        let result: Result<(), Error> = match payload {
+            MsgPayload::Raw(_) => {
+                Ok(())
+            }
+            MsgPayload::TextPlain(text_plain) => {
+
+                let message = RoomMessageEventContent::text_plain(text_plain.body);
+                room_clone.send_with_dedup(message).await.map(|r| ())
+            }
+            MsgPayload::Datacast(datacast) => {
+                debug!("received DATACAST {:?}", &datacast.get_type() );
+
+                match datacast.get_type() {
+                    DatacastType::Nudge => {
+                        let buzz = create_buzz_message(tachyon_client.own_user().compute_display_name());
+                        room_clone.send(buzz).await.unwrap();
+                    }
+                    DatacastType::Wink => {}
+                    DatacastType::MsnObject => {
+                        //The datacast only announces the object, its bytes have to be fetched over P2P.
+                        if let Datacast::MsnObject(msn_object) = datacast.data {
+                            match msn_object.obj_type {
+                                MsnObjectType::VoiceClip => {
+                                    if let Err(e) = tachyon_client.request_msn_object(&room_clone, msn_object).await {
+                                        error!("Could not request the voice clip announced by the client: {:?}", e);
+                                    }
+                                }
+                                _ => {
+                                    debug!("Received a yet unsupported MSNObject datacast: {:?}", msn_object);
+                                }
+                            }
+                        }
+                    }
+                    DatacastType::ActionMsg => {}
+                }
+
+                Ok(())
+            }
+            MsgPayload::Control(control) => {
+
+                let typing_user_id = control.typing_user.to_owned_user_id();
+
+                if &typing_user_id == room_clone.own_user_id() {
+                    room_clone.typing_notice(true).await
+                } else {
+                    Ok(())
+                }
+            }
+            MsgPayload::P2P(p2p) => {
+                let transport = tachyon_client.get_or_create_transport(room_clone.room_id(), &room_clone.to_msn_user_lazy().await.unwrap());
+
+                handle_p2p_packet(room_clone.room_id(), transport, p2p.payload, tachyon_client).await;
+                Ok(())
+            }
+            MsgPayload::Chunked(_) => {
+                Ok(())
+            }
+            MsgPayload::Gif(gif) => {
+                room_clone.send_attachment("ink.gif", &mime::IMAGE_GIF, gif.gif_bytes, AttachmentConfig::new()).await.map(|r|())
+            }
+            MsgPayload::Ink(_) => {
+                Ok(())
+            }
+        };
+
+        if let Err(e) = result {
+            error!("Could not send message {:?}", e);
+            match ack_type {
+                MsgAcknowledgment::AckOnFailure | MsgAcknowledgment::AckA | MsgAcknowledgment::AckD => {
+                    command_sender_clone.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::NAK(NakServer::new(tr_id)))).await;
+                }
+                _ => {}
+            }
+        } else {
+            match ack_type {
+                MsgAcknowledgment::AckA | MsgAcknowledgment::AckD => {
+                    command_sender_clone.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::ACK(AckServer::new(tr_id)))).await;
+                }
+                _ => {}
+            }
+        }
+}

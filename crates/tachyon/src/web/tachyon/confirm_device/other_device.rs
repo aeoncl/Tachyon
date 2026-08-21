@@ -1,4 +1,4 @@
-use crate::tachyon::global_state::GlobalState;
+use crate::app_state::AppState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::Params;
 use axum::body::Body;
@@ -13,7 +13,7 @@ use matrix_sdk::encryption::verification::{VerificationRequest, VerificationRequ
 use matrix_sdk::ruma::events::key::verification::VerificationMethod;
 
 pub async fn get_other_device(
-    State(state): State<GlobalState>,
+    State(state): State<AppState>,
     axum::extract::Extension(token): axum::extract::Extension<String>,
     axum::extract::Query(params): axum::extract::Query<Params>,
 ) -> Html<String> {
@@ -77,7 +77,7 @@ fn restore_device_content(notification_id: i32, has_devices_to_confirm_with: boo
 
 
 pub async fn post_other_device(
-    State(state): State<GlobalState>,
+    State(state): State<AppState>,
     axum::extract::Extension(token): axum::extract::Extension<String>,
     axum::extract::Form(form_data): axum::extract::Form<Params>,
 ) -> impl IntoResponse  {

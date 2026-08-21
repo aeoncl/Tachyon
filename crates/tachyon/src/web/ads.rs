@@ -9,7 +9,7 @@ use lazy_static_include::lazy_static_include_bytes;
 use reqwest::StatusCode;
 use yaserde::ser;
 use yaserde_derive::YaSerialize;
-use crate::tachyon::global_state::GlobalState;
+use crate::app_state::AppState;
 use crate::web::matrix_today::get_msn_today;
 
 lazy_static_include_bytes! {
@@ -40,7 +40,7 @@ lazy_static! {
         ];
 }
 
-pub fn ads_router(state: GlobalState) -> Router<GlobalState> {
+pub fn ads_router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/banner", get(get_banner_ads))
         .route("/avatar.jpg", get(get_avatar_jpg))
@@ -91,7 +91,7 @@ impl Ads {
 }
 
 
-pub async fn get_tab_ad(Path(tab_index): Path<u32>, State(state): State<GlobalState>) -> Response<Body> {
+pub async fn get_tab_ad(Path(tab_index): Path<u32>, State(state): State<AppState>) -> Response<Body> {
 
     match TAB_ADS.get(tab_index as usize).cloned() {
         None => {

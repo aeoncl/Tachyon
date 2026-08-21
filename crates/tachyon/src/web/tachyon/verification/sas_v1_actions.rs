@@ -4,12 +4,12 @@ use axum::extract::{State, Path};
 use axum::http::{Response, StatusCode};
 use axum::response::IntoResponse;
 use matrix_sdk::ruma::OwnedUserId;
-use crate::tachyon::global_state::GlobalState;
+use crate::app_state::AppState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::Params;
 
 pub(crate) async fn post_sas_v1_action(
-    State(state): State<GlobalState>,
+    State(state): State<AppState>,
     axum::extract::Extension(token): axum::extract::Extension<String>,
     Path(action): Path<String>,
     axum::extract::Form(form_data): axum::extract::Form<Params>,

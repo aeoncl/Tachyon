@@ -2,7 +2,7 @@ pub(super) mod sas_v1_actions;
 pub(super) mod sas_v1;
 
 use crate::tachyon::alert::{AlertNotify, AlertSuccess};
-use crate::tachyon::global_state::GlobalState;
+use crate::app_state::AppState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::Params;
 use anyhow::anyhow;
@@ -18,7 +18,7 @@ use axum::http::Response;
 use crate::matrix::cross_signing::check_device_is_crossed_signed;
 
 pub async fn get_verification_poll(
-    State(state): State<GlobalState>,
+    State(state): State<AppState>,
     axum::extract::Extension(token): axum::extract::Extension<String>,
     axum::extract::Query(params): axum::extract::Query<Params>,
 ) -> impl IntoResponse {

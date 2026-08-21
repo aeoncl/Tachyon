@@ -5,9 +5,9 @@ use std::fs;
 use std::fs::File;
 use tokio::{join, signal, sync::broadcast::{self, Sender}};
 
-use crate::notification::notification_server::NotificationServer;
-use crate::switchboard::switchboard_server::SwitchboardServer;
-use crate::tachyon::global_state::GlobalState;
+use msn::presentation::notification_server::NotificationServer;
+use msn::presentation::switchboard_server::SwitchboardServer;
+use app_state::AppState;
 use self::tachyon::config::secret_encryptor::SecretEncryptor;
 use crate::web::web_server::WebServer;
 use anyhow::anyhow;
@@ -16,18 +16,21 @@ use rand::{random, Rng};
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
-use crate::matrix::services::login::MatrixLoginServiceImpl;
+use matrix::application::login::MatrixLoginServiceImpl;
+use msn::domain::msn_bridge::BridgeConfiguration;
+use crate::matrix::application::service_locator::MATRIX_LOGIN_SERVICE;
+use crate::tachyon::application::service_locator::TACHYON_LOGIN_SERVICE;
 use self::tachyon::config::paths;
 use self::tachyon::config::paths::create_dirs;
 use self::tachyon::config::tachyon_config::TachyonConfig;
 
-mod notification;
 mod web;
-mod switchboard;
 mod matrix;
 mod tachyon;
-mod p2p;
 mod audio;
+mod msn;
+pub(crate) mod app_state;
+mod utils;
 
 #[tokio::main]
 async fn main() {
@@ -42,11 +45,13 @@ async fn main() {
 
     let (global_shutdown_signal_snd, global_shutdown_signal_rcv) = broadcast::channel::<()>(1);
 
-    let global_state = GlobalState::new(config.clone(), SecretEncryptor::new(&secret).expect("secret key to be valid"), Box::new(MatrixLoginServiceImpl::new()));
+    let app_state = AppState::new(config.clone(), SecretEncryptor::new(&secret).expect("secret key to be valid"), MATRIX_LOGIN_SERVICE, TACHYON_LOGIN_SERVICE, );
 
-    let notification_server = NotificationServer::listen("127.0.0.1", config.notification_port, global_shutdown_signal_rcv.resubscribe(), global_state.clone());
-    let switchboard_server = SwitchboardServer::listen("127.0.0.1", config.switchboard_port, global_shutdown_signal_rcv.resubscribe(), global_state.clone());
-    let web_server = WebServer::listen("127.0.0.1", config.http_port, global_shutdown_signal_rcv, global_state);
+    let msnp_bridge_configuration = BridgeConfiguration::new_msnp_18();
+
+    let notification_server = NotificationServer::listen("127.0.0.1", config.notification_port, global_shutdown_signal_rcv.resubscribe(), app_state.clone(), msnp_bridge_configuration);
+    let switchboard_server = SwitchboardServer::listen("127.0.0.1", config.switchboard_port, global_shutdown_signal_rcv.resubscribe(), app_state.clone());
+    let web_server = WebServer::listen("127.0.0.1", config.http_port, global_shutdown_signal_rcv, app_state);
 
     let _result = join!(notification_server, switchboard_server, web_server, listen_for_stop_signal(global_shutdown_signal_snd));
 

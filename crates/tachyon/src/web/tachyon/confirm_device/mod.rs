@@ -3,7 +3,7 @@ use axum::extract::State;
 use axum::response::Html;
 use maud::{html, Markup};
 use crate::matrix::cross_signing::check_secret_storage_state;
-use crate::tachyon::global_state::GlobalState;
+use crate::app_state::AppState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::Params;
 
@@ -12,7 +12,7 @@ pub(super) mod reset_identity;
 pub(super) mod other_device;
 
 pub async fn get_confirm(
-    State(state): State<GlobalState>,
+    State(state): State<AppState>,
     axum::extract::Extension(token): axum::extract::Extension<String>,
     axum::extract::Query(params): axum::extract::Query<Params>,
 ) -> Html<String> {

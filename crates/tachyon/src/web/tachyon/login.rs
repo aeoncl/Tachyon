@@ -11,7 +11,7 @@ use msnp::msnp::notification::command::not::factories::NotificationFactory;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
 use crate::tachyon::alert::{Alert, AlertError, AlertNotify, AlertSuccess};
-use crate::tachyon::global_state::GlobalState;
+use crate::app_state::AppState;
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::{layout, login, Params};
 use crate::web::tachyon::middleware::set_token_cookie;
@@ -19,7 +19,7 @@ use crate::web::tachyon::middleware::set_token_cookie;
 const TITLE: &str = "You are logged out";
 
 pub async fn post_login_request(
-    State(state): State<GlobalState>,
+    State(state): State<AppState>,
     axum::extract::Form(form_data): axum::extract::Form<Params>,
 ) -> Html<String> {
     let username = form_data.get("email").map(|s| s.as_str()).unwrap_or("Unknown");
@@ -66,7 +66,7 @@ pub async fn post_login_request(
 }
 
 pub async fn get_login_nfy(
-    State(state): State<GlobalState>,
+    State(state): State<AppState>,
     axum::extract::Extension(token): axum::extract::Extension<String>,
     axum::extract::Query(params): axum::extract::Query<Params>,
 ) -> impl IntoResponse  {
@@ -86,7 +86,7 @@ pub async fn get_login_nfy(
 }
 
 pub async fn get_login_request(
-    State(state): State<GlobalState>,
+    State(state): State<AppState>,
     axum::extract::Query(params): axum::extract::Query<Params>,
 ) -> impl IntoResponse {
 

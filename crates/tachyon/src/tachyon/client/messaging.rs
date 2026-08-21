@@ -1,5 +1,5 @@
 use log::error;
-use crate::p2p::client::session::{ReceiveFileContent, SessionType};
+use crate::msn::application::::client::session::{ReceiveFileContent, SessionType};
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::RoomId;
