@@ -2,7 +2,7 @@
 members = [
     "crates/tachyon",
     "crates/msnp"
-]
+, "crates/tachyon-core", "crates/tachyon-matrix", "crates/tachyon-msn", "crates/tachyon-web", "crates/tachyon-store", "crates/tachyon-testkit"]
 
 default-members = [
     "crates/tachyon",

@@ -1,0 +1,22 @@
+[package]
+name = "tachyon-matrix"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+async-trait = "0.1.92"
+
+anyhow.workspace = true
+thiserror.workspace = true
+
+[dependencies.matrix-sdk]
+path = "../../lib/matrix-rust-sdk/crates/matrix-sdk"
+features = ["e2e-encryption", "automatic-room-key-forwarding", "bundled-sqlite", "native-tls"]
+
+
+[dev-dependencies.matrix-sdk]
+path = "../../lib/matrix-rust-sdk/crates/matrix-sdk"
+features = ["testing"]
+
+[dependencies.tachyon-core]
+path = "../tachyon-core"
