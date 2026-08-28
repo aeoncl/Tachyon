@@ -8,6 +8,9 @@ async-trait = "0.1.92"
 
 anyhow.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+log = "0.4.29"
 
 [dependencies.matrix-sdk]
 path = "../../lib/matrix-rust-sdk/crates/matrix-sdk"

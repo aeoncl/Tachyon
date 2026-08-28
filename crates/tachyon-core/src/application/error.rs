@@ -1,5 +1,3 @@
-use crate::port::error::{BackendError, StoreError};
-
 #[derive(Debug)]
 pub enum AuthError {
     BackendCredentialsNotInStore,
@@ -18,3 +16,26 @@ impl From<StoreError> for AuthError {
         Self::StoreError(value)
     }
 }
+
+#[derive(Debug)]
+pub enum BackendError {
+    CannotRestoreLogin(String),
+    LoggedOut,
+    SoftLoggedOut,
+    Technical(anyhow::Error),
+    StoreError(StoreError),
+}
+
+pub enum SessionError {
+
+
+}
+
+impl From<StoreError> for BackendError {
+    fn from(value: StoreError) -> Self {
+        BackendError::StoreError(value)
+    }
+}
+
+#[derive(Debug)]
+pub enum StoreError {}

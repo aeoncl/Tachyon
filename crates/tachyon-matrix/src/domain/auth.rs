@@ -7,7 +7,7 @@ use matrix_sdk::{
     ruma::{OwnedDeviceId, OwnedUserId},
 };
 
-pub struct SessionRestoreData {
+pub struct  SessionRestoreData {
     pub access_token: String,
     pub refresh_token: Option<String>,
     pub user_id: OwnedUserId,

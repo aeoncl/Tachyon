@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use tachyon_core::{domain::ids::LoginId, port::error::StoreError};
-
+use tachyon_core::ids::LoginId;
+use tachyon_core::application::error::StoreError;
 use crate::domain::auth::SessionRestoreData;
 
 pub struct CredentialStoreSqlite;
@@ -11,6 +11,9 @@ pub trait CredentialStore: Send + Sync {
         &self,
         login_id: &LoginId,
     ) -> Result<Option<SessionRestoreData>, StoreError>;
+
+    async fn update_tokens(&self, login_id: &LoginId, access_token: String, refresh_token: Option<String>) -> Result<(), StoreError>;
+
 }
 #[async_trait]
 impl CredentialStore for CredentialStoreSqlite {
@@ -20,4 +23,9 @@ impl CredentialStore for CredentialStoreSqlite {
     ) -> Result<Option<SessionRestoreData>, StoreError> {
         todo!("Fetch from DB for {:?}", login_id)
     }
+
+    async fn update_tokens(&self, login_id: &LoginId, access_token: String, refresh_token: Option<String>) -> Result<(), StoreError> {
+        todo!("update tokens")
+    }
+
 }
