@@ -7,7 +7,7 @@ use crate::domain::ids::{ConversationId, MessageId, SessionId, UserId};
 
 
 
-pub enum PlumbingEvent {
+pub enum TachyonEvent {
     BridgeAnnounce(BridgeAnnounceContent),
     BridgeGoodbye(SessionId),
     BridgeAuth(BridgeAuthContent),
