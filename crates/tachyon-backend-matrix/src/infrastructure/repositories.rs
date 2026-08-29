@@ -1,12 +1,12 @@
-use async_trait::async_trait;
-use tachyon_core::ids::LoginId;
-use tachyon_core::application::error::StoreError;
 use crate::domain::auth::SessionRestoreData;
+use async_trait::async_trait;
+use tachyon_core::application::error::StoreError;
+use tachyon_core::domain::ids::LoginId;
 
-pub struct CredentialStoreSqlite;
+pub struct CredentialRepositorySqlite;
 
 #[async_trait]
-pub trait CredentialStore: Send + Sync {
+pub trait CredentialsRepository: Send + Sync {
     async fn session_restore_data_by_login_id(
         &self,
         login_id: &LoginId,
@@ -16,7 +16,7 @@ pub trait CredentialStore: Send + Sync {
 
 }
 #[async_trait]
-impl CredentialStore for CredentialStoreSqlite {
+impl CredentialsRepository for CredentialRepositorySqlite {
     async fn session_restore_data_by_login_id(
         &self,
         login_id: &LoginId,
