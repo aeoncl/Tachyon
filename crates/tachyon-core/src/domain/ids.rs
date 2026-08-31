@@ -1,4 +1,3 @@
-use std::fmt::Display;
 use std::sync::Arc;
 
 macro_rules! str_id {

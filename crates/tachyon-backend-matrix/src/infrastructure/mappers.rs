@@ -1,9 +1,6 @@
 use std::convert::Infallible;
-use std::iter::Map;
 use std::str::FromStr;
-use std::sync::Arc;
 use matrix_sdk::ruma::OwnedUserId;
-use matrix_sdk::ruma::serde::DisplayAsRefStr;
 use tachyon_core::domain::ids::UserId;
 
 pub trait FromMapper<From>  {

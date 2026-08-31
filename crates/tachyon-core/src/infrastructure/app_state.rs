@@ -1,31 +1,39 @@
-use std::sync::Arc;
 use crate::application::auth_use_case::AuthUseCase;
-use crate::application::ports::{AccountRepository, SessionRepository};
-use crate::domain::backend_ports::{AuthService};
-use crate::infrastructure::repository::{AccountRepositoryyInMem, SessionRepositoryInMem};
+use crate::application::ports::{AuthService, SessionRepository};
+use crate::infrastructure::repository::{AccountRepositoryInMem, SessionRepositoryInMem};
+use std::sync::Arc;
 
+/// Core's composition root: owns the repositories and hands bridges the use cases.
 pub struct AppState {
-
     session_repository: Arc<dyn SessionRepository>,
-    account_repository: Arc<dyn AccountRepository>,
-
-    auth_service: Arc<dyn AuthService>,
-
-    auth_use_case: Arc<AuthUseCase>
-
+    auth_use_case: Arc<AuthUseCase>,
 }
 
-pub fn new(auth_service: Arc<dyn AuthService>) -> AppState {
+impl AppState {
+    /// `redirect_url` is the bridge endpoint a backend sends the user's browser back to
+    /// once they have authorized.
+    pub fn new(auth_service: Arc<dyn AuthService>, redirect_url: String) -> AppState {
+        let session_repository = Arc::new(SessionRepositoryInMem::default());
+        let account_repository = Arc::new(AccountRepositoryInMem::default());
 
-    let session_repository = Arc::new(SessionRepositoryInMem::default());
-    let account_repository = Arc::new(AccountRepositoryyInMem::default());
+        let auth_use_case = Arc::new(AuthUseCase::new(
+            account_repository.clone(),
+            session_repository.clone(),
+            auth_service.clone(),
+            redirect_url,
+        ));
 
-    let auth_use_case = Arc::new(AuthUseCase::new(account_repository.clone(), session_repository.clone(), auth_service.clone()));
-    
-    AppState {
-        session_repository,
-        account_repository,
-        auth_service,
-        auth_use_case,
+        AppState {
+            session_repository,
+            auth_use_case,
+        }
+    }
+
+    pub fn auth_use_case(&self) -> &Arc<AuthUseCase> {
+        &self.auth_use_case
+    }
+
+    pub fn session_repository(&self) -> &Arc<dyn SessionRepository> {
+        &self.session_repository
     }
 }

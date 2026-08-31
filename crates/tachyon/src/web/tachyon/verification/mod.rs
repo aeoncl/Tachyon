@@ -3,7 +3,6 @@ pub(super) mod sas_v1;
 
 use crate::tachyon::alert::{AlertNotify, AlertSuccess};
 use crate::tachyon::global_state::GlobalState;
-use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::Params;
 use anyhow::anyhow;
 use axum::extract::State;
@@ -33,24 +32,19 @@ pub async fn get_verification_poll(
     let last_state = params.get("state").map(|s| s.as_str()).unwrap_or_default().trim();
 
 
-    let maybe_client = state.tachyon_clients().get(&token);
-    if maybe_client.is_none() {
+    let Some(_matrix_client) = state.confirmation_client(&token) else {
         return Response::builder()
             .status(404)
             .header("X-IC-CancelPolling", "true")
             .body(Body::empty())
             .unwrap();
-    }
+    };
 
     //TODO fix this with actual error handling
     //This unwrap caused the notification server to deny clients
-    let tachyon_client = state.tachyon_clients().get(&token).unwrap();
-    if !tachyon_client.alerts().contains_key(&notification_id)
-    {
+    if !state.has_confirmation_alert(&token, notification_id) {
         panic!("Notification not found");
     }
-
-    let matrix_client = tachyon_client.matrix_client();
 
     let verification_request = state.pending_verification_requests().get(&flow_id).unwrap();
 
@@ -138,8 +132,8 @@ pub async fn get_verification_poll(
         }
         VerificationRequestState::Done => {
 
-            let (_, notification) = tachyon_client.alerts().remove(&notification_id).unwrap();
-            notification.notify_success(AlertSuccess::Unit);
+            let notification = state.take_confirmation_alert(&token, notification_id).unwrap();
+            let _ = notification.notify_success(AlertSuccess::Unit);
 
 
             html! {
@@ -156,8 +150,8 @@ pub async fn get_verification_poll(
         }
         VerificationRequestState::Cancelled(cancelled) => {
 
-            let (_, notification) = tachyon_client.alerts().remove(&notification_id).unwrap();
-            notification.notify_failure(anyhow!("Verification cancelled: {:?}", cancelled));
+            let notification = state.take_confirmation_alert(&token, notification_id).unwrap();
+            let _ = notification.notify_failure(anyhow!("Verification cancelled: {:?}", cancelled));
 
             html! {
                     div class="container" {

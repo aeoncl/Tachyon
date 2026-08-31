@@ -18,7 +18,6 @@ sha1 = "0.10.6"
 hex = "0.4.3"
 maud = { version = "0.27.0", features = ["axum"] }
 url_open = "0.0.2"
-aes-gcm = "0.10.3"
 configparser = "3.1.0"
 console-subscriber = "0.5.0"
 rayon = "1.12.0"
@@ -69,6 +68,12 @@ path = "../../lib/matrix-rust-sdk/crates/matrix-sdk-ui"
 
 [dependencies.msnp]
 path = "../msnp"
+
+[dependencies.tachyon-core]
+path = "../tachyon-core"
+
+[dependencies.tachyon-backend-matrix]
+path = "../tachyon-backend-matrix"
 
 [build-dependencies]
 # Compiles lib/libsiren, the MSN voice clip codec.

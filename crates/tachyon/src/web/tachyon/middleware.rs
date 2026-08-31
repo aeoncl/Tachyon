@@ -8,7 +8,6 @@ use http_body_util::BodyExt;
 use log::error;
 use maud::html;
 use crate::tachyon::global_state::GlobalState;
-use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::{layout, Params};
 
 pub async fn is_authenticated(
@@ -17,7 +16,9 @@ pub async fn is_authenticated(
     next: Next,
 ) -> impl IntoResponse {
     if let Some(token) = req.extensions().get::<String>() {
-        if state.tachyon_clients().get(token).is_some() {
+        // A login still finishing counts: device confirmation happens before the MSNP
+        // client has a session of its own.
+        if state.is_session_token(token) {
             return next.run(req).await;
         }
     }

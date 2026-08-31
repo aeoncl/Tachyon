@@ -4,7 +4,6 @@ pub mod msn_user_resolver;
 pub mod oim;
 pub mod sync;
 
-pub mod services;
 
 mod utils;
 mod errors;

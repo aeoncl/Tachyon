@@ -8,7 +8,6 @@ use tokio::{join, signal, sync::broadcast::{self, Sender}};
 use crate::notification::notification_server::NotificationServer;
 use crate::switchboard::switchboard_server::SwitchboardServer;
 use crate::tachyon::global_state::GlobalState;
-use self::tachyon::config::secret_encryptor::SecretEncryptor;
 use crate::web::web_server::WebServer;
 use anyhow::anyhow;
 use directories::ProjectDirs;
@@ -16,7 +15,10 @@ use rand::{random, Rng};
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
-use crate::matrix::services::login::MatrixLoginServiceImpl;
+use std::sync::Arc;
+use tachyon_backend_matrix::infrastructure::backend::{AuthServiceMatrixSdk, MatrixBackendConfig};
+use tachyon_backend_matrix::infrastructure::repositories::CredentialsRepositoryInMem;
+use tachyon_core::infrastructure::app_state::AppState;
 use self::tachyon::config::paths;
 use self::tachyon::config::paths::create_dirs;
 use self::tachyon::config::tachyon_config::TachyonConfig;
@@ -42,7 +44,13 @@ async fn main() {
 
     let (global_shutdown_signal_snd, global_shutdown_signal_rcv) = broadcast::channel::<()>(1);
 
-    let global_state = GlobalState::new(config.clone(), SecretEncryptor::new(&secret).expect("secret key to be valid"), Box::new(MatrixLoginServiceImpl::new()));
+    let app_state = build_app_state(&config, tachyon_path.data_local_dir().to_path_buf());
+
+    let global_state = GlobalState::new(
+        config.clone(),
+        secret,
+        app_state,
+    );
 
     let notification_server = NotificationServer::listen("127.0.0.1", config.notification_port, global_shutdown_signal_rcv.resubscribe(), global_state.clone());
     let switchboard_server = SwitchboardServer::listen("127.0.0.1", config.switchboard_port, global_shutdown_signal_rcv.resubscribe(), global_state.clone());
@@ -51,6 +59,26 @@ async fn main() {
     let _result = join!(notification_server, switchboard_server, web_server, listen_for_stop_signal(global_shutdown_signal_snd));
 
     info!("Byebye, world!");
+}
+
+/// Composes core with the matrix backend adapter.
+fn build_app_state(config: &TachyonConfig, data_local_dir: PathBuf) -> Arc<AppState> {
+    let backend_config = MatrixBackendConfig {
+        store_root: Some(data_local_dir),
+        disable_ssl: !config.strict_ssl,
+        homeserver_url_override: None,
+    };
+
+    //TODO: credentials are in memory, so every restart re-runs the interactive login.
+    let credentials_store = Arc::new(CredentialsRepositoryInMem::default());
+    let auth_service = Arc::new(AuthServiceMatrixSdk::new(credentials_store, backend_config));
+
+    let redirect_url = format!(
+        "http://127.0.0.1:{}/tachyon/login/callback",
+        config.http_port
+    );
+
+    Arc::new(AppState::new(auth_service, redirect_url))
 }
 
 fn setup_key(config_folder_path: PathBuf) -> Result<Vec<u8>, anyhow::Error> {

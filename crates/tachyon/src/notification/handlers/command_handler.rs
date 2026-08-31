@@ -10,22 +10,19 @@ use tokio::sync::mpsc::Sender;
 
 pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, global_state: &GlobalState, local_client_data: &mut LocalClientData, config: &TachyonConfig) -> Result<(), anyhow::Error> {
 
-    let _command_result = match &local_client_data.phase {
+    match &local_client_data.phase {
         ConnectionPhase::Negotiating => {
             negotiation::handle_negotiation(command, command_sender, local_client_data).await
         },
         ConnectionPhase::Authenticating  => {
-            auth::handle_auth(command, command_sender, &global_state, local_client_data, config, global_state.matrix_login_service()).await
+            auth::handle_auth(command, command_sender, &global_state, local_client_data, config).await
         },
         ConnectionPhase::Ready => {
             let matrix_client = local_client_data.matrix_client.as_ref().ok_or(anyhow!("Matrix Client should be here by now"))?.clone();
             let tachyon_client = local_client_data.tachyon_client.as_ref().ok_or(anyhow!("Tachyon Client should be here by now"))?.clone();
             handle_ready(command, command_sender, tachyon_client, matrix_client, local_client_data, config).await
         }
-    };
-
-    Ok(())
-
+    }
 }
 
 #[cfg(test)]
@@ -33,7 +30,6 @@ mod tests {
     use crate::notification::handlers::command_handler::handle_command;
     use crate::notification::models::connection_phase::ConnectionPhase;
     use crate::notification::models::local_client_data::LocalClientData;
-    use crate::tachyon::config::secret_encryptor::SecretEncryptor;
     use crate::tachyon::global_state::GlobalState;
     use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
     use msnp::msnp::notification::command::cvr::CvrClient;
@@ -44,44 +40,36 @@ mod tests {
     use msnp::shared::models::email_address::EmailAddress;
     use msnp::shared::traits::TryFromRawCommand;
     use std::str::FromStr;
-    use matrix_sdk::{async_trait, Client};
-    use matrix_sdk::ruma::UserId;
-    use matrix_sdk::test_utils::mocks::{MatrixMock, MatrixMockServer};
-    use crate::matrix::services::login::{AccessToken, MatrixLoginService, MatrixLoginServiceImpl};
-    use crate::tachyon::error::TachyonError;
+    use std::sync::Arc;
+    use tachyon_backend_matrix::infrastructure::backend::{AuthServiceMatrixSdk, MatrixBackendConfig};
+    use tachyon_backend_matrix::infrastructure::repositories::CredentialsRepositoryInMem;
+    use tachyon_core::infrastructure::app_state::AppState;
 
     const TEST_SECRET: [u8; 32] = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
 
-    struct TestMatrixLoginService {
-        client: Client,
+    fn test_state() -> GlobalState {
+        let auth_service = Arc::new(AuthServiceMatrixSdk::new(
+            Arc::new(CredentialsRepositoryInMem::default()),
+            MatrixBackendConfig::default(),
+        ));
+        let app_state = Arc::new(AppState::new(
+            auth_service,
+            "http://127.0.0.1:11866/tachyon/login/callback".to_string(),
+        ));
+
+        GlobalState::new(
+            Default::default(),
+            TEST_SECRET.to_vec(),
+            app_state,
+        )
     }
-
-    impl TestMatrixLoginService {
-        pub fn new(client: Client) -> Self {
-            Self { client }
-        }
-    }
-
-    #[async_trait]
-    impl MatrixLoginService for TestMatrixLoginService {
-        async fn login_with_token(&self, user_id: &UserId, token: &str, disable_ssl: bool) -> Result<Client, TachyonError> {
-            self.client.matrix_auth().login_token(token).await;
-            Ok(self.client.clone())
-        }
-
-        async fn login_with_password(&self, matrix_id: &UserId, password: &str, disable_ssl: bool) -> Result<(AccessToken, Client), TachyonError> {
-            let test = self.client.matrix_auth().login_username(matrix_id.to_string(), password).await.unwrap();
-            Ok((test.access_token, self.client.clone()))
-        }
-    }
-
 
     #[tokio::test]
     async fn handshake_happy_flow_test() {
 
         let (snd, mut rcv) = tokio::sync::mpsc::channel::<NotificationServerCommand>(10);
 
-        let state = GlobalState::new(Default::default(), SecretEncryptor::new(&TEST_SECRET).unwrap(), Box::new(MatrixLoginServiceImpl::new()));
+        let state = test_state();
 
         let (kill_snd, kill_recv) = tokio::sync::broadcast::channel::<()>(1);
         let mut local_client_data = LocalClientData::new(kill_snd.clone(), kill_recv.resubscribe());
@@ -115,15 +103,9 @@ mod tests {
     #[tokio::test]
     async fn auth_i_test() {
 
-        let matrix_mock_server = MatrixMockServer::new().await;
-
-        let client = matrix_mock_server.client_builder().build().await;
-        let matrix_login_service = TestMatrixLoginService::new(client);
-
-
         let (snd, mut rcv) = tokio::sync::mpsc::channel::<NotificationServerCommand>(10);
 
-        let state = GlobalState::new(Default::default(), SecretEncryptor::new(&TEST_SECRET).unwrap(), Box::new(matrix_login_service));
+        let state = test_state();
 
         let (kill_snd, kill_recv) = tokio::sync::broadcast::channel::<()>(1);
         let mut local_client_data = LocalClientData::new(kill_snd.clone(), kill_recv.resubscribe());

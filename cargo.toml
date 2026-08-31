@@ -6,7 +6,13 @@ members = [
 
 default-members = [
     "crates/tachyon",
-    "crates/msnp"
+    "crates/msnp",
+    "crates/tachyon-core",
+    "crates/tachyon-backend-matrix",
+    "crates/tachyon-bridge-msn",
+    "crates/tachyon-bridge-web",
+    "crates/tachyon-store",
+    "crates/tachyon-testkit"
 ]
 
 exclude = [
