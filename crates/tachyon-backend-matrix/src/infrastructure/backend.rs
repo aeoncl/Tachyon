@@ -8,7 +8,11 @@ use matrix_sdk::reqwest::Url;
 use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::ruma::OwnedUserId;
 use matrix_sdk::{ruma::api::client::error::ErrorKind, Client, ClientBuilder, ServerName, SessionChange};
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
+use matrix_sdk::authentication::oauth::UrlOrQuery;
+use tokio::sync::Mutex;
 use tachyon_core::application::error::BackendError;
 use tachyon_core::application::ports::BackendSession;
 use tachyon_core::domain::auth::InteractiveAuthStarted;
@@ -69,23 +73,56 @@ impl BackendSessionMatrix {
         }
     }
 
-    pub fn pending_auth(client: matrix_sdk::Client, cancellation_token: CancellationToken) -> Result<Self, BackendError> {
-        Ok(BackendSessionMatrix {
-            client,
-            tasks_cancellation_token: cancellation_token.clone(),
-        })
-    }
 }
 
 impl BackendSession for BackendSessionMatrix {
+    fn matrix_client(&self) -> &Client {
+        &self.client
+    }
+}
 
+const PENDING_CLIENT_TTL: Duration = Duration::from_secs(600);
 
+struct PendingClient {
+    client: Client,
+    created_at: Instant,
+}
 
+impl PendingClient {
+    fn new(client: Client) -> Self {
+        Self {
+            client,
+            created_at: Instant::now(),
+        }
+    }
 
+    fn is_expired(&self) -> bool {
+        self.created_at.elapsed() > PENDING_CLIENT_TTL
+    }
 }
 
 pub struct AuthServiceMatrixSdk {
     credentials_store: Arc<dyn CredentialsRepository>,
+    pending_clients: Mutex<HashMap<String, PendingClient>>,
+    homeserver_url_override: Option<String>,
+}
+
+impl AuthServiceMatrixSdk {
+    pub fn new(credentials_store: Arc<dyn CredentialsRepository>) -> Self {
+        Self {
+            credentials_store,
+            pending_clients: Mutex::new(HashMap::new()),
+            homeserver_url_override: None,
+        }
+    }
+
+    pub fn with_homeserver_url(credentials_store: Arc<dyn CredentialsRepository>, homeserver_url: String) -> Self {
+        Self {
+            credentials_store,
+            pending_clients: Mutex::new(HashMap::new()),
+            homeserver_url_override: Some(homeserver_url),
+        }
+    }
 }
 
 #[async_trait]
@@ -107,7 +144,7 @@ impl AuthService for AuthServiceMatrixSdk {
 
         //Todo move those properties to BackendConfig
         //Todo also configure store when building the client
-        let client = matrix_client_builder(server_name, None, false)
+        let client = matrix_client_builder(server_name, self.homeserver_url_override.clone(), false)
             .build()
             .await
             .map_err(|e| BackendError::Technical(anyhow::anyhow!("{}", e)))?;
@@ -129,10 +166,12 @@ impl AuthService for AuthServiceMatrixSdk {
 
         let server_name = ServerName::parse(server_name).map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
 
-        let client = matrix_client_builder(&server_name, None, false)
+        let client = matrix_client_builder(&server_name, self.homeserver_url_override.clone(), false)
             .build()
             .await
             .map_err(|e| BackendError::Technical(anyhow::anyhow!(e)))?;
+
+        self.pending_clients.lock().await.insert(login_id.to_string(), PendingClient::new(client.clone()));
 
        let _ = client.oauth().cached_server_metadata().await.map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
        let redirect_url = Url::parse(redirect_url).map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
@@ -148,15 +187,35 @@ impl AuthService for AuthServiceMatrixSdk {
            builder.build().await.map_err(|e| BackendError::Technical(anyhow!("{}", e)))?
        };
 
-        let session_cancellation_token = CancellationToken::new();
-        let backend_session = BackendSessionMatrix::pending_auth(client, session_cancellation_token)?;
-
        Ok(InteractiveAuthStarted {
-           backend_session: Arc::new(backend_session),
            auth_url: authorization_data.url.to_string(),
            csrf_token: authorization_data.state.into_secret()
        })
 
+    }
+
+    async fn finish_interactive_login(&self, login_id: &LoginId, code: &str) -> Result<Arc<dyn BackendSession>, BackendError> {
+        let mut pending = self.pending_clients.lock().await;
+
+        // Purge expired entries
+        pending.retain(|_, v| !v.is_expired());
+
+        let client = pending.remove(&login_id.to_string())
+            .map(|p| p.client)
+            .ok_or(BackendError::LoggedOut)?;
+
+        client.oauth().finish_login(UrlOrQuery::Query(code.to_string())).await
+            .map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
+
+        let session_cancellation_token = CancellationToken::new();
+        let _handle = subscribe_to_session_tokens(login_id, &client, self.credentials_store.clone(), session_cancellation_token.clone())?;
+
+        let session = BackendSessionMatrix {
+            client,
+            tasks_cancellation_token: session_cancellation_token,
+        };
+
+        Ok(Arc::new(session))
     }
 }
 
@@ -219,4 +278,53 @@ fn subscribe_to_session_tokens(login_id: &LoginId, client: &matrix_sdk::Client, 
     });
 
     Ok(handle)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::matchers::any;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    /// Builds a matrix `Client` against a wiremock server so that the SDK's
+    /// internal capability-detection request during `.build()` succeeds without
+    /// needing a real homeserver.
+    async fn build_test_client() -> (Client, MockServer) {
+        let mock_server = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(200).set_body_string("{}"))
+            .mount(&mock_server)
+            .await;
+
+        let client = matrix_client_builder(
+            &ServerName::parse("localhost").unwrap(),
+            Some(mock_server.uri()),
+            false,
+        )
+        .build()
+        .await
+        .unwrap();
+
+        (client, mock_server)
+    }
+
+    #[tokio::test]
+    async fn test_pending_client_not_expired_when_fresh() {
+        let (client, _mock) = build_test_client().await;
+
+        let pc = PendingClient::new(client);
+        assert!(!pc.is_expired(), "freshly created client should not be expired");
+    }
+
+    #[tokio::test]
+    async fn test_pending_client_expired_after_ttl() {
+        let (client, _mock) = build_test_client().await;
+
+        let pc = PendingClient {
+            client,
+            created_at: Instant::now() - PENDING_CLIENT_TTL - Duration::from_secs(1),
+        };
+        assert!(pc.is_expired(), "client should be expired after TTL has elapsed");
+    }
 }

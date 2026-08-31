@@ -57,13 +57,19 @@ impl AuthUseCase {
         let redirect_url = "http://127.0.0.1:{{webport}}/tachyon/login";
         let login_metadata = self.auth_service.start_interactive_login(&login_id, server_name, Some(user_id), redirect_url).await?;
 
-        self.session_repository.insert(login_id.clone(), login_metadata.backend_session);
-
         Ok(LoginStart {
             login_id,
             auth_url: login_metadata.auth_url,
             csrf_token: login_metadata.csrf_token,
         })
+    }
+
+    pub async fn finish_interactive_login(&self, login_id: &LoginId, code: &str) -> Result<LoginId, AuthError> {
+        let backend_session = self.auth_service.finish_interactive_login(login_id, code).await?;
+
+        self.session_repository.insert(login_id.clone(), backend_session);
+
+        Ok(login_id.clone())
     }
 
 }

@@ -3,8 +3,12 @@ use async_trait::async_trait;
 use crate::application::error::{BackendError, StoreError};
 use crate::domain::auth::TachyonToken;
 use crate::domain::ids::LoginId;
+use matrix_sdk::Client;
 
-pub trait BackendSession: Send + Sync {}
+pub trait BackendSession: Send + Sync {
+    /// FIXME: Temporary: expose the matrix client during the refactor period.
+    fn matrix_client(&self) -> &Client;
+}
 
 #[async_trait]
 pub trait AccountRepository: Send + Sync {
