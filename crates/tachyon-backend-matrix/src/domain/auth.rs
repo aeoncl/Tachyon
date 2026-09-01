@@ -6,9 +6,12 @@ use matrix_sdk::{
     },
     ruma::{OwnedDeviceId, OwnedUserId},
 };
+use serde::{Deserialize, Serialize};
+use tachyon_core::domain::auth::CredentialBlob;
 
-/// Everything needed to rebuild a matrix session, in a shape the store can hold.
-#[derive(Clone)]
+type CredentialsVersion = u32;
+const CREDENTIALS_FORMAT_VERSION: CredentialsVersion = 1;
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SessionRestoreData {
     pub access_token: String,
     pub refresh_token: Option<String>,
@@ -17,17 +20,50 @@ pub struct SessionRestoreData {
     pub auth_kind: AuthKind,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum AuthKind {
     Matrix,
     OAuth(OAuthMetadata),
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct OAuthMetadata {
     pub client_id: String,
-    /// `None` for public clients, which is what a native app registered against MAS is.
+    /// `None` for public clients
     pub client_secret: Option<String>,
+}
+
+
+#[derive(Serialize, Deserialize)]
+struct CredentialEnvelope {
+    version: CredentialsVersion,
+    #[serde(flatten)]
+    data: SessionRestoreData,
+}
+
+impl SessionRestoreData {
+    pub fn to_blob(&self) -> Result<CredentialBlob, anyhow::Error> {
+        let envelope = CredentialEnvelope {
+            version: CREDENTIALS_FORMAT_VERSION,
+            data: self.clone(),
+        };
+        Ok(CredentialBlob::new(serde_json::to_vec(&envelope)?))
+    }
+
+    pub fn from_blob(blob: &CredentialBlob) -> Result<Self, anyhow::Error> {
+        #[derive(Deserialize)]
+        struct VersionProbe {
+            version: u32,
+        }
+
+        let probe: VersionProbe = serde_json::from_slice(blob.as_bytes())?;
+        if probe.version != CREDENTIALS_FORMAT_VERSION {
+            anyhow::bail!("unsupported credential blob version {}", probe.version);
+        }
+
+        let envelope: CredentialEnvelope = serde_json::from_slice(blob.as_bytes())?;
+        Ok(envelope.data)
+    }
 }
 
 impl From<SessionRestoreData> for AuthSession {
@@ -62,8 +98,6 @@ impl From<SessionRestoreData> for AuthSession {
     }
 }
 
-/// `AuthSession` is `#[non_exhaustive]`, so an SDK upgrade can introduce an auth kind this
-/// adapter cannot persist. That is a failure, not something to paper over.
 impl TryFrom<AuthSession> for SessionRestoreData {
     type Error = anyhow::Error;
 
@@ -95,4 +129,66 @@ impl TryFrom<AuthSession> for SessionRestoreData {
             )),
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn oauth_data() -> SessionRestoreData {
+        SessionRestoreData {
+            access_token: "access".to_string(),
+            refresh_token: Some("refresh".to_string()),
+            user_id: OwnedUserId::try_from("@aeon:shlasouf.local").unwrap(),
+            device_id: OwnedDeviceId::from("DEVICEID"),
+            auth_kind: AuthKind::OAuth(OAuthMetadata {
+                client_id: "client".to_string(),
+                client_secret: None,
+            }),
+        }
+    }
+
+    #[test]
+    fn oauth_credentials_round_trip_through_the_blob() {
+        let data = oauth_data();
+
+        let restored = SessionRestoreData::from_blob(&data.to_blob().unwrap()).unwrap();
+
+        assert!(restored == data);
+    }
+
+    #[test]
+    fn matrix_credentials_round_trip_through_the_blob() {
+        let data = SessionRestoreData {
+            auth_kind: AuthKind::Matrix,
+            refresh_token: None,
+            ..oauth_data()
+        };
+
+        let restored = SessionRestoreData::from_blob(&data.to_blob().unwrap()).unwrap();
+
+        assert!(restored == data);
+    }
+
+    #[test]
+    fn a_blob_from_the_future_is_rejected() {
+        let mut json: serde_json::Value =
+            serde_json::from_slice(oauth_data().to_blob().unwrap().as_bytes()).unwrap();
+        json["version"] = serde_json::Value::from(2);
+        let blob = CredentialBlob::new(serde_json::to_vec(&json).unwrap());
+
+        let Err(err) = SessionRestoreData::from_blob(&blob) else {
+            panic!("a version-2 blob must be rejected");
+        };
+        assert!(err.to_string().contains("version 2"), "{err}");
+    }
+
+    #[test]
+    fn garbage_is_rejected() {
+        let blob = CredentialBlob::new(b"not json".to_vec());
+
+        assert!(SessionRestoreData::from_blob(&blob).is_err());
+    }
+
+
 }

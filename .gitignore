@@ -13,3 +13,4 @@ Cargo.lock
 .idea
 .vscode
 .aider*
+AGENT.md

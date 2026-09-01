@@ -13,13 +13,11 @@ use crate::tachyon::mappers::uuid::ToUuid;
 use crate::web::soap::error::RST2Error;
 use crate::web::soap::shared;
 
-/// Issues the ticket the client will present on `USR`.
+/// Issues the ticket token the msn client will present with `USR` MSNP Command.
 ///
-/// The client calls this on every startup with the password it saved, and that password is
-/// not checked: Tachyon has no password of its own, and the real authentication happens
-/// during the `USR` exchange, where the client can be walked through an interactive login.
-/// The ticket only names an account so a backend session can be found or created — see
-/// `tachyon::identifiers::ticket`.
+/// The client calls this endpoint after every reboot, otherwise it uses it's persisted ticket token with the USR command.
+/// This endpoint doesn't check any credentials, the ticket is the user email hashed.
+/// It's sole purpose is to allow the USR flow to take place with a predictible ticket that allows us to relink the current BackendSession to a previous one.
 pub async fn rst2_handler(
     _headers: HeaderMap,
     State(state): State<GlobalState>,

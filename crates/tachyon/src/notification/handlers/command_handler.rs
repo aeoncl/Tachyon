@@ -42,18 +42,19 @@ mod tests {
     use std::str::FromStr;
     use std::sync::Arc;
     use tachyon_backend_matrix::infrastructure::backend::{AuthServiceMatrixSdk, MatrixBackendConfig};
-    use tachyon_backend_matrix::infrastructure::repositories::CredentialsRepositoryInMem;
+    use tachyon_testkit::repositories::{AccountRepositoryInMem, CredentialRepositoryInMem};
     use tachyon_core::infrastructure::app_state::AppState;
 
     const TEST_SECRET: [u8; 32] = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
 
     fn test_state() -> GlobalState {
         let auth_service = Arc::new(AuthServiceMatrixSdk::new(
-            Arc::new(CredentialsRepositoryInMem::default()),
+            Arc::new(CredentialRepositoryInMem::default()),
             MatrixBackendConfig::default(),
         ));
         let app_state = Arc::new(AppState::new(
             auth_service,
+            Arc::new(AccountRepositoryInMem::default()),
             "http://127.0.0.1:11866/tachyon/login/callback".to_string(),
         ));
 

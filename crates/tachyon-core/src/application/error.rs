@@ -38,4 +38,9 @@ impl From<StoreError> for BackendError {
 }
 
 #[derive(Debug)]
-pub enum StoreError {}
+pub enum StoreError {
+    /// The storage backend failed (I/O, database, runtime).
+    Technical(anyhow::Error),
+    /// The row is there but cannot be read by this build (unknown format, bad data).
+    Corrupted(String),
+}

@@ -91,12 +91,10 @@ pub async fn get_login_callback(
             return error_page("Your homeserver rejected the login.");
         }
     };
-
-    // Bind the ticket the client already holds to the login we just completed, so the
-    // waiting USR handler resolves it to this session.
+    
     let ticket = state.ticket_for(&pending.email);
     if let Err(e) = auth_use_case
-        .link_token(state.token_for(&pending.email), pending.login_id.clone())
+        .bind_token(state.token_for(&pending.email), pending.login_id.clone())
         .await
     {
         error!("Could not link the ticket to the login: {:?}", e);

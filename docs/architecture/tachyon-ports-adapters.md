@@ -47,7 +47,7 @@ binary (~11k LOC) to the new crate layout.
            └────────────┬────────────┘
                         │ ports implemented by
            ┌────────────▼────────────┐   ┌─────────────────┐
-           │      tachyon-store      │   │ tachyon-testkit │
+           │  tachyon-store-sqlite   │   │ tachyon-testkit │
            │ (SQLite: accounts,      │   │ (FakeBackend,   │
            │  credentials, tickets)  │   │  fixtures)      │
            └─────────────────────────┘   └─────────────────┘
@@ -61,8 +61,8 @@ binary (~11k LOC) to the new crate layout.
 | `tachyon-backend-matrix` | `ChatBackend`/`BackendSession` adapter over matrix-rust-sdk | `tachyon-core`, `matrix-sdk` |
 | `tachyon-bridge-msn` | NS/SB TCP servers, SOAP, P2P, `MsnpSession` actor, one `Dialect` per MSNP version | `tachyon-core`, `msnp` |
 | `tachyon-bridge-web` | Login / device-verification / recovery UI (axum); request/response consumer of the account's `BackendSession` | `tachyon-core` |
-| `tachyon-store` | SQLite (rusqlite) implementation of the store ports | `tachyon-core` |
-| `tachyon-testkit` | `FakeBackend` and fixtures — the second adapter that makes every seam real | `tachyon-core` |
+| `tachyon-store-sqlite` | SQLite (rusqlite) implementation of the store ports | `tachyon-core` |
+| `tachyon-testkit` | `FakeBackend`, in-memory repository doubles, fixtures — the second adapter that makes every seam real | `tachyon-core` |
 | `tachyon` (bin) | Composition root: config, wiring, startup/shutdown | everything |
 | `msnp` | MSNP wire formats, parsing, serialization | none of the above |
 
@@ -74,7 +74,7 @@ All workspace members belong in `default-members` so architecture tests run on e
 domain          pure types: ids, models, events, errors. Sync. No ports, no async,
                 no tokio, no async_trait. Never imports application/.
 application     use-case services + ALL ports (traits). Depends on domain only.
-infrastructure  in-memory adapters, wiring helpers. Depends on both.
+infrastructure  production in-memory adapters (sessions), wiring helpers. Depends on both.
 ```
 
 The dependency arrow points **down only**: `infrastructure → application → domain`.
@@ -134,14 +134,16 @@ Started ──► AwaitingUser ──► ProofReceived ──► SessionOpened
 ### Tickets and credentials
 
 - Ticket issuance (`TachyonToken`), expiry, and the ticket → `LoginId` mapping are core
-  logic backed by `tachyon-store`.
-- Credentials persist as an **opaque encrypted `CredentialBlob`** keyed by `LoginId` in
-  the core-owned store. The adapter's only job is
-  `serialize(AuthSession) -> Vec<u8>` / `restore(Vec<u8>)`; encryption at rest happens in
-  the store with the local key. On rotation the adapter surfaces
-  `BackendEvent::CredentialsRotated { new_blob }` and **core** re-persists — the adapter
-  never talks to storage directly. (This removes `CredentialsRepository` and its
-  matrix-sdk-typed rows from `tachyon-backend-matrix`.)
+  logic backed by `tachyon-store-sqlite`.
+- Credentials persist as an **opaque `CredentialBlob`** keyed by `LoginId` in
+  the core-owned store — plaintext today; the schema's `credentials_format` column
+  reserves encryption at rest with the local key. The adapter's only job is
+  `SessionRestoreData::to_blob()` / `from_blob()` (a versioned JSON envelope).
+  Interim until the phase-3 event stream exists: the adapter holds the core
+  `CredentialRepository` port and re-persists the whole blob on `TokensRefreshed`; the
+  target remains `BackendEvent::CredentialsRotated { new_blob }` with **core**
+  re-persisting. (`CredentialsRepository` and its matrix-sdk-typed rows are gone from
+  `tachyon-backend-matrix`.)
 
 ## Interface style between bounded contexts
 
@@ -197,17 +199,18 @@ All ports live in `tachyon-core/src/application/ports.rs`.
   flow shape — see "What is backend-agnostic"): `begin_interactive_login(login_id,
   redirect_url, user_hint) -> AuthPrompt`, `finish_interactive_login(pending,
   CallbackProof) -> BackendSession`, `restore(CredentialBlob) -> BackendSession`.
-- **`AccountStore` / `AccountRepository`** — ticket → `LoginId` → `CredentialBlob`
-  mapping; schema owned by core, implemented by `tachyon-store`.
+- **`AccountRepository` / `CredentialRepository`** — ticket → `LoginId` mapping and
+  `LoginId` → `CredentialBlob` persistence; implemented by `tachyon-store-sqlite`
+  (in-memory doubles in `tachyon-testkit`).
 - **`SessionRepository`** — live sessions by `LoginId`.
 
 ## Auth and credentials
 
 The invariant: **the Matrix token never reaches the client or IDCRL.**
 
-- Matrix is OAuth-era (MAS): access + refresh tokens persist as the opaque encrypted
+- Matrix is OAuth-era (MAS): access + refresh tokens persist as the opaque
   `CredentialBlob` (serialized matrix-sdk `AuthSession`) in the **core-owned** store —
-  the adapter serializes, core persists (see "Tickets and credentials" above).
+  the adapter serializes (see "Tickets and credentials" above).
 - MSN-side tickets are **opaque, random, expiring** (`TachyonToken`), mapped
   ticket → `LoginId` → credentials. The ticket is *not* the encrypted access token and is
   *not* the repository primary key — the legacy `TicketToken` conflated all three roles and
@@ -252,7 +255,7 @@ The split is:
 Startup, in order (all in the `tachyon` bin's composition root):
 
 1. Parse `TachyonConfig`; hand the opaque backend section to the adapter's constructor.
-2. Open `tachyon-store` (accounts, tickets, blobs); build core use cases with the store
+2. Open `tachyon-store-sqlite` (accounts, tickets, blobs); build core use cases with the store
    and backend ports.
 3. Create the **root `CancellationToken`**; wire Ctrl-C to `root.cancel()`.
 4. Spawn the frontends with `root.child_token()` each: NS + SB listeners
@@ -307,8 +310,8 @@ Six phases, strangler-style; the legacy binary keeps working throughout.
 | Phase | Content | Status (2026-08-31) |
 |---|---|---|
 | 0 | Scaffold workspace crates | done (crates exist; `default-members` still to fix) |
-| 1 | Core types, use cases, ports, store | in progress — see corrections below |
-| 2 | Matrix adapter (`tachyon-backend-matrix`) | started (auth/restore/token-refresh done; `CredentialsRepository` to be replaced by blob serialization — see correction 7) |
+| 1 | Core types, use cases, ports, store | store done 2026-09-01 (`tachyon-store-sqlite`); use-case corrections below |
+| 2 | Matrix adapter (`tachyon-backend-matrix`) | started (auth/restore/token-refresh done; credentials persist as blobs through the core port) |
 | 3 | Core `Session` actor | not started |
 | 4 | MSNP bridge extraction (`tachyon-bridge-msn`) | not started |
 | 5 | Dialects | not started |
@@ -332,12 +335,14 @@ Ordered; 1–3 are prerequisites for shaping the port in 4.
   per-`MsnpSession` module in `tachyon-bridge-msn`.
 - [ ] 6. **Split `TachyonClient`** — first replace the 15+ external `.inner.*` field
   pokes with methods, then partition per "Sessions and lifecycle" above.
-- [ ] 7. **Break the ticket = token identity** — implement the `TachyonToken → LoginId →
-   credentials` flow end-to-end, backed by `tachyon-store`.
-- [ ] 8. **Pull the flow back into core** — the adapter currently builds its own redirect
-  URL and owns `CredentialsRepository` (matrix-sdk-typed rows). Reshape to the
-  `begin`/`finish`/`restore(CredentialBlob)` port: core builds URLs from config, tracks
-  pending logins, persists blobs; the adapter only serializes/interprets.
+- [x] 7. **Break the ticket = token identity** — done 2026-09-01: the `TachyonToken →
+   LoginId → CredentialBlob` flow persists end-to-end in `tachyon-store-sqlite`. Tickets
+   are still derived rather than issued; expiry is pending the ticket-issuance use case.
+- [ ] 8. **Pull the flow back into core** — partially done 2026-09-01: credentials are
+  opaque blobs behind core's `CredentialRepository` and the matrix-typed rows are gone.
+  Remaining: the `begin`/`finish`/`restore(CredentialBlob)` reshape — core builds URLs
+  from config, tracks pending logins, persists blobs; the adapter only
+  serializes/interprets (today it still holds the store port and persists directly).
 
 ## Legacy defects the target design retires
 

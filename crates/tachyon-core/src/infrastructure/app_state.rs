@@ -1,6 +1,6 @@
 use crate::application::auth_use_case::AuthUseCase;
-use crate::application::ports::{AuthService, SessionRepository};
-use crate::infrastructure::repository::{AccountRepositoryInMem, SessionRepositoryInMem};
+use crate::application::ports::{AccountRepository, AuthService, SessionRepository};
+use crate::infrastructure::repository::SessionRepositoryInMem;
 use std::sync::Arc;
 
 /// Core's composition root: owns the repositories and hands bridges the use cases.
@@ -12,12 +12,15 @@ pub struct AppState {
 impl AppState {
     /// `redirect_url` is the bridge endpoint a backend sends the user's browser back to
     /// once they have authorized.
-    pub fn new(auth_service: Arc<dyn AuthService>, redirect_url: String) -> AppState {
+    pub fn new(
+        auth_service: Arc<dyn AuthService>,
+        account_repository: Arc<dyn AccountRepository>,
+        redirect_url: String,
+    ) -> AppState {
         let session_repository = Arc::new(SessionRepositoryInMem::default());
-        let account_repository = Arc::new(AccountRepositoryInMem::default());
 
         let auth_use_case = Arc::new(AuthUseCase::new(
-            account_repository.clone(),
+            account_repository,
             session_repository.clone(),
             auth_service.clone(),
             redirect_url,

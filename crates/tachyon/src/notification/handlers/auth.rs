@@ -35,7 +35,7 @@ use tokio::{select, task};
 
 const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"1000\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"100\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
 
-/// Once the client has its `USR OK` it sits on the "signing in" screen waiting for `SBS`,
+/// Once the client has its `USR OK` it sits on the "signing in" screen waiting for the intial profile `MSG`.
 /// rendering any `NOT` alert we send, for about five minutes before it gives up. That wait
 /// is the only window we get to ask the user for something out-of-band.
 ///
@@ -139,7 +139,7 @@ async fn authenticate(
     let auth_use_case = tachyon_state.app_state().auth_use_case();
     let token = tachyon_state.token_for(email_addr);
 
-    let session = match auth_use_case.restore(&token).await {
+    let session = match auth_use_case.restore_session(&token).await {
         Ok(restored) => {
             debug!("Restored an existing backend session for {}", email_addr.as_str());
             restored.session
@@ -151,8 +151,7 @@ async fn authenticate(
         Err(e) => return Err(anyhow!("Could not restore backend session: {:?}", e)),
     };
 
-    // TEMPORARY (refactor scaffold): the handlers below this point still drive matrix-sdk
-    // directly. Goes away once BackendSession covers messaging, presence and media.
+    // FIXME: Remove this after the refactor is done.
     let matrix_client = session
         .as_any()
         .downcast_ref::<BackendSessionMatrix>()
@@ -163,7 +162,7 @@ async fn authenticate(
     Ok(matrix_client)
 }
 
-/// Sends the client a `NOT` alert pointing at our web bridge and holds the sign-in open
+/// Sends the client a `NOT` alert pointing at our web management interface and holds the sign-in open
 /// until the user completes the login in their browser.
 async fn interactive_login(
     tachyon_state: &GlobalState,
@@ -232,9 +231,6 @@ async fn interactive_login(
 
     notif_sender.send(login_not).await?;
 
-    // A login that never completes leaves state behind on both sides of the browser hop:
-    // the pending login if the user never got as far as the callback, and the stand-in
-    // session if they got as far as device confirmation and stopped there.
     let abandon = || {
         tachyon_state.take_pending_login(&flow_id);
         tachyon_state.remove_pre_session(tachyon_state.ticket_for(email_addr).as_str());
@@ -256,11 +252,9 @@ async fn interactive_login(
         }
     }
 
-    // The web bridge linked the token before firing the alert, so this now resolves to the
-    // session it just opened.
     let token = tachyon_state.token_for(email_addr);
     let restored = auth_use_case
-        .restore(&token)
+        .restore_session(&token)
         .await
         .map_err(|e| anyhow!("Interactive login completed but no session was stored: {:?}", e))?;
 
@@ -319,8 +313,6 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
                 payload: NotificationPayloadType::Normal(NotificationFactory::alert(&msn_user_clone.uuid, msn_user_clone.get_email_address(), "Oops ! Your device is not verified yet ! Click here to verify.", format!("http://127.0.0.1:{}/tachyon", config_clone.http_port).as_str(), format!("http://127.0.0.1:{}/tachyon/confirm_device?t={}", config_clone.http_port, &ticket_token_clone.as_str()).as_str(), format!("http://127.0.0.1:{}/tachyon/confirm_device?t={}", config_clone.http_port, &ticket_token_clone.as_str()).as_str(), Some("shield_verify.png"), notification_id)),
             });
 
-            // Whatever the interactive login already spent comes out of this step's budget:
-            // the select! below races the alert against the same sign-in deadline.
             let (alert, receiver) = Alert::new_confirm_device();
             tachyon_client.alerts().insert(notification_id, alert);
 
@@ -332,7 +324,7 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
                    let _ = sign_loop_kill_snd.send(()).await;
                     match recv {
                         Ok(_success) => {
-                            //We recheck if the device is cross signed as we can have false positives and the user needs to reset his cryptographic identity in such cases.
+
                             if check_device_is_crossed_signed(&matrix_client_clone).await.unwrap_or(false) {
 
                             } else {
@@ -364,7 +356,7 @@ fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local
 
         let _ = notif_sender_clone.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await;
 
-        //This makes the client login to succeed.
+        //This makes the client login to succeed and go past the loading screen.
         let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
             sender: "Hotmail".to_string(),
             display_name: DisplayName::new_from_ref("Hotmail"),

@@ -1,11 +1,6 @@
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
-/// The opaque, bridge-issued value a frontend client holds and echoes back to identify an
-/// account. Maps to a [`crate::domain::ids::LoginId`] server-side; it is never a backend
-/// credential and is never derived from one.
-///
-/// How it is minted is the bridge's business — core only ever compares and stores it.
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub struct TachyonToken(Arc<str>);
 
@@ -19,8 +14,6 @@ impl TachyonToken {
     }
 }
 
-/// Redacted: possession of a token is enough to restore a session, and request bodies are
-/// logged at debug level.
 impl Debug for TachyonToken {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str("TachyonToken(<redacted>)")
@@ -33,22 +26,40 @@ pub enum RestoreOutcome {
     Logout,
 }
 
-/// What the backend needs the user's browser to do to complete a login.
 pub enum InteractiveAuthStarted {
-    /// Point the browser at `auth_url`. `csrf_token` is the OAuth `state` the redirect
-    /// endpoint will receive back, so the bridge can correlate the callback with this login.
     OAuth {
         auth_url: String,
         csrf_token: String,
     },
-    /// This backend has no interactive flow; the bridge must collect a password itself.
     PasswordRequired,
 }
 
-/// How the bridge introduces itself to a backend's authorization screen.
 pub struct BridgeMetadata {
     pub name: String,
     pub client_uri: String,
     pub image_url: Option<String>,
     pub tos: Option<String>,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct CredentialBlob(Vec<u8>);
+
+impl CredentialBlob {
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.0
+    }
+}
+
+impl Debug for CredentialBlob {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("CredentialBlob(<redacted>)")
+    }
 }

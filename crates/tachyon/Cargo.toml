@@ -78,3 +78,9 @@ path = "../tachyon-backend-matrix"
 [build-dependencies]
 # Compiles lib/libsiren, the MSN voice clip codec.
 cc = "1.2"
+
+[dependencies.tachyon-store-sqlite]
+path = "../tachyon-store-sqlite"
+
+[dev-dependencies.tachyon-testkit]
+path = "../tachyon-testkit"

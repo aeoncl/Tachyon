@@ -1,6 +1,5 @@
 use crate::domain::auth::SessionRestoreData;
 use crate::infrastructure::mappers::IntoMapper;
-use crate::infrastructure::repositories::CredentialsRepository;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use matrix_sdk::authentication::oauth::registration::{
@@ -19,23 +18,19 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tachyon_core::application::error::BackendError;
-use tachyon_core::application::ports::{AuthService, BackendSession};
+use tachyon_core::application::ports::{AuthService, BackendSession, CredentialRepository};
 use tachyon_core::domain::auth::{BridgeMetadata, InteractiveAuthStarted};
 use tachyon_core::domain::ids::{LoginId, UserId};
 use tokio::select;
+use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-/// How the adapter builds matrix clients.
 #[derive(Clone, Default)]
 pub struct MatrixBackendConfig {
-    /// Root under which each account gets its own SQLite store. Without one the client is
-    /// memory-only, so crypto identity — and therefore device verification — is lost on
-    /// every restart.
     pub store_root: Option<PathBuf>,
     pub disable_ssl: bool,
-    /// Bypasses server-name discovery. Test and development use only.
     pub homeserver_url_override: Option<String>,
 }
 
@@ -45,7 +40,7 @@ pub struct BackendSessionMatrix {
 }
 
 impl BackendSessionMatrix {
-    /* You need to subscribe to Session Token change before restoring Auth */
+    /// You need to subscribe to Session Token change before restoring Auth
     pub async fn restore(
         client: matrix_sdk::Client,
         cancellation_token: CancellationToken,
@@ -85,8 +80,7 @@ impl BackendSessionMatrix {
         }
     }
 
-    /// TEMPORARY (refactor scaffold): the legacy `tachyon` crate still drives matrix-sdk
-    /// directly. Reached through [`BackendSession::as_any`]; goes away with it.
+    /// FIXME: Remove this after the refactor is done
     pub fn matrix_client(&self) -> &Client {
         &self.client
     }
@@ -100,7 +94,6 @@ impl BackendSession for BackendSessionMatrix {
 
 impl Drop for BackendSessionMatrix {
     fn drop(&mut self) {
-        // Otherwise the token-refresh subscriber outlives the session it belongs to.
         self.tasks_cancellation_token.cancel();
     }
 }
@@ -126,18 +119,18 @@ impl PendingClient {
 }
 
 pub struct AuthServiceMatrixSdk {
-    credentials_store: Arc<dyn CredentialsRepository>,
+    credential_repository: Arc<dyn CredentialRepository>,
     pending_clients: Mutex<HashMap<String, PendingClient>>,
     config: MatrixBackendConfig,
 }
 
 impl AuthServiceMatrixSdk {
     pub fn new(
-        credentials_store: Arc<dyn CredentialsRepository>,
+        credential_repository: Arc<dyn CredentialRepository>,
         config: MatrixBackendConfig,
     ) -> Self {
         Self {
-            credentials_store,
+            credential_repository,
             pending_clients: Mutex::new(HashMap::new()),
             config,
         }
@@ -159,8 +152,7 @@ impl AuthServiceMatrixSdk {
             Some(homeserver_url) => client_builder = client_builder.homeserver_url(homeserver_url),
         }
 
-        // The store is per-account, so it can only be attached once the user is known. An
-        // interactive login without a user id hint therefore starts memory-only.
+        // Do we really need to create the store here ? doesn't the SDK makes sure the folder exist ? If not, we should move that to a different service cause that's unrelated IO.
         if let (Some(store_root), Some(user_id)) = (&self.config.store_root, user_id) {
             let store_path = store_root.join(sanitize_user_id(user_id)).join("store");
             std::fs::create_dir_all(&store_path).map_err(|e| {
@@ -175,7 +167,6 @@ impl AuthServiceMatrixSdk {
             .map_err(|e| BackendError::Technical(anyhow::anyhow!("{}", e)))
     }
 
-    /// Persist what the SDK ended up with, so the login can be restored later.
     async fn store_credentials(
         &self,
         login_id: &LoginId,
@@ -185,10 +176,12 @@ impl AuthServiceMatrixSdk {
             .session()
             .ok_or_else(|| BackendError::Technical(anyhow!("Client has no session after login")))?;
 
-        let restore_data = SessionRestoreData::try_from(session)
+        let blob = SessionRestoreData::try_from(session)
+            .map_err(BackendError::Technical)?
+            .to_blob()
             .map_err(BackendError::Technical)?;
 
-        self.credentials_store.insert(login_id, restore_data).await?;
+        self.credential_repository.store(login_id, blob).await?;
 
         Ok(())
     }
@@ -200,13 +193,12 @@ impl AuthService for AuthServiceMatrixSdk {
         &self,
         login_id: LoginId,
     ) -> Result<Arc<dyn BackendSession>, BackendError> {
-        let Some(session_restore_data) = self
-            .credentials_store
-            .session_restore_data_by_login_id(&login_id)
-            .await?
-        else {
+        let Some(blob) = self.credential_repository.credentials(&login_id).await? else {
             return Err(BackendError::LoggedOut);
         };
+
+        let session_restore_data =
+            SessionRestoreData::from_blob(&blob).map_err(BackendError::Technical)?;
 
         let user_id = session_restore_data.user_id.clone();
         let client = self
@@ -218,7 +210,7 @@ impl AuthService for AuthServiceMatrixSdk {
         let _handle = subscribe_to_session_tokens(
             &login_id,
             &client,
-            self.credentials_store.clone(),
+            self.credential_repository.clone(),
             session_cancellation_token.clone(),
         )?;
 
@@ -269,6 +261,7 @@ impl AuthService for AuthServiceMatrixSdk {
         let client_metadata = build_client_metadata(bridge_metadata, redirect_url.clone())?;
         let raw_client_metadata =
             Raw::new(&client_metadata).map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
+
         let _ = client
             .oauth()
             .register_client(&raw_client_metadata)
@@ -321,7 +314,7 @@ impl AuthService for AuthServiceMatrixSdk {
         let _handle = subscribe_to_session_tokens(
             login_id,
             &client,
-            self.credentials_store.clone(),
+            self.credential_repository.clone(),
             session_cancellation_token.clone(),
         )?;
 
@@ -334,19 +327,11 @@ impl AuthService for AuthServiceMatrixSdk {
     }
 }
 
-/// Matrix user ids contain characters that are not legal in a Windows path component.
+
 fn sanitize_user_id(user_id: &matrix_sdk::ruma::UserId) -> String {
-    user_id
-        .as_str()
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '.' || c == '-' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect()
+    uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, user_id.as_str().as_bytes())
+        .to_string()
+        .to_uppercase()
 }
 
 fn build_client_metadata(
@@ -384,7 +369,7 @@ fn build_client_metadata(
 fn subscribe_to_session_tokens(
     login_id: &LoginId,
     client: &matrix_sdk::Client,
-    credentials_store: Arc<dyn CredentialsRepository>,
+    credential_repository: Arc<dyn CredentialRepository>,
     cancellation_token: CancellationToken,
 ) -> Result<JoinHandle<()>, BackendError> {
     let mut receiver = client.subscribe_to_session_changes();
@@ -401,8 +386,10 @@ fn subscribe_to_session_tokens(
 
                 session_change = receiver.recv() => {
 
-                    let Ok(session_change) = session_change else {
-                        break;
+                    let session_change = match session_change {
+                        Ok(session_change) => session_change,
+                        Err(RecvError::Lagged(_)) => continue,
+                        Err(RecvError::Closed) => break,
                     };
 
                     match session_change {
@@ -410,9 +397,7 @@ fn subscribe_to_session_tokens(
                             //Todo push Logout or SoftLogoutEvent
                         }
                         SessionChange::TokensRefreshed => {
-                            if let Some(session_tokens) = client_clone.session_tokens() {
-                                let _ = credentials_store.update_tokens(&login_id_clone, session_tokens.access_token, session_tokens.refresh_token).await;
-                            }
+                            persist_refreshed_tokens(&login_id_clone, &client_clone, &credential_repository).await;
                         }
                     }
 
@@ -424,16 +409,37 @@ fn subscribe_to_session_tokens(
     Ok(handle)
 }
 
+/// A rotated token that is not persisted is a silent re-login on the next restart — never
+/// swallow failures here.
+async fn persist_refreshed_tokens(
+    login_id: &LoginId,
+    client: &Client,
+    credential_repository: &Arc<dyn CredentialRepository>,
+) {
+    let Some(session) = client.session() else {
+        log::warn!("Tokens refreshed but the client has no session to persist");
+        return;
+    };
+
+    let blob = SessionRestoreData::try_from(session).and_then(|data| data.to_blob());
+
+    match blob {
+        Ok(blob) => {
+            if let Err(e) = credential_repository.store(login_id, blob).await {
+                log::warn!("Could not persist refreshed tokens: {:?}", e);
+            }
+        }
+        Err(e) => log::warn!("Could not serialize refreshed tokens: {:?}", e),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::infrastructure::repositories::CredentialsRepositoryInMem;
+    use tachyon_testkit::repositories::CredentialRepositoryInMem;
     use wiremock::matchers::any;
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    /// Builds a matrix `Client` against a wiremock server so that the SDK's
-    /// internal capability-detection request during `.build()` succeeds without
-    /// needing a real homeserver.
     async fn build_test_client() -> (Client, MockServer) {
         let mock_server = MockServer::start().await;
         Mock::given(any())
@@ -442,7 +448,7 @@ mod tests {
             .await;
 
         let auth_service = AuthServiceMatrixSdk::new(
-            Arc::new(CredentialsRepositoryInMem::default()),
+            Arc::new(CredentialRepositoryInMem::default()),
             MatrixBackendConfig {
                 store_root: None,
                 disable_ssl: false,
@@ -478,10 +484,37 @@ mod tests {
     }
 
     #[test]
-    fn sanitized_user_id_is_a_legal_path_component() {
+    fn sanitized_user_id_matches_legacy_store_directory_scheme() {
         let user_id = matrix_sdk::ruma::UserId::parse("@aeon:shlasouf.local").unwrap();
         let sanitized = sanitize_user_id(&user_id);
 
-        assert_eq!(sanitized, "_aeon_shlasouf.local");
+        // Pinned value: upper-cased UUID v5 (OID namespace) of "@aeon:shlasouf.local".
+        assert_eq!(sanitized, "264E4340-A168-537C-890B-946D4EB046E0");
+    }
+
+    #[tokio::test]
+    async fn stored_credentials_round_trip_through_the_repository() {
+        let (client, _mock) = build_test_client().await;
+        let restore_data = SessionRestoreData {
+            access_token: "access".to_string(),
+            refresh_token: Some("refresh".to_string()),
+            user_id: matrix_sdk::ruma::UserId::parse("@aeon:shlasouf.local").unwrap().to_owned(),
+            device_id: matrix_sdk::ruma::OwnedDeviceId::from("DEVICEID"),
+            auth_kind: crate::domain::auth::AuthKind::Matrix,
+        };
+        client.restore_session(restore_data.clone()).await.unwrap();
+
+        let repository = Arc::new(CredentialRepositoryInMem::default());
+        let auth_service = AuthServiceMatrixSdk::new(
+            repository.clone(),
+            MatrixBackendConfig::default(),
+        );
+        let login_id = LoginId::new("l1");
+
+        auth_service.store_credentials(&login_id, &client).await.unwrap();
+
+        let blob = repository.credentials(&login_id).await.unwrap().unwrap();
+        let restored = SessionRestoreData::from_blob(&blob).unwrap();
+        assert!(restored == restore_data);
     }
 }

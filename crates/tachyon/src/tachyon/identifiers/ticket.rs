@@ -3,17 +3,7 @@ use msnp::shared::models::ticket_token::TicketToken;
 use sha1::{Digest, Sha1};
 use tachyon_core::domain::auth::TachyonToken;
 
-/// Derives the ticket the MSN client stores and echoes back.
-///
-/// The client calls RST2 on every startup with the password it saved, and that password is
-/// meaningless to us — the ticket's only job is to name an account so a backend session can
-/// be restored. So it is derived rather than issued: RST2 and the `USR` handler compute the
-/// same value for the same address with no state between them, across restarts.
-///
-/// Keyed on the instance's `local.key` so the value is not derivable off-box by anyone who
-/// merely knows the address. That is the whole of its protection — a ticket is bearer
-/// authority over the account, which is only tolerable because Tachyon is bound to loopback
-/// and serves a single client.
+
 pub fn derive_ticket(secret: &[u8], email: &EmailAddress) -> TicketToken {
     let mut hasher = Sha1::new();
     hasher.update(secret);
@@ -23,7 +13,6 @@ pub fn derive_ticket(secret: &[u8], email: &EmailAddress) -> TicketToken {
     TicketToken(hex::encode(hasher.finalize()))
 }
 
-/// The same value as core sees it. Core treats it as opaque.
 pub fn derive_token(secret: &[u8], email: &EmailAddress) -> TachyonToken {
     TachyonToken::new(derive_ticket(secret, email).as_str())
 }

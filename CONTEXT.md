@@ -27,7 +27,8 @@ one of them is wrong — fix it or fix this file.
   callback endpoint. Opaque to core; the backend interprets it (OAuth `code`+`state`
   for Matrix).
 - **CredentialBlob** — backend-serialized credentials (`AuthSession` for Matrix) as
-  opaque bytes, encrypted at rest by the core-owned store, keyed by `LoginId`.
+  opaque bytes, keyed by `LoginId` in the core-owned store (`tachyon-store-sqlite`).
+  Plaintext today; the store schema reserves a format column for encryption at rest.
 
 ## Backend seam
 

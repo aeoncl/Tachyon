@@ -2,7 +2,7 @@
 members = [
     "crates/tachyon",
     "crates/msnp"
-, "crates/tachyon-core", "crates/tachyon-backend-matrix", "crates/tachyon-bridge-msn", "crates/tachyon-bridge-web", "crates/tachyon-store", "crates/tachyon-testkit"]
+, "crates/tachyon-core", "crates/tachyon-backend-matrix", "crates/tachyon-bridge-msn", "crates/tachyon-web", "crates/tachyon-store-sqlite", "crates/tachyon-testkit"]
 
 default-members = [
     "crates/tachyon",
@@ -10,8 +10,8 @@ default-members = [
     "crates/tachyon-core",
     "crates/tachyon-backend-matrix",
     "crates/tachyon-bridge-msn",
-    "crates/tachyon-bridge-web",
-    "crates/tachyon-store",
+    "crates/tachyon-web",
+    "crates/tachyon-store-sqlite",
     "crates/tachyon-testkit"
 ]
 

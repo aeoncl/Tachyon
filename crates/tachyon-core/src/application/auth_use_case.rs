@@ -5,13 +5,11 @@ use crate::domain::ids::{LoginId, UserId};
 use std::sync::Arc;
 use uuid::Uuid;
 
-/// A login that has been started but not yet completed by the user.
 pub struct LoginStart {
     pub login_id: LoginId,
     pub prompt: InteractiveAuthStarted,
 }
 
-/// A session that has been handed back to a bridge, with the login it belongs to.
 pub struct RestoredLogin {
     pub login_id: LoginId,
     pub session: Arc<dyn BackendSession>,
@@ -21,8 +19,7 @@ pub struct AuthUseCase {
     account_repository: Arc<dyn AccountRepository>,
     auth_service: Arc<dyn AuthService>,
     session_repository: Arc<dyn SessionRepository>,
-    /// Where the backend sends the user's browser once they have authorized. Owned by core
-    /// so the URL is built from configuration rather than by each adapter.
+    /// TODO: Move this configuration towards the bridges
     redirect_url: String,
 }
 
@@ -43,12 +40,7 @@ impl AuthUseCase {
 }
 
 impl AuthUseCase {
-    /// Resolve a token to a live session, reusing the one already open for that login if
-    /// there is one, and otherwise rebuilding it from stored credentials.
-    ///
-    /// Returns [`AuthError::BackendCredentialsNotInStore`] when the token has never been
-    /// linked to a login — the bridge's cue to start an interactive login.
-    pub async fn restore(&self, token: &TachyonToken) -> Result<RestoredLogin, AuthError> {
+    pub async fn restore_session(&self, token: &TachyonToken) -> Result<RestoredLogin, AuthError> {
         let Some(login_id) = self.account_repository.login_id_by_token(token).await? else {
             return Err(AuthError::BackendCredentialsNotInStore);
         };
@@ -85,15 +77,15 @@ impl AuthUseCase {
         Ok(LoginStart { login_id, prompt })
     }
 
-    /// `callback_query` is the raw query string the redirect endpoint received.
+    /// `callback_query_params` is the raw query params string the redirect endpoint received from the authorization server.
     pub async fn finish_interactive_login(
         &self,
         login_id: &LoginId,
-        callback_query: &str,
+        callback_query_params: &str,
     ) -> Result<Arc<dyn BackendSession>, AuthError> {
         let session = self
             .auth_service
-            .finish_interactive_login(login_id, callback_query)
+            .finish_interactive_login(login_id, callback_query_params)
             .await?;
 
         self.session_repository
@@ -102,13 +94,12 @@ impl AuthUseCase {
         Ok(session)
     }
 
-    /// Bind the frontend's token to a completed login, so the next `restore` finds it.
-    pub async fn link_token(
+    pub async fn bind_token(
         &self,
         token: TachyonToken,
         login_id: LoginId,
     ) -> Result<(), AuthError> {
-        self.account_repository.link(token, login_id).await?;
+        self.account_repository.save_login_for_token(token, login_id).await?;
         Ok(())
     }
 }

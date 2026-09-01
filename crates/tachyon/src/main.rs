@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use tachyon_backend_matrix::infrastructure::backend::{AuthServiceMatrixSdk, MatrixBackendConfig};
-use tachyon_backend_matrix::infrastructure::repositories::CredentialsRepositoryInMem;
+use tachyon_store_sqlite::SqliteStore;
 use tachyon_core::infrastructure::app_state::AppState;
 use self::tachyon::config::paths;
 use self::tachyon::config::paths::create_dirs;
@@ -63,22 +63,24 @@ async fn main() {
 
 /// Composes core with the matrix backend adapter.
 fn build_app_state(config: &TachyonConfig, data_local_dir: PathBuf) -> Arc<AppState> {
+    let tachyon_db_path = data_local_dir.join("tachyon.db");
+
     let backend_config = MatrixBackendConfig {
         store_root: Some(data_local_dir),
         disable_ssl: !config.strict_ssl,
         homeserver_url_override: None,
     };
 
-    //TODO: credentials are in memory, so every restart re-runs the interactive login.
-    let credentials_store = Arc::new(CredentialsRepositoryInMem::default());
-    let auth_service = Arc::new(AuthServiceMatrixSdk::new(credentials_store, backend_config));
+    let store = SqliteStore::open(tachyon_db_path).expect("tachyon store is mandatory");
+
+    let auth_service = Arc::new(AuthServiceMatrixSdk::new(Arc::new(store.clone()), backend_config));
 
     let redirect_url = format!(
         "http://127.0.0.1:{}/tachyon/login/callback",
         config.http_port
     );
 
-    Arc::new(AppState::new(auth_service, redirect_url))
+    Arc::new(AppState::new(auth_service, Arc::new(store), redirect_url))
 }
 
 fn setup_key(config_folder_path: PathBuf) -> Result<Vec<u8>, anyhow::Error> {
