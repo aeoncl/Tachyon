@@ -5,7 +5,6 @@ use maud::{html, Markup};
 use crate::matrix::cross_signing::{check_device_is_crossed_signed, restore_from_recovery_key};
 use crate::tachyon::alert::{AlertError, AlertNotify, AlertSuccess};
 use crate::tachyon::global_state::GlobalState;
-use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::Params;
 
 pub async fn get_recover(
@@ -16,8 +15,7 @@ pub async fn get_recover(
     let notification_id_str = params.get("notification_id").map(|s| s.as_str()).unwrap_or_default();
     let notification_id = i32::from_str(notification_id_str).map_err(|e| format!("Invalid notification_id: {}", e)).unwrap();
 
-    let tachyon_client = state.tachyon_clients().get(&token).unwrap();
-    let _notification = tachyon_client.alerts().get(&notification_id).unwrap();
+    assert!(state.has_confirmation_alert(&token, notification_id));
 
     Html(restore_device_content(notification_id).into_string())
 }
@@ -139,9 +137,8 @@ pub async fn post_recover(
     };
 
 
-    let tachyon_client = state.tachyon_clients().get(&token).unwrap();
-    let (_id, mut alert) = tachyon_client.alerts().remove(&notification_id).unwrap();
-    let matrix_client = tachyon_client.matrix_client();
+    let matrix_client = state.confirmation_client(&token).unwrap();
+    let alert = state.take_confirmation_alert(&token, notification_id).unwrap();
 
     let result = restore_from_recovery_key(&matrix_client, recovery_key).await;
 

@@ -6,7 +6,6 @@ use maud::html;
 use crate::matrix::cross_signing::check_device_is_crossed_signed;
 use crate::tachyon::alert::{AlertError, AlertNotify, AlertSuccess};
 use crate::tachyon::global_state::GlobalState;
-use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::Params;
 
 pub async fn post_reset_identity(
@@ -21,9 +20,8 @@ pub async fn post_reset_identity(
     let password = form_data.get("password").map(|s| s.as_str()).unwrap();
 
 
-    let tachyon_client = state.tachyon_clients().get(&token).unwrap();
-    let (_id, mut alert) = tachyon_client.alerts().remove(&notification_id).unwrap();
-    let matrix_client = tachyon_client.matrix_client();
+    let matrix_client = state.confirmation_client(&token).unwrap();
+    let alert = state.take_confirmation_alert(&token, notification_id).unwrap();
 
     let own_user = matrix_client.user_id().unwrap();
 

@@ -12,3 +12,5 @@ Cargo.lock
 .github
 .idea
 .vscode
+.aider*
+AGENT.md

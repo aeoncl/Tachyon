@@ -1,8 +1,6 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use directories::ProjectDirs;
-use matrix_sdk::ruma::UserId;
-use msnp::shared::models::uuid::Uuid;
 
 pub fn get_tachyon_path() -> ProjectDirs {
     directories::ProjectDirs::from("", "","Tachyon").expect("Could not resolve root configuration directory")
@@ -26,15 +24,3 @@ pub fn create_dir(path: &Path) {
     }
 }
 
-
-pub fn sanitize_user_id(user_id: &UserId) -> String {
-    Uuid::from_seed(user_id.as_str()).to_string()
-}
-
-pub fn get_user_data(user_id: &UserId) -> PathBuf {
-    get_tachyon_path().data_local_dir().join(sanitize_user_id(user_id))
-}
-
-pub fn get_store_path(user_id: &UserId) -> PathBuf {
-    get_user_data(user_id).join("store")
-}

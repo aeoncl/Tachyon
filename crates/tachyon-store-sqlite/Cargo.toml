@@ -1,0 +1,17 @@
+[package]
+name = "tachyon-store-sqlite"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rusqlite = { version = "0.37", features = ["bundled"] }
+async-trait = "0.1.92"
+anyhow.workspace = true
+log = "0.4.29"
+tokio.workspace = true
+
+[dependencies.tachyon-core]
+path = "../tachyon-core"
+
+[dev-dependencies]
+tempfile = "3"

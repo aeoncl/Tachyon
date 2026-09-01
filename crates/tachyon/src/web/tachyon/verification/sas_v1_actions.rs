@@ -5,7 +5,6 @@ use axum::http::{Response, StatusCode};
 use axum::response::IntoResponse;
 use matrix_sdk::ruma::OwnedUserId;
 use crate::tachyon::global_state::GlobalState;
-use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::Params;
 
 pub(crate) async fn post_sas_v1_action(
@@ -22,7 +21,7 @@ pub(crate) async fn post_sas_v1_action(
     let user_id_raw = form_data.get("user_id").map(|s| s.as_str()).unwrap();
     let user_id = OwnedUserId::from_str(user_id_raw).unwrap();
 
-    let client = state.tachyon_clients().get(&token).unwrap().matrix_client();
+    let client = state.confirmation_client(&token).unwrap();
 
     let verification = client.encryption().get_verification(&user_id, flow_id).await.unwrap();
 

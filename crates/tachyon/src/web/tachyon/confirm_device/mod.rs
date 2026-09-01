@@ -4,7 +4,6 @@ use axum::response::Html;
 use maud::{html, Markup};
 use crate::matrix::cross_signing::check_secret_storage_state;
 use crate::tachyon::global_state::GlobalState;
-use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::Params;
 
 pub(super) mod recover;
@@ -20,9 +19,8 @@ pub async fn get_confirm(
     let notification_id_str = params.get("notification_id").map(|s| s.as_str()).unwrap_or_default();
     let notification_id = i32::from_str(notification_id_str).map_err(|e| format!("Invalid notification_id: {}", e)).unwrap();
 
-    let tachyon_client = state.tachyon_clients().get(&token).unwrap();
-    let _notification = tachyon_client.alerts().get(&notification_id).unwrap();
-    let matrix_client = tachyon_client.matrix_client();
+    let matrix_client = state.confirmation_client(&token).unwrap();
+    assert!(state.has_confirmation_alert(&token, notification_id));
 
     let secret_store_enabled = check_secret_storage_state(&matrix_client).await.unwrap();
 

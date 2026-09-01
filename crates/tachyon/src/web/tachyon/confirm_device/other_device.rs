@@ -1,5 +1,4 @@
 use crate::tachyon::global_state::GlobalState;
-use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::Params;
 use axum::body::Body;
 use axum::extract::State;
@@ -20,9 +19,8 @@ pub async fn get_other_device(
     let notification_id_str = params.get("notification_id").map(|s| s.as_str()).unwrap_or_default();
     let notification_id = i32::from_str(notification_id_str).map_err(|e| format!("Invalid notification_id: {}", e)).unwrap();
 
-    let tachyon_client = state.tachyon_clients().get(&token).unwrap();
-    let _notification = tachyon_client.alerts().get(&notification_id).unwrap();
-    let matrix_client = tachyon_client.matrix_client();
+    let matrix_client = state.confirmation_client(&token).unwrap();
+    assert!(state.has_confirmation_alert(&token, notification_id));
 
     let has_devices_to_confirm_with = matrix_client.encryption().has_devices_to_verify_against().await.unwrap();
 
@@ -89,10 +87,9 @@ pub async fn post_other_device(
     let device_id_raw = form_data.get("device").map(|s| s.as_str()).unwrap();
     let device_id = device_id!(device_id_raw);
 
-    let tachyon_client = state.tachyon_clients().get(&token).unwrap();
-    let _notification = tachyon_client.alerts().get(&notification_id).unwrap();
+    let matrix_client = state.confirmation_client(&token).unwrap();
+    assert!(state.has_confirmation_alert(&token, notification_id));
 
-    let matrix_client = tachyon_client.matrix_client();
     let user_id = matrix_client.user_id().unwrap();
 
     let device = matrix_client.encryption().get_device(user_id, device_id).await.unwrap().unwrap();
