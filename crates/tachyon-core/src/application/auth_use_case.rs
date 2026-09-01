@@ -45,6 +45,7 @@ impl AuthUseCase {
             return Err(AuthError::BackendCredentialsNotInStore);
         };
 
+        //FIXME: In which circonstances can this happen ? if a client retriggers a restore session, we should get rid of a remaining one, not giving it back, we should also ensure the session is properly deleted on logout of the bridge.
         if let Some(session) = self.session_repository.get(&login_id) {
             return Ok(RestoredLogin { login_id, session });
         }
