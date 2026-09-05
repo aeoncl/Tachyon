@@ -39,6 +39,14 @@ pub trait AuthService: Send + Sync {
 }
 
 #[async_trait]
+pub trait VerificationService: Send + Sync {
+
+    // Define the interface of the Verification Service. AI!
+    async fn start_device_verfication(&self);
+
+}
+
+#[async_trait]
 pub trait AccountRepository: Send + Sync {
     async fn login_id_by_token(
         &self,
