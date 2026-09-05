@@ -16,7 +16,6 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
-use tachyon_backend_matrix::infrastructure::backend::{AuthServiceMatrixSdk, MatrixBackendConfig};
 use tachyon_store_sqlite::SqliteStore;
 use tachyon_core::infrastructure::app_state::AppState;
 use self::tachyon::config::paths;

@@ -1,102 +1,27 @@
-use crate::domain::auth::SessionRestoreData;
-use crate::infrastructure::mappers::IntoMapper;
-use anyhow::anyhow;
-use async_trait::async_trait;
-use matrix_sdk::authentication::oauth::registration::{
-    ApplicationType, ClientMetadata, Localized, OAuthGrantType,
-};
-use matrix_sdk::authentication::oauth::UrlOrQuery;
-use matrix_sdk::reqwest::Url;
-use matrix_sdk::ruma::serde::Raw;
-use matrix_sdk::ruma::OwnedUserId;
-use matrix_sdk::{
-    ruma::api::client::error::ErrorKind, Client, ServerName, SessionChange,
-};
-use std::any::Any;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc};
 use std::time::{Duration, Instant};
-use tachyon_core::application::error::BackendError;
-use tachyon_core::application::ports::{AuthService, BackendSession, CredentialRepository};
-use tachyon_core::domain::auth::{BridgeMetadata, InteractiveAuthStarted};
-use tachyon_core::domain::ids::{LoginId, UserId};
+use anyhow::anyhow;
+use async_trait::async_trait;
+use matrix_sdk::{Client, ServerName, SessionChange};
+use matrix_sdk::authentication::oauth::registration::{ApplicationType, ClientMetadata, Localized, OAuthGrantType};
+use matrix_sdk::authentication::oauth::UrlOrQuery;
+use matrix_sdk::reqwest::Url;
+use matrix_sdk::ruma::OwnedUserId;
+use matrix_sdk::ruma::serde::Raw;
 use tokio::select;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-
-#[derive(Clone, Default)]
-pub struct MatrixBackendConfig {
-    pub store_root: Option<PathBuf>,
-    pub disable_ssl: bool,
-    pub homeserver_url_override: Option<String>,
-}
-
-pub struct BackendSessionMatrix {
-    client: Client,
-    tasks_cancellation_token: CancellationToken,
-}
-
-impl BackendSessionMatrix {
-    /// You need to subscribe to Session Token change before restoring Auth
-    pub async fn restore(
-        client: matrix_sdk::Client,
-        cancellation_token: CancellationToken,
-        session_restore_data: SessionRestoreData,
-    ) -> Result<Self, BackendError> {
-        if let Err(err) = client.restore_session(session_restore_data).await {
-            cancellation_token.cancel();
-
-            return Err(BackendError::CannotRestoreLogin(format!("{}", err)));
-        }
-
-        match client.whoami().await {
-            Ok(_) => Ok(BackendSessionMatrix {
-                client,
-                tasks_cancellation_token: cancellation_token.clone(),
-            }),
-            Err(e) => {
-                cancellation_token.cancel();
-
-                let Some(api_error) = e.client_api_error_kind() else {
-                    return Err(BackendError::Technical(anyhow::anyhow!(e)));
-                };
-
-                match api_error {
-                    ErrorKind::Forbidden { .. } => Err(BackendError::LoggedOut),
-                    ErrorKind::Unauthorized => Err(BackendError::LoggedOut),
-                    ErrorKind::UnknownToken { soft_logout } => {
-                        if *soft_logout {
-                            Err(BackendError::SoftLoggedOut)
-                        } else {
-                            Err(BackendError::LoggedOut)
-                        }
-                    }
-                    _ => Err(BackendError::Technical(anyhow::anyhow!(e))),
-                }
-            }
-        }
-    }
-
-    /// FIXME: Remove this after the refactor is done
-    pub fn matrix_client(&self) -> &Client {
-        &self.client
-    }
-}
-
-impl BackendSession for BackendSessionMatrix {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-impl Drop for BackendSessionMatrix {
-    fn drop(&mut self) {
-        self.tasks_cancellation_token.cancel();
-    }
-}
+use tachyon_core::application::error::BackendError;
+use tachyon_core::application::ports::{AuthService, BackendSession, CredentialRepository};
+use tachyon_core::domain::auth::{BridgeMetadata, InteractiveAuthStarted};
+use tachyon_core::domain::ids::{LoginId, UserId};
+use crate::domain::auth::SessionRestoreData;
+use crate::infrastructure::backend::session::BackendSessionMatrix;
+use crate::infrastructure::mappers::IntoMapper;
 
 const PENDING_CLIENT_TTL: Duration = Duration::from_secs(600);
 
@@ -116,6 +41,13 @@ impl PendingClient {
     fn is_expired(&self) -> bool {
         self.created_at.elapsed() > PENDING_CLIENT_TTL
     }
+}
+
+#[derive(Clone, Default)]
+pub struct MatrixBackendConfig {
+    pub store_root: Option<PathBuf>,
+    pub disable_ssl: bool,
+    pub homeserver_url_override: Option<String>,
 }
 
 pub struct AuthServiceMatrixSdk {
@@ -189,7 +121,7 @@ impl AuthServiceMatrixSdk {
 
 #[async_trait]
 impl AuthService for AuthServiceMatrixSdk {
-    async fn restore_login(
+    async fn restore_session(
         &self,
         login_id: LoginId,
     ) -> Result<Arc<dyn BackendSession>, BackendError> {
@@ -219,7 +151,7 @@ impl AuthService for AuthServiceMatrixSdk {
             session_cancellation_token.clone(),
             session_restore_data,
         )
-        .await?;
+            .await?;
 
         Ok(Arc::new(session))
     }
@@ -232,6 +164,16 @@ impl AuthService for AuthServiceMatrixSdk {
         redirect_url: &str,
         bridge_metadata: &BridgeMetadata,
     ) -> Result<InteractiveAuthStarted, BackendError> {
+
+
+        {
+            let mut pending_clients = self.pending_clients
+                .lock()
+                .await;
+
+            pending_clients.retain(|_, v| !v.is_expired());
+        }
+
         let user_id: Option<OwnedUserId> = match user_id {
             None => None,
             Some(user_id) => Some(
@@ -251,10 +193,16 @@ impl AuthService for AuthServiceMatrixSdk {
             return Ok(InteractiveAuthStarted::PasswordRequired);
         }
 
-        self.pending_clients
-            .lock()
-            .await
-            .insert(login_id.to_string(), PendingClient::new(client.clone()));
+        {
+            let mut pending_clients = self.pending_clients
+                .lock()
+                .await;
+
+            pending_clients
+                .insert(login_id.to_string(), PendingClient::new(client.clone()));
+
+        }
+
 
         let redirect_url =
             Url::parse(redirect_url).map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
@@ -293,13 +241,15 @@ impl AuthService for AuthServiceMatrixSdk {
         let client = {
             let mut pending = self.pending_clients.lock().await;
 
+            let found = pending
+                .remove(&login_id.to_string())
+                .map(|p| p.client)
+                .ok_or(BackendError::LoggedOut)?;
+
             // Purge expired entries
             pending.retain(|_, v| !v.is_expired());
 
-            pending
-                .remove(&login_id.to_string())
-                .map(|p| p.client)
-                .ok_or(BackendError::LoggedOut)?
+            found
         };
 
         client
@@ -318,15 +268,11 @@ impl AuthService for AuthServiceMatrixSdk {
             session_cancellation_token.clone(),
         )?;
 
-        let session = BackendSessionMatrix {
-            client,
-            tasks_cancellation_token: session_cancellation_token,
-        };
+        let session = BackendSessionMatrix::new(client, session_cancellation_token);
 
         Ok(Arc::new(session))
     }
 }
-
 
 fn sanitize_user_id(user_id: &matrix_sdk::ruma::UserId) -> String {
     uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, user_id.as_str().as_bytes())
@@ -409,8 +355,6 @@ fn subscribe_to_session_tokens(
     Ok(handle)
 }
 
-/// A rotated token that is not persisted is a silent re-login on the next restart — never
-/// swallow failures here.
 async fn persist_refreshed_tokens(
     login_id: &LoginId,
     client: &Client,

@@ -18,10 +18,17 @@ pub struct RestoredLogin {
 pub struct AuthUseCase {
     account_repository: Arc<dyn AccountRepository>,
     auth_service: Arc<dyn AuthService>,
+    
     session_repository: Arc<dyn SessionRepository>,
     /// TODO: Move this configuration towards the bridges
     redirect_url: String,
 }
+
+pub enum LoginOutcome {
+    SessionOpened { login_id: LoginId, session: Arc<dyn BackendSession> },
+    DeviceVerificationRequired { login_id: LoginId }
+}
+
 
 impl AuthUseCase {
     pub fn new(
@@ -45,14 +52,8 @@ impl AuthUseCase {
             return Err(AuthError::BackendCredentialsNotInStore);
         };
 
-        //FIXME: In which circonstances can this happen ? if a client retriggers a restore session, we should get rid of a remaining one, not giving it back, we should also ensure the session is properly deleted on logout of the bridge.
-        if let Some(session) = self.session_repository.get(&login_id) {
-            return Ok(RestoredLogin { login_id, session });
-        }
-
-        let session = self.auth_service.restore_login(login_id.clone()).await?;
-        self.session_repository.insert(login_id.clone(), session.clone());
-
+        let session = self.auth_service.restore_session(login_id.clone()).await?;
+        let _ = self.session_repository.insert(login_id.clone(), session.clone());
         Ok(RestoredLogin { login_id, session })
     }
 
@@ -83,7 +84,7 @@ impl AuthUseCase {
         &self,
         login_id: &LoginId,
         callback_query_params: &str,
-    ) -> Result<Arc<dyn BackendSession>, AuthError> {
+    ) -> Result<LoginOutcome, AuthError> {
         let session = self
             .auth_service
             .finish_interactive_login(login_id, callback_query_params)
@@ -92,7 +93,13 @@ impl AuthUseCase {
         self.session_repository
             .insert(login_id.clone(), session.clone());
 
-        Ok(session)
+        
+        let outcome = LoginOutcome::SessionOpened {
+            login_id: login_id.clone(),
+            session,
+        };
+        
+        Ok(outcome)
     }
 
     pub async fn bind_token(
