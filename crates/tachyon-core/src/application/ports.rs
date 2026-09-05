@@ -40,10 +40,11 @@ pub trait AuthService: Send + Sync {
 
 #[async_trait]
 pub trait VerificationService: Send + Sync {
+    /// Starts device verification for the given login.
+    async fn start_device_verification(&self, login_id: &LoginId) -> Result<(), BackendError>;
 
-    // Define the interface of the Verification Service. AI!
-    async fn start_device_verfication(&self);
-
+    /// Completes device verification using the provided code.
+    async fn complete_device_verification(&self, login_id: &LoginId, code: &str) -> Result<(), BackendError>;
 }
 
 #[async_trait]
