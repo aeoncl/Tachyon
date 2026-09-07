@@ -22,6 +22,7 @@ use std::sync::{Arc, Mutex};
 /// the last one repeats, so a test can make the device flip to verified partway through.
 pub(crate) struct FakeBackendSession {
     device_statuses: Mutex<Vec<DeviceStatus>>,
+    device_status_fails: bool,
     verification_state: Mutex<Option<VerificationFlowState>>,
     device_status_calls: AtomicUsize,
     finish_calls: AtomicUsize,
@@ -34,6 +35,19 @@ impl FakeBackendSession {
         assert!(!device_statuses.is_empty(), "script at least one device status");
         Arc::new(Self {
             device_statuses: Mutex::new(device_statuses),
+            device_status_fails: false,
+            verification_state: Mutex::new(None),
+            device_status_calls: AtomicUsize::new(0),
+            finish_calls: AtomicUsize::new(0),
+            close_calls: AtomicUsize::new(0),
+        })
+    }
+
+    /// A session whose homeserver cannot be reached for the device status.
+    pub(crate) fn with_unreachable_device_status() -> Arc<Self> {
+        Arc::new(Self {
+            device_statuses: Mutex::new(vec![DeviceStatus::Unverified]),
+            device_status_fails: true,
             verification_state: Mutex::new(None),
             device_status_calls: AtomicUsize::new(0),
             finish_calls: AtomicUsize::new(0),
@@ -81,6 +95,11 @@ impl BackendSession for FakeBackendSession {
     async fn device_status(&self) -> Result<DeviceStatus, BackendError> {
         self.device_status_calls.fetch_add(1, Ordering::SeqCst);
         tokio::task::yield_now().await;
+        if self.device_status_fails {
+            return Err(BackendError::Technical(anyhow::anyhow!(
+                "device status unavailable"
+            )));
+        }
         Ok(self.next_device_status())
     }
 

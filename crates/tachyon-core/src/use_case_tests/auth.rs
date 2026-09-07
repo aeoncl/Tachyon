@@ -21,9 +21,12 @@ struct Fixture {
 
 impl Fixture {
     fn with_device_statuses(statuses: impl IntoIterator<Item = DeviceStatus>) -> Self {
+        Self::with_session(FakeBackendSession::new(statuses))
+    }
+
+    fn with_session(session: Arc<FakeBackendSession>) -> Self {
         let token = TachyonToken::new("tachyon-token");
         let login_id = LoginId::new("login-1");
-        let session = FakeBackendSession::new(statuses);
         let auth_service = FakeAuthService::new(session.clone());
         let session_repository = Arc::new(SessionRepositoryInMem::default());
         let use_case = AuthUseCase::new(
@@ -255,4 +258,18 @@ async fn starting_an_interactive_login_parks_the_session_until_it_authenticates(
     );
     assert!(fixture.session_repository.get_ready(&start.login_id).is_none());
     assert_eq!(fixture.session.device_status_calls(), 0);
+}
+
+#[tokio::test]
+async fn a_restore_whose_first_settle_fails_leaves_nothing_behind() {
+    let fixture = Fixture::with_session(FakeBackendSession::with_unreachable_device_status());
+
+    let error = fixture.use_case.restore(&fixture.token).await.err().unwrap();
+
+    assert!(matches!(error, AuthError::BackendError(_)));
+    assert_eq!(fixture.readiness(), None);
+    assert_eq!(fixture.session.close_calls(), 1);
+
+    fixture.use_case.restore(&fixture.token).await.err().unwrap();
+    assert_eq!(fixture.auth_service.restore_calls(), 2);
 }

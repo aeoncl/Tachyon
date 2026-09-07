@@ -137,7 +137,14 @@ impl AuthUseCase {
             let session = self.auth_service.restore(&login_id).await?;
             self.session_repository
                 .insert(login_id.clone(), session.clone(), Readiness::AuthNeeded);
-            return self.settle(&login_id, session).await;
+            let outcome = self.settle(&login_id, session.clone()).await;
+            if outcome.is_err() {
+                // An entry left in AuthNeeded would make every later restore hit the
+                // unreachable arm below; the next attempt has to rebuild from scratch.
+                self.session_repository.remove(&login_id);
+                session.close().await;
+            }
+            return outcome;
         };
 
         match entry.readiness {
