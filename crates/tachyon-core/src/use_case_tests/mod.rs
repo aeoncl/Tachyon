@@ -7,3 +7,4 @@
 //! readiness rule it enforces, untested.
 
 mod auth;
+mod device_verification;

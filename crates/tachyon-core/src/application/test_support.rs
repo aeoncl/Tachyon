@@ -41,6 +41,14 @@ impl FakeBackendSession {
         })
     }
 
+    pub(crate) fn with_verification_state(
+        self: Arc<Self>,
+        state: VerificationFlowState,
+    ) -> Arc<Self> {
+        *self.verification_state.lock().unwrap() = Some(state);
+        self
+    }
+
     pub(crate) fn device_status_calls(&self) -> usize {
         self.device_status_calls.load(Ordering::SeqCst)
     }
