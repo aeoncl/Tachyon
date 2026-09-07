@@ -1,47 +1,25 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc};
-use std::time::{Duration, Instant};
+use std::sync::Arc;
+
 use anyhow::anyhow;
 use async_trait::async_trait;
-use matrix_sdk::{Client, ServerName, SessionChange};
-use matrix_sdk::authentication::oauth::registration::{ApplicationType, ClientMetadata, Localized, OAuthGrantType};
-use matrix_sdk::authentication::oauth::UrlOrQuery;
+use matrix_sdk::authentication::oauth::registration::{
+    ApplicationType, ClientMetadata, Localized, OAuthGrantType,
+};
 use matrix_sdk::reqwest::Url;
 use matrix_sdk::ruma::OwnedUserId;
+use matrix_sdk::ruma::api::client::error::ErrorKind;
 use matrix_sdk::ruma::serde::Raw;
-use tokio::select;
-use tokio::sync::broadcast::error::RecvError;
-use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
-use tokio_util::sync::CancellationToken;
+use matrix_sdk::{Client, HttpError, ServerName};
+
 use tachyon_core::application::error::BackendError;
 use tachyon_core::application::ports::{AuthService, BackendSession, CredentialRepository};
 use tachyon_core::domain::auth::{BridgeMetadata, InteractiveAuthStarted};
 use tachyon_core::domain::ids::{LoginId, UserId};
+
 use crate::domain::auth::SessionRestoreData;
 use crate::infrastructure::backend::session::BackendSessionMatrix;
 use crate::infrastructure::mappers::IntoMapper;
-
-const PENDING_CLIENT_TTL: Duration = Duration::from_secs(600);
-
-struct PendingClient {
-    client: Client,
-    created_at: Instant,
-}
-
-impl PendingClient {
-    fn new(client: Client) -> Self {
-        Self {
-            client,
-            created_at: Instant::now(),
-        }
-    }
-
-    fn is_expired(&self) -> bool {
-        self.created_at.elapsed() > PENDING_CLIENT_TTL
-    }
-}
 
 #[derive(Clone, Default)]
 pub struct MatrixBackendConfig {
@@ -52,7 +30,6 @@ pub struct MatrixBackendConfig {
 
 pub struct AuthServiceMatrixSdk {
     credential_repository: Arc<dyn CredentialRepository>,
-    pending_clients: Mutex<HashMap<String, PendingClient>>,
     config: MatrixBackendConfig,
 }
 
@@ -63,7 +40,6 @@ impl AuthServiceMatrixSdk {
     ) -> Self {
         Self {
             credential_repository,
-            pending_clients: Mutex::new(HashMap::new()),
             config,
         }
     }
@@ -86,6 +62,9 @@ impl AuthServiceMatrixSdk {
 
         // Do we really need to create the store here ? doesn't the SDK makes sure the folder exist ? If not, we should move that to a different service cause that's unrelated IO.
         if let (Some(store_root), Some(user_id)) = (&self.config.store_root, user_id) {
+            // TODO(login-store-dir): the store belongs at `store_root/logins/<login_id>`, so a
+            // second login on the same account gets its own device. Keeps the legacy layout until
+            // that change lands.
             let store_path = store_root.join(sanitize_user_id(user_id)).join("store");
             std::fs::create_dir_all(&store_path).map_err(|e| {
                 BackendError::Technical(anyhow!("Could not create store dir: {}", e))
@@ -98,34 +77,12 @@ impl AuthServiceMatrixSdk {
             .await
             .map_err(|e| BackendError::Technical(anyhow::anyhow!("{}", e)))
     }
-
-    async fn store_credentials(
-        &self,
-        login_id: &LoginId,
-        client: &Client,
-    ) -> Result<(), BackendError> {
-        let session = client
-            .session()
-            .ok_or_else(|| BackendError::Technical(anyhow!("Client has no session after login")))?;
-
-        let blob = SessionRestoreData::try_from(session)
-            .map_err(BackendError::Technical)?
-            .to_blob()
-            .map_err(BackendError::Technical)?;
-
-        self.credential_repository.store(login_id, blob).await?;
-
-        Ok(())
-    }
 }
 
 #[async_trait]
 impl AuthService for AuthServiceMatrixSdk {
-    async fn restore_session(
-        &self,
-        login_id: LoginId,
-    ) -> Result<Arc<dyn BackendSession>, BackendError> {
-        let Some(blob) = self.credential_repository.credentials(&login_id).await? else {
+    async fn restore(&self, login_id: &LoginId) -> Result<Arc<dyn BackendSession>, BackendError> {
+        let Some(blob) = self.credential_repository.credentials(login_id).await? else {
             return Err(BackendError::LoggedOut);
         };
 
@@ -137,21 +94,18 @@ impl AuthService for AuthServiceMatrixSdk {
             .build_client(user_id.server_name(), Some(&user_id))
             .await?;
 
-        let session_cancellation_token = CancellationToken::new();
+        if let Err(err) = client.restore_session(session_restore_data).await {
+            return Err(BackendError::CannotRestoreLogin(format!("{}", err)));
+        }
 
-        let _handle = subscribe_to_session_tokens(
-            &login_id,
-            &client,
-            self.credential_repository.clone(),
-            session_cancellation_token.clone(),
-        )?;
+        client.whoami().await.map_err(map_whoami_error)?;
 
-        let session = BackendSessionMatrix::restore(
+        let session = BackendSessionMatrix::new(
             client,
-            session_cancellation_token.clone(),
-            session_restore_data,
-        )
-            .await?;
+            login_id.clone(),
+            self.credential_repository.clone(),
+        );
+        session.spawn_token_watcher();
 
         Ok(Arc::new(session))
     }
@@ -163,17 +117,7 @@ impl AuthService for AuthServiceMatrixSdk {
         user_id: Option<UserId>,
         redirect_url: &str,
         bridge_metadata: &BridgeMetadata,
-    ) -> Result<InteractiveAuthStarted, BackendError> {
-
-
-        {
-            let mut pending_clients = self.pending_clients
-                .lock()
-                .await;
-
-            pending_clients.retain(|_, v| !v.is_expired());
-        }
-
+    ) -> Result<(Arc<dyn BackendSession>, InteractiveAuthStarted), BackendError> {
         let user_id: Option<OwnedUserId> = match user_id {
             None => None,
             Some(user_id) => Some(
@@ -188,21 +132,16 @@ impl AuthService for AuthServiceMatrixSdk {
 
         let client = self.build_client(&server_name, user_id.as_deref()).await?;
 
+        let session = Arc::new(BackendSessionMatrix::new(
+            client.clone(),
+            login_id.clone(),
+            self.credential_repository.clone(),
+        ));
+
         // No OAuth on this homeserver: the bridge has to collect a password itself.
         if client.oauth().cached_server_metadata().await.is_err() {
-            return Ok(InteractiveAuthStarted::PasswordRequired);
+            return Ok((session, InteractiveAuthStarted::PasswordRequired));
         }
-
-        {
-            let mut pending_clients = self.pending_clients
-                .lock()
-                .await;
-
-            pending_clients
-                .insert(login_id.to_string(), PendingClient::new(client.clone()));
-
-        }
-
 
         let redirect_url =
             Url::parse(redirect_url).map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
@@ -210,7 +149,7 @@ impl AuthService for AuthServiceMatrixSdk {
         let raw_client_metadata =
             Raw::new(&client_metadata).map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
 
-        let _ = client
+        client
             .oauth()
             .register_client(&raw_client_metadata)
             .await
@@ -227,50 +166,28 @@ impl AuthService for AuthServiceMatrixSdk {
                 .map_err(|e| BackendError::Technical(anyhow!("{}", e)))?
         };
 
-        Ok(InteractiveAuthStarted::OAuth {
-            auth_url: authorization_data.url.to_string(),
-            csrf_token: authorization_data.state.into_secret(),
-        })
+        Ok((
+            session,
+            InteractiveAuthStarted::OAuth {
+                auth_url: authorization_data.url.to_string(),
+                csrf_token: authorization_data.state.into_secret(),
+            },
+        ))
     }
+}
 
-    async fn finish_interactive_login(
-        &self,
-        login_id: &LoginId,
-        callback_query: &str,
-    ) -> Result<Arc<dyn BackendSession>, BackendError> {
-        let client = {
-            let mut pending = self.pending_clients.lock().await;
+fn map_whoami_error(error: HttpError) -> BackendError {
+    let Some(api_error) = error.client_api_error_kind() else {
+        return BackendError::Technical(anyhow!(error));
+    };
 
-            let found = pending
-                .remove(&login_id.to_string())
-                .map(|p| p.client)
-                .ok_or(BackendError::LoggedOut)?;
-
-            // Purge expired entries
-            pending.retain(|_, v| !v.is_expired());
-
-            found
-        };
-
-        client
-            .oauth()
-            .finish_login(UrlOrQuery::Query(callback_query.to_string()))
-            .await
-            .map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
-
-        self.store_credentials(login_id, &client).await?;
-
-        let session_cancellation_token = CancellationToken::new();
-        let _handle = subscribe_to_session_tokens(
-            login_id,
-            &client,
-            self.credential_repository.clone(),
-            session_cancellation_token.clone(),
-        )?;
-
-        let session = BackendSessionMatrix::new(client, session_cancellation_token);
-
-        Ok(Arc::new(session))
+    match api_error {
+        ErrorKind::Forbidden { .. } | ErrorKind::Unauthorized => BackendError::LoggedOut,
+        ErrorKind::UnknownToken { soft_logout } => match soft_logout {
+            true => BackendError::SoftLoggedOut,
+            false => BackendError::LoggedOut,
+        },
+        _ => BackendError::Technical(anyhow!(error)),
     }
 }
 
@@ -312,79 +229,14 @@ fn build_client_metadata(
     Ok(metadata)
 }
 
-fn subscribe_to_session_tokens(
-    login_id: &LoginId,
-    client: &matrix_sdk::Client,
-    credential_repository: Arc<dyn CredentialRepository>,
-    cancellation_token: CancellationToken,
-) -> Result<JoinHandle<()>, BackendError> {
-    let mut receiver = client.subscribe_to_session_changes();
-
-    let login_id_clone = login_id.clone();
-    let client_clone = client.clone();
-    let handle = tokio::spawn(async move {
-        loop {
-            select! {
-
-                _cancel = cancellation_token.cancelled() => {
-                    break;
-                }
-
-                session_change = receiver.recv() => {
-
-                    let session_change = match session_change {
-                        Ok(session_change) => session_change,
-                        Err(RecvError::Lagged(_)) => continue,
-                        Err(RecvError::Closed) => break,
-                    };
-
-                    match session_change {
-                        SessionChange::UnknownToken { soft_logout: _ } => {
-                            //Todo push Logout or SoftLogoutEvent
-                        }
-                        SessionChange::TokensRefreshed => {
-                            persist_refreshed_tokens(&login_id_clone, &client_clone, &credential_repository).await;
-                        }
-                    }
-
-                }
-            }
-        }
-    });
-
-    Ok(handle)
-}
-
-async fn persist_refreshed_tokens(
-    login_id: &LoginId,
-    client: &Client,
-    credential_repository: &Arc<dyn CredentialRepository>,
-) {
-    let Some(session) = client.session() else {
-        log::warn!("Tokens refreshed but the client has no session to persist");
-        return;
-    };
-
-    let blob = SessionRestoreData::try_from(session).and_then(|data| data.to_blob());
-
-    match blob {
-        Ok(blob) => {
-            if let Err(e) = credential_repository.store(login_id, blob).await {
-                log::warn!("Could not persist refreshed tokens: {:?}", e);
-            }
-        }
-        Err(e) => log::warn!("Could not serialize refreshed tokens: {:?}", e),
-    }
-}
-
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use tachyon_testkit::repositories::CredentialRepositoryInMem;
     use wiremock::matchers::any;
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    async fn build_test_client() -> (Client, MockServer) {
+    pub(crate) async fn build_test_auth_service() -> (AuthServiceMatrixSdk, MockServer) {
         let mock_server = MockServer::start().await;
         Mock::given(any())
             .respond_with(ResponseTemplate::new(200).set_body_string("{}"))
@@ -400,6 +252,12 @@ mod tests {
             },
         );
 
+        (auth_service, mock_server)
+    }
+
+    pub(crate) async fn build_test_client() -> (Client, MockServer) {
+        let (auth_service, mock_server) = build_test_auth_service().await;
+
         let client = auth_service
             .build_client(&ServerName::parse("localhost").unwrap(), None)
             .await
@@ -408,23 +266,13 @@ mod tests {
         (client, mock_server)
     }
 
-    #[tokio::test]
-    async fn test_pending_client_not_expired_when_fresh() {
-        let (client, _mock) = build_test_client().await;
-
-        let pc = PendingClient::new(client);
-        assert!(!pc.is_expired(), "freshly created client should not be expired");
-    }
-
-    #[tokio::test]
-    async fn test_pending_client_expired_after_ttl() {
-        let (client, _mock) = build_test_client().await;
-
-        let pc = PendingClient {
-            client,
-            created_at: Instant::now() - PENDING_CLIENT_TTL - Duration::from_secs(1),
-        };
-        assert!(pc.is_expired(), "client should be expired after TTL has elapsed");
+    fn bridge_metadata() -> BridgeMetadata {
+        BridgeMetadata {
+            name: "Tachyon".to_string(),
+            client_uri: "https://localhost/".to_string(),
+            image_url: None,
+            tos: None,
+        }
     }
 
     #[test]
@@ -437,28 +285,27 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stored_credentials_round_trip_through_the_repository() {
-        let (client, _mock) = build_test_client().await;
-        let restore_data = SessionRestoreData {
-            access_token: "access".to_string(),
-            refresh_token: Some("refresh".to_string()),
-            user_id: matrix_sdk::ruma::UserId::parse("@aeon:shlasouf.local").unwrap().to_owned(),
-            device_id: matrix_sdk::ruma::OwnedDeviceId::from("DEVICEID"),
-            auth_kind: crate::domain::auth::AuthKind::Matrix,
-        };
-        client.restore_session(restore_data.clone()).await.unwrap();
+    async fn start_interactive_login_returns_a_usable_session_on_a_homeserver_without_oauth() {
+        let (auth_service, _mock) = build_test_auth_service().await;
 
-        let repository = Arc::new(CredentialRepositoryInMem::default());
-        let auth_service = AuthServiceMatrixSdk::new(
-            repository.clone(),
-            MatrixBackendConfig::default(),
+        let (session, started) = auth_service
+            .start_interactive_login(
+                &LoginId::new("l1"),
+                "localhost",
+                None,
+                "https://localhost/callback",
+                &bridge_metadata(),
+            )
+            .await
+            .unwrap();
+
+        assert!(matches!(started, InteractiveAuthStarted::PasswordRequired));
+        assert!(
+            session
+                .as_any()
+                .downcast_ref::<BackendSessionMatrix>()
+                .is_some(),
+            "the pending client must come back as a session"
         );
-        let login_id = LoginId::new("l1");
-
-        auth_service.store_credentials(&login_id, &client).await.unwrap();
-
-        let blob = repository.credentials(&login_id).await.unwrap().unwrap();
-        let restored = SessionRestoreData::from_blob(&blob).unwrap();
-        assert!(restored == restore_data);
     }
 }
