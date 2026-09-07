@@ -94,18 +94,25 @@ impl AuthService for AuthServiceMatrixSdk {
             .build_client(user_id.server_name(), Some(&user_id))
             .await?;
 
-        if let Err(err) = client.restore_session(session_restore_data).await {
-            return Err(BackendError::CannotRestoreLogin(format!("{}", err)));
-        }
-
-        client.whoami().await.map_err(map_whoami_error)?;
-
         let session = BackendSessionMatrix::new(
             client,
             login_id.clone(),
             self.credential_repository.clone(),
         );
+        // The first request after restore can already refresh the tokens, and MAS rotates
+        // the refresh token with them. The watcher has to be listening before that or the
+        // rotated token is never persisted and the next restart is logged out.
         session.spawn_token_watcher();
+
+        if let Err(err) = session.matrix_client().restore_session(session_restore_data).await {
+            session.close().await;
+            return Err(BackendError::CannotRestoreLogin(format!("{}", err)));
+        }
+
+        if let Err(err) = session.matrix_client().whoami().await {
+            session.close().await;
+            return Err(map_whoami_error(err));
+        }
 
         Ok(Arc::new(session))
     }
