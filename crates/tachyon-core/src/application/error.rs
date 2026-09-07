@@ -12,6 +12,8 @@ pub enum AuthError {
     BackendError(#[from] BackendError),
     #[error(transparent)]
     StoreError(#[from] StoreError),
+    #[error(transparent)]
+    Readiness(#[from] ReadinessError),
 }
 
 #[derive(Debug, thiserror::Error)]
