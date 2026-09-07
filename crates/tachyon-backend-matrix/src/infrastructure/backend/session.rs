@@ -19,7 +19,8 @@ use tachyon_core::domain::verification::{
 };
 
 use crate::domain::auth::SessionRestoreData;
-use crate::infrastructure::backend::verification::{PendingReset, VerificationFlowMatrix};
+use crate::infrastructure::backend::verification::{PendingReset, VerificationFlowMatrix, sas_of};
+use crate::infrastructure::mappers::IntoMapper;
 
 pub struct BackendSessionMatrix {
     client: Client,
@@ -177,25 +178,68 @@ impl BackendSession for BackendSessionMatrix {
         Err(not_implemented())
     }
 
-    async fn start_device_verification(
-        &self,
-        _device: &DeviceId,
-    ) -> Result<(), VerificationError> {
+    async fn start_device_verification(&self, device: &DeviceId) -> Result<(), VerificationError> {
         self.ensure_open()?;
-        Err(not_implemented())
+
+        let user_id = self
+            .client
+            .user_id()
+            .ok_or_else(|| technical("Client has no user id"))?;
+        let Ok(device_id) = device.clone().map_into();
+
+        let device = self
+            .client
+            .encryption()
+            .get_device(user_id, &device_id)
+            .await
+            .map_err(technical)?
+            .ok_or_else(|| technical(format!("unknown device {device_id}")))?;
+
+        let previous = lock(&self.verification).take();
+        if let Some(previous) = previous {
+            previous.cancel().await;
+        }
+
+        let flow =
+            VerificationFlowMatrix::start(&self.client, device, self.tasks_token.child_token())
+                .await?;
+
+        let raced = lock(&self.verification).replace(flow);
+        if let Some(raced) = raced {
+            raced.cancel().await;
+        }
+
+        Ok(())
     }
 
     fn verification_state(&self) -> Option<VerificationFlowState> {
         self.ensure_open().ok()?;
-        None
+        lock(&self.verification)
+            .as_ref()
+            .map(VerificationFlowMatrix::state)
     }
 
-    async fn verification_action(
-        &self,
-        _action: VerificationAction,
-    ) -> Result<(), VerificationError> {
+    async fn verification_action(&self, action: VerificationAction) -> Result<(), VerificationError> {
         self.ensure_open()?;
-        Err(not_implemented())
+
+        let request = lock(&self.verification)
+            .as_ref()
+            .map(|flow| flow.request().clone())
+            .ok_or(VerificationError::NoVerificationInProgress)?;
+
+        match action {
+            VerificationAction::Cancel => request.cancel().await.map_err(technical),
+            VerificationAction::Confirm => sas_of(&request)
+                .ok_or(VerificationError::NoVerificationInProgress)?
+                .confirm()
+                .await
+                .map_err(technical),
+            VerificationAction::Mismatch => sas_of(&request)
+                .ok_or(VerificationError::NoVerificationInProgress)?
+                .mismatch()
+                .await
+                .map_err(technical),
+        }
     }
 
     async fn reset_identity(
@@ -223,6 +267,10 @@ impl Drop for BackendSessionMatrix {
 
 fn not_implemented() -> VerificationError {
     VerificationError::Backend(BackendError::Technical(anyhow!("not implemented")))
+}
+
+fn technical(error: impl std::fmt::Display) -> VerificationError {
+    VerificationError::Backend(BackendError::Technical(anyhow!("{error}")))
 }
 
 /// A panic in one of the short critical sections must not stop `close` from draining the
@@ -316,6 +364,37 @@ mod tests {
         session.close().await;
 
         assert!(session.tasks_token.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn no_verification_state_before_a_flow_starts() {
+        let (client, _mock) = build_test_client().await;
+        let session = session(client);
+
+        assert!(session.verification_state().is_none());
+    }
+
+    #[tokio::test]
+    async fn an_action_without_a_flow_is_refused() {
+        let (client, _mock) = build_test_client().await;
+        let session = session(client);
+
+        assert!(matches!(
+            session.verification_action(VerificationAction::Confirm).await,
+            Err(VerificationError::NoVerificationInProgress)
+        ));
+    }
+
+    #[tokio::test]
+    async fn starting_a_verification_without_a_logged_in_client_fails() {
+        let (client, _mock) = build_test_client().await;
+        let session = session(client);
+
+        assert!(matches!(
+            session.start_device_verification(&DeviceId::new("OTHER")).await,
+            Err(VerificationError::Backend(BackendError::Technical(_)))
+        ));
+        assert!(session.verification_state().is_none());
     }
 
     #[tokio::test]

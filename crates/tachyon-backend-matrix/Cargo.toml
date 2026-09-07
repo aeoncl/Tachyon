@@ -9,6 +9,7 @@ dashmap = "6.2.1"
 
 anyhow.workspace = true
 thiserror.workspace = true
+futures-util = "0.3.31"
 tokio.workspace = true
 tokio-util.workspace = true
 log = "0.4.29"
