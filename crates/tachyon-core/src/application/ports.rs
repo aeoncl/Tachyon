@@ -1,11 +1,14 @@
-use crate::application::error::{BackendError, StoreError};
+use crate::application::error::{BackendError, StoreError, VerificationError};
 use crate::domain::auth::{BridgeMetadata, CredentialBlob, InteractiveAuthStarted, TachyonToken};
-use crate::domain::ids::{LoginId, SessionId, UserId};
+use crate::domain::ids::{DeviceId, LoginId, SessionId, UserId, VerificationFlowId};
+use crate::domain::verification::{
+    DeviceStatus, IdentityReset, RecoveryKey, VerificationAction, VerificationFlowState,
+    VerificationOptions,
+};
 use async_trait::async_trait;
 use std::any::Any;
 use std::sync::Arc;
 use crate::domain::bridge::BridgeHandle;
-use crate::domain::events::BridgeEvent;
 
 /// A live, authenticated connection to a chat backend.
 pub trait BackendSession: Send + Sync {
@@ -40,11 +43,22 @@ pub trait AuthService: Send + Sync {
 
 #[async_trait]
 pub trait VerificationService: Send + Sync {
-    /// Starts device verification for the given login.
-    async fn start_device_verification(&self, login_id: &LoginId) -> Result<(), BackendError>;
+    async fn device_status(&self, login_id: &LoginId) -> Result<DeviceStatus, VerificationError>;
 
-    /// Completes device verification using the provided code.
-    async fn complete_device_verification(&self, login_id: &LoginId, code: &str) -> Result<(), BackendError>;
+    async fn verification_options(&self, login_id: &LoginId) -> Result<VerificationOptions, VerificationError>;
+
+    /// Imports the cross-signing secrets guarded by the key and returns the device status afterwards.
+    async fn recover(&self, login_id: &LoginId, recovery_key: &RecoveryKey) -> Result<DeviceStatus, VerificationError>;
+
+    /// Asks one of the user's other devices to verify this one with SAS emojis.
+    async fn start_device_verification(&self, login_id: &LoginId, device_id: &DeviceId) -> Result<VerificationFlowId, VerificationError>;
+
+    async fn verification_state(&self, login_id: &LoginId, flow_id: &VerificationFlowId) -> Result<VerificationFlowState, VerificationError>;
+
+    async fn verification_action(&self, login_id: &LoginId, flow_id: &VerificationFlowId, action: VerificationAction) -> Result<(), VerificationError>;
+
+    /// Replaces the user's cross-signing identity. Every other device becomes unverified.
+    async fn reset_identity(&self, login_id: &LoginId, password: Option<&str>) -> Result<IdentityReset, VerificationError>;
 }
 
 #[async_trait]

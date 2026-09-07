@@ -26,6 +26,21 @@ pub enum BackendError {
     StoreError(StoreError),
 }
 
+#[derive(Debug)]
+pub enum VerificationError {
+    /// No authenticated login with that id.
+    LoginNotFound,
+    FlowNotFound,
+    InvalidRecoveryKey,
+    Backend(BackendError),
+}
+
+impl From<BackendError> for VerificationError {
+    fn from(value: BackendError) -> Self {
+        Self::Backend(value)
+    }
+}
+
 pub enum SessionError {
 
 
