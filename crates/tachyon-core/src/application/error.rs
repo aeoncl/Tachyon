@@ -1,3 +1,5 @@
+use crate::domain::auth::Readiness;
+
 #[derive(Debug, thiserror::Error)]
 pub enum AuthError {
     #[error("no backend credentials stored for this token")]
@@ -46,6 +48,14 @@ pub enum VerificationError {
     Backend(#[from] BackendError),
     #[error(transparent)]
     Store(#[from] StoreError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ReadinessError {
+    #[error("no session with that login id")]
+    NotFound,
+    #[error("readiness cannot go backwards, from {from:?} to {to:?}")]
+    Backwards { from: Readiness, to: Readiness },
 }
 
 #[derive(Debug, thiserror::Error)]

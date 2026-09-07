@@ -1,6 +1,6 @@
 use crate::application::error::AuthError;
 use crate::application::ports::{AccountRepository, AuthService, BackendSession, SessionRepository};
-use crate::domain::auth::{BridgeMetadata, InteractiveAuthStarted, TachyonToken};
+use crate::domain::auth::{BridgeMetadata, InteractiveAuthStarted, Readiness, TachyonToken};
 use crate::domain::ids::{LoginId, UserId};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -52,8 +52,12 @@ impl AuthUseCase {
             return Err(AuthError::BackendCredentialsNotInStore);
         };
 
-        let session = self.auth_service.restore_session(login_id.clone()).await?;
-        let _ = self.session_repository.insert(login_id.clone(), session.clone());
+        let session = self.auth_service.restore(&login_id).await?;
+        let _ = self.session_repository.insert(
+            login_id.clone(),
+            session.clone(),
+            Readiness::AuthNeeded,
+        );
         Ok(RestoredLogin { login_id, session })
     }
 
@@ -65,7 +69,7 @@ impl AuthUseCase {
     ) -> Result<LoginStart, AuthError> {
         let login_id = LoginId::new(Uuid::new_v4().to_string());
 
-        let prompt = self
+        let (session, prompt) = self
             .auth_service
             .start_interactive_login(
                 &login_id,
@@ -76,6 +80,9 @@ impl AuthUseCase {
             )
             .await?;
 
+        self.session_repository
+            .insert(login_id.clone(), session, Readiness::AuthNeeded);
+
         Ok(LoginStart { login_id, prompt })
     }
 
@@ -85,21 +92,19 @@ impl AuthUseCase {
         login_id: &LoginId,
         callback_query_params: &str,
     ) -> Result<LoginOutcome, AuthError> {
-        let session = self
-            .auth_service
-            .finish_interactive_login(login_id, callback_query_params)
+        let Some(entry) = self.session_repository.get(login_id) else {
+            return Err(AuthError::LoginNotFound);
+        };
+
+        entry
+            .session
+            .finish_interactive_login(callback_query_params)
             .await?;
 
-        self.session_repository
-            .insert(login_id.clone(), session.clone());
-
-        
-        let outcome = LoginOutcome::SessionOpened {
+        Ok(LoginOutcome::SessionOpened {
             login_id: login_id.clone(),
-            session,
-        };
-        
-        Ok(outcome)
+            session: entry.session,
+        })
     }
 
     pub async fn bind_token(
