@@ -1,6 +1,8 @@
 use crate::application::error::{BackendError, StoreError, VerificationError};
 use crate::domain::auth::{BridgeMetadata, CredentialBlob, InteractiveAuthStarted, TachyonToken};
 use crate::domain::ids::{DeviceId, LoginId, SessionId, UserId, VerificationFlowId};
+use crate::domain::error::TachyonResult;
+use crate::domain::events::BridgeEvent;
 use crate::domain::verification::{
     DeviceStatus, IdentityReset, RecoveryKey, VerificationAction, VerificationFlowState,
     VerificationOptions,
@@ -8,7 +10,6 @@ use crate::domain::verification::{
 use async_trait::async_trait;
 use std::any::Any;
 use std::sync::Arc;
-use crate::domain::bridge::BridgeHandle;
 
 /// A live, authenticated connection to a chat backend.
 pub trait BackendSession: Send + Sync {
@@ -91,6 +92,12 @@ pub trait CredentialRepository: Send + Sync {
     async fn store(&self, login_id: &LoginId, blob: CredentialBlob) -> Result<(), StoreError>;
 }
 
+#[async_trait]
+pub trait BridgeHandle: Send + Sync {
+    async fn send(&self, event: BridgeEvent) -> TachyonResult<()>;
+}
+
+#[async_trait]
 pub trait BridgeRepository: Send + Sync {
     async fn register_bridge(&self, session_id: SessionId, bridge: Arc<dyn BridgeHandle>);
 

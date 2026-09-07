@@ -1,8 +1,8 @@
-use crate::application::ports::{BackendSession, BridgeRepository, SessionRepository};
+use crate::application::ports::{BackendSession, BridgeHandle, BridgeRepository, SessionRepository};
 use crate::domain::ids::{LoginId, SessionId};
+use async_trait::async_trait;
 use dashmap::DashMap;
 use std::sync::Arc;
-use crate::domain::bridge::BridgeHandle;
 
 /// Sessions live only as long as the process — they hold open backend connections, so
 /// there is nothing to persist. In-memory is this repository's production shape, not a
@@ -31,6 +31,7 @@ pub(crate) struct BridgeRepositoryInMem {
     bridges: DashMap<SessionId, Arc<dyn BridgeHandle>>
 
 }
+#[async_trait]
 impl BridgeRepository for BridgeRepositoryInMem {
     async fn register_bridge(&self, session_id: SessionId, bridge: Arc<dyn BridgeHandle>) {
         self.bridges.insert(session_id, bridge);
