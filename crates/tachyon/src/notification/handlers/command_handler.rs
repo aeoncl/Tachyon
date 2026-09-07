@@ -41,7 +41,7 @@ mod tests {
     use msnp::shared::traits::TryFromRawCommand;
     use std::str::FromStr;
     use std::sync::Arc;
-    use tachyon_backend_matrix::infrastructure::backend::{AuthServiceMatrixSdk, MatrixBackendConfig};
+    use tachyon_backend_matrix::infrastructure::backend::auth_service::{AuthServiceMatrixSdk, MatrixBackendConfig};
     use tachyon_testkit::repositories::{AccountRepositoryInMem, CredentialRepositoryInMem};
     use tachyon_core::infrastructure::app_state::AppState;
 

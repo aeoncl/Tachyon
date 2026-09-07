@@ -1,13 +1,10 @@
-use crate::matrix::verification_request_repository::VerificationRequestRepository;
 use crate::tachyon::alert::{Alert, AlertReceiver};
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::client::tachyon_client_repository::TachyonClientRepository;
 use crate::tachyon::config::tachyon_config::TachyonConfig;
 use crate::tachyon::identifiers::ticket::{derive_ticket, derive_token};
-use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::repository::RepositoryStr;
-use dashmap::DashMap;
-use matrix_sdk::Client;
+use dashmap::{DashMap, DashSet};
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::Arc;
@@ -28,18 +25,6 @@ pub struct PendingLogin {
     pub alert: Alert,
 }
 
-/// Stands in for a `TachyonClient` that does not exist yet.
-///
-/// On a fresh login the user is already in front of their browser, so device confirmation
-/// happens right there rather than costing a second `NOT` alert — but the `TachyonClient`
-/// only comes into being once the waiting `USR` handler wakes. This carries what the
-/// confirmation pages need in the meantime, keyed by the same ticket, so those pages never
-/// have to know which of the two they are talking to.
-pub struct PreSession {
-    matrix_client: Client,
-    alerts: DashMap<i32, Alert>,
-}
-
 pub struct GlobalStateInner {
     config: TachyonConfig,
     tachyon_clients: TachyonClientRepository,
@@ -47,8 +32,8 @@ pub struct GlobalStateInner {
     token_secret: Vec<u8>,
     pending_alerts: DashMap<i32, AlertReceiver>,
     pending_logins: DashMap<String, PendingLogin>,
-    pre_sessions: DashMap<String, PreSession>,
-    pending_verification_requests: VerificationRequestRepository,
+    authorized_tickets: DashSet<String>,
+    pending_verifications: DashMap<String, Alert>,
     app_state: Arc<AppState>,
 }
 
@@ -70,27 +55,14 @@ impl ClientDropGuard {
 
 impl Drop for ClientDropGuard {
     fn drop(&mut self) {
-        let tachyon_client = self.global_state.tachyon_clients().remove(&self.key);
-        if let Some(client) = tachyon_client {
+        if let Some(client) = self.global_state.tachyon_clients().remove(&self.key) {
             client.shutdown();
-
-            //Todo change this so we use a neutral key
-            let own_user_id = client.own_user().get_email_address().to_owned_user_id();
-            self.global_state
-                .pending_verification_requests()
-                .remove_for(&own_user_id);
         }
-
-        println!("Client Drop Guard dropped");
     }
 }
 
 impl GlobalState {
-    pub fn new(
-        config: TachyonConfig,
-        token_secret: Vec<u8>,
-        app_state: Arc<AppState>,
-    ) -> Self {
+    pub fn new(config: TachyonConfig, token_secret: Vec<u8>, app_state: Arc<AppState>) -> Self {
         Self {
             inner: Arc::new(GlobalStateInner {
                 config,
@@ -98,8 +70,8 @@ impl GlobalState {
                 token_secret,
                 pending_alerts: Default::default(),
                 pending_logins: DashMap::new(),
-                pre_sessions: DashMap::new(),
-                pending_verification_requests: Default::default(),
+                authorized_tickets: DashSet::new(),
+                pending_verifications: DashMap::new(),
                 app_state,
             }),
         }
@@ -120,6 +92,8 @@ impl GlobalState {
 
     pub fn insert_clients(&self, key: String, tachyon_client: TachyonClient) -> ClientDropGuard {
         self.inner.tachyon_clients.insert(key.clone(), tachyon_client);
+        // The client now answers for this ticket, so the sign-in grant is spent.
+        self.inner.authorized_tickets.remove(&key);
         ClientDropGuard::new(self.clone(), key)
     }
 
@@ -167,67 +141,36 @@ impl GlobalState {
             .map(|(_, pending)| pending)
     }
 
-    pub fn insert_pre_session(
-        &self,
-        ticket: String,
-        matrix_client: Client,
-        notification_id: i32,
-        alert: Alert,
-    ) {
-        let alerts = DashMap::new();
-        alerts.insert(notification_id, alert);
-        self.inner
-            .pre_sessions
-            .insert(ticket, PreSession { matrix_client, alerts });
+    /// Lets a ticket reach the device confirmation pages before its `TachyonClient` exists.
+    pub fn authorize_ticket(&self, ticket: &str) {
+        self.inner.authorized_tickets.insert(ticket.to_owned());
     }
 
-    pub fn remove_pre_session(&self, ticket: &str) {
-        self.inner.pre_sessions.remove(ticket);
+    pub fn deauthorize_ticket(&self, ticket: &str) {
+        self.inner.authorized_tickets.remove(ticket);
     }
 
     /// Whether a token names something we will serve pages for: a signed-in client, or a
     /// login that is still finishing.
     pub fn is_session_token(&self, token: &str) -> bool {
-        self.tachyon_clients().get(token).is_some() || self.inner.pre_sessions.contains_key(token)
+        self.tachyon_clients().get(token).is_some()
+            || self.inner.authorized_tickets.contains(token)
     }
 
-    /// The matrix client behind a device-confirmation page, whether the MSNP client has
-    /// finished signing in or is still waiting on it.
-    pub fn confirmation_client(&self, token: &str) -> Option<Client> {
-        if let Some(client) = self.tachyon_clients().get(token) {
-            return Some(client.matrix_client());
-        }
-
-        self.inner
-            .pre_sessions
-            .get(token)
-            .map(|pre_session| pre_session.matrix_client.clone())
-    }
-
-    pub fn has_confirmation_alert(&self, token: &str, notification_id: i32) -> bool {
-        if let Some(client) = self.tachyon_clients().get(token) {
-            return client.alerts().contains_key(&notification_id);
-        }
-
-        self.inner
-            .pre_sessions
-            .get(token)
-            .is_some_and(|pre_session| pre_session.alerts.contains_key(&notification_id))
+    /// The channel that releases the `USR` handler waiting on device verification. Kept
+    /// apart from the ticket authorization on purpose: the pages fire this the moment the
+    /// device is trusted, while the handler still needs a few more requests' worth of
+    /// authorized ticket to finish restoring the session.
+    pub fn store_pending_verification(&self, ticket: String, alert: Alert) {
+        self.inner.pending_verifications.insert(ticket, alert);
     }
 
     /// Takes the alert so it can be fired. It is a oneshot, so this consumes it.
-    pub fn take_confirmation_alert(&self, token: &str, notification_id: i32) -> Option<Alert> {
-        if let Some(client) = self.tachyon_clients().get(token) {
-            return client.alerts().remove(&notification_id).map(|(_, alert)| alert);
-        }
-
-        self.inner.pre_sessions.get(token).and_then(|pre_session| {
-            pre_session.alerts.remove(&notification_id).map(|(_, alert)| alert)
-        })
-    }
-
-    pub fn pending_verification_requests(&self) -> &VerificationRequestRepository {
-        &self.inner.pending_verification_requests
+    pub fn take_pending_verification(&self, ticket: &str) -> Option<Alert> {
+        self.inner
+            .pending_verifications
+            .remove(ticket)
+            .map(|(_, alert)| alert)
     }
 
     pub fn app_state(&self) -> &Arc<AppState> {

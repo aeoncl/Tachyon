@@ -1,4 +1,3 @@
-use crate::matrix::cross_signing::check_device_is_crossed_signed;
 use log::{debug, error, warn};
 use crate::tachyon::alert::{AlertNotify, AlertSuccess};
 use crate::tachyon::global_state::GlobalState;
@@ -9,7 +8,7 @@ use axum::http::header::LOCATION;
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use maud::{html, Markup};
-use tachyon_backend_matrix::infrastructure::backend::BackendSessionMatrix;
+use tachyon_core::application::auth_use_case::LoginOutcome;
 use tachyon_core::domain::auth::InteractiveAuthStarted;
 
 /// Where the `NOT` alert sent during sign-in lands.
@@ -78,11 +77,11 @@ pub async fn get_login_callback(
 
     let auth_use_case = state.app_state().auth_use_case();
 
-    let session = match auth_use_case
+    let outcome = match auth_use_case
         .finish_interactive_login(&pending.login_id, &query)
         .await
     {
-        Ok(session) => session,
+        Ok(outcome) => outcome,
         Err(e) => {
             error!("Could not finish the interactive login: {:?}", e);
             let _ = pending
@@ -91,78 +90,50 @@ pub async fn get_login_callback(
             return error_page("Your homeserver rejected the login.");
         }
     };
-    
-    let ticket = state.ticket_for(&pending.email);
+
     if let Err(e) = auth_use_case
         .bind_token(state.token_for(&pending.email), pending.login_id.clone())
         .await
     {
         error!("Could not link the ticket to the login: {:?}", e);
+        let _ = auth_use_case.abandon_login(&pending.login_id).await;
         let _ = pending
             .alert
             .notify_failure(anyhow::anyhow!("Could not store the login: {:?}", e));
         return error_page("The login succeeded but could not be stored.");
     }
 
-    // TEMPORARY (refactor scaffold): device confirmation still drives matrix-sdk directly.
-    let Some(matrix_client) = session
-        .as_any()
-        .downcast_ref::<BackendSessionMatrix>()
-        .map(|session| session.matrix_client().clone())
-    else {
-        let _ = pending
-            .alert
-            .notify_failure(anyhow::anyhow!("Backend session is not a matrix session"));
-        return error_page("The login succeeded but the session was of an unexpected kind.");
-    };
-
-    let cross_signed = match check_device_is_crossed_signed(&matrix_client).await {
-        Ok(cross_signed) => cross_signed,
-        Err(e) => {
-            // Treated as unconfirmed: sending the user through confirmation is the safe
-            // reading, and it surfaces the problem rather than signing in regardless.
-            warn!("Could not check whether the device is cross signed: {}", e);
-            false
+    match outcome {
+        LoginOutcome::SessionOpened { .. } => {
+            debug!("Interactive login finished for {}", pending.email.as_str());
+            // Releases the USR handler that is holding the client's sign-in open.
+            let _ = pending.alert.notify_success(AlertSuccess::Unit);
+            success_page(pending.email.as_str())
         }
-    };
+        LoginOutcome::DeviceVerificationRequired { .. } => {
+            // The user is already here, so send them straight on to confirm the device rather
+            // than making them come back through a second alert. The login alert is handed to
+            // the confirmation pages and fires once they are done, which is also what keeps the
+            // MSNP client from connecting with an unverified device.
+            let ticket = state.ticket_for(&pending.email);
+            warn!(
+                "Interactive login finished for {} but its device is unverified",
+                pending.email.as_str()
+            );
 
-    debug!(
-        "Interactive login finished for {}, device cross signed: {}",
-        pending.email.as_str(),
-        cross_signed
-    );
+            state.authorize_ticket(ticket.as_str());
+            state.store_pending_verification(ticket.as_str().to_owned(), pending.alert);
 
-    if !cross_signed {
-        // The user is already here, so send them straight on to confirm the device rather
-        // than making them come back through a second alert. The login alert is handed to
-        // the confirmation pages and fires once they are done, which is also what keeps the
-        // MSNP client from connecting with an unverified device.
-        let notification_id = rand::random::<i32>();
-        state.insert_pre_session(
-            ticket.as_str().to_owned(),
-            matrix_client,
-            notification_id,
-            pending.alert,
-        );
-
-        return Response::builder()
-            .status(StatusCode::TEMPORARY_REDIRECT)
-            .header(
-                LOCATION,
-                format!(
-                    "/tachyon/confirm_device?t={}&notification_id={}",
-                    ticket.as_str(),
-                    notification_id
-                ),
-            )
-            .body(Body::empty())
-            .unwrap();
+            Response::builder()
+                .status(StatusCode::TEMPORARY_REDIRECT)
+                .header(
+                    LOCATION,
+                    format!("/tachyon/confirm_device?t={}", ticket.as_str()),
+                )
+                .body(Body::empty())
+                .unwrap()
+        }
     }
-
-    // Releases the USR handler that is holding the client's sign-in open.
-    let _ = pending.alert.notify_success(AlertSuccess::Unit);
-
-    success_page(pending.email.as_str())
 }
 
 fn success_page(email: &str) -> Response {

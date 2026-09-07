@@ -1,5 +1,3 @@
-use crate::matrix::cross_signing;
-use crate::matrix::cross_signing::check_device_is_crossed_signed;
 use crate::matrix::sync::sync;
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
@@ -9,7 +7,7 @@ use crate::tachyon::config::tachyon_config::TachyonConfig;
 use crate::tachyon::global_state::{GlobalState, PendingLogin};
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use anyhow::{anyhow, Error};
-use log::{debug, error, warn};
+use log::{debug, error};
 use matrix_sdk::Client;
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
 use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
@@ -25,12 +23,15 @@ use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use std::sync::Arc;
 use std::time::Duration;
-use tachyon_backend_matrix::infrastructure::backend::BackendSessionMatrix;
+use tachyon_backend_matrix::infrastructure::backend::session::BackendSessionMatrix;
+use tachyon_core::application::auth_use_case::LoginOutcome;
 use tachyon_core::application::error::AuthError;
-use tachyon_core::domain::auth::{BridgeMetadata, InteractiveAuthStarted};
-use tachyon_core::domain::ids::UserId as CoreUserId;
+use tachyon_core::application::ports::BackendSession;
+use tachyon_core::domain::auth::{BridgeMetadata, InteractiveAuthStarted, TachyonToken};
+use tachyon_core::domain::ids::{LoginId, UserId as CoreUserId};
+use tokio::sync::broadcast;
 use tokio::sync::mpsc::Sender;
-use tokio::time::{sleep_until, timeout_at, Instant};
+use tokio::time::{sleep, timeout_at, Instant};
 use tokio::{select, task};
 
 const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"1000\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"100\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
@@ -43,6 +44,11 @@ const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shie
 /// that one budget, so the deadline is computed once per sign-in and shared, rather than
 /// each step claiming five minutes of its own.
 const CLIENT_SIGN_IN_WINDOW: Duration = Duration::from_secs(5 * 60);
+
+/// The peer uploads its cross-signing signature after it has already sent us the `.mac` and
+/// `.done` to-device events, so the first `/keys/query` after a successful emoji exchange can
+/// still read the device as unverified. Ask again rather than refusing the client.
+const VERIFICATION_SETTLE_BACKOFF: Duration = Duration::from_millis(500);
 
 pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, tachyon_state: &GlobalState, local_store: &mut LocalClientData, config: &TachyonConfig) -> Result<(), anyhow::Error> {
     match command {
@@ -92,13 +98,11 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                                 &msn_user,
                                 config,
                                 sign_in_deadline,
+                                local_store.client_shutdown_recv.resubscribe(),
                             ).await?;
 
                             let tachyon_client = TachyonClient::new(matrix_client.clone(), config.clone(), msn_user.clone(), ticket_token.clone(), notif_sender.clone(), local_store.client_shutdown_snd.clone(), local_store.client_shutdown_recv.resubscribe());
                             let drop_guard = tachyon_state.insert_clients(ticket_token.as_str().to_owned(), tachyon_client.clone());
-                            // The real client is registered under the same ticket now, so the
-                            // stand-in used during device confirmation can go.
-                            tachyon_state.remove_pre_session(ticket_token.as_str());
 
                             local_store.client_drop_guard = Some(drop_guard);
                             local_store.token = ticket_token.clone();
@@ -106,7 +110,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             local_store.matrix_client = Some(matrix_client.clone());
                             local_store.phase = ConnectionPhase::Ready;
 
-                            sync_with_server_task(&notif_sender, local_store, &ticket_token, &matrix_client, &msn_user, tachyon_client, config, sign_in_deadline)?;
+                            sync_with_server_task(&notif_sender, local_store, &ticket_token, &matrix_client, &msn_user, tachyon_client)?;
                         }
                     }
                 },
@@ -135,14 +139,27 @@ async fn authenticate(
     msn_user: &MsnUser,
     config: &TachyonConfig,
     deadline: Instant,
+    client_shutdown_recv: broadcast::Receiver<()>,
 ) -> Result<Client, Error> {
     let auth_use_case = tachyon_state.app_state().auth_use_case();
     let token = tachyon_state.token_for(email_addr);
 
-    let session = match auth_use_case.restore_session(&token).await {
-        Ok(restored) => {
+    let session = match auth_use_case.restore(&token).await {
+        Ok(LoginOutcome::SessionOpened { session, .. }) => {
             debug!("Restored an existing backend session for {}", email_addr.as_str());
-            restored.session
+            session
+        }
+        Ok(LoginOutcome::DeviceVerificationRequired { login_id }) => {
+            device_verification(
+                tachyon_state,
+                notif_sender,
+                email_addr,
+                msn_user,
+                config,
+                deadline,
+                client_shutdown_recv,
+                login_id,
+            ).await?
         }
         Err(AuthError::BackendCredentialsNotInStore) => {
             debug!("No backend session for {}, starting interactive login", email_addr.as_str());
@@ -162,6 +179,118 @@ async fn authenticate(
     Ok(matrix_client)
 }
 
+/// Sends the client a `NOT` alert pointing at the device confirmation pages and holds the
+/// sign-in open until the user has made the device trusted in their browser.
+async fn device_verification(
+    tachyon_state: &GlobalState,
+    notif_sender: &Sender<NotificationServerCommand>,
+    email_addr: &EmailAddress,
+    msn_user: &MsnUser,
+    config: &TachyonConfig,
+    deadline: Instant,
+    mut client_shutdown_recv: broadcast::Receiver<()>,
+    login_id: LoginId,
+) -> Result<Arc<dyn BackendSession>, Error> {
+    let token = tachyon_state.token_for(email_addr);
+    let ticket = tachyon_state.ticket_for(email_addr);
+
+    let (alert, receiver) = Alert::new_confirm_device();
+    tachyon_state.authorize_ticket(ticket.as_str());
+    tachyon_state.store_pending_verification(ticket.as_str().to_owned(), alert);
+
+    let confirm_url = format!(
+        "http://127.0.0.1:{}/tachyon/confirm_device?t={}",
+        config.http_port,
+        ticket.as_str()
+    );
+
+    let verification_not = NotificationServerCommand::NOT(NotServer {
+        payload: NotificationPayloadType::Normal(NotificationFactory::alert(
+            &msn_user.uuid,
+            msn_user.get_email_address(),
+            "Oops ! Your device is not verified yet ! Click here to verify.",
+            format!("http://127.0.0.1:{}/tachyon", config.http_port).as_str(),
+            &confirm_url,
+            &confirm_url,
+            Some("shield_verify.png"),
+            rand::random::<i32>(),
+        )),
+    });
+
+    notif_sender.send(verification_not).await?;
+
+    select! {
+        alerted = timeout_at(deadline, receiver.recv()) => {
+            match alerted {
+                Ok(Ok(AlertSuccess::Unit)) => {}
+                Ok(Ok(_)) => {
+                    abandon_sign_in(tachyon_state, ticket.as_str(), &login_id).await;
+                    return Err(anyhow!("Unexpected device verification alert payload"));
+                }
+                Ok(Err(e)) => {
+                    abandon_sign_in(tachyon_state, ticket.as_str(), &login_id).await;
+                    return Err(anyhow!("Device verification failed: {}", e));
+                }
+                Err(_elapsed) => {
+                    abandon_sign_in(tachyon_state, ticket.as_str(), &login_id).await;
+                    return Err(anyhow!("Device verification was not completed in time"));
+                }
+            }
+        },
+        _shutdown = client_shutdown_recv.recv() => {
+            abandon_sign_in(tachyon_state, ticket.as_str(), &login_id).await;
+            return Err(anyhow!("The client disconnected while its device was being verified"));
+        }
+    }
+
+    match restore_verified_session(tachyon_state, &token, deadline).await {
+        Ok(session) => Ok(session),
+        Err(e) => {
+            abandon_sign_in(tachyon_state, ticket.as_str(), &login_id).await;
+            Err(e)
+        }
+    }
+}
+
+/// Collects the session the browser side has just made trustworthy. Both browser steps end
+/// the same way, with a device the pages report as verified and a login that only `restore`
+/// can settle.
+async fn restore_verified_session(
+    tachyon_state: &GlobalState,
+    token: &TachyonToken,
+    deadline: Instant,
+) -> Result<Arc<dyn BackendSession>, Error> {
+    let auth_use_case = tachyon_state.app_state().auth_use_case();
+
+    loop {
+        match auth_use_case.restore(token).await {
+            Ok(LoginOutcome::SessionOpened { session, .. }) => return Ok(session),
+            Ok(LoginOutcome::DeviceVerificationRequired { .. }) => {}
+            Err(e) => return Err(anyhow!("Could not open the verified session: {:?}", e)),
+        }
+
+        if Instant::now() + VERIFICATION_SETTLE_BACKOFF >= deadline {
+            return Err(anyhow!("The device is still unverified after confirmation"));
+        }
+        sleep(VERIFICATION_SETTLE_BACKOFF).await;
+    }
+}
+
+/// Drops everything a half-finished sign-in left behind: the completion channel, the
+/// ticket's grant on the confirmation pages, and the login itself.
+async fn abandon_sign_in(tachyon_state: &GlobalState, ticket: &str, login_id: &LoginId) {
+    tachyon_state.take_pending_verification(ticket);
+    tachyon_state.deauthorize_ticket(ticket);
+    if let Err(e) = tachyon_state
+        .app_state()
+        .auth_use_case()
+        .abandon_login(login_id)
+        .await
+    {
+        error!("Could not abandon the login: {:?}", e);
+    }
+}
+
 /// Sends the client a `NOT` alert pointing at our web management interface and holds the sign-in open
 /// until the user completes the login in their browser.
 async fn interactive_login(
@@ -171,7 +300,7 @@ async fn interactive_login(
     msn_user: &MsnUser,
     config: &TachyonConfig,
     deadline: Instant,
-) -> Result<Arc<dyn tachyon_core::application::ports::BackendSession>, Error> {
+) -> Result<Arc<dyn BackendSession>, Error> {
     let auth_use_case = tachyon_state.app_state().auth_use_case();
 
     let matrix_id = email_addr.to_owned_user_id();
@@ -198,6 +327,7 @@ async fn interactive_login(
         ),
     };
 
+    let login_id = login_start.login_id.clone();
     let (alert, receiver) = Alert::new_interactive_login();
     tachyon_state.store_pending_login(
         flow_id.clone(),
@@ -231,34 +361,29 @@ async fn interactive_login(
 
     notif_sender.send(login_not).await?;
 
-    let abandon = || {
-        tachyon_state.take_pending_login(&flow_id);
-        tachyon_state.remove_pre_session(tachyon_state.ticket_for(email_addr).as_str());
+    let ticket = tachyon_state.ticket_for(email_addr);
+    let alerted = timeout_at(deadline, receiver.recv()).await;
+    let failure = match alerted {
+        Ok(Ok(AlertSuccess::Unit)) => None,
+        Ok(Ok(_)) => Some(anyhow!("Unexpected interactive login alert payload")),
+        Ok(Err(e)) => Some(anyhow!("Interactive login failed: {}", e)),
+        Err(_elapsed) => Some(anyhow!("Interactive login was not completed in time")),
     };
 
-    match timeout_at(deadline, receiver.recv()).await {
-        Ok(Ok(AlertSuccess::Unit)) => {}
-        Ok(Ok(_)) => {
-            abandon();
-            return Err(anyhow!("Unexpected interactive login alert payload"));
-        }
-        Ok(Err(e)) => {
-            abandon();
-            return Err(anyhow!("Interactive login failed: {}", e));
-        }
-        Err(_elapsed) => {
-            abandon();
-            return Err(anyhow!("Interactive login was not completed in time"));
-        }
+    if let Some(failure) = failure {
+        tachyon_state.take_pending_login(&flow_id);
+        abandon_sign_in(tachyon_state, ticket.as_str(), &login_id).await;
+        return Err(failure);
     }
 
     let token = tachyon_state.token_for(email_addr);
-    let restored = auth_use_case
-        .restore_session(&token)
-        .await
-        .map_err(|e| anyhow!("Interactive login completed but no session was stored: {:?}", e))?;
-
-    Ok(restored.session)
+    match restore_verified_session(tachyon_state, &token, deadline).await {
+        Ok(session) => Ok(session),
+        Err(e) => {
+            abandon_sign_in(tachyon_state, ticket.as_str(), &login_id).await;
+            Err(e)
+        }
+    }
 }
 
 fn bridge_metadata() -> BridgeMetadata {
@@ -274,86 +399,16 @@ fn uuid_flow_id() -> String {
     hex::encode(rand::random::<[u8; 16]>())
 }
 
-fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local_store: &LocalClientData, ticket_token: &TicketToken, matrix_client: &Client, msn_user: &MsnUser, tachyon_client: TachyonClient, config: &TachyonConfig, deadline: Instant) -> Result<(), Error> {
+fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local_store: &LocalClientData, ticket_token: &TicketToken, matrix_client: &Client, msn_user: &MsnUser, tachyon_client: TachyonClient) -> Result<(), Error> {
     let msn_user_clone = msn_user.clone();
     let matrix_client_clone = matrix_client.clone();
     let notif_sender_clone = notif_sender.clone();
     let ticket_token_clone = ticket_token.clone();
-    let config_clone = config.clone();
     let client_shutdown_snd = local_store.client_shutdown_snd.clone();
-    let mut client_shutdown_recv = local_store.client_shutdown_recv.resubscribe();
+    let client_shutdown_recv = local_store.client_shutdown_recv.resubscribe();
 
 
     task::spawn(async move {
-        let cross_signed = match check_device_is_crossed_signed(&matrix_client_clone).await {
-            Ok(cross_signed) => cross_signed,
-            Err(e) => {
-                error!("Could not check whether the device is cross signed: {}", e);
-                let _ = client_shutdown_snd.send(());
-                return;
-            }
-        };
-
-        debug!("Device is cross signed: {}", cross_signed);
-
-        if !cross_signed {
-
-            let sign_loop_kill_snd = match cross_signing::cross_sign_sync_task(&matrix_client_clone, client_shutdown_recv.resubscribe()).await {
-                Ok(sender) => sender,
-                Err(e) => {
-                    error!("Could not start the cross signing sync task: {}", e);
-                    let _ = client_shutdown_snd.send(());
-                    return;
-                }
-            };
-
-            let notification_id = rand::random::<i32>();
-
-            let verif_not = NotificationServerCommand::NOT(NotServer {
-                payload: NotificationPayloadType::Normal(NotificationFactory::alert(&msn_user_clone.uuid, msn_user_clone.get_email_address(), "Oops ! Your device is not verified yet ! Click here to verify.", format!("http://127.0.0.1:{}/tachyon", config_clone.http_port).as_str(), format!("http://127.0.0.1:{}/tachyon/confirm_device?t={}", config_clone.http_port, &ticket_token_clone.as_str()).as_str(), format!("http://127.0.0.1:{}/tachyon/confirm_device?t={}", config_clone.http_port, &ticket_token_clone.as_str()).as_str(), Some("shield_verify.png"), notification_id)),
-            });
-
-            let (alert, receiver) = Alert::new_confirm_device();
-            tachyon_client.alerts().insert(notification_id, alert);
-
-            debug!("Device is not confirmed, alerting the client to verify it");
-            let _ = notif_sender_clone.send(verif_not).await;
-
-            select! {
-                recv = receiver.recv() => {
-                   let _ = sign_loop_kill_snd.send(()).await;
-                    match recv {
-                        Ok(_success) => {
-
-                            if check_device_is_crossed_signed(&matrix_client_clone).await.unwrap_or(false) {
-
-                            } else {
-                                warn!("Device is still not cross signed after confirmation");
-                                let _  = client_shutdown_snd.send(());
-                                return;
-                            }
-                        }
-                        Err(_err) => {
-                            let _  = client_shutdown_snd.send(());
-                            debug!("error received stopping sync_with_server_task");
-                            return;
-                        }
-                    }
-                },
-                _timeout = sleep_until(deadline) => {
-                    warn!("Device verification was not completed before the client gives up signing in");
-                    let _ = sign_loop_kill_snd.send(()).await;
-                    let _ = client_shutdown_snd.send(());
-                    return;
-                },
-                _kill_recv = client_shutdown_recv.recv() => {
-                    debug!("client_kill_recv stopping sync_with_server_task");
-                    let _ = sign_loop_kill_snd.send(()).await;
-                    return;
-                }
-            }
-        }
-
         let _ = notif_sender_clone.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await;
 
         //This makes the client login to succeed and go past the loading screen.

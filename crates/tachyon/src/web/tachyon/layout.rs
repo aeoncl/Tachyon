@@ -72,12 +72,12 @@ pub fn tachyon_page_no_nav(content: Markup) -> Markup {
     layout(content, false)
 }
 
-fn error_page(message: String) -> Markup {
-    layout(
-        html! {
+/// The secured pages render fragments: `intercooler_layout_wrapper` supplies the shell.
+pub fn error_fragment(message: &str) -> Markup {
+    html! {
+        div class="container" {
             h2 { "Something went wrong" }
             p { (message) }
-        },
-        false,
-    )
+        }
+    }
 }
