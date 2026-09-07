@@ -5,20 +5,19 @@ mod login;
 mod confirm_device;
 mod verification;
 
+use crate::tachyon::alert::{AlertNotify, AlertSuccess};
 use crate::tachyon::global_state::GlobalState;
 use axum::body::Body;
 use axum::extract::Path;
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE, ETAG, IF_NONE_MATCH};
 use axum::http::{HeaderMap, Method, Response, StatusCode};
 use axum::middleware::{from_fn, from_fn_with_state};
-use axum::response::{Html, IntoResponse};
+use axum::response::Html;
 use axum::routing::{get, head, post};
 use axum::Router;
 use lazy_static_include::lazy_static_include_bytes;
 use maud::html;
-use std::str::FromStr;
 use sha1::{Digest, Sha1};
-use crate::tachyon::repository::RepositoryStr;
 use crate::web::tachyon::confirm_device::{reset_identity, recover, other_device};
 
 lazy_static_include_bytes! {
@@ -142,6 +141,22 @@ pub fn tachyon_router(state: GlobalState) -> Router<GlobalState> {
 }
 
 type Params = std::collections::HashMap<String, String>;
+
+/// Releases the `USR` handler holding the client's sign-in open. The alert is a oneshot, so
+/// a page the user reloads simply finds it gone.
+fn release_sign_in(state: &GlobalState, ticket: &str) {
+    if let Some(alert) = state.take_pending_verification(ticket) {
+        let _ = alert.notify_success(AlertSuccess::Unit);
+    }
+}
+
+/// Tells the waiting `USR` handler to refuse the client. It gives up the sign-in and abandons
+/// the login.
+fn refuse_sign_in(state: &GlobalState, ticket: &str, reason: &str) {
+    if let Some(alert) = state.take_pending_verification(ticket) {
+        let _ = alert.notify_failure(anyhow::anyhow!("{}", reason));
+    }
+}
 
 async fn serve_index() -> Html<String> {
     Html(
@@ -279,4 +294,96 @@ fn sha_1_encode(input: &[u8]) -> String {
     let result = hasher.finalize();
     hex::encode(result)
 
+}
+
+#[cfg(test)]
+mod tests {
+    use super::confirm_device::{get_confirm, recover};
+    use super::verification::{get_verification_poll, sas_v1_actions::post_sas_v1_action};
+    use super::Params;
+    use crate::tachyon::global_state::GlobalState;
+    use axum::extract::{Extension, Form, Path, Query, State};
+    use axum::http::StatusCode;
+    use std::sync::Arc;
+    use tachyon_backend_matrix::infrastructure::backend::auth_service::{
+        AuthServiceMatrixSdk, MatrixBackendConfig,
+    };
+    use tachyon_core::infrastructure::app_state::AppState;
+    use tachyon_testkit::repositories::{AccountRepositoryInMem, CredentialRepositoryInMem};
+
+    const TICKET: &str = "a-ticket-with-no-login";
+
+    /// A state whose ticket may reach the pages but names no login, the shape every
+    /// confirmation page hits when the sign-in it belonged to is already gone.
+    fn state_with_authorized_ticket() -> GlobalState {
+        let auth_service = Arc::new(AuthServiceMatrixSdk::new(
+            Arc::new(CredentialRepositoryInMem::default()),
+            MatrixBackendConfig::default(),
+        ));
+        let app_state = Arc::new(AppState::new(
+            auth_service,
+            Arc::new(AccountRepositoryInMem::default()),
+            "http://127.0.0.1:11866/tachyon/login/callback".to_string(),
+        ));
+
+        let state = GlobalState::new(Default::default(), vec![0u8; 32], app_state);
+        state.authorize_ticket(TICKET);
+        state
+    }
+
+    #[tokio::test]
+    async fn confirm_page_reports_a_ticket_with_no_login() {
+        let state = state_with_authorized_ticket();
+
+        let page = get_confirm(State(state), Extension(TICKET.to_string())).await;
+
+        assert!(page.0.contains("no login with that id"), "{}", page.0);
+    }
+
+    #[tokio::test]
+    async fn verification_poll_reports_a_ticket_with_no_login() {
+        let state = state_with_authorized_ticket();
+
+        let response = get_verification_poll(
+            State(state),
+            Extension(TICKET.to_string()),
+            Query(Params::new()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 64 * 1024)
+            .await
+            .expect("the error fragment is small enough to read");
+        let body = String::from_utf8_lossy(&body);
+        assert!(body.contains("no login with that id"), "{}", body);
+    }
+
+    #[tokio::test]
+    async fn recover_asks_again_when_no_secret_was_typed() {
+        let state = state_with_authorized_ticket();
+
+        let page = recover::post_recover(
+            State(state),
+            Extension(TICKET.to_string()),
+            Form(Params::new()),
+        )
+        .await;
+
+        assert!(page.0.contains("Please fill in your recovery key"), "{}", page.0);
+    }
+
+    #[tokio::test]
+    async fn an_unknown_sas_action_is_refused() {
+        let state = state_with_authorized_ticket();
+
+        let response = post_sas_v1_action(
+            State(state),
+            Extension(TICKET.to_string()),
+            Path("shrug".to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
 }

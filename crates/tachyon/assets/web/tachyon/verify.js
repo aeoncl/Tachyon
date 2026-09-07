@@ -2,7 +2,7 @@
 // Intercooler's globalEval passes: elt, data, settings, xhr
 function validateForm() {
     var $error = $('#error-message');
-    var method = $('input[name="restore-method"]:checked').val();
+    var method = $('input[name="restore_method"]:checked').val();
 
     if (method === 'recovery-key') {
         var allFilled = true;
@@ -90,7 +90,7 @@ function initVerify(rootContent) {
     updateOptionSelection('recovery-key', rootContent);
 
     // Handle restore method toggle
-    $root.find('input[name="restore-method"]').on('click', function() {
+    $root.find('input[name="restore_method"]').on('click', function() {
         var method = $(this).val();
         updateOptionSelection(method, rootContent);
 
