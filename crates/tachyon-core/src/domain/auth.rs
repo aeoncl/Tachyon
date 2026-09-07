@@ -20,6 +20,30 @@ impl Debug for TachyonToken {
     }
 }
 
+/// How far a stored login has come: authenticated, then device-trusted, then usable by
+/// a bridge. A login only ever moves forward through these.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Readiness {
+    AuthNeeded,
+    VerificationNeeded,
+    Ready,
+}
+
+impl Readiness {
+    /// The single source of truth for which readiness transitions are legal. Staying in
+    /// the current state counts as legal so that callers settling an already settled
+    /// login do not have to special-case it.
+    pub fn can_advance_to(self, next: Readiness) -> bool {
+        use Readiness::{AuthNeeded, Ready, VerificationNeeded};
+        matches!(
+            (self, next),
+            (AuthNeeded, AuthNeeded | VerificationNeeded | Ready)
+                | (VerificationNeeded, VerificationNeeded | Ready)
+                | (Ready, Ready)
+        )
+    }
+}
+
 pub enum RestoreOutcome {
     Success,
     SoftLogout,
@@ -61,5 +85,41 @@ impl CredentialBlob {
 impl Debug for CredentialBlob {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str("CredentialBlob(<redacted>)")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Readiness::{AuthNeeded, Ready, VerificationNeeded};
+
+    #[test]
+    fn readiness_advances_forward_and_stays_put_but_never_goes_back() {
+        let legal = [
+            (AuthNeeded, AuthNeeded),
+            (AuthNeeded, VerificationNeeded),
+            (AuthNeeded, Ready),
+            (VerificationNeeded, VerificationNeeded),
+            (VerificationNeeded, Ready),
+            (Ready, Ready),
+        ];
+        let illegal = [
+            (VerificationNeeded, AuthNeeded),
+            (Ready, AuthNeeded),
+            (Ready, VerificationNeeded),
+        ];
+
+        for (from, to) in legal {
+            assert!(from.can_advance_to(to), "{from:?} -> {to:?} must be legal");
+        }
+        for (from, to) in illegal {
+            assert!(!from.can_advance_to(to), "{from:?} -> {to:?} must be refused");
+        }
+
+        let all = [AuthNeeded, VerificationNeeded, Ready];
+        assert_eq!(
+            legal.len() + illegal.len(),
+            all.len() * all.len(),
+            "every pair of readiness states must be covered"
+        );
     }
 }

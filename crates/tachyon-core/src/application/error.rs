@@ -1,61 +1,59 @@
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum AuthError {
+    #[error("no backend credentials stored for this token")]
     BackendCredentialsNotInStore,
-    BackendError(BackendError),
-    StoreError(StoreError),
-}
-
-impl From<BackendError> for AuthError {
-    fn from(value: BackendError) -> Self {
-        Self::BackendError(value)
-    }
-}
-
-impl From<StoreError> for AuthError {
-    fn from(value: StoreError) -> Self {
-        Self::StoreError(value)
-    }
-}
-
-#[derive(Debug)]
-pub enum BackendError {
-    CannotRestoreLogin(String),
-    LoggedOut,
-    SoftLoggedOut,
-    Technical(anyhow::Error),
-    StoreError(StoreError),
-}
-
-#[derive(Debug)]
-pub enum VerificationError {
-    /// No authenticated login with that id.
+    #[error("no login with that id")]
     LoginNotFound,
-    FlowNotFound,
-    InvalidRecoveryKey,
-    Backend(BackendError),
+    #[error("the device is not verified")]
+    DeviceNotVerified,
+    #[error(transparent)]
+    BackendError(#[from] BackendError),
+    #[error(transparent)]
+    StoreError(#[from] StoreError),
 }
 
-impl From<BackendError> for VerificationError {
-    fn from(value: BackendError) -> Self {
-        Self::Backend(value)
-    }
+#[derive(Debug, thiserror::Error)]
+pub enum BackendError {
+    #[error("cannot restore login: {0}")]
+    CannotRestoreLogin(String),
+    #[error("the backend has logged this login out")]
+    LoggedOut,
+    #[error("the backend needs this login to authenticate again")]
+    SoftLoggedOut,
+    #[error("{0}")]
+    Technical(anyhow::Error),
+    #[error(transparent)]
+    StoreError(#[from] StoreError),
 }
 
-pub enum SessionError {
-
-
+#[derive(Debug, thiserror::Error)]
+pub enum VerificationError {
+    #[error("no login with that id")]
+    LoginNotFound,
+    /// The login is still `Readiness::AuthNeeded`.
+    #[error("login has not finished authenticating")]
+    NotAuthenticated,
+    /// A mutating call on a login that is already `Readiness::Ready`.
+    #[error("device is already verified")]
+    AlreadyVerified,
+    #[error("no verification in progress")]
+    NoVerificationInProgress,
+    #[error("recovery key rejected")]
+    RecoveryKeyRejected,
+    #[error("device is still unverified")]
+    StillUnverified,
+    #[error(transparent)]
+    Backend(#[from] BackendError),
+    #[error(transparent)]
+    Store(#[from] StoreError),
 }
 
-impl From<StoreError> for BackendError {
-    fn from(value: StoreError) -> Self {
-        BackendError::StoreError(value)
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum StoreError {
     /// The storage backend failed (I/O, database, runtime).
+    #[error("{0}")]
     Technical(anyhow::Error),
     /// The row is there but cannot be read by this build (unknown format, bad data).
+    #[error("stored data cannot be read by this build: {0}")]
     Corrupted(String),
 }

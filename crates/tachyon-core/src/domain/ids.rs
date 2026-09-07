@@ -27,4 +27,3 @@ str_id!(ConversationId);
 str_id!(MediaId);
 str_id!(SessionId);
 str_id!(MessageId);
-str_id!(VerificationFlowId);
