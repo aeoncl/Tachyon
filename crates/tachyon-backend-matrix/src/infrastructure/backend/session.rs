@@ -235,7 +235,6 @@ impl BackendSession for BackendSessionMatrix {
         let encryption = self.client.encryption();
         let user_id = self.user_id()?;
 
-        // `get_user_devices` only reads the local store; the key query fills it on a wiped one.
         encryption
             .request_user_identity(user_id)
             .await
@@ -415,9 +414,6 @@ fn technical(error: impl std::fmt::Display) -> VerificationError {
     VerificationError::Backend(BackendError::Technical(anyhow!("{error}")))
 }
 
-/// Only a key that does not open the secret store is the user's to fix. `SecretStorage` also
-/// wraps the HTTP and store errors met while fetching the key description, and those must not
-/// send the user back to retype the key.
 fn map_recovery_error(error: RecoveryError) -> VerificationError {
     match error {
         RecoveryError::SecretStorage(SecretStorageError::SecretStorageKey(_)) => {
@@ -437,8 +433,6 @@ fn map_recovery_error(error: RecoveryError) -> VerificationError {
     }
 }
 
-/// A panic in one of the short critical sections must not stop `close` from draining the
-/// session, so poisoning is recovered from rather than propagated.
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }

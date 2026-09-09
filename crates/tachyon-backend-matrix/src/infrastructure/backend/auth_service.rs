@@ -60,11 +60,7 @@ impl AuthServiceMatrixSdk {
             Some(homeserver_url) => client_builder = client_builder.homeserver_url(homeserver_url),
         }
 
-        // Do we really need to create the store here ? doesn't the SDK makes sure the folder exist ? If not, we should move that to a different service cause that's unrelated IO.
         if let (Some(store_root), Some(user_id)) = (&self.config.store_root, user_id) {
-            // TODO(login-store-dir): the store belongs at `store_root/logins/<login_id>`, so a
-            // second login on the same account gets its own device. Keeps the legacy layout until
-            // that change lands.
             let store_path = store_root.join(sanitize_user_id(user_id)).join("store");
             std::fs::create_dir_all(&store_path).map_err(|e| {
                 BackendError::Technical(anyhow!("Could not create store dir: {}", e))
@@ -145,7 +141,6 @@ impl AuthService for AuthServiceMatrixSdk {
             self.credential_repository.clone(),
         ));
 
-        // No OAuth on this homeserver: the bridge has to collect a password itself.
         if client.oauth().cached_server_metadata().await.is_err() {
             return Ok((session, InteractiveAuthStarted::PasswordRequired));
         }
@@ -287,7 +282,6 @@ pub(crate) mod tests {
         let user_id = matrix_sdk::ruma::UserId::parse("@aeon:shlasouf.local").unwrap();
         let sanitized = sanitize_user_id(&user_id);
 
-        // Pinned value: upper-cased UUID v5 (OID namespace) of "@aeon:shlasouf.local".
         assert_eq!(sanitized, "264E4340-A168-537C-890B-946D4EB046E0");
     }
 

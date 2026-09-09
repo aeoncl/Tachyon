@@ -12,13 +12,8 @@ use tokio::task::JoinHandle;
 
 use tachyon_core::domain::verification::{IdentityReset, Password, RecoveryKey};
 
-/// The SDK retries the signing-key upload with no sleep until the homeserver accepts it, so a
-/// reset waiting for an approval that never comes has to be cut off.
 const APPROVAL_WINDOW: Duration = Duration::from_secs(3 * 60);
 
-/// One `recovery().reset_identity()` per user flow. That call deletes the key backup and
-/// disables secret storage before it reports which auth the homeserver wants, so the slot is
-/// claimed as `Starting` before the call and a second caller only ever observes it.
 pub(crate) enum PendingReset {
     Starting,
     PasswordRequired {
@@ -50,9 +45,6 @@ impl PendingReset {
         }
     }
 
-    /// What the caller should be told now. A reset task that has finished is folded in first:
-    /// its key becomes `Done`, its failure is returned once and the slot goes back to waiting
-    /// for approval.
     pub(crate) fn observe(&mut self) -> anyhow::Result<IdentityReset> {
         self.fold_finished_task()?;
 
@@ -71,8 +63,6 @@ impl PendingReset {
         })
     }
 
-    /// The user says they approved the reset: run it in the background unless one is already
-    /// running, and report.
     pub(crate) fn approve(&mut self, client: &Client) -> anyhow::Result<IdentityReset> {
         self.fold_finished_task()?;
 
