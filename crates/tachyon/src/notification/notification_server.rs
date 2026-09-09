@@ -5,7 +5,7 @@ use log::{debug, error, info, warn};
 use msnp::msnp::notification::command::command::NotificationClientCommand;
 use msnp::msnp::{notification::command::command::NotificationServerCommand, raw_command_parser::RawCommandParser};
 use msnp::shared::traits::{IntoBytes, TryFromRawCommand};
-use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::OwnedWriteHalf, TcpListener, TcpStream}, sync::{broadcast::{self, Receiver}, mpsc::{self, Sender}}};
+use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::{OwnedReadHalf, OwnedWriteHalf}, TcpListener, TcpStream}, sync::{broadcast::{self, Receiver}, mpsc::{self, Sender}}, task::JoinHandle};
 use msnp::msnp::raw_command_parser::RawCommand;
 use crate::notification::handlers::command_handler::handle_command;
 use crate::notification::models::local_client_data::LocalClientData;
@@ -68,36 +68,17 @@ async fn handle_client(socket: TcpStream, mut global_shutdown_recv: broadcast::R
 
     let mut local_client_data = LocalClientData::new(client_shutdown_snd.clone(), client_shutdown_recv);
 
-    let mut parser = RawCommandParser::new();
-    let mut reader = BufReader::new(read);
-    let mut buffer= [0u8; 2048];
+    // A handler can park for minutes waiting on the user, so the socket is read by its own
+    // task. That is what lets the client leaving reach a sign-in that is still waiting.
+    let (commands_snd, mut commands_recv) = mpsc::channel::<Vec<RawCommand>>(32);
+    let read_task = start_read_task(read, commands_snd, client_shutdown_snd, global_shutdown_recv.resubscribe());
 
     loop {
         tokio::select! {
-            bytes_read = reader.read(&mut buffer) => {
-                match bytes_read {
-                    Err(e) => {
-                        error!("MSNP|NOT: Socket Read Error: {}", e);
-                        break;
-                    },
-                    Ok(bytes_read) => {
-
-                        if bytes_read == 0 {
-                            break;
-                        }
-
-                        let data = &buffer[..bytes_read];
-
-                        let commands = parser.parse_message(data);
-
-                        match commands {
-                            Err(e) => error!("MSNP|NOT: Unable to parse message into commands: {}", e),
-                            Ok(commands) => {
-                                handle_commands(commands, &command_sender, &global_state, &mut local_client_data).await;
-                            }
-                        }
-
-                    }
+            commands = commands_recv.recv() => {
+                match commands {
+                    None => break,
+                    Some(commands) => handle_commands(commands, &command_sender, &global_state, &mut local_client_data).await,
                 }
             },
             global_shutdown = global_shutdown_recv.recv() => {
@@ -109,9 +90,51 @@ async fn handle_client(socket: TcpStream, mut global_shutdown_recv: broadcast::R
         }
     }
 
+    read_task.abort();
+
     info!("Client gracefully shutdown...");
     Ok(())
 
+}
+
+fn start_read_task(read: OwnedReadHalf, commands_snd: mpsc::Sender<Vec<RawCommand>>, client_shutdown_snd: broadcast::Sender<()>, mut global_shutdown_recv: Receiver<()>) -> JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut parser = RawCommandParser::new();
+        let mut reader = BufReader::new(read);
+        let mut buffer = [0u8; 2048];
+
+        loop {
+            tokio::select! {
+                bytes_read = reader.read(&mut buffer) => {
+                    match bytes_read {
+                        Err(e) => {
+                            error!("MSNP|NOT: Socket Read Error: {}", e);
+                            break;
+                        },
+                        Ok(0) => break,
+                        Ok(bytes_read) => {
+                            match parser.parse_message(&buffer[..bytes_read]) {
+                                Err(e) => error!("MSNP|NOT: Unable to parse message into commands: {}", e),
+                                Ok(commands) => {
+                                    if commands_snd.send(commands).await.is_err() {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                global_shutdown = global_shutdown_recv.recv() => {
+                    if let Err(err) = global_shutdown {
+                        error!("Unable to listen for global kill: {}", err);
+                    }
+                    break;
+                }
+            }
+        }
+
+        let _result = client_shutdown_snd.send(());
+    })
 }
 
 async fn handle_commands(commands: Vec<RawCommand>, command_sender: &Sender<NotificationServerCommand>, global_state: &GlobalState, local_client_data: &mut LocalClientData) {
