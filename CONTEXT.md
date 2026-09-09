@@ -19,22 +19,49 @@ one of them is wrong — fix it or fix this file.
 
 ## Auth flow (shape owned by core)
 
-- **Login flow** — core's state machine: `Started → AwaitingUser → ProofReceived →
-  SessionOpened | Failed`. Backends implement steps, never the choreography.
-- **AuthPrompt** — what the backend returns from `begin`: the URL the user's browser
-  must visit. For Matrix this is the MAS OAuth authorization URL.
-- **CallbackProof** — the raw payload the user's browser brings back to the bridge-web
-  callback endpoint. Opaque to core; the backend interprets it (OAuth `code`+`state`
-  for Matrix).
+- **Login flow** is core's state machine over one login's `Readiness`:
+  `AuthNeeded → VerificationNeeded → Ready`, plus `Failed` when a step errors and the
+  login is dropped. Backends implement steps, never the choreography.
+- **Readiness** is how far one login has come: `AuthNeeded`, `VerificationNeeded`, or
+  `Ready`. A `Copy` enum in `domain::auth`, held in `SessionRepository` next to the
+  session, and forward-only through `Readiness::can_advance_to`.
+- **LoginOutcome** is what `AuthUseCase::restore` and `AuthUseCase::finish_interactive_login`
+  hand back: `SessionOpened { login_id, session }` or
+  `DeviceVerificationRequired { login_id }`.
+- **settle** is `AuthUseCase::settle`, the only writer of `Readiness`. It reads
+  `BackendSession::device_status()` under the login lifecycle mutex, sets the readiness,
+  and returns the matching `LoginOutcome`.
+- **DeviceVerificationUseCase** is core's owner of the verification step, keyed by
+  `TachyonToken`: device status, recovery-key import, SAS verification against another
+  device, identity reset. It works on logins a bridge cannot reach yet and never writes
+  `Readiness`.
+- **VerificationFlowState** is the state of the one live SAS flow on a session
+  (`Requested`, `Ready`, `Started`, `CompareEmojis`, `AwaitingOtherConfirmation`, `Done`,
+  `Cancelled`). `VerificationFlowState::name()` is the payload-free key a poll endpoint
+  compares against the state the page already shows.
+- **InteractiveAuthStarted** is what `AuthService::start_interactive_login` returns beside
+  the session. For Matrix it is `OAuth { auth_url, csrf_token }`, the MAS authorization
+  URL the user's browser must visit.
+- **callback query** is the raw query string the redirect endpoint receives from the
+  authorization server. Core never parses it. It goes straight to
+  `BackendSession::finish_interactive_login`, and the adapter interprets it (OAuth `code`
+  and `state` for Matrix).
 - **CredentialBlob** — backend-serialized credentials (`AuthSession` for Matrix) as
   opaque bytes, keyed by `LoginId` in the core-owned store (`tachyon-store-sqlite`).
   Plaintext today; the store schema reserves a format column for encryption at rest.
 
 ## Backend seam
 
-- **BackendSession** — the deep port a live backend connection satisfies: messaging,
-  typing, presence, media, conversation ops, event stream. Two adapters:
-  `tachyon-backend-matrix` (prod) and `FakeBackend` (testkit).
+- **BackendSession** is the deep port one login owns for its whole lifetime, from the
+  first authorization redirect to the last message sent: messaging, typing, presence,
+  media, conversation ops, event stream, plus `device_status` and the verification calls.
+  `SessionRepository` tracks its `Readiness`, and `SessionRepository::get_ready` is the
+  only accessor a bridge may use. Two adapters: `tachyon-backend-matrix` (prod) and
+  `FakeBackend` (testkit).
+- **AuthService** is the factory for `BackendSession`. `restore(login_id)` rebuilds one
+  from stored credentials. `start_interactive_login(login_id, server_name, user_id,
+  redirect_url, bridge_metadata)` builds a fresh one with an `InteractiveAuthStarted`
+  prompt. Neither call sets `Readiness`.
 - **BackendEvent** — push events crossing the seam backend → core → bridge (messages,
   membership, `CredentialsRotated`), over a lossless mpsc (one frontend per instance).
 - **Dialect** — an MSNP protocol version spoken by a client (18 today; 15 next;

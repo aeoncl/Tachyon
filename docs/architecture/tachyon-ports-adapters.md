@@ -58,7 +58,7 @@ binary (~11k LOC) to the new crate layout.
 | Crate | Role | Allowed dependencies |
 |---|---|---|
 | `tachyon-core` | Protocol-neutral domain, use-case services, `Session` actor, all ports | std/tokio only — **no `matrix-sdk`, no `msnp`** |
-| `tachyon-backend-matrix` | `ChatBackend`/`BackendSession` adapter over matrix-rust-sdk | `tachyon-core`, `matrix-sdk` |
+| `tachyon-backend-matrix` | `AuthService` and `BackendSession` adapter over matrix-rust-sdk | `tachyon-core`, `matrix-sdk` |
 | `tachyon-bridge-msn` | NS/SB TCP servers, SOAP, P2P, `MsnpSession` actor, one `Dialect` per MSNP version | `tachyon-core`, `msnp` |
 | `tachyon-bridge-web` | Login / device-verification / recovery UI (axum); request/response consumer of the account's `BackendSession` | `tachyon-core` |
 | `tachyon-store-sqlite` | SQLite (rusqlite) implementation of the store ports | `tachyon-core` |
@@ -108,15 +108,28 @@ Core owns the **flow shape** as a state machine; a backend implements the steps,
 choreography:
 
 ```
-Started ──► AwaitingUser ──► ProofReceived ──► SessionOpened
-   │              │                │                 │
-   │   core built the callback     │        core persists blob,
-   │   URL from ITS config and     │        issues/updates ticket
-   │   stored the pending login    │
-   └── core issued LoginId         └─ proof is OPAQUE to core
-                                      (raw return-URL); the
-                                      adapter interprets it
+ start_interactive_login ──► [AuthNeeded] ──finish_interactive_login──► settle ──► [Ready]
+                                  │                                        │
+                                  │ abandon_login                          └─ Unverified ──► [VerificationNeeded]
+                                  ▼
+                               removed
+
+ [VerificationNeeded] ├─ recover | SAS Done | reset, then restore ──► settle ──► [Ready]
+                      └─ timeout, cancel ──► abandon_login ──► removed
+
+ restore(token)       ├─ entry Ready ──► SessionOpened
+                      ├─ entry VerificationNeeded ──► settle
+                      └─ no entry ──► AuthService::restore(login_id) ──► insert ──► settle
+
+ settle(login_id, session) = session.device_status()
+     Verified   ──► Readiness::Ready              ──► LoginOutcome::SessionOpened
+     Unverified ──► Readiness::VerificationNeeded ──► LoginOutcome::DeviceVerificationRequired
+     Err        ──► Failed ──► a login whose first settle fails is removed and closed
 ```
+
+The bracketed states are `Readiness` values, held next to the session in
+`SessionRepository`. One `BackendSession` covers the whole lifetime of a login. Nothing is
+swapped for anything else when the device becomes trusted.
 
 - Core issues `LoginId`, builds the redirect/callback URL from its own config (this
   resolves the `//TODO build that with config & url builder service` in
@@ -124,12 +137,14 @@ Started ──► AwaitingUser ──► ProofReceived ──► SessionOpened
 - **Pending logins are in-memory only** — a crash mid-flow loses them and the user
   simply restarts the login; only completed logins (`CredentialBlob` + ticket) are
   persisted. Cheap to redo on a single-user loopback bridge, so no recovery machinery.
-- The adapter fills exactly two slots:
-  `begin(login_id, redirect_url, user_hint) -> AuthPrompt { url }` and
-  `finish(pending, CallbackProof) -> BackendSession`.
-  For Matrix, `begin` is OAuth client registration + authorization URL, and
-  `CallbackProof` decodes to `code`+`state`; a future password-style backend fills the
-  same slots without core changing.
+- The adapter fills exactly two slots. `AuthService::start_interactive_login(login_id,
+  server_name, user_id, redirect_url, bridge_metadata)` returns a fresh `BackendSession`
+  and the `InteractiveAuthStarted` prompt. `AuthService::restore(login_id)` returns a
+  `BackendSession` rebuilt from stored credentials. The session's own
+  `finish_interactive_login(callback_query)` takes the raw query string the redirect
+  endpoint received, which core never parses. For Matrix the prompt is OAuth client
+  registration plus the authorization URL, and the query decodes to `code` and `state`.
+  A future password-style backend fills the same slots without core changing.
 
 ### Tickets and credentials
 
@@ -150,9 +165,9 @@ Started ──► AwaitingUser ──► ProofReceived ──► SessionOpened
 **Use-case request/response with exported DTO structs.** Examples:
 
 ```rust
-AuthUseCase::restore(TachyonToken) -> Result<LoginId, AuthError>
-AuthUseCase::start_interactive_login(server, user, BridgeMetadata) -> Result<LoginStart, AuthError>
-AuthUseCase::finish_interactive_login(FinishLogin) -> Result<SessionOpened, AuthError>
+AuthUseCase::restore(&TachyonToken) -> Result<LoginOutcome, AuthError>
+AuthUseCase::start_interactive_login(server_name, user_id, &BridgeMetadata) -> Result<LoginStart, AuthError>
+AuthUseCase::finish_interactive_login(&LoginId, callback_query_params) -> Result<LoginOutcome, AuthError>
 ```
 
 - Async only where there is I/O.
@@ -189,20 +204,31 @@ Typed errors at every seam, composed with `thiserror`:
 
 All ports live in `tachyon-core/src/application/ports.rs`.
 
-- **`BackendSession`** — the deep port at the centre of the design. Its interface is derived
-  from what the MSNP handlers actually consume, roughly:
-  send message / typing / presence, media fetch, conversation ops (create DM, join,
-  invite, members), profile/avatar, finish-login, and an event stream. Two adapters make
-  the seam real: `tachyon-backend-matrix` in production, `FakeBackend` in tests.
-  It must not stay a marker trait — an empty trait forces downcasting later.
-- **`AuthService`** — the thin, protocol-specific slice of the login flow (core owns the
-  flow shape — see "What is backend-agnostic"): `begin_interactive_login(login_id,
-  redirect_url, user_hint) -> AuthPrompt`, `finish_interactive_login(pending,
-  CallbackProof) -> BackendSession`, `restore(CredentialBlob) -> BackendSession`.
-- **`AccountRepository` / `CredentialRepository`** — ticket → `LoginId` mapping and
-  `LoginId` → `CredentialBlob` persistence; implemented by `tachyon-store-sqlite`
+- **`BackendSession`.** The deep port at the centre of the design, and the object one login
+  owns for its whole lifetime, from the first authorization redirect to the last message
+  sent. Its interface is derived from what the MSNP handlers actually consume, roughly
+  send message, typing, presence, media fetch, conversation ops (create DM, join, invite,
+  members), profile and avatar, `finish_interactive_login`, `device_status`, the
+  verification calls, and an event stream. `SessionRepository` holds the login's
+  `Readiness` next to the session, and that readiness says which of these methods make
+  sense right now. Two adapters make the seam real, `tachyon-backend-matrix` in production
+  and `FakeBackend` in tests. It must not stay a marker trait. An empty trait forces
+  downcasting later.
+- **`AuthService`.** The factory for `BackendSession` and the thin, protocol-specific slice
+  of the login flow (core owns the flow shape, see "What is backend-agnostic").
+  `restore(login_id) -> BackendSession` rebuilds one from stored credentials.
+  `start_interactive_login(login_id, server_name, user_id, redirect_url, bridge_metadata)
+  -> (BackendSession, InteractiveAuthStarted)` builds a fresh one and the prompt the user's
+  browser needs. Neither call sets `Readiness`.
+- **`AccountRepository`** and **`CredentialRepository`.** The ticket → `LoginId` mapping and
+  `LoginId` → `CredentialBlob` persistence, implemented by `tachyon-store-sqlite`
   (in-memory doubles in `tachyon-testkit`).
-- **`SessionRepository`** — live sessions by `LoginId`.
+- **`SessionRepository`.** Live sessions by `LoginId`, each stored as a `SessionEntry` of
+  session plus `Readiness`. `get_ready` is the only accessor a bridge may use, and it
+  returns `None` for anything but `Readiness::Ready`, so the invariant "bridges only talk
+  to verified sessions" is one runtime gate rather than a type. `set_readiness` refuses
+  moves that `Readiness::can_advance_to` rejects, which makes readiness forward-only.
+  `AuthUseCase::settle` is its only caller and therefore the only writer of `Readiness`.
 
 ## Auth and credentials
 
@@ -221,6 +247,24 @@ The invariant: **the Matrix token never reaches the client or IDCRL.**
   by rotation. This permanently fixes the legacy bug where restore hard-coded
   `refresh_token: None` and rotated tokens were lost.
 - Optional (open): a Tachyon-local "Messenger password" (argon2) to authenticate RST2.
+
+### Device verification
+
+A login whose Matrix device is not cross-signed settles into
+`Readiness::VerificationNeeded`, and `DeviceVerificationUseCase` owns everything the user
+does from there. The use case is keyed by `TachyonToken`. It resolves the token to a
+`LoginId` through `AccountRepository` and reads the session out of
+`SessionRepository::get`, so it works on a login no bridge can reach yet. It reads the
+device status and the available options, imports cross-signing secrets from a recovery key,
+drives SAS verification against another of the user's devices, and resets the identity.
+It never writes `Readiness`. `AuthUseCase::settle` does that, once, on the next `restore`,
+when the bridge comes back for the session. A mutating call on a login that is already
+`Readiness::Ready` is refused with `VerificationError::AlreadyVerified`.
+
+A session keeps at most one verification flow, and a second `start_device_verification`
+cancels and replaces the first. The Matrix adapter's to-device sliding sync runs only while
+a SAS flow is live. `VerificationFlowMatrix` starts the sync with the flow and cancels it
+when the flow ends, so an unverified login costs no standing sync.
 
 ## Sessions and lifecycle
 
@@ -260,15 +304,17 @@ Startup, in order (all in the `tachyon` bin's composition root):
 3. Create the **root `CancellationToken`**; wire Ctrl-C to `root.cancel()`.
 4. Spawn the frontends with `root.child_token()` each: NS + SB listeners
    (`tachyon-bridge-msn`) and the web server (`tachyon-bridge-web`).
-5. No sessions exist yet. A `Session` actor is spawned lazily by
-   `AuthUseCase::restore` (ticket redeemed over `USR`) or by a completed interactive
-   login: core calls `AuthService::restore(blob)` / `finish(...)`, gets a
-   `BackendSession`, then spawns the actor with `session_token = root.child_token()`;
-   backend tasks (sync loop, token-refresh watcher) run under
-   `session_token.child_token()`.
-   The web bridge receives its `Arc<dyn BackendSession>` from the spawned actor (or from
-   `AuthUseCase::finish_interactive_login` during the initial login flow) and uses it for
-   request/response operations only.
+5. No sessions exist yet. A login is built lazily by `AuthUseCase::restore` (ticket
+   redeemed over `USR`) or by a completed interactive login. Core calls
+   `AuthService::restore(login_id)` or `AuthService::start_interactive_login(..)`, gets a
+   `BackendSession`, inserts it in `SessionRepository`, and settles its readiness. Only a
+   `Readiness::Ready` login gets a `Session` actor, spawned with
+   `session_token = root.child_token()`. Backend tasks (sync loop, token-refresh watcher)
+   run under `session_token.child_token()`.
+   The web bridge drives verification through `DeviceVerificationUseCase` while the login
+   is `Readiness::VerificationNeeded`, and takes its `Arc<dyn BackendSession>` from
+   `SessionRepository::get_ready` once the login is `Readiness::Ready`. It uses that
+   session for request/response operations only.
 
 Shutdown is cancellation cascading down that tree: `root.cancel()` → listeners stop
 accepting → each `Session` actor observes its token, tells its `BackendSession` to stop
@@ -338,11 +384,13 @@ Ordered; 1–3 are prerequisites for shaping the port in 4.
 - [x] 7. **Break the ticket = token identity** — done 2026-09-01: the `TachyonToken →
    LoginId → CredentialBlob` flow persists end-to-end in `tachyon-store-sqlite`. Tickets
    are still derived rather than issued; expiry is pending the ticket-issuance use case.
-- [ ] 8. **Pull the flow back into core** — partially done 2026-09-01: credentials are
-  opaque blobs behind core's `CredentialRepository` and the matrix-typed rows are gone.
-  Remaining: the `begin`/`finish`/`restore(CredentialBlob)` reshape — core builds URLs
-  from config, tracks pending logins, persists blobs; the adapter only
-  serializes/interprets (today it still holds the store port and persists directly).
+- [ ] 8. **Pull the flow back into core.** Partially done. Credentials became opaque blobs
+  behind core's `CredentialRepository` on 2026-09-01 and the matrix-typed rows are gone.
+  `AuthService::restore(login_id)` and `AuthService::start_interactive_login(..)` return a
+  `BackendSession` that core stores in `SessionRepository` with a `Readiness`, and
+  `AuthUseCase::settle` is the only writer of that readiness. What is left is the config
+  side. Core should build the redirect URL from its own config and persist the blobs.
+  Today the adapter still holds the store port and persists directly.
 
 ## Legacy defects the target design retires
 
