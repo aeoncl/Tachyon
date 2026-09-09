@@ -54,6 +54,7 @@ serde_json = "1.0.149"
 [dev-dependencies]
 mockall = "0.13.1"
 wiremock = "0.6.3"
+async-trait = "0.1.92"
 
 [dev-dependencies.matrix-sdk]
 path = "../../lib/matrix-rust-sdk/crates/matrix-sdk"
