@@ -1,6 +1,8 @@
 # Plan — Device verification in the new architecture (`Readiness` on the stored session)
 
-Status: **proposed** (2026-09-01), **revised 2026-09-07**. Branch: `refactor/third-times-the-charm`.
+Status: **proposed** (2026-09-01), **revised 2026-09-07**, **implemented 2026-09-09** (subtasks 0
+to 10 on `refactor/third-times-the-charm`, commits `b6e3d3f..ad88c62`; the end-to-end run against
+the MAS homeserver is still to do). Branch: `refactor/third-times-the-charm`.
 Companion to `docs/architecture/tachyon-ports-adapters.md`; subtask 10 folds the outcome back into that doc.
 
 
