@@ -76,12 +76,10 @@ impl AuthUseCase {
         Ok(LoginStart { login_id, prompt })
     }
 
-    /// `callback_query_params` is the raw query params string the redirect endpoint received
-    /// from the authorization server.
     pub async fn finish_interactive_login(
         &self,
         login_id: &LoginId,
-        callback_query_params: &str,
+        callback_query: &str,
     ) -> Result<LoginOutcome, AuthError> {
         let Some(entry) = self.session_repository.get(login_id) else {
             return Err(AuthError::LoginNotFound);
@@ -92,7 +90,7 @@ impl AuthUseCase {
 
         entry
             .session
-            .finish_interactive_login(callback_query_params)
+            .finish_interactive_login(callback_query)
             .await?;
 
         let _guard = self.lifecycle.lock().await;

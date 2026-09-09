@@ -36,6 +36,6 @@ pub struct MessageEventContent {
     kind: MessageKind
 }
 
-pub enum BridgeEvent {
-
-}
+/// Events from core to the bridge. Currently empty; variants will be added as bridge
+/// capabilities are defined.
+pub enum BridgeEvent {}

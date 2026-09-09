@@ -3,8 +3,7 @@ use crate::domain::error::TachyonError;
 use crate::domain::ids::UserId;
 
 pub struct Participant {
-    id: UserId
-
+    id: UserId,
 }
 
 pub struct EmailAddress(String);
@@ -14,8 +13,8 @@ impl EmailAddress {
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
-    pub fn crack(&self) -> (&str, &str) {
-        self.0.split_once("@").expect("To be a valid email")
+    pub fn split(&self) -> (&str, &str) {
+        self.0.split_once("@").expect("valid email")
     }
 
 }

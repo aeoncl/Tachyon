@@ -27,8 +27,8 @@ impl EmailAddress {
         self.0.as_bytes()
     }
 
-    pub fn crack(&self) -> (&str, &str) {
-        self.0.split_once("@").expect("To be a valid email")
+    pub fn split(&self) -> (&str, &str) {
+        self.0.split_once("@").expect("valid email")
     }
 }
 

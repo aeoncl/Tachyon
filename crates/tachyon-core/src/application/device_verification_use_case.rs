@@ -109,8 +109,6 @@ impl DeviceVerificationUseCase {
         Ok((entry.session, entry.readiness))
     }
 
-    /// A session that still has something to prove. Reading the status or the current flow
-    /// of a verified login is fine, but changing its device trust is not.
     async fn unverified_session(
         &self,
         token: &TachyonToken,

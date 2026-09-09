@@ -21,7 +21,7 @@ impl Debug for TachyonToken {
 }
 
 /// How far a stored login has come: authenticated, then device-trusted, then usable by
-/// a bridge. A login only ever moves forward through these.
+/// a bridge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Readiness {
     AuthNeeded,
@@ -30,9 +30,6 @@ pub enum Readiness {
 }
 
 impl Readiness {
-    /// The single source of truth for which readiness transitions are legal. Staying in
-    /// the current state counts as legal so that callers settling an already settled
-    /// login do not have to special-case it.
     pub fn can_advance_to(self, next: Readiness) -> bool {
         use Readiness::{AuthNeeded, Ready, VerificationNeeded};
         matches!(
@@ -42,12 +39,6 @@ impl Readiness {
                 | (Ready, Ready)
         )
     }
-}
-
-pub enum RestoreOutcome {
-    Success,
-    SoftLogout,
-    Logout,
 }
 
 pub enum InteractiveAuthStarted {

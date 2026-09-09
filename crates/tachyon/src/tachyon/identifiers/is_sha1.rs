@@ -22,7 +22,7 @@ lazy_static! {
 
 impl IsSha1 for EmailAddress {
     fn is_sha1_imprecise(&self) -> bool {
-        let (local_part, _domain) = self.crack();
+        let (local_part, _domain) = self.split();
         local_part.len() == 40 && SHA1_REGEX.is_match(local_part)
     }
 }

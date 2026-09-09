@@ -152,7 +152,7 @@ impl FindRoomFromEmail for Client {
     
     fn find_room_from_email(&self, email: &EmailAddress) -> Result<Option<Room>, Error> {
 
-        let (room_id_hashed, server_name) = email.crack();
+        let (room_id_hashed, server_name) = email.split();
 
         let out = if let Some(entry) = ROOM_HASH_TABLE.get(room_id_hashed) {
             let room_id = entry.value();
