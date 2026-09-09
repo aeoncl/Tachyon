@@ -283,8 +283,6 @@ fn no_room_data_list() -> SlidingSyncListBuilder {
         .filters(Some(list_filters))
 }
 
-pub struct PendingReset;
-
 #[cfg(test)]
 mod tests {
     use super::*;

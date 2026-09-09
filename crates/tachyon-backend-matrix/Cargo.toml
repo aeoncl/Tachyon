@@ -26,6 +26,9 @@ features = ["e2e-encryption", "automatic-room-key-forwarding", "bundled-sqlite",
 path = "../../lib/matrix-rust-sdk/crates/matrix-sdk"
 features = ["testing"]
 
+[dev-dependencies.matrix-sdk-crypto]
+path = "../../lib/matrix-rust-sdk/crates/matrix-sdk-crypto"
+
 [dependencies.tachyon-core]
 path = "../tachyon-core"
 
