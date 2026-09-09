@@ -38,9 +38,9 @@ impl NotificationServer {
                 tokio::select! {
                     accepted = listener.accept() => {
                         let (socket, _addr)  = accepted.map_err(|e| anyhow!(e))?;
-                        let _result = tokio::spawn(async move {
+                        let _handle = tokio::spawn(async move {
                             handle_client(socket, global_shutdown_recv_clone.resubscribe(), global_state_clone).await
-                        }).await;
+                        });
                     }
                     global_shutdown = global_shutdown_recv_clone.recv() => {
                         if let Err(err) = global_shutdown {
