@@ -8,7 +8,7 @@ use matrix_sdk::authentication::oauth::registration::{
 };
 use matrix_sdk::reqwest::Url;
 use matrix_sdk::ruma::OwnedUserId;
-use matrix_sdk::ruma::api::client::error::ErrorKind;
+use matrix_sdk::ruma::api::error::{ErrorKind, UnknownTokenErrorData};
 use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::{Client, HttpError, ServerName};
 
@@ -249,13 +249,6 @@ impl AuthService for AuthServiceMatrixSdk {
 /// a device's store rather than an empty folder.
 const CRYPTO_DATABASE: &str = "matrix-sdk-crypto.sqlite3";
 
-/// The directory name the store used before every login got its own.
-fn legacy_store_dir_name(user_id: &matrix_sdk::ruma::UserId) -> String {
-    uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, user_id.as_str().as_bytes())
-        .to_string()
-        .to_uppercase()
-}
-
 fn remove_login_dir(login_dir: &std::path::Path) -> Result<(), BackendError> {
     match std::fs::remove_dir_all(login_dir) {
         Ok(()) => Ok(()),
@@ -274,7 +267,7 @@ fn map_whoami_error(error: HttpError) -> BackendError {
 
     match api_error {
         ErrorKind::Forbidden { .. } | ErrorKind::Unauthorized => BackendError::LoggedOut,
-        ErrorKind::UnknownToken { soft_logout } => match soft_logout {
+        ErrorKind::UnknownToken(UnknownTokenErrorData { soft_logout, .. }) => match soft_logout {
             true => BackendError::SoftLoggedOut,
             false => BackendError::LoggedOut,
         },
@@ -397,13 +390,6 @@ pub(crate) mod tests {
         (auth_service, mock_server)
     }
 
-    #[test]
-    fn the_legacy_store_directory_name_matches_the_old_scheme() {
-        let user_id = matrix_sdk::ruma::UserId::parse("@aeon:shlasouf.local").unwrap();
-
-        assert_eq!(legacy_store_dir_name(&user_id), "264E4340-A168-537C-890B-946D4EB046E0");
-    }
-
     async fn stored_login(auth_service: &AuthServiceMatrixSdk, login_id: &str) -> LoginId {
         let login_id = LoginId::new(login_id);
         let blob = SessionRestoreData {
@@ -423,12 +409,6 @@ pub(crate) mod tests {
         login_id
     }
 
-    fn fake_store(dir: &std::path::Path) {
-        let store = dir.join("store");
-        std::fs::create_dir_all(&store).unwrap();
-        std::fs::write(store.join(CRYPTO_DATABASE), b"not really a database").unwrap();
-    }
-
     #[tokio::test]
     async fn restoring_a_login_whose_store_is_missing_is_refused() {
         let root = StoreRoot::new();
@@ -442,23 +422,6 @@ pub(crate) mod tests {
             "{refused:?}"
         );
         assert!(!root.login_dir("l1").join("store").join(CRYPTO_DATABASE).exists(), "no empty store was minted");
-    }
-
-    #[tokio::test]
-    async fn a_legacy_store_is_moved_under_its_login_before_the_client_is_built() {
-        let root = StoreRoot::new();
-        let (auth_service, _mock) = build_test_auth_service_storing_in(&root).await;
-        let login_id = stored_login(&auth_service, "l1").await;
-        let legacy_dir = root.0.join("264E4340-A168-537C-890B-946D4EB046E0");
-        fake_store(&legacy_dir);
-
-        let _ = auth_service.restore(&login_id).await;
-
-        assert!(!legacy_dir.exists(), "the legacy directory was moved, not copied");
-        assert_eq!(
-            std::fs::read(root.login_dir("l1").join("store").join(CRYPTO_DATABASE)).unwrap(),
-            b"not really a database"
-        );
     }
 
     #[tokio::test]

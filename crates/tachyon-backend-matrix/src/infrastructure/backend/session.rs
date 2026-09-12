@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use matrix_sdk::authentication::oauth::UrlOrQuery;
+use matrix_sdk::utils::UrlOrQuery;
 use matrix_sdk::encryption::recovery::{IdentityResetHandle, RecoveryError};
 use matrix_sdk::encryption::secret_storage::{ImportError, SecretStorageError};
 
@@ -102,7 +102,7 @@ impl BackendSessionMatrix {
                         };
 
                         match session_change {
-                            SessionChange::UnknownToken { soft_logout: _ } => {
+                            SessionChange::UnknownToken(_) => {
                                 //Todo push Logout or SoftLogoutEvent
                             }
                             SessionChange::TokensRefreshed => {
@@ -1000,7 +1000,7 @@ mod tests {
     async fn fresh_crypto_session() -> (Arc<BackendSessionMatrix>, Client, MatrixMockServer) {
         let server = MatrixMockServer::new().await;
         server.mock_crypto_endpoints_preset().await;
-        server.mock_versions().ok_with_unstable_features().mount().await;
+        server.mock_versions().with_simplified_sliding_sync().ok().mount().await;
         server
             .mock_sliding_sync()
             .ok(SlidingSyncResponse::new("pos".to_owned()))

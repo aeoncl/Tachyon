@@ -44,7 +44,7 @@ futures = "0.3.31"
 futures-util = "0.3.31"
 # Must stay on the same rev as lib/matrix-rust-sdk's ruma dependency,
 # otherwise cargo builds two ruma-events and trait impls stop matching.
-ruma = { git = "https://github.com/ruma/ruma", rev = "4a0ae80fbf42d1b759e108d7315537d13583c144", features = ["api", "events"] }
+ruma = { git = "https://github.com/ruma/ruma", rev = "0908aaa9847093ecb32bc6edf0af525f726717fd", features = ["api", "events"] }
 rand = "0.10.1"
 reqwest = "0.12.28"
 mime = "0.3.17"
@@ -62,7 +62,7 @@ features = ["testing"]
 
 [dependencies.matrix-sdk]
 path = "../../lib/matrix-rust-sdk/crates/matrix-sdk"
-features = ["e2e-encryption", "automatic-room-key-forwarding", "bundled-sqlite", "native-tls"]
+features = ["e2e-encryption", "automatic-room-key-forwarding", "bundled-sqlite", "rustls-aws-lc-rs"]
 
 [dependencies.matrix-sdk-ui]
 path = "../../lib/matrix-rust-sdk/crates/matrix-sdk-ui"

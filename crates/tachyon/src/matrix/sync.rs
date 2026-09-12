@@ -5,7 +5,7 @@ use futures::StreamExt;
 use log::{debug, error, info};
 use matrix_sdk::deserialized_responses::RawAnySyncOrStrippedState;
 use matrix_sdk::event_handler::Ctx;
-use matrix_sdk::ruma::api::client::error::ErrorKind;
+use matrix_sdk::ruma::api::error::ErrorKind;
 use matrix_sdk::ruma::api::client::sync::sync_events::v5::request::{
     AccountData, ListFilters, RoomSubscription, ToDevice, Typing, E2EE,
 };
@@ -90,7 +90,7 @@ fn spawn_sync_task(
 
         info!("Starting Sliding Sync...");
         let (error_tx, mut error_rx) =
-            mpsc::channel::<matrix_sdk::ruma::api::client::error::ErrorKind>(1);
+            mpsc::channel::<matrix_sdk::ruma::api::error::ErrorKind>(1);
 
         let mut sync_handle = tokio::spawn({
             let sliding_sync = sliding_sync.clone();
@@ -149,7 +149,7 @@ fn spawn_sync_task(
                     }
                 }
                 error_kind = error_rx.recv() => {
-                    if let Some(matrix_sdk::ruma::api::client::error::ErrorKind::UnknownPos) = error_kind {
+                    if let Some(matrix_sdk::ruma::api::error::ErrorKind::UnknownPos) = error_kind {
                         info!("Unknown pos detected, re-syncing...");
                         sync_handle.abort();
                         restart_sync = true;

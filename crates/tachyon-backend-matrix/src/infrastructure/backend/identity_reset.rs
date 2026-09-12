@@ -128,7 +128,7 @@ pub(crate) fn password_auth(
     password: &Password,
 ) -> AuthData {
     let mut auth = PasswordAuth::new(
-        UserIdentifier::UserIdOrLocalpart(user_id.to_string()),
+        UserIdentifier::Matrix(user_id.to_owned().into()),
         password.as_str().to_owned(),
     );
     auth.session = uiaa_session;
