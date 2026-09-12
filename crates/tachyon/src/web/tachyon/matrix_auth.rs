@@ -1,5 +1,3 @@
-use log::{debug, error, warn};
-use crate::tachyon::alert::{AlertNotify, AlertSuccess};
 use crate::tachyon::global_state::GlobalState;
 use crate::web::tachyon::{layout, Params};
 use axum::body::Body;
@@ -7,14 +5,17 @@ use axum::extract::State;
 use axum::http::header::LOCATION;
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
+use log::{debug, error, warn};
 use maud::{html, Markup};
-use tachyon_core::application::auth_use_case::LoginOutcome;
-use tachyon_core::domain::auth::InteractiveAuthStarted;
+use tachyon_core::application::auth_use_case::FinishedLogin;
+use tachyon_core::application::error::AuthError;
+use tachyon_core::domain::auth::{Credential, InteractiveAuthStarted};
+use tachyon_core::domain::verification::{DeviceStatus, Password};
 
 /// Where the `NOT` alert sent during sign-in lands.
 ///
-/// The client only carries a flow id, so the URL the user actually needs — which for OAuth
-/// is long, query-heavy and generated per attempt — is looked up here rather than shipped
+/// The client only carries a flow id, so the URL the user actually needs, which for OAuth
+/// is long, query-heavy and generated per attempt, is looked up here rather than shipped
 /// through MSNP.
 pub async fn get_login_start(
     State(state): State<GlobalState>,
@@ -24,20 +25,45 @@ pub async fn get_login_start(
         return error_page("This login link is missing its flow id.");
     };
 
-    let auth_url = state.peek_pending_login(flow_id, |pending| match &pending.prompt {
-        InteractiveAuthStarted::OAuth { auth_url, .. } => Some(auth_url.clone()),
-        InteractiveAuthStarted::PasswordRequired => None,
-    });
-
-    match auth_url {
-        Some(Some(auth_url)) => Response::builder()
-            .status(StatusCode::TEMPORARY_REDIRECT)
-            .header(LOCATION, auth_url)
-            .body(Body::empty())
-            .unwrap(),
-        // The login exists but the homeserver has no OAuth.
-        Some(None) => password_not_supported_page(),
+    match state.app_state().auth_use_case().prompt(flow_id) {
+        Some(InteractiveAuthStarted::OAuth { auth_url, .. }) => redirect(&auth_url),
+        Some(InteractiveAuthStarted::PasswordRequired) => password_page(flow_id, None),
         None => error_page("This login has expired or was already completed."),
+    }
+}
+
+/// The password form posts here. A rejected password shows the form again; anything else
+/// that goes wrong ends the sign-in.
+pub async fn post_login_password(
+    State(state): State<GlobalState>,
+    axum::extract::Form(form): axum::extract::Form<Params>,
+) -> Response {
+    let Some(flow_id) = form.get("flow") else {
+        return error_page("This login form is missing its flow id.");
+    };
+    let Some(password) = form.get("password").filter(|password| !password.is_empty()) else {
+        return password_page(flow_id, Some("Please fill in your password."));
+    };
+
+    let credential = Credential::Password(Password::new(password.as_str()));
+    match state
+        .app_state()
+        .auth_use_case()
+        .finish_login(flow_id, credential)
+        .await
+    {
+        Ok(finished) => login_finished(finished),
+        Err(AuthError::BackendError(e)) => {
+            warn!("The homeserver rejected the password login: {:?}", e);
+            password_page(flow_id, Some("Your homeserver did not accept that password."))
+        }
+        Err(AuthError::LoginNotFound) => {
+            error_page("This login has expired or was already completed.")
+        }
+        Err(e) => {
+            error!("Could not finish the password login: {:?}", e);
+            error_page("The login succeeded but could not be stored.")
+        }
     }
 }
 
@@ -61,86 +87,60 @@ pub async fn get_login_callback(
         return error_page("The login callback carried no state parameter.");
     };
 
+    let auth_use_case = state.app_state().auth_use_case();
+
     if let Some(error) = params.get("error") {
         warn!("Authorization was refused by the homeserver: {}", error);
-        if let Some(pending) = state.take_pending_login(flow_id) {
-            let _ = pending
-                .alert
-                .notify_failure(anyhow::anyhow!("Authorization was refused: {}", error));
+        if let Err(e) = auth_use_case.abandon_flow(flow_id).await {
+            error!("Could not abandon the refused login: {:?}", e);
         }
         return error_page("Your homeserver refused the authorization.");
     }
 
-    let Some(pending) = state.take_pending_login(flow_id) else {
-        return error_page("This login has expired or was already completed.");
-    };
-
-    let auth_use_case = state.app_state().auth_use_case();
-
-    let outcome = match auth_use_case
-        .finish_interactive_login(&pending.login_id, &query)
+    match auth_use_case
+        .finish_login(flow_id, Credential::OAuthCallback(query))
         .await
     {
-        Ok(outcome) => outcome,
+        Ok(finished) => login_finished(finished),
         Err(e) => {
             error!("Could not finish the interactive login: {:?}", e);
-            let _ = pending
-                .alert
-                .notify_failure(anyhow::anyhow!("Could not finish login: {:?}", e));
-            return error_page("Your homeserver rejected the login.");
-        }
-    };
-
-    if let Err(e) = auth_use_case
-        .bind_token(state.token_for(&pending.email), pending.login_id.clone())
-        .await
-    {
-        error!("Could not link the ticket to the login: {:?}", e);
-        let _ = auth_use_case.abandon_login(&pending.login_id).await;
-        let _ = pending
-            .alert
-            .notify_failure(anyhow::anyhow!("Could not store the login: {:?}", e));
-        return error_page("The login succeeded but could not be stored.");
-    }
-
-    match outcome {
-        LoginOutcome::SessionOpened { .. } => {
-            debug!("Interactive login finished for {}", pending.email.as_str());
-            // Releases the USR handler that is holding the client's sign-in open.
-            let _ = pending.alert.notify_success(AlertSuccess::Unit);
-            success_page(pending.email.as_str())
-        }
-        LoginOutcome::DeviceVerificationRequired { .. } => {
-            // The user is already here, so send them straight on to confirm the device rather
-            // than making them come back through a second alert. The login alert is handed to
-            // the confirmation pages and fires once they are done, which is also what keeps the
-            // MSNP client from connecting with an unverified device.
-            let ticket = state.ticket_for(&pending.email);
-            warn!(
-                "Interactive login finished for {} but its device is unverified",
-                pending.email.as_str()
-            );
-
-            state.authorize_ticket(ticket.as_str());
-            state.store_pending_verification(ticket.as_str().to_owned(), pending.alert);
-
-            Response::builder()
-                .status(StatusCode::TEMPORARY_REDIRECT)
-                .header(
-                    LOCATION,
-                    format!("/tachyon/confirm_device?t={}", ticket.as_str()),
-                )
-                .body(Body::empty())
-                .unwrap()
+            error_page("Your homeserver rejected the login.")
         }
     }
 }
 
-fn success_page(email: &str) -> Response {
+fn login_finished(finished: FinishedLogin) -> Response {
+    match finished.device_status {
+        DeviceStatus::Verified => {
+            debug!("Interactive login finished");
+            success_page()
+        }
+        // The user is already here, so send them straight on to confirm the device rather
+        // than making them come back through a second alert.
+        DeviceStatus::Unverified => {
+            warn!("Interactive login finished but its device is unverified");
+            redirect(&format!(
+                "/tachyon/confirm_device?t={}",
+                finished.token.as_str()
+            ))
+        }
+    }
+}
+
+/// 303 rather than 307: the password form arrives as a POST, and the browser must follow
+/// with a GET or the confirmation page answers 405.
+fn redirect(location: &str) -> Response {
+    Response::builder()
+        .status(StatusCode::SEE_OTHER)
+        .header(LOCATION, location)
+        .body(Body::empty())
+        .unwrap()
+}
+
+fn success_page() -> Response {
     let content = html! {
         div class="container" {
             h2 { "Signed in" }
-            p { "You are signed in as " (email) "." }
             p { "You can go back to Messenger now." }
         }
     };
@@ -148,13 +148,21 @@ fn success_page(email: &str) -> Response {
     Html(layout::tachyon_page_no_nav(content).into_string()).into_response()
 }
 
-fn password_not_supported_page() -> Response {
+fn password_page(flow_id: &str, error: Option<&str>) -> Response {
     let content = html! {
         div class="container" {
-            h2 { "Password sign-in is not supported yet" }
-            p {
-                "Your homeserver does not offer OAuth, so Tachyon would have to ask you for
-                 your password directly. That path has not been wired up yet."
+            h2 { "Sign in to your Matrix account" }
+            p { "Your homeserver does not offer single sign-on, so it needs your password." }
+            @if let Some(error) = error {
+                p class="error" { (error) }
+            }
+            form action="/tachyon/login/password" method="POST" {
+                input type="hidden" name="flow" value=(flow_id) {}
+                label for="password" { "Password" }
+                br;
+                input type="password" name="password" id="password" autofocus {}
+                br;
+                input type="submit" value="Sign in" {}
             }
         }
     };
@@ -174,5 +182,25 @@ fn error_markup(message: &str) -> Markup {
             p { (message) }
             p { "Sign out of Messenger and sign in again to start over." }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tachyon_core::domain::auth::TachyonToken;
+
+    #[test]
+    fn an_untrusted_device_is_sent_to_confirmation_with_a_get() {
+        let response = login_finished(FinishedLogin {
+            token: TachyonToken::new("ticket"),
+            device_status: DeviceStatus::Unverified,
+        });
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response.headers().get(LOCATION).unwrap(),
+            "/tachyon/confirm_device?t=ticket"
+        );
     }
 }

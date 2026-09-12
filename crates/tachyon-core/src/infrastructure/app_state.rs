@@ -1,42 +1,33 @@
-use crate::application::auth_use_case::AuthUseCase;
+use crate::application::auth_use_case::{AuthUseCase, WebUrls};
 use crate::application::device_verification_use_case::DeviceVerificationUseCase;
-use crate::application::ports::{AccountRepository, AuthService, SessionRepository};
-use crate::infrastructure::repository::SessionRepositoryInMem;
+use crate::application::logins::Logins;
+use crate::application::ports::{AccountRepository, AuthService};
 use std::sync::Arc;
 
-/// Core's composition root: owns the repositories and hands bridges the use cases.
+/// Core's composition root: owns the live logins and hands bridges the use cases.
 pub struct AppState {
-    session_repository: Arc<dyn SessionRepository>,
     auth_use_case: Arc<AuthUseCase>,
     device_verification_use_case: Arc<DeviceVerificationUseCase>,
 }
 
 impl AppState {
-    /// `redirect_url` is the bridge endpoint a backend sends the user's browser back to
-    /// once they have authorized.
+    /// `web_base_url` is where the user's browser reaches the bridge's pages, for instance
+    /// `http://127.0.0.1:11866/tachyon`.
     pub fn new(
         auth_service: Arc<dyn AuthService>,
         account_repository: Arc<dyn AccountRepository>,
-        redirect_url: String,
+        web_base_url: String,
     ) -> AppState {
-        let session_repository = Arc::new(SessionRepositoryInMem::default());
-
-        let auth_use_case = Arc::new(AuthUseCase::new(
-            account_repository.clone(),
-            session_repository.clone(),
-            auth_service.clone(),
-            redirect_url,
-        ));
-
-        let device_verification_use_case = Arc::new(DeviceVerificationUseCase::new(
-            account_repository,
-            session_repository.clone(),
-        ));
+        let logins = Arc::new(Logins::default());
 
         AppState {
-            session_repository,
-            auth_use_case,
-            device_verification_use_case,
+            auth_use_case: Arc::new(AuthUseCase::new(
+                account_repository,
+                logins.clone(),
+                auth_service,
+                WebUrls::new(web_base_url),
+            )),
+            device_verification_use_case: Arc::new(DeviceVerificationUseCase::new(logins)),
         }
     }
 
@@ -46,9 +37,5 @@ impl AppState {
 
     pub fn device_verification_use_case(&self) -> &Arc<DeviceVerificationUseCase> {
         &self.device_verification_use_case
-    }
-
-    pub fn session_repository(&self) -> &Arc<dyn SessionRepository> {
-        &self.session_repository
     }
 }

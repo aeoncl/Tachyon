@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 async-trait = "0.1.92"
 dashmap = "6.2.1"
+anyhow.workspace = true
+tokio.workspace = true
 
 [dependencies.tachyon-core]
 path = "../tachyon-core"

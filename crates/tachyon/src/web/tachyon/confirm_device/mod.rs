@@ -1,6 +1,5 @@
 use crate::tachyon::global_state::GlobalState;
 use crate::web::tachyon::layout::error_fragment;
-use crate::web::tachyon::release_sign_in;
 use axum::extract::State;
 use axum::response::Html;
 use maud::{html, Markup};
@@ -19,10 +18,7 @@ pub async fn get_confirm(
     let core_token = TachyonToken::new(&token);
 
     let content = match use_case.status(&core_token).await {
-        Ok(DeviceStatus::Verified) => {
-            release_sign_in(&state, &token);
-            already_confirmed_content()
-        }
+        Ok(DeviceStatus::Verified) => already_confirmed_content(),
         Ok(DeviceStatus::Unverified) => match use_case.options(&core_token).await {
             Ok(options) => device_confirmation_content(&options),
             Err(e) => error_fragment(&e.to_string()),

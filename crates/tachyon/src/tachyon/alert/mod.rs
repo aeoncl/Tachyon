@@ -30,23 +30,11 @@ pub trait AlertNotify {
 }
 
 pub enum Alert {
-    ConfirmDevice(ConfirmDeviceAlertContent),
     WebLogin(WebLoginAlertContent),
-    InteractiveLogin(InteractiveLoginAlertContent),
-}
-
-pub struct ConfirmDeviceAlertContent {
-    sender: oneshot::Sender<Result<(), AlertError>>,
 }
 
 pub struct WebLoginAlertContent {
     sender: oneshot::Sender<Result<TicketToken, AlertError>>,
-}
-
-/// Fired by the web bridge once the user has completed an interactive login in their
-/// browser, releasing the `USR` handler that is holding the client's sign-in open.
-pub struct InteractiveLoginAlertContent {
-    sender: oneshot::Sender<Result<(), AlertError>>,
 }
 
 pub enum AlertReceiver {
@@ -99,19 +87,6 @@ impl AlertReceiver {
     }
 }
 
-impl AlertNotify for ConfirmDeviceAlertContent {
-    fn notify_success(self, result: AlertSuccess) -> Result<(), AlertError> {
-        if !matches!(result, AlertSuccess::Unit) {
-            return Err(anyhow::anyhow!("Invalid alert success type, expected Unit"));
-        }
-        self.sender.send(Ok(())).map_err(|_| anyhow::anyhow!("Failed to send alert"))
-    }
-
-    fn notify_failure(self, error: AlertError) -> Result<(), AlertError> {
-        self.sender.send(Err(error)).map_err(|_| anyhow::anyhow!("Failed to send alert error"))
-    }
-}
-
 impl AlertNotify for WebLoginAlertContent {
     fn notify_success(self, result: AlertSuccess) -> Result<(), AlertError> {
         let token = match result {
@@ -126,33 +101,16 @@ impl AlertNotify for WebLoginAlertContent {
     }
 }
 
-impl AlertNotify for InteractiveLoginAlertContent {
-    fn notify_success(self, result: AlertSuccess) -> Result<(), AlertError> {
-        if !matches!(result, AlertSuccess::Unit) {
-            return Err(anyhow::anyhow!("Invalid alert success type, expected Unit"));
-        }
-        self.sender.send(Ok(())).map_err(|_| anyhow::anyhow!("Failed to send alert"))
-    }
-
-    fn notify_failure(self, error: AlertError) -> Result<(), AlertError> {
-        self.sender.send(Err(error)).map_err(|_| anyhow::anyhow!("Failed to send alert error"))
-    }
-}
-
 impl AlertNotify for Alert {
     fn notify_success(self, result: AlertSuccess) -> Result<(), AlertError> {
         match self {
-            Alert::ConfirmDevice(content) => content.notify_success(result),
             Alert::WebLogin(content) => content.notify_success(result),
-            Alert::InteractiveLogin(content) => content.notify_success(result),
         }
     }
 
     fn notify_failure(self, error: AlertError) -> Result<(), AlertError> {
         match self {
-            Alert::ConfirmDevice(content) => content.notify_failure(error),
             Alert::WebLogin(content) => content.notify_failure(error),
-            Alert::InteractiveLogin(content) => content.notify_failure(error),
         }
     }
 }
@@ -166,21 +124,4 @@ impl Alert {
         )
     }
 
-    pub fn new_interactive_login() -> (Self, AlertReceiver) {
-        let (sender, receiver) = oneshot::channel();
-        (
-            Alert::InteractiveLogin(InteractiveLoginAlertContent { sender }),
-            AlertReceiver::Unit(receiver),
-        )
-    }
-
-    /// Expiry is the caller's business: the alert is raced against the deadline the client
-    /// gives us for the whole sign-in.
-    pub fn new_confirm_device() -> (Self, AlertReceiver) {
-        let (sender, receiver) = oneshot::channel();
-        (
-            Alert::ConfirmDevice(ConfirmDeviceAlertContent { sender }),
-            AlertReceiver::Unit(receiver),
-        )
-    }
 }

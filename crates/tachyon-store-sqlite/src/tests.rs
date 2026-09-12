@@ -1,5 +1,5 @@
 use crate::SqliteStore;
-use tachyon_core::application::ports::{AccountRepository, CredentialRepository};
+use tachyon_core::application::ports::{AccountRepository, CredentialRepository, StoredLogin};
 use tachyon_core::domain::auth::{CredentialBlob, TachyonToken};
 use tachyon_core::domain::ids::LoginId;
 
@@ -44,41 +44,43 @@ async fn stored_credentials_round_trip_and_latest_wins() {
 }
 
 #[tokio::test]
-async fn relinking_a_token_drops_the_superseded_login() {
+async fn deleting_a_login_takes_its_tokens_with_it() {
     let store = SqliteStore::open_in_memory().unwrap();
-    store.store(&login("old"), blob(b"old-creds")).await.unwrap();
-    store.save_login_for_token(token("t1"), login("old")).await.unwrap();
+    store.store(&login("l1"), blob(b"creds")).await.unwrap();
+    store.save_login_for_token(token("t1"), login("l1")).await.unwrap();
+    store.save_login_for_token(token("t2"), login("l1")).await.unwrap();
 
-    store.store(&login("new"), blob(b"new-creds")).await.unwrap();
-    store.save_login_for_token(token("t1"), login("new")).await.unwrap();
+    store.delete_login(&login("l1")).await.unwrap();
 
-    assert_eq!(
-        store.login_id_by_token(&token("t1")).await.unwrap(),
-        Some(login("new"))
-    );
-    assert_eq!(store.credentials(&login("old")).await.unwrap(), None);
-    assert_eq!(
-        store.credentials(&login("new")).await.unwrap(),
-        Some(blob(b"new-creds"))
-    );
+    assert_eq!(store.credentials(&login("l1")).await.unwrap(), None);
+    assert_eq!(store.login_id_by_token(&token("t1")).await.unwrap(), None);
+    assert_eq!(store.login_id_by_token(&token("t2")).await.unwrap(), None);
+    assert!(store.logins().await.unwrap().is_empty());
 }
 
 #[tokio::test]
-async fn superseded_login_survives_while_another_token_references_it() {
+async fn deleting_a_login_that_is_not_there_is_fine() {
     let store = SqliteStore::open_in_memory().unwrap();
-    store.store(&login("shared"), blob(b"creds")).await.unwrap();
-    store.save_login_for_token(token("t1"), login("shared")).await.unwrap();
-    store.save_login_for_token(token("t2"), login("shared")).await.unwrap();
 
-    store.save_login_for_token(token("t1"), login("other")).await.unwrap();
+    store.delete_login(&login("nope")).await.unwrap();
+}
+
+#[tokio::test]
+async fn logins_report_whether_a_token_still_points_at_them() {
+    let store = SqliteStore::open_in_memory().unwrap();
+    store.store(&login("bound"), blob(b"creds")).await.unwrap();
+    store.save_login_for_token(token("t1"), login("bound")).await.unwrap();
+    store.store(&login("leftover"), blob(b"creds")).await.unwrap();
+
+    let mut logins = store.logins().await.unwrap();
+    logins.sort_by(|a, b| a.login_id.to_string().cmp(&b.login_id.to_string()));
 
     assert_eq!(
-        store.credentials(&login("shared")).await.unwrap(),
-        Some(blob(b"creds"))
-    );
-    assert_eq!(
-        store.login_id_by_token(&token("t2")).await.unwrap(),
-        Some(login("shared"))
+        logins,
+        vec![
+            StoredLogin { login_id: login("bound"), bound: true },
+            StoredLogin { login_id: login("leftover"), bound: false },
+        ]
     );
 }
 

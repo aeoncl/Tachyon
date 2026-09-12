@@ -45,6 +45,9 @@ async fn main() {
     let (global_shutdown_signal_snd, global_shutdown_signal_rcv) = broadcast::channel::<()>(1);
 
     let app_state = build_app_state(&config, tachyon_path.data_local_dir().to_path_buf());
+    if let Err(e) = app_state.auth_use_case().sweep().await {
+        log::warn!("Could not clear out stale logins: {:?}", e);
+    }
 
     let global_state = GlobalState::new(
         config.clone(),
@@ -75,12 +78,9 @@ fn build_app_state(config: &TachyonConfig, data_local_dir: PathBuf) -> Arc<AppSt
 
     let auth_service = Arc::new(AuthServiceMatrixSdk::new(Arc::new(store.clone()), backend_config));
 
-    let redirect_url = format!(
-        "http://127.0.0.1:{}/tachyon/login/callback",
-        config.http_port
-    );
+    let web_base_url = format!("http://127.0.0.1:{}/tachyon", config.http_port);
 
-    Arc::new(AppState::new(auth_service, Arc::new(store), redirect_url))
+    Arc::new(AppState::new(auth_service, Arc::new(store), web_base_url))
 }
 
 fn setup_key(config_folder_path: PathBuf) -> Result<Vec<u8>, anyhow::Error> {

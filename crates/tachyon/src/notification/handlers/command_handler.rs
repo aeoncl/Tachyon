@@ -55,7 +55,7 @@ mod tests {
         let app_state = Arc::new(AppState::new(
             auth_service,
             Arc::new(AccountRepositoryInMem::default()),
-            "http://127.0.0.1:11866/tachyon/login/callback".to_string(),
+            "http://127.0.0.1:11866/tachyon".to_string(),
         ));
 
         GlobalState::new(

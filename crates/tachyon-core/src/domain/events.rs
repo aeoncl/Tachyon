@@ -35,7 +35,3 @@ pub struct MessageEventContent {
     sender: Participant,
     kind: MessageKind
 }
-
-/// Events from core to the bridge. Currently empty; variants will be added as bridge
-/// capabilities are defined.
-pub enum BridgeEvent {}

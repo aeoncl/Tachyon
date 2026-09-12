@@ -1,3 +1,4 @@
+use crate::domain::verification::Password;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
@@ -20,33 +21,21 @@ impl Debug for TachyonToken {
     }
 }
 
-/// How far a stored login has come: authenticated, then device-trusted, then usable by
-/// a bridge.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Readiness {
-    AuthNeeded,
-    VerificationNeeded,
-    Ready,
-}
-
-impl Readiness {
-    pub fn can_advance_to(self, next: Readiness) -> bool {
-        use Readiness::{AuthNeeded, Ready, VerificationNeeded};
-        matches!(
-            (self, next),
-            (AuthNeeded, AuthNeeded | VerificationNeeded | Ready)
-                | (VerificationNeeded, VerificationNeeded | Ready)
-                | (Ready, Ready)
-        )
-    }
-}
-
+#[derive(Clone, Debug)]
 pub enum InteractiveAuthStarted {
     OAuth {
         auth_url: String,
         csrf_token: String,
     },
     PasswordRequired,
+}
+
+/// What completes an interactive login, matching the prompt it started with.
+#[derive(Debug)]
+pub enum Credential {
+    /// The raw query string the authorization server redirected the browser back with.
+    OAuthCallback(String),
+    Password(Password),
 }
 
 pub struct BridgeMetadata {
@@ -76,41 +65,5 @@ impl CredentialBlob {
 impl Debug for CredentialBlob {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str("CredentialBlob(<redacted>)")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Readiness::{AuthNeeded, Ready, VerificationNeeded};
-
-    #[test]
-    fn readiness_advances_forward_and_stays_put_but_never_goes_back() {
-        let legal = [
-            (AuthNeeded, AuthNeeded),
-            (AuthNeeded, VerificationNeeded),
-            (AuthNeeded, Ready),
-            (VerificationNeeded, VerificationNeeded),
-            (VerificationNeeded, Ready),
-            (Ready, Ready),
-        ];
-        let illegal = [
-            (VerificationNeeded, AuthNeeded),
-            (Ready, AuthNeeded),
-            (Ready, VerificationNeeded),
-        ];
-
-        for (from, to) in legal {
-            assert!(from.can_advance_to(to), "{from:?} -> {to:?} must be legal");
-        }
-        for (from, to) in illegal {
-            assert!(!from.can_advance_to(to), "{from:?} -> {to:?} must be refused");
-        }
-
-        let all = [AuthNeeded, VerificationNeeded, Ready];
-        assert_eq!(
-            legal.len() + illegal.len(),
-            all.len() * all.len(),
-            "every pair of readiness states must be covered"
-        );
     }
 }

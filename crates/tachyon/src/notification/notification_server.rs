@@ -192,23 +192,16 @@ fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> S
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_trait::async_trait;
     use msnp::shared::models::email_address::EmailAddress;
-    use std::any::Any;
     use std::net::SocketAddr;
     use std::str::FromStr;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::{Arc, Mutex};
+    use std::sync::Arc;
     use std::time::Duration;
-    use tachyon_core::application::error::{BackendError, VerificationError};
-    use tachyon_core::application::ports::{AccountRepository, AuthService, BackendSession};
-    use tachyon_core::domain::auth::{BridgeMetadata, InteractiveAuthStarted};
-    use tachyon_core::domain::ids::{DeviceId, LoginId, UserId};
-    use tachyon_core::domain::verification::{
-        DeviceStatus, IdentityReset, RecoveryKey, ResetAuth, VerificationAction,
-        VerificationFlowState, VerificationOptions,
-    };
+    use tachyon_core::application::ports::AccountRepository;
+    use tachyon_core::domain::ids::LoginId;
+    use tachyon_core::domain::verification::DeviceStatus;
     use tachyon_core::infrastructure::app_state::AppState;
+    use tachyon_testkit::fakes::FakeAuthService;
     use tachyon_testkit::repositories::AccountRepositoryInMem;
     use tokio::task::JoinHandle;
     use tokio::time::timeout;
@@ -222,134 +215,8 @@ mod tests {
         EmailAddress::from_str(TEST_EMAIL).expect("a valid test address")
     }
 
-    fn unsupported<T>() -> Result<T, VerificationError> {
-        Err(VerificationError::Backend(BackendError::Technical(anyhow!(
-            "the fake backend session does not support this call"
-        ))))
-    }
-
-    struct FakeBackendSession {
-        close_calls: AtomicUsize,
-    }
-
-    impl FakeBackendSession {
-        fn new() -> Arc<Self> {
-            Arc::new(Self {
-                close_calls: AtomicUsize::new(0),
-            })
-        }
-
-        fn close_calls(&self) -> usize {
-            self.close_calls.load(Ordering::SeqCst)
-        }
-    }
-
-    #[async_trait]
-    impl BackendSession for FakeBackendSession {
-        async fn finish_interactive_login(&self, _callback_query: &str) -> Result<(), BackendError> {
-            Err(BackendError::Technical(anyhow!(
-                "the fake backend session does not support this call"
-            )))
-        }
-
-        async fn device_status(&self) -> Result<DeviceStatus, BackendError> {
-            Ok(DeviceStatus::Unverified)
-        }
-
-        async fn verification_options(&self) -> Result<VerificationOptions, VerificationError> {
-            unsupported()
-        }
-
-        async fn recover(&self, _key: &RecoveryKey) -> Result<DeviceStatus, VerificationError> {
-            unsupported()
-        }
-
-        async fn start_device_verification(
-            &self,
-            _device: &DeviceId,
-        ) -> Result<(), VerificationError> {
-            unsupported()
-        }
-
-        fn verification_state(&self) -> Option<VerificationFlowState> {
-            None
-        }
-
-        async fn verification_action(
-            &self,
-            _action: VerificationAction,
-        ) -> Result<(), VerificationError> {
-            unsupported()
-        }
-
-        async fn reset_identity(
-            &self,
-            _auth: Option<ResetAuth>,
-        ) -> Result<IdentityReset, VerificationError> {
-            unsupported()
-        }
-
-        async fn close(&self) {
-            self.close_calls.fetch_add(1, Ordering::SeqCst);
-        }
-
-        fn as_any(&self) -> &dyn Any {
-            self
-        }
-    }
-
-    #[derive(Default)]
-    struct FakeAuthService {
-        sessions: Mutex<Vec<Arc<FakeBackendSession>>>,
-    }
-
-    impl FakeAuthService {
-        fn new() -> Arc<Self> {
-            Arc::new(Self::default())
-        }
-
-        fn restore_calls(&self) -> usize {
-            self.sessions.lock().unwrap().len()
-        }
-
-        fn session(&self, index: usize) -> Arc<FakeBackendSession> {
-            self.sessions.lock().unwrap()[index].clone()
-        }
-    }
-
-    #[async_trait]
-    impl AuthService for FakeAuthService {
-        async fn restore(
-            &self,
-            _login_id: &LoginId,
-        ) -> Result<Arc<dyn BackendSession>, BackendError> {
-            let session = FakeBackendSession::new();
-            self.sessions.lock().unwrap().push(session.clone());
-            Ok(session)
-        }
-
-        async fn start_interactive_login(
-            &self,
-            _login_id: &LoginId,
-            _server_name: &str,
-            _user_id: Option<UserId>,
-            _redirect_url: &str,
-            _bridge_metadata: &BridgeMetadata,
-        ) -> Result<(Arc<dyn BackendSession>, InteractiveAuthStarted), BackendError> {
-            Err(BackendError::Technical(anyhow!(
-                "the fake auth service has no interactive login"
-            )))
-        }
-    }
-
     async fn test_state(auth_service: Arc<FakeAuthService>) -> GlobalState {
-        let account_repository = Arc::new(AccountRepositoryInMem::default());
-        let app_state = Arc::new(AppState::new(
-            auth_service,
-            account_repository.clone(),
-            "http://127.0.0.1:11866/tachyon/login/callback".to_string(),
-        ));
-        let global_state = GlobalState::new(Default::default(), TEST_SECRET.to_vec(), app_state);
+        let (global_state, account_repository) = test_state_without_login(auth_service);
 
         account_repository
             .save_login_for_token(global_state.token_for(&email()), LoginId::new("login-1"))
@@ -357,6 +224,21 @@ mod tests {
             .expect("the in-memory repository should accept the login");
 
         global_state
+    }
+
+    /// An instance that has never authenticated the test account, so a sign-in has to go
+    /// through the interactive login.
+    fn test_state_without_login(
+        auth_service: Arc<FakeAuthService>,
+    ) -> (GlobalState, Arc<AccountRepositoryInMem>) {
+        let account_repository = Arc::new(AccountRepositoryInMem::default());
+        let app_state = Arc::new(AppState::new(
+            auth_service,
+            account_repository.clone(),
+            "http://127.0.0.1:11866/tachyon".to_string(),
+        ));
+        let global_state = GlobalState::new(Default::default(), TEST_SECRET.to_vec(), app_state);
+        (global_state, account_repository)
     }
 
     struct TestServer {
@@ -462,7 +344,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_second_client_is_served_while_the_first_sign_in_is_parked() {
-        let auth_service = FakeAuthService::new();
+        let auth_service = FakeAuthService::minting([DeviceStatus::Unverified]);
         let global_state = test_state(auth_service).await;
         let server = start_server(global_state.clone()).await;
 
@@ -481,7 +363,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_client_that_disconnects_during_verification_is_abandoned_promptly() {
-        let auth_service = FakeAuthService::new();
+        let auth_service = FakeAuthService::minting([DeviceStatus::Unverified]);
         let global_state = test_state(auth_service.clone()).await;
         let server = start_server(global_state.clone()).await;
 
@@ -512,8 +394,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_client_that_disconnects_during_interactive_login_is_abandoned_promptly() {
+        let auth_service = FakeAuthService::minting([DeviceStatus::Unverified]);
+        let (global_state, _) = test_state_without_login(auth_service.clone());
+        let server = start_server(global_state.clone()).await;
+
+        let mut first = TestClient::connect(server.addr).await;
+        first.sign_in(&global_state).await.unwrap();
+        first.read_until(|received| received.contains("USR 4 OK")).await.unwrap();
+        first.read_until(|received| received.contains("login/start")).await.unwrap();
+
+        let abandoned = auth_service.session(0);
+        drop(first);
+
+        assert!(
+            wait_for(|| abandoned.discard_calls() == 1).await,
+            "a sign-in that never authenticated should be discarded when the client leaves, discard_calls = {}",
+            abandoned.discard_calls()
+        );
+    }
+
+    #[tokio::test]
     async fn global_shutdown_ends_a_parked_sign_in() {
-        let auth_service = FakeAuthService::new();
+        let auth_service = FakeAuthService::minting([DeviceStatus::Unverified]);
         let global_state = test_state(auth_service).await;
         let server = start_server(global_state.clone()).await;
 

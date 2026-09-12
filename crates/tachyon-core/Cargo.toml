@@ -8,8 +8,12 @@ uuid = { version = "1.25.0", features = ["v4"] }
 mime = "0.3.17"
 bytes = "1.12.1"
 dashmap = "6.2.1"
+urlencoding.workspace = true
+log.workspace = true
 async-trait = "0.1.92"
 anyhow.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 
+[dev-dependencies.tachyon-testkit]
+path = "../tachyon-testkit"

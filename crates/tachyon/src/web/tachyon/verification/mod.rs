@@ -2,7 +2,7 @@ pub(super) mod sas_v1_actions;
 
 use crate::tachyon::global_state::GlobalState;
 use crate::web::tachyon::layout::error_fragment;
-use crate::web::tachyon::{refuse_sign_in, release_sign_in, Params};
+use crate::web::tachyon::Params;
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{Response, StatusCode};
@@ -57,14 +57,8 @@ pub async fn get_verification_poll(
             "Confirm on your other device",
             "We are awaiting confirmation from your other device.",
         ),
-        VerificationFlowState::Done => {
-            release_sign_in(&state, &token);
-            done_content()
-        }
-        VerificationFlowState::Cancelled { reason } => {
-            refuse_sign_in(&state, &token, &reason);
-            cancelled_content()
-        }
+        VerificationFlowState::Done => done_content(),
+        VerificationFlowState::Cancelled { .. } => cancelled_content(),
     };
 
     Html(content.into_string()).into_response()

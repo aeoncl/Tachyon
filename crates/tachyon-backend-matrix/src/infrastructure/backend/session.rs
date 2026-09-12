@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -7,6 +8,9 @@ use async_trait::async_trait;
 use matrix_sdk::authentication::oauth::UrlOrQuery;
 use matrix_sdk::encryption::recovery::{IdentityResetHandle, RecoveryError};
 use matrix_sdk::encryption::secret_storage::{ImportError, SecretStorageError};
+
+use matrix_sdk::encryption::VerificationState;
+use matrix_sdk::ruma::OwnedUserId;
 use matrix_sdk::{Client, SessionChange};
 use tokio::select;
 use tokio::sync::broadcast::error::RecvError;
@@ -14,6 +18,7 @@ use tokio_util::sync::CancellationToken;
 
 use tachyon_core::application::error::{BackendError, VerificationError};
 use tachyon_core::application::ports::{BackendSession, CredentialRepository};
+use tachyon_core::domain::auth::Credential;
 use tachyon_core::domain::ids::{DeviceId, LoginId};
 use tachyon_core::domain::verification::{
     DeviceStatus, DeviceSummary, IdentityReset, Password, RecoveryKey, ResetAuth,
@@ -24,14 +29,25 @@ use crate::domain::auth::SessionRestoreData;
 use crate::infrastructure::backend::identity_reset::{
     PendingReset, password_auth, run_reset, start_identity_reset,
 };
-use crate::infrastructure::backend::verification::{VerificationFlowMatrix, sas_of};
+use crate::infrastructure::backend::verification::{VerificationFlowMatrix, run_to_device_sync, sas_of};
 use crate::infrastructure::mappers::IntoMapper;
+
+/// How long `log_out` waits for the homeserver to acknowledge before giving up. The caller
+/// is forgetting the login locally either way.
+const LOGOUT_WINDOW: std::time::Duration = std::time::Duration::from_secs(5);
 
 pub struct BackendSessionMatrix {
     client: Client,
     login_id: LoginId,
+    /// Who is signing in, for a password login. Known once the bridge names the account.
+    user_id: Option<OwnedUserId>,
+    /// This login's directory under the store root, if the client persists anything.
+    login_dir: Option<PathBuf>,
+    discard_store: AtomicBool,
     credential_repository: Arc<dyn CredentialRepository>,
     tasks_token: CancellationToken,
+    /// Ends the `sync_until_verified` task. A child of `tasks_token`, so closing ends it too.
+    pre_ready_sync: CancellationToken,
     verification: Mutex<Option<VerificationFlowMatrix>>,
     reset: Mutex<Option<PendingReset>>,
     closed: AtomicBool,
@@ -42,12 +58,19 @@ impl BackendSessionMatrix {
         client: Client,
         login_id: LoginId,
         credential_repository: Arc<dyn CredentialRepository>,
+        user_id: Option<OwnedUserId>,
+        login_dir: Option<PathBuf>,
     ) -> Self {
+        let tasks_token = CancellationToken::new();
         Self {
             client,
             login_id,
+            user_id,
+            login_dir,
+            discard_store: AtomicBool::new(false),
             credential_repository,
-            tasks_token: CancellationToken::new(),
+            pre_ready_sync: tasks_token.child_token(),
+            tasks_token,
             verification: Mutex::new(None),
             reset: Mutex::new(None),
             closed: AtomicBool::new(false),
@@ -88,6 +111,32 @@ impl BackendSessionMatrix {
                         }
                     }
                 }
+            }
+        });
+    }
+
+    /// Syncs to-device traffic until this device is trusted. A fresh device's keys only reach
+    /// the homeserver through a sync's outgoing requests, and the signatures other devices put
+    /// on them only come back through one, so without this no verification method can finish.
+    /// Ends on its own once the device reads as verified, and with the session.
+    pub(crate) fn sync_until_verified(&self) {
+        let client = self.client.clone();
+        let cancel = self.pre_ready_sync.clone();
+
+        tokio::spawn(async move {
+            client.encryption().wait_for_e2ee_initialization_tasks().await;
+            let mut states = client.encryption().verification_state();
+            let verified = async {
+                while let Some(state) = states.next().await {
+                    if state == VerificationState::Verified {
+                        break;
+                    }
+                }
+            };
+
+            select! {
+                _ = verified => cancel.cancel(),
+                _ = run_to_device_sync(client.clone(), cancel.clone()) => {}
             }
         });
     }
@@ -183,17 +232,33 @@ enum ResetStep {
 
 #[async_trait]
 impl BackendSession for BackendSessionMatrix {
-    async fn finish_interactive_login(&self, callback_query: &str) -> Result<(), BackendError> {
+    async fn authenticate(&self, credential: &Credential) -> Result<(), BackendError> {
         self.ensure_open()?;
 
-        self.client
-            .oauth()
-            .finish_login(UrlOrQuery::Query(callback_query.to_string()))
-            .await
-            .map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
+        match credential {
+            Credential::OAuthCallback(query) => {
+                self.client
+                    .oauth()
+                    .finish_login(UrlOrQuery::Query(query.clone()))
+                    .await
+                    .map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
+            }
+            Credential::Password(password) => {
+                let user_id = self.user_id.as_ref().ok_or_else(|| {
+                    BackendError::Technical(anyhow!("a password login needs the user id"))
+                })?;
+                self.client
+                    .matrix_auth()
+                    .login_username(user_id, password.as_str())
+                    .send()
+                    .await
+                    .map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
+            }
+        }
 
         self.store_credentials().await?;
         self.spawn_token_watcher();
+        self.sync_until_verified();
 
         Ok(())
     }
@@ -227,6 +292,38 @@ impl BackendSession for BackendSessionMatrix {
             true => DeviceStatus::Verified,
             false => DeviceStatus::Unverified,
         })
+    }
+
+    async fn wait_until_verified(&self) -> Result<(), BackendError> {
+        // Subscribed before the status check so a flip landing during the query is not lost.
+        // The SDK only recomputes this state after a `/keys/query` that covers our own
+        // device; the check forces one, and everything that verifies the device afterwards
+        // ends in another.
+        let mut states = self.client.encryption().verification_state();
+        if self.device_status().await? == DeviceStatus::Verified {
+            self.pre_ready_sync.cancel();
+            return Ok(());
+        }
+
+        loop {
+            select! {
+                _ = self.tasks_token.cancelled() => {
+                    return Err(BackendError::Technical(anyhow!("session closed")));
+                }
+                state = states.next() => match state {
+                    Some(VerificationState::Verified) => {
+                        self.pre_ready_sync.cancel();
+                        return Ok(());
+                    }
+                    Some(_) => {}
+                    None => {
+                        return Err(BackendError::Technical(anyhow!(
+                            "the verification state stream ended"
+                        )));
+                    }
+                },
+            }
+        }
     }
 
     async fn verification_options(&self) -> Result<VerificationOptions, VerificationError> {
@@ -303,9 +400,7 @@ impl BackendSession for BackendSessionMatrix {
             previous.cancel().await;
         }
 
-        let flow =
-            VerificationFlowMatrix::start(&self.client, device, self.tasks_token.child_token())
-                .await?;
+        let flow = VerificationFlowMatrix::start(device).await?;
 
         let raced = lock(&self.verification).replace(flow);
         if let Some(raced) = raced {
@@ -399,6 +494,26 @@ impl BackendSession for BackendSessionMatrix {
         self.shutdown();
     }
 
+    async fn discard(&self) {
+        self.discard_store.store(true, Ordering::SeqCst);
+        self.shutdown();
+    }
+
+    async fn log_out(&self) -> Result<(), BackendError> {
+        self.ensure_open()?;
+        if self.client.session().is_none() {
+            return Ok(());
+        }
+        match tokio::time::timeout(LOGOUT_WINDOW, self.client.logout()).await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(e)) => Err(BackendError::Technical(anyhow!("{e}"))),
+            Err(_) => Err(BackendError::Technical(anyhow!(
+                "the homeserver did not acknowledge the logout within {}s",
+                LOGOUT_WINDOW.as_secs()
+            ))),
+        }
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -407,7 +522,35 @@ impl BackendSession for BackendSessionMatrix {
 impl Drop for BackendSessionMatrix {
     fn drop(&mut self) {
         self.shutdown();
+        if self.discard_store.load(Ordering::SeqCst) {
+            if let Some(login_dir) = self.login_dir.take() {
+                remove_login_dir_once_released(login_dir);
+            }
+        }
     }
+}
+
+/// The SDK's sqlite handle is only released once the last `Client` clone is gone, and on
+/// Windows the directory cannot be removed before that, so the removal is retried for a
+/// while from a task rather than attempted inline.
+fn remove_login_dir_once_released(login_dir: PathBuf) {
+    let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+        let _ = std::fs::remove_dir_all(&login_dir);
+        return;
+    };
+    runtime.spawn(async move {
+        for _ in 0..40 {
+            match std::fs::remove_dir_all(&login_dir) {
+                Ok(()) => return,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
+                Err(_) => tokio::time::sleep(std::time::Duration::from_millis(250)).await,
+            }
+        }
+        log::warn!(
+            "Could not remove the store of a discarded login at {}",
+            login_dir.display()
+        );
+    });
 }
 
 fn technical(error: impl std::fmt::Display) -> VerificationError {
@@ -464,11 +607,17 @@ mod tests {
     use super::*;
     use crate::domain::auth::AuthKind;
     use crate::infrastructure::backend::auth_service::tests::build_test_client;
+    use tachyon_core::domain::verification::Password;
+    use matrix_sdk::ruma::api::client::sync::sync_events::v5::Response as SlidingSyncResponse;
+    use matrix_sdk::ruma::{device_id, user_id};
+    use matrix_sdk::test_utils::mocks::MatrixMockServer;
+    use std::time::Duration;
+    use tokio::time::timeout;
     use matrix_sdk::ruma::events::secret::request::SecretName;
     use matrix_sdk_crypto::secret_storage::DecodeError;
     use serde_json::json;
     use tachyon_testkit::repositories::CredentialRepositoryInMem;
-    use wiremock::matchers::path;
+    use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn session(client: Client) -> BackendSessionMatrix {
@@ -476,7 +625,119 @@ mod tests {
             client,
             LoginId::new("l1"),
             Arc::new(CredentialRepositoryInMem::default()),
+            None,
+            None,
         )
+    }
+
+    #[tokio::test]
+    async fn a_password_login_stores_matrix_credentials() {
+        let server = MatrixMockServer::new().await;
+        server.mock_login().ok().mount().await;
+        let client = server.client_builder().unlogged().build().await;
+        let repository = Arc::new(CredentialRepositoryInMem::default());
+        let session = BackendSessionMatrix::new(
+            client,
+            LoginId::new("l1"),
+            repository.clone(),
+            Some(user_id!("@aeon:shlasouf.local").to_owned()),
+            None,
+        );
+
+        session
+            .authenticate(&Credential::Password(Password::new("hunter2")))
+            .await
+            .unwrap();
+
+        let blob = repository
+            .credentials(&LoginId::new("l1"))
+            .await
+            .unwrap()
+            .expect("the login should be persisted");
+        let restored = SessionRestoreData::from_blob(&blob).unwrap();
+        assert!(matches!(restored.auth_kind, AuthKind::Matrix));
+        assert!(!restored.access_token.is_empty());
+    }
+
+    #[tokio::test]
+    async fn logging_out_ends_the_device_on_the_homeserver() {
+        let server = MatrixMockServer::new().await;
+        server.mock_login().ok().mount().await;
+        mock_logout(&server).await;
+        let client = server.client_builder().unlogged().build().await;
+        let session = BackendSessionMatrix::new(
+            client,
+            LoginId::new("l1"),
+            Arc::new(CredentialRepositoryInMem::default()),
+            Some(user_id!("@aeon:shlasouf.local").to_owned()),
+            None,
+        );
+        session
+            .authenticate(&Credential::Password(Password::new("hunter2")))
+            .await
+            .unwrap();
+
+        session.log_out().await.unwrap();
+
+        assert_eq!(logouts(&server).await, 1);
+    }
+
+    /// The SDK mock's logout endpoint insists on its own default access token, which the
+    /// mocked login does not hand out.
+    async fn mock_logout(server: &MatrixMockServer) {
+        Mock::given(method("POST"))
+            .and(path("/_matrix/client/v3/logout"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+            .mount(server.server())
+            .await;
+    }
+
+    async fn logouts(server: &MatrixMockServer) -> usize {
+        server
+            .server()
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .filter(|request| request.url.path().ends_with("/logout"))
+            .count()
+    }
+
+    #[tokio::test]
+    async fn closing_or_discarding_an_authenticated_session_keeps_its_device() {
+        let server = MatrixMockServer::new().await;
+        server.mock_login().ok().mount().await;
+        mock_logout(&server).await;
+        let client = server.client_builder().unlogged().build().await;
+        let session = BackendSessionMatrix::new(
+            client,
+            LoginId::new("l1"),
+            Arc::new(CredentialRepositoryInMem::default()),
+            Some(user_id!("@aeon:shlasouf.local").to_owned()),
+            None,
+        );
+        session
+            .authenticate(&Credential::Password(Password::new("hunter2")))
+            .await
+            .unwrap();
+
+        session.close().await;
+        session.discard().await;
+
+        assert_eq!(logouts(&server).await, 0);
+    }
+
+    #[tokio::test]
+    async fn a_password_login_without_a_user_id_is_refused() {
+        let server = MatrixMockServer::new().await;
+        let client = server.client_builder().unlogged().build().await;
+        let session = session(client);
+
+        let refused = session
+            .authenticate(&Credential::Password(Password::new("hunter2")))
+            .await;
+
+        assert!(matches!(refused, Err(BackendError::Technical(_))));
     }
 
     async fn logged_in_session() -> (BackendSessionMatrix, MockServer) {
@@ -717,12 +978,130 @@ mod tests {
         let repository = Arc::new(CredentialRepositoryInMem::default());
         let login_id = LoginId::new("l1");
         let session =
-            BackendSessionMatrix::new(client, login_id.clone(), repository.clone());
+            BackendSessionMatrix::new(client, login_id.clone(), repository.clone(), None, None);
 
         session.store_credentials().await.unwrap();
 
         let blob = repository.credentials(&login_id).await.unwrap().unwrap();
         let restored = SessionRestoreData::from_blob(&blob).unwrap();
         assert!(restored == restore_data);
+    }
+
+    /// A client with a real in-memory crypto store against a server that serves back whatever
+    /// keys and signatures the client uploads. The device's keys are already on the server.
+    async fn crypto_session() -> (Arc<BackendSessionMatrix>, Client, MatrixMockServer) {
+        let (session, client, server) = fresh_crypto_session().await;
+        server.mock_sync().ok_and_run(&client, |_| {}).await;
+        (session, client, server)
+    }
+
+    /// Like `crypto_session`, but nothing has been uploaded yet: the shape right after an
+    /// interactive login.
+    async fn fresh_crypto_session() -> (Arc<BackendSessionMatrix>, Client, MatrixMockServer) {
+        let server = MatrixMockServer::new().await;
+        server.mock_crypto_endpoints_preset().await;
+        server.mock_versions().ok_with_unstable_features().mount().await;
+        server
+            .mock_sliding_sync()
+            .ok(SlidingSyncResponse::new("pos".to_owned()))
+            .mount()
+            .await;
+        let client = server
+            .client_builder_for_crypto_end_to_end(
+                user_id!("@aeon:shlasouf.local"),
+                device_id!("DEVICEID"),
+            )
+            .no_server_versions()
+            .build()
+            .await;
+        (Arc::new(session(client.clone())), client, server)
+    }
+
+    async fn requests_to(server: &MatrixMockServer, path_end: &str) -> usize {
+        server
+            .server()
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .filter(|request| request.url.path().ends_with(path_end))
+            .count()
+    }
+
+    #[tokio::test]
+    async fn a_fresh_device_uploads_its_keys_while_it_waits_to_be_verified() {
+        let (session, _client, server) = fresh_crypto_session().await;
+        assert_eq!(requests_to(&server, "/keys/upload").await, 0);
+
+        session.sync_until_verified();
+
+        let uploaded = timeout(Duration::from_secs(5), async {
+            while requests_to(&server, "/keys/upload").await == 0 {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await;
+        assert!(uploaded.is_ok(), "the device keys never reached the homeserver");
+    }
+
+    async fn still_waiting(task: &tokio::task::JoinHandle<Result<(), BackendError>>) -> bool {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        !task.is_finished()
+    }
+
+    #[tokio::test]
+    async fn wait_until_verified_returns_at_once_for_a_cross_signed_device() {
+        let (session, client, _server) = crypto_session().await;
+        client.encryption().bootstrap_cross_signing(None).await.unwrap();
+
+        timeout(Duration::from_secs(5), session.wait_until_verified())
+            .await
+            .expect("a verified device should not keep the caller waiting")
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn wait_until_verified_wakes_when_a_sync_brings_the_signature() {
+        let (session, client, server) = crypto_session().await;
+        let waiting = tokio::spawn({
+            let session = session.clone();
+            async move { session.wait_until_verified().await }
+        });
+        assert!(still_waiting(&waiting).await, "an unverified device must keep the caller waiting");
+
+        client.encryption().bootstrap_cross_signing(None).await.unwrap();
+        assert!(still_waiting(&waiting).await, "signing alone is not visible until keys are queried");
+
+        let user_id = client.user_id().unwrap().to_owned();
+        server
+            .mock_sync()
+            .ok_and_run(&client, |builder| {
+                builder.add_change_device(&user_id);
+            })
+            .await;
+
+        timeout(Duration::from_secs(5), waiting)
+            .await
+            .expect("the device-list change should wake the wait")
+            .unwrap()
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn closing_the_session_ends_the_wait() {
+        let (session, _client, _server) = crypto_session().await;
+        let waiting = tokio::spawn({
+            let session = session.clone();
+            async move { session.wait_until_verified().await }
+        });
+        assert!(still_waiting(&waiting).await);
+
+        session.close().await;
+
+        let outcome = timeout(Duration::from_secs(5), waiting)
+            .await
+            .expect("closing should release the wait")
+            .unwrap();
+        assert!(matches!(outcome, Err(BackendError::Technical(_))), "{outcome:?}");
     }
 }

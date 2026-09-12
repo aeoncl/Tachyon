@@ -1,6 +1,7 @@
 use crate::application::error::VerificationError;
-use crate::application::ports::{AccountRepository, BackendSession, SessionRepository};
-use crate::domain::auth::{Readiness, TachyonToken};
+use crate::application::logins::{Login, Logins, Step};
+use crate::application::ports::BackendSession;
+use crate::domain::auth::TachyonToken;
 use crate::domain::ids::DeviceId;
 use crate::domain::verification::{
     DeviceStatus, IdentityReset, RecoveryKey, ResetAuth, VerificationAction, VerificationFlowState,
@@ -10,38 +11,29 @@ use std::sync::Arc;
 
 /// Everything a client does between signing in and being trusted: read the device status,
 /// import cross-signing secrets from a recovery key, verify against another device, or
-/// reset the identity outright. It never writes `Readiness` — `AuthUseCase::restore` does
-/// that, once, when the bridge comes back to collect the session.
+/// reset the identity outright. It never moves a login forward; the session reports the
+/// device as verified and `AuthUseCase::wait_for_session` picks that up.
 pub struct DeviceVerificationUseCase {
-    account_repository: Arc<dyn AccountRepository>,
-    session_repository: Arc<dyn SessionRepository>,
+    logins: Arc<Logins>,
 }
 
 impl DeviceVerificationUseCase {
-    pub fn new(
-        account_repository: Arc<dyn AccountRepository>,
-        session_repository: Arc<dyn SessionRepository>,
-    ) -> DeviceVerificationUseCase {
-        DeviceVerificationUseCase {
-            account_repository,
-            session_repository,
-        }
+    pub fn new(logins: Arc<Logins>) -> DeviceVerificationUseCase {
+        DeviceVerificationUseCase { logins }
     }
 
     pub async fn status(&self, token: &TachyonToken) -> Result<DeviceStatus, VerificationError> {
-        let (session, readiness) = self.session(token).await?;
-        if readiness == Readiness::Ready {
-            return Ok(DeviceStatus::Verified);
+        match self.login(token)? {
+            Login::Ready { .. } => Ok(DeviceStatus::Verified),
+            Login::Pending { session, .. } => Ok(session.device_status().await?),
         }
-        Ok(session.device_status().await?)
     }
 
     pub async fn options(
         &self,
         token: &TachyonToken,
     ) -> Result<VerificationOptions, VerificationError> {
-        let (session, _) = self.session(token).await?;
-        session.verification_options().await
+        self.login(token)?.session().verification_options().await
     }
 
     pub async fn recover(
@@ -49,7 +41,7 @@ impl DeviceVerificationUseCase {
         token: &TachyonToken,
         key: &RecoveryKey,
     ) -> Result<(), VerificationError> {
-        let session = self.unverified_session(token).await?;
+        let session = self.unverified_session(token)?;
         match session.recover(key).await? {
             DeviceStatus::Verified => Ok(()),
             DeviceStatus::Unverified => Err(VerificationError::StillUnverified),
@@ -61,16 +53,17 @@ impl DeviceVerificationUseCase {
         token: &TachyonToken,
         device: &DeviceId,
     ) -> Result<(), VerificationError> {
-        let session = self.unverified_session(token).await?;
-        session.start_device_verification(device).await
+        self.unverified_session(token)?
+            .start_device_verification(device)
+            .await
     }
 
     pub async fn verification_state(
         &self,
         token: &TachyonToken,
     ) -> Result<VerificationFlowState, VerificationError> {
-        let (session, _) = self.session(token).await?;
-        session
+        self.login(token)?
+            .session()
             .verification_state()
             .ok_or(VerificationError::NoVerificationInProgress)
     }
@@ -80,8 +73,9 @@ impl DeviceVerificationUseCase {
         token: &TachyonToken,
         action: VerificationAction,
     ) -> Result<(), VerificationError> {
-        let session = self.unverified_session(token).await?;
-        session.verification_action(action).await
+        self.unverified_session(token)?
+            .verification_action(action)
+            .await
     }
 
     pub async fn reset_identity(
@@ -89,34 +83,28 @@ impl DeviceVerificationUseCase {
         token: &TachyonToken,
         auth: Option<ResetAuth>,
     ) -> Result<IdentityReset, VerificationError> {
-        let session = self.unverified_session(token).await?;
-        session.reset_identity(auth).await
+        self.unverified_session(token)?.reset_identity(auth).await
     }
 
-    async fn session(
-        &self,
-        token: &TachyonToken,
-    ) -> Result<(Arc<dyn BackendSession>, Readiness), VerificationError> {
-        let Some(login_id) = self.account_repository.login_id_by_token(token).await? else {
-            return Err(VerificationError::LoginNotFound);
-        };
-        let Some(entry) = self.session_repository.get(&login_id) else {
-            return Err(VerificationError::LoginNotFound);
-        };
-        if entry.readiness == Readiness::AuthNeeded {
-            return Err(VerificationError::NotAuthenticated);
+    /// The account's login once it has authenticated.
+    fn login(&self, token: &TachyonToken) -> Result<Login, VerificationError> {
+        match self.logins.get(token) {
+            None => Err(VerificationError::LoginNotFound),
+            Some(Login::Pending {
+                step: Step::Authenticate { .. },
+                ..
+            }) => Err(VerificationError::NotAuthenticated),
+            Some(login) => Ok(login),
         }
-        Ok((entry.session, entry.readiness))
     }
 
-    async fn unverified_session(
+    fn unverified_session(
         &self,
         token: &TachyonToken,
     ) -> Result<Arc<dyn BackendSession>, VerificationError> {
-        let (session, readiness) = self.session(token).await?;
-        if readiness == Readiness::Ready {
-            return Err(VerificationError::AlreadyVerified);
+        match self.login(token)? {
+            Login::Ready { .. } => Err(VerificationError::AlreadyVerified),
+            Login::Pending { session, .. } => Ok(session),
         }
-        Ok(session)
     }
 }

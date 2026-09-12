@@ -1,10 +1,9 @@
 use crate::matrix::sync::sync;
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
-use crate::tachyon::alert::{Alert, AlertSuccess};
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::config::tachyon_config::TachyonConfig;
-use crate::tachyon::global_state::{GlobalState, PendingLogin};
+use crate::tachyon::global_state::GlobalState;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use anyhow::{anyhow, Error};
 use log::{debug, error};
@@ -21,17 +20,15 @@ use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
-use std::sync::Arc;
 use std::time::Duration;
 use tachyon_backend_matrix::infrastructure::backend::session::BackendSessionMatrix;
-use tachyon_core::application::auth_use_case::LoginOutcome;
-use tachyon_core::application::error::AuthError;
-use tachyon_core::application::ports::BackendSession;
-use tachyon_core::domain::auth::{BridgeMetadata, InteractiveAuthStarted, TachyonToken};
-use tachyon_core::domain::ids::{LoginId, UserId as CoreUserId};
+use tachyon_core::application::auth_use_case::SignIn;
+use tachyon_core::application::logins::Step;
+use tachyon_core::domain::auth::{BridgeMetadata, InteractiveAuthStarted};
+use tachyon_core::domain::ids::UserId as CoreUserId;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::Sender;
-use tokio::time::{sleep, timeout_at, Instant};
+use tokio::time::{timeout_at, Instant};
 use tokio::{select, task};
 
 const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shield><cli maj= \"7\" min= \"0\" minbld= \"0\" maxbld= \"1000\" deny= \" \" /></shield><block></block></config></Policy><Policy type= \"ABCH\"><policy><set id= \"push\" service= \"ABCH\" priority= \"100\"><r id= \"pushstorage\" threshold= \"0\" /></set><set id= \"using_notifications\" service= \"ABCH\" priority= \"100\"><r id= \"pullab\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /><r id= \"pullmembership\" threshold= \"0\" timer= \"1800000\" trigger= \"Timer\" /></set><set id= \"delaysup\" service= \"ABCH\" priority= \"150\"><r id= \"whatsnew\" threshold= \"0\" /><r id= \"whatsnew_storage_ABCH_delay\" timer= \"1800000\" /><r id= \"whatsnewt_link\" threshold= \"0\" trigger= \"QueryActivities\" /></set><c id= \"PROFILE_Rampup\">100</c></policy></Policy><Policy type= \"ERRORRESPONSETABLE\"><Policy><Feature type= \"3\" name= \"P2P\"><Entry hr= \"0x81000398\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /></Feature><Feature type= \"4\"><Entry hr= \"0x81000440\" /></Feature><Feature type= \"6\" name= \"TURN\"><Entry hr= \"0x8007274C\" action= \"3\" /><Entry hr= \"0x82000020\" action= \"3\" /><Entry hr= \"0x8007274A\" action= \"3\" /></Feature></Policy></Policy><Policy type= \"P2P\"><ObjStr SndDly= \"1\" /></Policy></Policies>";
@@ -44,11 +41,6 @@ const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shie
 /// that one budget, so the deadline is computed once per sign-in and shared, rather than
 /// each step claiming five minutes of its own.
 const CLIENT_SIGN_IN_WINDOW: Duration = Duration::from_secs(5 * 60);
-
-/// The peer uploads its cross-signing signature after it has already sent us the `.mac` and
-/// `.done` to-device events, so the first `/keys/query` after a successful emoji exchange can
-/// still read the device as unverified. Ask again rather than refusing the client.
-const VERIFICATION_SETTLE_BACKOFF: Duration = Duration::from_millis(500);
 
 pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, tachyon_state: &GlobalState, local_store: &mut LocalClientData, config: &TachyonConfig) -> Result<(), anyhow::Error> {
     match command {
@@ -130,8 +122,10 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
 }
 
-/// Produces a live matrix client for `email_addr`, walking the user through an interactive
-/// login first if this instance has never authenticated that account.
+/// Produces a live matrix client for `email_addr`, walking the user through the browser
+/// steps first when this instance has never authenticated the account or does not trust
+/// this device yet. Any failure past the sign-in drops the login: a backend session does
+/// not outlive the Messenger connection it was opened for.
 async fn authenticate(
     tachyon_state: &GlobalState,
     notif_sender: &Sender<NotificationServerCommand>,
@@ -141,31 +135,67 @@ async fn authenticate(
     deadline: Instant,
     client_shutdown_recv: broadcast::Receiver<()>,
 ) -> Result<Client, Error> {
+    let token = tachyon_state.token_for(email_addr);
+    let opened = open_session(
+        tachyon_state,
+        notif_sender,
+        email_addr,
+        msn_user,
+        config,
+        deadline,
+        client_shutdown_recv,
+    )
+    .await;
+    if opened.is_err() {
+        if let Err(e) = tachyon_state.app_state().auth_use_case().abandon(&token).await {
+            error!("Could not abandon the sign-in: {:?}", e);
+        }
+    }
+    opened
+}
+
+async fn open_session(
+    tachyon_state: &GlobalState,
+    notif_sender: &Sender<NotificationServerCommand>,
+    email_addr: &EmailAddress,
+    msn_user: &MsnUser,
+    config: &TachyonConfig,
+    deadline: Instant,
+    mut client_shutdown_recv: broadcast::Receiver<()>,
+) -> Result<Client, Error> {
     let auth_use_case = tachyon_state.app_state().auth_use_case();
     let token = tachyon_state.token_for(email_addr);
+    let matrix_id = email_addr.to_owned_user_id();
 
-    let session = match auth_use_case.restore(&token).await {
-        Ok(LoginOutcome::SessionOpened { session, .. }) => {
-            debug!("Restored an existing backend session for {}", email_addr.as_str());
-            session
+    let signed_in = auth_use_case
+        .sign_in(
+            &token,
+            matrix_id.server_name().as_str(),
+            CoreUserId::new(matrix_id.as_str()),
+            &bridge_metadata(),
+        )
+        .await
+        .map_err(|e| anyhow!("Could not sign in: {:?}", e))?;
+
+    let session = match signed_in {
+        SignIn::Ready(session) => session,
+        SignIn::Pending { step, url } => {
+            debug!("Sign-in for {} needs the browser: {:?}", email_addr.as_str(), step);
+            notif_sender
+                .send(browser_step_alert(&step, &url, msn_user, config))
+                .await?;
+
+            select! {
+                waited = timeout_at(deadline, auth_use_case.wait_for_session(&token)) => match waited {
+                    Ok(Ok(session)) => session,
+                    Ok(Err(e)) => return Err(anyhow!("The sign-in could not be completed: {:?}", e)),
+                    Err(_elapsed) => return Err(anyhow!("The sign-in was not completed in time")),
+                },
+                _shutdown = client_shutdown_recv.recv() => {
+                    return Err(anyhow!("The client disconnected while signing in"));
+                }
+            }
         }
-        Ok(LoginOutcome::DeviceVerificationRequired { login_id }) => {
-            device_verification(
-                tachyon_state,
-                notif_sender,
-                email_addr,
-                msn_user,
-                config,
-                deadline,
-                client_shutdown_recv,
-                login_id,
-            ).await?
-        }
-        Err(AuthError::BackendCredentialsNotInStore) => {
-            debug!("No backend session for {}, starting interactive login", email_addr.as_str());
-            interactive_login(tachyon_state, notif_sender, email_addr, msn_user, config, deadline).await?
-        }
-        Err(e) => return Err(anyhow!("Could not restore backend session: {:?}", e)),
     };
 
     // FIXME: Remove this after the refactor is done.
@@ -179,211 +209,44 @@ async fn authenticate(
     Ok(matrix_client)
 }
 
-/// Sends the client a `NOT` alert pointing at the device confirmation pages and holds the
-/// sign-in open until the user has made the device trusted in their browser.
-async fn device_verification(
-    tachyon_state: &GlobalState,
-    notif_sender: &Sender<NotificationServerCommand>,
-    email_addr: &EmailAddress,
+/// The `NOT` alert that sends the user to `url`, the page for the step the sign-in is
+/// parked on.
+fn browser_step_alert(
+    step: &Step,
+    url: &str,
     msn_user: &MsnUser,
     config: &TachyonConfig,
-    deadline: Instant,
-    mut client_shutdown_recv: broadcast::Receiver<()>,
-    login_id: LoginId,
-) -> Result<Arc<dyn BackendSession>, Error> {
-    let token = tachyon_state.token_for(email_addr);
-    let ticket = tachyon_state.ticket_for(email_addr);
-
-    let (alert, receiver) = Alert::new_confirm_device();
-    tachyon_state.authorize_ticket(ticket.as_str());
-    tachyon_state.store_pending_verification(ticket.as_str().to_owned(), alert);
-
-    let confirm_url = format!(
-        "http://127.0.0.1:{}/tachyon/confirm_device?t={}",
-        config.http_port,
-        ticket.as_str()
-    );
-
-    let verification_not = NotificationServerCommand::NOT(NotServer {
-        payload: NotificationPayloadType::Normal(NotificationFactory::alert(
-            &msn_user.uuid,
-            msn_user.get_email_address(),
+) -> NotificationServerCommand {
+    let (label, icon) = match step {
+        Step::Authenticate { prompt, .. } => (
+            match prompt {
+                InteractiveAuthStarted::OAuth { .. } => {
+                    "Click here to sign in to your Matrix account."
+                }
+                InteractiveAuthStarted::PasswordRequired => {
+                    "Click here to sign in. Your homeserver needs a password."
+                }
+            },
+            "key-icon.gif",
+        ),
+        Step::VerifyDevice => (
             "Oops ! Your device is not verified yet ! Click here to verify.",
-            format!("http://127.0.0.1:{}/tachyon", config.http_port).as_str(),
-            &confirm_url,
-            &confirm_url,
-            Some("shield_verify.png"),
-            rand::random::<i32>(),
-        )),
-    });
-
-    notif_sender.send(verification_not).await?;
-
-    select! {
-        alerted = timeout_at(deadline, receiver.recv()) => {
-            match alerted {
-                Ok(Ok(AlertSuccess::Unit)) => {}
-                Ok(Ok(_)) => {
-                    abandon_sign_in(tachyon_state, ticket.as_str(), &login_id).await;
-                    return Err(anyhow!("Unexpected device verification alert payload"));
-                }
-                Ok(Err(e)) => {
-                    abandon_sign_in(tachyon_state, ticket.as_str(), &login_id).await;
-                    return Err(anyhow!("Device verification failed: {}", e));
-                }
-                Err(_elapsed) => {
-                    abandon_sign_in(tachyon_state, ticket.as_str(), &login_id).await;
-                    return Err(anyhow!("Device verification was not completed in time"));
-                }
-            }
-        },
-        _shutdown = client_shutdown_recv.recv() => {
-            abandon_sign_in(tachyon_state, ticket.as_str(), &login_id).await;
-            return Err(anyhow!("The client disconnected while its device was being verified"));
-        }
-    }
-
-    match restore_verified_session(tachyon_state, &token, deadline).await {
-        Ok(session) => Ok(session),
-        Err(e) => {
-            abandon_sign_in(tachyon_state, ticket.as_str(), &login_id).await;
-            Err(e)
-        }
-    }
-}
-
-/// Collects the session the browser side has just made trustworthy. Both browser steps end
-/// the same way, with a device the pages report as verified and a login that only `restore`
-/// can settle.
-async fn restore_verified_session(
-    tachyon_state: &GlobalState,
-    token: &TachyonToken,
-    deadline: Instant,
-) -> Result<Arc<dyn BackendSession>, Error> {
-    let auth_use_case = tachyon_state.app_state().auth_use_case();
-
-    loop {
-        match auth_use_case.restore(token).await {
-            Ok(LoginOutcome::SessionOpened { session, .. }) => return Ok(session),
-            Ok(LoginOutcome::DeviceVerificationRequired { .. }) => {}
-            Err(e) => return Err(anyhow!("Could not open the verified session: {:?}", e)),
-        }
-
-        if Instant::now() + VERIFICATION_SETTLE_BACKOFF >= deadline {
-            return Err(anyhow!("The device is still unverified after confirmation"));
-        }
-        sleep(VERIFICATION_SETTLE_BACKOFF).await;
-    }
-}
-
-/// Drops everything a half-finished sign-in left behind: the completion channel, the
-/// ticket's grant on the confirmation pages, and the login itself.
-async fn abandon_sign_in(tachyon_state: &GlobalState, ticket: &str, login_id: &LoginId) {
-    tachyon_state.take_pending_verification(ticket);
-    tachyon_state.deauthorize_ticket(ticket);
-    if let Err(e) = tachyon_state
-        .app_state()
-        .auth_use_case()
-        .abandon_login(login_id)
-        .await
-    {
-        error!("Could not abandon the login: {:?}", e);
-    }
-}
-
-/// Sends the client a `NOT` alert pointing at our web management interface and holds the sign-in open
-/// until the user completes the login in their browser.
-async fn interactive_login(
-    tachyon_state: &GlobalState,
-    notif_sender: &Sender<NotificationServerCommand>,
-    email_addr: &EmailAddress,
-    msn_user: &MsnUser,
-    config: &TachyonConfig,
-    deadline: Instant,
-) -> Result<Arc<dyn BackendSession>, Error> {
-    let auth_use_case = tachyon_state.app_state().auth_use_case();
-
-    let matrix_id = email_addr.to_owned_user_id();
-    let server_name = matrix_id.server_name().as_str();
-
-    let login_start = auth_use_case
-        .start_interactive_login(
-            server_name,
-            CoreUserId::new(matrix_id.as_str()),
-            &bridge_metadata(),
-        )
-        .await
-        .map_err(|e| anyhow!("Could not start interactive login: {:?}", e))?;
-
-    // For OAuth the flow id is the CSRF token, which comes back as the `state` query
-    // parameter, so the callback can find this login without any extra bookkeeping.
-    let (flow_id, prompt_label) = match &login_start.prompt {
-        InteractiveAuthStarted::OAuth { csrf_token, .. } => {
-            (csrf_token.clone(), "Click here to sign in to your Matrix account.")
-        }
-        InteractiveAuthStarted::PasswordRequired => (
-            uuid_flow_id(),
-            "Click here to sign in. Your homeserver needs a password.",
+            "shield_verify.png",
         ),
     };
 
-    let login_id = login_start.login_id.clone();
-    let (alert, receiver) = Alert::new_interactive_login();
-    tachyon_state.store_pending_login(
-        flow_id.clone(),
-        PendingLogin {
-            login_id: login_start.login_id.clone(),
-            email: email_addr.clone(),
-            prompt: login_start.prompt,
-            alert,
-        },
-    );
-
-    let notification_id = rand::random::<i32>();
-    let start_url = format!(
-        "http://127.0.0.1:{}/tachyon/login/start?flow={}",
-        config.http_port,
-        urlencoding::encode(&flow_id)
-    );
-
-    let login_not = NotificationServerCommand::NOT(NotServer {
+    NotificationServerCommand::NOT(NotServer {
         payload: NotificationPayloadType::Normal(NotificationFactory::alert(
             &msn_user.uuid,
             msn_user.get_email_address(),
-            prompt_label,
+            label,
             format!("http://127.0.0.1:{}/tachyon", config.http_port).as_str(),
-            &start_url,
-            &start_url,
-            Some("key-icon.gif"),
-            notification_id,
+            url,
+            url,
+            Some(icon),
+            rand::random::<i32>(),
         )),
-    });
-
-    notif_sender.send(login_not).await?;
-
-    let ticket = tachyon_state.ticket_for(email_addr);
-    let alerted = timeout_at(deadline, receiver.recv()).await;
-    let failure = match alerted {
-        Ok(Ok(AlertSuccess::Unit)) => None,
-        Ok(Ok(_)) => Some(anyhow!("Unexpected interactive login alert payload")),
-        Ok(Err(e)) => Some(anyhow!("Interactive login failed: {}", e)),
-        Err(_elapsed) => Some(anyhow!("Interactive login was not completed in time")),
-    };
-
-    if let Some(failure) = failure {
-        tachyon_state.take_pending_login(&flow_id);
-        abandon_sign_in(tachyon_state, ticket.as_str(), &login_id).await;
-        return Err(failure);
-    }
-
-    let token = tachyon_state.token_for(email_addr);
-    match restore_verified_session(tachyon_state, &token, deadline).await {
-        Ok(session) => Ok(session),
-        Err(e) => {
-            abandon_sign_in(tachyon_state, ticket.as_str(), &login_id).await;
-            Err(e)
-        }
-    }
+    })
 }
 
 fn bridge_metadata() -> BridgeMetadata {
@@ -393,10 +256,6 @@ fn bridge_metadata() -> BridgeMetadata {
         image_url: None,
         tos: None,
     }
-}
-
-fn uuid_flow_id() -> String {
-    hex::encode(rand::random::<[u8; 16]>())
 }
 
 fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, local_store: &LocalClientData, ticket_token: &TicketToken, matrix_client: &Client, msn_user: &MsnUser, tachyon_client: TachyonClient) -> Result<(), Error> {

@@ -1,19 +1,11 @@
-use crate::domain::auth::Readiness;
-
 #[derive(Debug, thiserror::Error)]
 pub enum AuthError {
-    #[error("no backend credentials stored for this token")]
-    BackendCredentialsNotInStore,
     #[error("no login with that id")]
     LoginNotFound,
-    #[error("the device is not verified")]
-    DeviceNotVerified,
     #[error(transparent)]
     BackendError(#[from] BackendError),
     #[error(transparent)]
     StoreError(#[from] StoreError),
-    #[error(transparent)]
-    Readiness(#[from] ReadinessError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -34,10 +26,10 @@ pub enum BackendError {
 pub enum VerificationError {
     #[error("no login with that id")]
     LoginNotFound,
-    /// The login is still `Readiness::AuthNeeded`.
+    /// The login is still at `Step::Authenticate`.
     #[error("login has not finished authenticating")]
     NotAuthenticated,
-    /// A mutating call on a login that is already `Readiness::Ready`.
+    /// A mutating call on a login that is already ready.
     #[error("device is already verified")]
     AlreadyVerified,
     #[error("no verification in progress")]
@@ -50,14 +42,6 @@ pub enum VerificationError {
     Backend(#[from] BackendError),
     #[error(transparent)]
     Store(#[from] StoreError),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ReadinessError {
-    #[error("no session with that login id")]
-    NotFound,
-    #[error("readiness cannot go backwards, from {from:?} to {to:?}")]
-    Backwards { from: Readiness, to: Readiness },
 }
 
 #[derive(Debug, thiserror::Error)]

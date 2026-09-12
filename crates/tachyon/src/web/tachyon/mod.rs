@@ -5,7 +5,6 @@ mod login;
 mod confirm_device;
 mod verification;
 
-use crate::tachyon::alert::{AlertNotify, AlertSuccess};
 use crate::tachyon::global_state::GlobalState;
 use axum::body::Body;
 use axum::extract::Path;
@@ -129,6 +128,7 @@ pub fn tachyon_router(state: GlobalState) -> Router<GlobalState> {
         .route("/login/request", get(login::get_login_request))
         .route("/login/request", post(login::post_login_request))
         .route("/login/start", get(matrix_auth::get_login_start))
+        .route("/login/password", post(matrix_auth::post_login_password))
         .route("/login/callback", get(matrix_auth::get_login_callback))
         .route("/img/sas_v1/{file}", get(serve_static))
         .route("/img/sas_v1/{file}", head(serve_static))
@@ -141,22 +141,6 @@ pub fn tachyon_router(state: GlobalState) -> Router<GlobalState> {
 }
 
 type Params = std::collections::HashMap<String, String>;
-
-/// Releases the `USR` handler holding the client's sign-in open. The alert is a oneshot, so
-/// a page the user reloads simply finds it gone.
-fn release_sign_in(state: &GlobalState, ticket: &str) {
-    if let Some(alert) = state.take_pending_verification(ticket) {
-        let _ = alert.notify_success(AlertSuccess::Unit);
-    }
-}
-
-/// Tells the waiting `USR` handler to refuse the client. It gives up the sign-in and abandons
-/// the login.
-fn refuse_sign_in(state: &GlobalState, ticket: &str, reason: &str) {
-    if let Some(alert) = state.take_pending_verification(ticket) {
-        let _ = alert.notify_failure(anyhow::anyhow!("{}", reason));
-    }
-}
 
 async fn serve_index() -> Html<String> {
     Html(
@@ -313,9 +297,9 @@ mod tests {
 
     const TICKET: &str = "a-ticket-with-no-login";
 
-    /// A state whose ticket may reach the pages but names no login, the shape every
-    /// confirmation page hits when the sign-in it belonged to is already gone.
-    fn state_with_authorized_ticket() -> GlobalState {
+    /// A state where the ticket names no login, the shape every confirmation page hits when
+    /// the sign-in it belonged to is already gone.
+    fn state_without_login() -> GlobalState {
         let auth_service = Arc::new(AuthServiceMatrixSdk::new(
             Arc::new(CredentialRepositoryInMem::default()),
             MatrixBackendConfig::default(),
@@ -323,17 +307,15 @@ mod tests {
         let app_state = Arc::new(AppState::new(
             auth_service,
             Arc::new(AccountRepositoryInMem::default()),
-            "http://127.0.0.1:11866/tachyon/login/callback".to_string(),
+            "http://127.0.0.1:11866/tachyon".to_string(),
         ));
 
-        let state = GlobalState::new(Default::default(), vec![0u8; 32], app_state);
-        state.authorize_ticket(TICKET);
-        state
+        GlobalState::new(Default::default(), vec![0u8; 32], app_state)
     }
 
     #[tokio::test]
     async fn confirm_page_reports_a_ticket_with_no_login() {
-        let state = state_with_authorized_ticket();
+        let state = state_without_login();
 
         let page = get_confirm(State(state), Extension(TICKET.to_string())).await;
 
@@ -342,7 +324,7 @@ mod tests {
 
     #[tokio::test]
     async fn verification_poll_reports_a_ticket_with_no_login() {
-        let state = state_with_authorized_ticket();
+        let state = state_without_login();
 
         let response = get_verification_poll(
             State(state),
@@ -361,7 +343,7 @@ mod tests {
 
     #[tokio::test]
     async fn recover_asks_again_when_no_secret_was_typed() {
-        let state = state_with_authorized_ticket();
+        let state = state_without_login();
 
         let page = recover::post_recover(
             State(state),
@@ -375,7 +357,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_unknown_sas_action_is_refused() {
-        let state = state_with_authorized_ticket();
+        let state = state_without_login();
 
         let response = post_sas_v1_action(
             State(state),

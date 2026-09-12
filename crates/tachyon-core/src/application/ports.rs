@@ -1,10 +1,8 @@
-use crate::application::error::{BackendError, ReadinessError, StoreError, VerificationError};
+use crate::application::error::{BackendError, StoreError, VerificationError};
 use crate::domain::auth::{
-    BridgeMetadata, CredentialBlob, InteractiveAuthStarted, Readiness, TachyonToken,
+    BridgeMetadata, Credential, CredentialBlob, InteractiveAuthStarted, TachyonToken,
 };
-use crate::domain::error::TachyonResult;
-use crate::domain::events::BridgeEvent;
-use crate::domain::ids::{DeviceId, LoginId, SessionId, UserId};
+use crate::domain::ids::{DeviceId, LoginId, UserId};
 use crate::domain::verification::{
     DeviceStatus, IdentityReset, RecoveryKey, ResetAuth, VerificationAction, VerificationFlowState,
     VerificationOptions,
@@ -14,15 +12,20 @@ use std::any::Any;
 use std::sync::Arc;
 
 /// One login's connection to a chat backend, from the first authorization redirect to the
-/// last message sent. It outlives every step of the login flow; `Readiness` in
-/// `SessionRepository` says which of its methods make sense right now.
+/// last message sent. It outlives every step of the login flow; the `Step` of its `Login`
+/// says which of its methods make sense right now.
 #[async_trait]
 pub trait BackendSession: Send + Sync {
-    /// `callback_query` is the raw query string the redirect endpoint received from the
-    /// authorization server. Valid while the login is `Readiness::AuthNeeded`.
-    async fn finish_interactive_login(&self, callback_query: &str) -> Result<(), BackendError>;
+    /// Completes the login this session was started for. Valid while the login is at
+    /// `Step::Authenticate`; a rejected credential leaves it there.
+    async fn authenticate(&self, credential: &Credential) -> Result<(), BackendError>;
 
     async fn device_status(&self) -> Result<DeviceStatus, BackendError>;
+
+    /// Resolves once this device is trusted by the user's identity, however that happens:
+    /// a recovery key, another device's signature, or an identity reset. Returns at once
+    /// when it already is. Fails when the session is closed while waiting.
+    async fn wait_until_verified(&self) -> Result<(), BackendError>;
 
     async fn verification_options(&self) -> Result<VerificationOptions, VerificationError>;
 
@@ -52,6 +55,14 @@ pub trait BackendSession: Send + Sync {
     /// `BackendError::Technical("session closed")`.
     async fn close(&self);
 
+    /// `close`, and remove whatever the backend keeps on disk for this login. For a login
+    /// that will never be restored. The device stays on the backend; only `log_out` ends it.
+    async fn discard(&self);
+
+    /// Ends the device on the backend. Only the user's explicit "delete credentials" does
+    /// this; every other end of a login keeps the device so a later restore works.
+    async fn log_out(&self) -> Result<(), BackendError>;
+
     /// FIXME: TEMPORARY, we won't expose the underlying client after the refactor is done
     fn as_any(&self) -> &dyn Any;
 }
@@ -69,6 +80,21 @@ pub trait AuthService: Send + Sync {
         redirect_url: &str,
         bridge_metadata: &BridgeMetadata,
     ) -> Result<(Arc<dyn BackendSession>, InteractiveAuthStarted), BackendError>;
+
+    /// Removes what the backend keeps on disk for a login that is not live. Nothing to do
+    /// when there is nothing.
+    async fn forget(&self, login_id: &LoginId) -> Result<(), BackendError>;
+
+    /// Removes the on-disk state of every login not in `keep`.
+    async fn sweep(&self, keep: &[LoginId]) -> Result<(), BackendError>;
+}
+
+/// A login row as the store holds it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoredLogin {
+    pub login_id: LoginId,
+    /// Whether any token still points at it. One nobody points at is a leftover.
+    pub bound: bool,
 }
 
 #[async_trait]
@@ -83,35 +109,11 @@ pub trait AccountRepository: Send + Sync {
         tachyon_token: TachyonToken,
         login_id: LoginId,
     ) -> Result<(), StoreError>;
-}
 
-#[derive(Clone)]
-pub struct SessionEntry {
-    pub session: Arc<dyn BackendSession>,
-    pub readiness: Readiness,
-}
+    /// Removes the login and every token bound to it. Nothing to do when it is not there.
+    async fn delete_login(&self, login_id: &LoginId) -> Result<(), StoreError>;
 
-pub trait SessionRepository: Send + Sync {
-    fn insert(
-        &self,
-        login_id: LoginId,
-        session: Arc<dyn BackendSession>,
-        readiness: Readiness,
-    ) -> Option<SessionEntry>;
-
-    fn get(&self, login_id: &LoginId) -> Option<SessionEntry>;
-
-    /// The only accessor bridges may use.
-    fn get_ready(&self, login_id: &LoginId) -> Option<Arc<dyn BackendSession>>;
-
-    /// Forward transitions only (`Readiness::can_advance_to`); returns the previous readiness.
-    fn set_readiness(
-        &self,
-        login_id: &LoginId,
-        readiness: Readiness,
-    ) -> Result<Readiness, ReadinessError>;
-
-    fn remove(&self, login_id: &LoginId) -> Option<SessionEntry>;
+    async fn logins(&self) -> Result<Vec<StoredLogin>, StoreError>;
 }
 
 #[async_trait]
@@ -119,16 +121,4 @@ pub trait CredentialRepository: Send + Sync {
     async fn credentials(&self, login_id: &LoginId) -> Result<Option<CredentialBlob>, StoreError>;
 
     async fn store(&self, login_id: &LoginId, blob: CredentialBlob) -> Result<(), StoreError>;
-}
-
-#[async_trait]
-pub trait BridgeHandle: Send + Sync {
-    async fn send(&self, event: BridgeEvent) -> TachyonResult<()>;
-}
-
-#[async_trait]
-pub trait BridgeRepository: Send + Sync {
-    async fn register_bridge(&self, session_id: SessionId, bridge: Arc<dyn BridgeHandle>);
-
-    async fn bridge_by_id(&self, session_id: &SessionId) -> Option<Arc<dyn BridgeHandle>>;
 }

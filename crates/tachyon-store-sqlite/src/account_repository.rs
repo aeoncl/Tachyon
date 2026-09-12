@@ -2,7 +2,7 @@ use crate::sqlite_store::{SqliteStore, now_unix};
 use async_trait::async_trait;
 use rusqlite::{OptionalExtension, params};
 use tachyon_core::application::error::StoreError;
-use tachyon_core::application::ports::AccountRepository;
+use tachyon_core::application::ports::{AccountRepository, StoredLogin};
 use tachyon_core::domain::auth::TachyonToken;
 use tachyon_core::domain::ids::LoginId;
 
@@ -34,14 +34,6 @@ impl AccountRepository for SqliteStore {
         self.with_conn(move |conn| {
             let tx = conn.transaction()?;
 
-            let previous: Option<String> = tx
-                .query_row(
-                    "SELECT login_id FROM tokens WHERE token = ?1",
-                    [&token],
-                    |row| row.get(0),
-                )
-                .optional()?;
-
             // A backend that persists no credentials can still be linked: the row must
             // exist for the foreign key to hold.
             tx.execute(
@@ -57,17 +49,35 @@ impl AccountRepository for SqliteStore {
                 params![token, login_id, now],
             )?;
 
-            // The superseded login is dead weight (holding a live backend token) once no
-            // ticket points at it any more; other tokens may still reference it, though.
-            if let Some(previous) = previous.filter(|previous| previous != &login_id) {
-                tx.execute(
-                    "DELETE FROM logins WHERE login_id = ?1
-                     AND NOT EXISTS (SELECT 1 FROM tokens WHERE login_id = ?1)",
-                    [&previous],
-                )?;
-            }
-
             tx.commit()
+        })
+        .await
+    }
+
+    async fn delete_login(&self, login_id: &LoginId) -> Result<(), StoreError> {
+        let login_id = login_id.to_string();
+        self.with_conn(move |conn| {
+            // Tokens go with it: `ON DELETE CASCADE`, and the connection has foreign keys on.
+            conn.execute("DELETE FROM logins WHERE login_id = ?1", [&login_id])
+                .map(|_| ())
+        })
+        .await
+    }
+
+    async fn logins(&self) -> Result<Vec<StoredLogin>, StoreError> {
+        self.with_conn(|conn| {
+            let mut statement = conn.prepare(
+                "SELECT l.login_id,
+                        EXISTS(SELECT 1 FROM tokens t WHERE t.login_id = l.login_id)
+                 FROM logins l",
+            )?;
+            let rows = statement.query_map([], |row| {
+                Ok(StoredLogin {
+                    login_id: LoginId::from(row.get::<_, String>(0)?),
+                    bound: row.get(1)?,
+                })
+            })?;
+            rows.collect()
         })
         .await
     }

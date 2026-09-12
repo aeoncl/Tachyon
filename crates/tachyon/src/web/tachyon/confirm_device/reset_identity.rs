@@ -1,6 +1,6 @@
 use crate::tachyon::global_state::GlobalState;
 use crate::web::tachyon::layout::error_fragment;
-use crate::web::tachyon::{release_sign_in, Params};
+use crate::web::tachyon::Params;
 use axum::extract::State;
 use axum::response::Html;
 use maud::{html, Markup};
@@ -40,10 +40,7 @@ async fn reset(state: &GlobalState, token: &str, auth: Option<ResetAuth>) -> Htm
         Ok(IdentityReset::PasswordRequired) => password_form(),
         Ok(IdentityReset::ApprovalRequired { url }) => approval_content(&url),
         Ok(IdentityReset::ApprovalPending) => pending_content(),
-        Ok(IdentityReset::Done { recovery_key }) => {
-            release_sign_in(state, token);
-            done_content(recovery_key.as_str())
-        }
+        Ok(IdentityReset::Done { recovery_key }) => done_content(recovery_key.as_str()),
         Err(e) => error_fragment(&e.to_string()),
     };
 

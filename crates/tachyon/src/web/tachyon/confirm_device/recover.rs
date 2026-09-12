@@ -1,6 +1,6 @@
 use crate::tachyon::global_state::GlobalState;
 use crate::web::tachyon::layout::error_fragment;
-use crate::web::tachyon::{release_sign_in, Params};
+use crate::web::tachyon::Params;
 use axum::extract::State;
 use axum::response::Html;
 use maud::{html, Markup};
@@ -34,10 +34,7 @@ pub async fn post_recover(
         .recover(&TachyonToken::new(&token), &RecoveryKey::new(secret))
         .await
     {
-        Ok(()) => {
-            release_sign_in(&state, &token);
-            confirmed_content()
-        }
+        Ok(()) => confirmed_content(),
         Err(VerificationError::RecoveryKeyRejected) => restore_device_content(Some(
             "That recovery key or passphrase was not accepted. Please check it and try again.",
         )),

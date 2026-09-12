@@ -159,5 +159,18 @@ async fn approved_reset(
 
 async fn enable_recovery(client: &Client) -> anyhow::Result<RecoveryKey> {
     let recovery_key = client.encryption().recovery().enable().await?;
+    refresh_own_verification_state(client).await;
     Ok(RecoveryKey::new(recovery_key))
+}
+
+/// The reset signs our device with the new identity but the SDK only re-reads that after a
+/// `/keys/query`. Asking for our own identity issues one, so a `wait_until_verified` in
+/// progress sees the device flip.
+async fn refresh_own_verification_state(client: &Client) {
+    let Some(user_id) = client.user_id() else {
+        return;
+    };
+    if let Err(e) = client.encryption().request_user_identity(user_id).await {
+        log::warn!("Could not refresh the device verification state after the reset: {e}");
+    }
 }

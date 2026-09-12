@@ -25,5 +25,4 @@ str_id!(LoginId);
 str_id!(UserId);
 str_id!(ConversationId);
 str_id!(MediaId);
-str_id!(SessionId);
 str_id!(MessageId);

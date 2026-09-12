@@ -18,40 +18,24 @@ use tokio_util::sync::CancellationToken;
 use tachyon_core::application::error::{BackendError, VerificationError};
 use tachyon_core::domain::verification::{SasEmoji, VerificationFlowState};
 
+/// Drives one SAS request against another of the user's devices. The to-device traffic it
+/// rides on is the session's `sync_until_verified`, which runs for as long as the device is
+/// untrusted.
 pub struct VerificationFlowMatrix {
     request: VerificationRequest,
     driver: JoinHandle<()>,
-    to_device_sync: CancellationToken,
 }
 
 impl VerificationFlowMatrix {
-    pub(crate) async fn start(
-        client: &Client,
-        device: Device,
-        to_device_sync: CancellationToken,
-    ) -> Result<Self, VerificationError> {
-        tokio::spawn(run_to_device_sync(client.clone(), to_device_sync.clone()));
-
-        let request = match device
+    pub(crate) async fn start(device: Device) -> Result<Self, VerificationError> {
+        let request = device
             .request_verification_with_methods(vec![VerificationMethod::SasV1])
             .await
-        {
-            Ok(request) => request,
-            Err(e) => {
-                to_device_sync.cancel();
-                return Err(VerificationError::Backend(BackendError::Technical(anyhow!(
-                    "{e}"
-                ))));
-            }
-        };
+            .map_err(|e| VerificationError::Backend(BackendError::Technical(anyhow!("{e}"))))?;
 
-        let driver = tokio::spawn(drive(request.clone(), to_device_sync.clone()));
+        let driver = tokio::spawn(drive(request.clone()));
 
-        Ok(Self {
-            request,
-            driver,
-            to_device_sync,
-        })
+        Ok(Self { request, driver })
     }
 
     pub(crate) fn state(&self) -> VerificationFlowState {
@@ -72,7 +56,6 @@ impl VerificationFlowMatrix {
 impl Drop for VerificationFlowMatrix {
     fn drop(&mut self) {
         self.driver.abort();
-        self.to_device_sync.cancel();
     }
 }
 
@@ -134,7 +117,7 @@ pub(crate) fn map_sas_state(state: &SasState) -> VerificationFlowState {
     }
 }
 
-async fn drive(request: VerificationRequest, to_device_sync: CancellationToken) {
+async fn drive(request: VerificationRequest) {
     // eyeball's `subscribe()` only yields versions newer than the one current at subscribe
     // time, so reading `state()` before subscribing would lose a transition landing in between.
     let mut request_changes = pin!(request.changes());
@@ -170,7 +153,6 @@ async fn drive(request: VerificationRequest, to_device_sync: CancellationToken) 
         }
     }
 
-    to_device_sync.cancel();
 }
 
 async fn drive_sas(
@@ -225,8 +207,11 @@ async fn cancel_request(request: &VerificationRequest) {
     }
 }
 
-async fn run_to_device_sync(client: Client, cancel: CancellationToken) {
-    // The SDK's sync stream terminates on any error, so the sync is rebuilt until the flow ends.
+/// A sync that carries only to-device events and device-list changes. Its outgoing-request
+/// step is also what uploads this device's own keys, which nothing else does before the
+/// bridge starts its full sync.
+pub(crate) async fn run_to_device_sync(client: Client, cancel: CancellationToken) {
+    // The SDK's sync stream terminates on any error, so the sync is rebuilt until cancelled.
     loop {
         tokio::select! {
             _ = cancel.cancelled() => break,
