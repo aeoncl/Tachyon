@@ -362,6 +362,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_sign_in_that_lost_its_login_to_a_second_connection_leaves_that_one_alone() {
+        let auth_service = FakeAuthService::minting([DeviceStatus::Unverified]);
+        let global_state = test_state(auth_service.clone()).await;
+        let server = start_server(global_state.clone()).await;
+
+        let mut first = TestClient::connect(server.addr).await;
+        first.sign_in(&global_state).await.unwrap();
+        first.read_until(|received| received.contains("confirm_device")).await.unwrap();
+
+        let mut second = TestClient::connect(server.addr).await;
+        second.sign_in(&global_state).await.unwrap();
+        second.read_until(|received| received.contains("confirm_device")).await.unwrap();
+
+        let replaced = auth_service.session(0);
+        assert!(
+            wait_for(|| replaced.close_calls() == 1).await,
+            "the second sign-in should have replaced the first login"
+        );
+        // The first sign-in's wait fails on its closed session and it gives its login up.
+        // Nothing marks that giving up, so give it time to happen before looking.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let token = global_state.token_for(&email());
+        assert!(
+            global_state.is_session_token(token.as_str()),
+            "the second connection's login must survive the first one giving up"
+        );
+        assert_eq!(auth_service.session(1).close_calls(), 0);
+    }
+
+    #[tokio::test]
     async fn a_client_that_disconnects_during_verification_is_abandoned_promptly() {
         let auth_service = FakeAuthService::minting([DeviceStatus::Unverified]);
         let global_state = test_state(auth_service.clone()).await;

@@ -1,5 +1,6 @@
 use dashmap::DashMap;
 use msnp::shared::models::email_address::EmailAddress;
+use std::sync::Arc;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::repository::RepositoryStr;
 
@@ -27,6 +28,13 @@ impl TachyonClientRepository {
 
     pub fn find_by_email(&self, email: &EmailAddress) -> Option<TachyonClient> {
         self.clients.iter().find(|entry| entry.value().own_user().get_email_address() == email).map(|client| client.value().clone())
+    }
+
+    /// Removes the client under `key` only while it is still `client`.
+    pub fn remove_if_same(&self, key: &str, client: &TachyonClient) -> Option<TachyonClient> {
+        self.clients
+            .remove_if(key, |_, current| Arc::ptr_eq(&current.inner, &client.inner))
+            .map(|(_, client)| client)
     }
 }
 

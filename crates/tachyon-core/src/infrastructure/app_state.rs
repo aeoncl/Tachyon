@@ -1,7 +1,8 @@
-use crate::application::auth_use_case::{AuthUseCase, WebUrls};
+use crate::application::auth_use_case::AuthUseCase;
 use crate::application::device_verification_use_case::DeviceVerificationUseCase;
 use crate::application::logins::Logins;
 use crate::application::ports::{AccountRepository, AuthService};
+use crate::application::web_urls::WebUrls;
 use std::sync::Arc;
 
 /// Core's composition root: owns the live logins and hands bridges the use cases.

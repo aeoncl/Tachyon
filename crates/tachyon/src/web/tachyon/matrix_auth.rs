@@ -10,7 +10,7 @@ use maud::{html, Markup};
 use tachyon_core::application::auth_use_case::FinishedLogin;
 use tachyon_core::application::error::AuthError;
 use tachyon_core::domain::auth::{Credential, InteractiveAuthStarted};
-use tachyon_core::domain::verification::{DeviceStatus, Password};
+use tachyon_core::domain::verification::Password;
 
 /// Where the `NOT` alert sent during sign-in lands.
 ///
@@ -110,19 +110,16 @@ pub async fn get_login_callback(
 }
 
 fn login_finished(finished: FinishedLogin) -> Response {
-    match finished.device_status {
-        DeviceStatus::Verified => {
+    match finished.next_url {
+        None => {
             debug!("Interactive login finished");
             success_page()
         }
-        // The user is already here, so send them straight on to confirm the device rather
-        // than making them come back through a second alert.
-        DeviceStatus::Unverified => {
+        // The user is already here, so send them straight on rather than making them come
+        // back through a second alert.
+        Some(next_url) => {
             warn!("Interactive login finished but its device is unverified");
-            redirect(&format!(
-                "/tachyon/confirm_device?t={}",
-                finished.token.as_str()
-            ))
+            redirect(&next_url)
         }
     }
 }
@@ -189,18 +186,20 @@ fn error_markup(message: &str) -> Markup {
 mod tests {
     use super::*;
     use tachyon_core::domain::auth::TachyonToken;
+    use tachyon_core::domain::verification::DeviceStatus;
 
     #[test]
     fn an_untrusted_device_is_sent_to_confirmation_with_a_get() {
         let response = login_finished(FinishedLogin {
             token: TachyonToken::new("ticket"),
             device_status: DeviceStatus::Unverified,
+            next_url: Some("http://127.0.0.1:11866/tachyon/confirm_device?t=ticket".to_string()),
         });
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(
             response.headers().get(LOCATION).unwrap(),
-            "/tachyon/confirm_device?t=ticket"
+            "http://127.0.0.1:11866/tachyon/confirm_device?t=ticket"
         );
     }
 }

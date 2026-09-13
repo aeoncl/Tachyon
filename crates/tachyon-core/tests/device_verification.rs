@@ -3,7 +3,8 @@
 //! way a bridge would.
 
 use std::sync::Arc;
-use tachyon_core::application::auth_use_case::{AuthUseCase, WebUrls};
+use tachyon_core::application::auth_use_case::AuthUseCase;
+use tachyon_core::application::web_urls::WebUrls;
 use tachyon_core::application::device_verification_use_case::DeviceVerificationUseCase;
 use tachyon_core::application::error::VerificationError;
 use tachyon_core::application::logins::Logins;

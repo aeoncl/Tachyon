@@ -8,6 +8,7 @@ use dashmap::DashMap;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::Arc;
+use tachyon_core::application::logins::Attempt;
 use tachyon_core::domain::auth::TachyonToken;
 use tachyon_core::infrastructure::app_state::AppState;
 
@@ -25,27 +26,30 @@ pub struct GlobalState {
     inner: Arc<GlobalStateInner>,
 }
 
+/// Takes down what one Messenger connection registered, and only that: a reconnection may
+/// already have put its own client and login under the same key by the time this drops.
 pub struct ClientDropGuard {
     global_state: GlobalState,
     key: String,
-}
-
-impl ClientDropGuard {
-    pub fn new(global_state: GlobalState, key: String) -> Self {
-        Self { global_state, key }
-    }
+    client: TachyonClient,
+    attempt: Attempt,
 }
 
 impl Drop for ClientDropGuard {
     fn drop(&mut self) {
-        if let Some(client) = self.global_state.tachyon_clients().remove(&self.key) {
+        if let Some(client) = self
+            .global_state
+            .tachyon_clients()
+            .remove_if_same(&self.key, &self.client)
+        {
             client.shutdown();
         }
         // The backend session does not outlive the Messenger connection it served.
         let auth_use_case = self.global_state.app_state().auth_use_case().clone();
         let token = TachyonToken::new(&self.key);
+        let attempt = self.attempt;
         tokio::spawn(async move {
-            if let Err(e) = auth_use_case.abandon(&token).await {
+            if let Err(e) = auth_use_case.abandon(&token, attempt).await {
                 log::error!("Could not close the backend session: {:?}", e);
             }
         });
@@ -78,9 +82,21 @@ impl GlobalState {
         &self.inner.tachyon_clients
     }
 
-    pub fn insert_clients(&self, key: String, tachyon_client: TachyonClient) -> ClientDropGuard {
-        self.inner.tachyon_clients.insert(key.clone(), tachyon_client);
-        ClientDropGuard::new(self.clone(), key)
+    pub fn insert_clients(
+        &self,
+        key: String,
+        tachyon_client: TachyonClient,
+        attempt: Attempt,
+    ) -> ClientDropGuard {
+        self.inner
+            .tachyon_clients
+            .insert(key.clone(), tachyon_client.clone());
+        ClientDropGuard {
+            global_state: self.clone(),
+            key,
+            client: tachyon_client,
+            attempt,
+        }
     }
 
     pub fn get_clients(&self, key: &str) -> Option<TachyonClient> {

@@ -19,6 +19,7 @@ use tokio::sync::Notify;
 /// A session whose device status follows a script: every call consumes the next entry and
 /// the last one repeats, so a test can make the device flip to verified partway through.
 /// `wait_until_verified` parks until the test calls `verify`, or fails once `close` runs.
+/// `authenticate` returns at once unless the test parked it, then it waits for `release`.
 pub struct FakeBackendSession {
     device_statuses: Mutex<Vec<DeviceStatus>>,
     device_status_fails: bool,
@@ -31,6 +32,8 @@ pub struct FakeBackendSession {
     log_out_calls: AtomicUsize,
     verified: Notify,
     closed: Notify,
+    authenticate_parked: AtomicBool,
+    authenticate_released: Notify,
 }
 
 impl FakeBackendSession {
@@ -67,7 +70,19 @@ impl FakeBackendSession {
             log_out_calls: AtomicUsize::new(0),
             verified: Notify::new(),
             closed: Notify::new(),
+            authenticate_parked: AtomicBool::new(false),
+            authenticate_released: Notify::new(),
         }
+    }
+
+    /// The next `authenticate` stays on the wire until `release_authenticate`.
+    pub fn park_authenticate(&self) {
+        self.authenticate_parked.store(true, Ordering::SeqCst);
+    }
+
+    pub fn release_authenticate(&self) {
+        self.authenticate_parked.store(false, Ordering::SeqCst);
+        self.authenticate_released.notify_one();
     }
 
     pub fn with_verification_state(self: Arc<Self>, state: VerificationFlowState) -> Arc<Self> {
@@ -114,6 +129,9 @@ impl FakeBackendSession {
 impl BackendSession for FakeBackendSession {
     async fn authenticate(&self, _credential: &Credential) -> Result<(), BackendError> {
         self.finish_calls.fetch_add(1, Ordering::SeqCst);
+        if self.authenticate_parked.load(Ordering::SeqCst) {
+            self.authenticate_released.notified().await;
+        }
         if self.rejects_credentials {
             return Err(BackendError::Technical(anyhow::anyhow!(
                 "credentials rejected"
@@ -199,8 +217,8 @@ impl BackendSession for FakeBackendSession {
 }
 
 enum Sessions {
-    /// Every build hands out the same prepared session.
-    Shared(Arc<FakeBackendSession>),
+    /// Builds hand out these prepared sessions in order; the last one repeats.
+    Scripted(Mutex<Vec<Arc<FakeBackendSession>>>),
     /// Every build mints a fresh session with this device status script.
     Fresh(Vec<DeviceStatus>),
 }
@@ -218,7 +236,14 @@ pub struct FakeAuthService {
 
 impl FakeAuthService {
     pub fn handing_out(session: Arc<FakeBackendSession>) -> Arc<Self> {
-        Arc::new(Self::build(Sessions::Shared(session)))
+        Self::handing_out_each([session])
+    }
+
+    /// Hands out `sessions` in order, one per build, and the last one for every build after.
+    pub fn handing_out_each(sessions: impl IntoIterator<Item = Arc<FakeBackendSession>>) -> Arc<Self> {
+        let sessions: Vec<_> = sessions.into_iter().collect();
+        assert!(!sessions.is_empty(), "script at least one session");
+        Arc::new(Self::build(Sessions::Scripted(Mutex::new(sessions))))
     }
 
     pub fn minting(device_statuses: impl IntoIterator<Item = DeviceStatus>) -> Arc<Self> {
@@ -269,7 +294,14 @@ impl FakeAuthService {
 
     fn next_session(&self) -> Arc<FakeBackendSession> {
         let session = match &self.sessions {
-            Sessions::Shared(session) => session.clone(),
+            Sessions::Scripted(scripted) => {
+                let mut scripted = scripted.lock().unwrap();
+                if scripted.len() > 1 {
+                    scripted.remove(0)
+                } else {
+                    scripted[0].clone()
+                }
+            }
             Sessions::Fresh(statuses) => FakeBackendSession::new(statuses.iter().copied()),
         };
         self.handed_out.lock().unwrap().push(session.clone());

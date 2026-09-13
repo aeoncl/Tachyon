@@ -19,22 +19,31 @@ one of them is wrong — fix it or fix this file.
 
 ## Auth flow (shape owned by core)
 
-- **Login flow** is core's state machine over one login's `Readiness`:
-  `AuthNeeded → VerificationNeeded → Ready`, plus `Failed` when a step errors and the
-  login is dropped. Backends implement steps, never the choreography.
-- **Readiness** is how far one login has come: `AuthNeeded`, `VerificationNeeded`, or
-  `Ready`. A `Copy` enum in `domain::auth`, held in `SessionRepository` next to the
-  session, and forward-only through `Readiness::can_advance_to`.
-- **LoginOutcome** is what `AuthUseCase::restore` and `AuthUseCase::finish_interactive_login`
-  hand back: `SessionOpened { login_id, session }` or
-  `DeviceVerificationRequired { login_id }`.
-- **settle** is `AuthUseCase::settle`, the only writer of `Readiness`. It reads
-  `BackendSession::device_status()` under the login lifecycle mutex, sets the readiness,
-  and returns the matching `LoginOutcome`.
+- **Login flow** is core's state machine over one live login: `Pending` at
+  `Step::Authenticate`, then `Pending` at `Step::VerifyDevice`, then `Ready`. Backends
+  implement steps, never the choreography. A step that fails drops the login.
+- **Login** is the live login `Logins` holds under a `TachyonToken`: `Pending { attempt,
+  session, login_id, step, changed }` or `Ready { attempt, session, login_id }`. In memory
+  only; the store keeps what rebuilds one after a restart.
+- **Step** is what the user still has to do in a browser before a pending login can be
+  used: `Authenticate { flow_id, prompt }` or `VerifyDevice`.
+- **Attempt** is one occupancy of a token's slot, minted by `Logins` for every login that
+  goes in and kept while it advances. `SignIn` hands it to the bridge, and `abandon` and
+  the guarded `Logins::replace_if` / `remove_if` act only while the slot still holds it,
+  so a caller that gave up on a login cannot take down one that replaced it.
+- **SignIn** is what `AuthUseCase::sign_in` hands back: `Ready { session, attempt }` or
+  `Pending { step, url, attempt }`, where `url` is the page the browser must visit.
+  `AuthUseCase::wait_for_session` resolves once a pending login is usable.
+- **settle** is `AuthUseCase::settle_authenticated`, run under the login lifecycle mutex
+  once `BackendSession::authenticate` succeeded. It binds the token to the login, reads
+  `device_status`, and advances the login. A login still ours that cannot be settled is
+  closed and keeps its row for the next sign-in; one that lost its slot meanwhile is
+  logged out and discarded, because nothing points at the device it just made.
 - **DeviceVerificationUseCase** is core's owner of the verification step, keyed by
   `TachyonToken`: device status, recovery-key import, SAS verification against another
-  device, identity reset. It works on logins a bridge cannot reach yet and never writes
-  `Readiness`.
+  device, identity reset. It works on logins a bridge cannot reach yet and never advances
+  one: the session reports the device as verified and `AuthUseCase::wait_for_session`
+  picks that up.
 - **VerificationFlowState** is the state of the one live SAS flow on a session
   (`Requested`, `Ready`, `Started`, `CompareEmojis`, `AwaitingOtherConfirmation`, `Done`,
   `Cancelled`). `VerificationFlowState::name()` is the payload-free key a poll endpoint
@@ -44,8 +53,9 @@ one of them is wrong — fix it or fix this file.
   URL the user's browser must visit.
 - **callback query** is the raw query string the redirect endpoint receives from the
   authorization server. Core never parses it. It goes straight to
-  `BackendSession::finish_interactive_login`, and the adapter interprets it (OAuth `code`
-  and `state` for Matrix).
+  `BackendSession::authenticate` as `Credential::OAuthCallback`, and the adapter
+  interprets it (OAuth `code` and `state` for Matrix). `Credential::Password` is the
+  other credential, for homeservers without OAuth.
 - **CredentialBlob** — backend-serialized credentials (`AuthSession` for Matrix) as
   opaque bytes, keyed by `LoginId` in the core-owned store (`tachyon-store-sqlite`).
   Plaintext today; the store schema reserves a format column for encryption at rest.
@@ -55,13 +65,13 @@ one of them is wrong — fix it or fix this file.
 - **BackendSession** is the deep port one login owns for its whole lifetime, from the
   first authorization redirect to the last message sent: messaging, typing, presence,
   media, conversation ops, event stream, plus `device_status` and the verification calls.
-  `SessionRepository` tracks its `Readiness`, and `SessionRepository::get_ready` is the
-  only accessor a bridge may use. Two adapters: `tachyon-backend-matrix` (prod) and
-  `FakeBackend` (testkit).
+  `Logins` holds it inside the `Login`, and `AuthUseCase::session` is the only accessor a
+  bridge may use: it answers only for a `Ready` login. Two adapters:
+  `tachyon-backend-matrix` (prod) and `FakeBackendSession` (testkit).
 - **AuthService** is the factory for `BackendSession`. `restore(login_id)` rebuilds one
   from stored credentials. `start_interactive_login(login_id, server_name, user_id,
   redirect_url, bridge_metadata)` builds a fresh one with an `InteractiveAuthStarted`
-  prompt. Neither call sets `Readiness`.
+  prompt. Neither call advances a login.
 - **BackendEvent** — push events crossing the seam backend → core → bridge (messages,
   membership, `CredentialsRotated`), over a lossless mpsc (one frontend per instance).
 - **Dialect** — an MSNP protocol version spoken by a client (18 today; 15 next;

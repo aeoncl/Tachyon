@@ -1,6 +1,7 @@
 use crate::application::error::{AuthError, BackendError};
-use crate::application::logins::{Login, Logins, Step};
+use crate::application::logins::{Attempt, Login, Logins, Step};
 use crate::application::ports::{AccountRepository, AuthService, BackendSession};
+use crate::application::web_urls::WebUrls;
 use crate::domain::auth::{BridgeMetadata, Credential, InteractiveAuthStarted, TachyonToken};
 use crate::domain::ids::{LoginId, UserId};
 use crate::domain::verification::DeviceStatus;
@@ -8,49 +9,28 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+/// What a sign-in produced. `attempt` names this login for `AuthUseCase::abandon`, so a
+/// bridge that gives up on it cannot take down a login that replaced it in the meantime.
 pub enum SignIn {
-    Ready(Arc<dyn BackendSession>),
+    Ready {
+        session: Arc<dyn BackendSession>,
+        attempt: Attempt,
+    },
     /// The user has to do something in a browser first, at `url`.
     /// `AuthUseCase::wait_for_session` resolves once they have.
-    Pending { step: Step, url: String },
+    Pending {
+        step: Step,
+        url: String,
+        attempt: Attempt,
+    },
 }
 
-/// The bridge's web pages as the user's browser reaches them. Every URL a backend or a user
-/// is sent to is built from this one base, so the pages and the links agree by construction.
-pub struct WebUrls {
-    base: String,
-}
-
-impl WebUrls {
-    /// `base` is the pages' root, for instance `http://127.0.0.1:11866/tachyon`.
-    pub fn new(base: impl Into<String>) -> Self {
-        let base: String = base.into();
-        Self {
-            base: base.trim_end_matches('/').to_owned(),
-        }
-    }
-
-    /// Where the authorization server sends the browser back after OAuth.
-    fn oauth_callback(&self) -> String {
-        format!("{}/login/callback", self.base)
-    }
-
-    fn login_start(&self, flow_id: &str) -> String {
-        format!(
-            "{}/login/start?flow={}",
-            self.base,
-            urlencoding::encode(flow_id)
-        )
-    }
-
-    fn confirm_device(&self, token: &TachyonToken) -> String {
-        format!("{}/confirm_device?t={}", self.base, token.as_str())
-    }
-}
-
+#[derive(Debug)]
 pub struct FinishedLogin {
     pub token: TachyonToken,
     pub device_status: DeviceStatus,
+    /// Where the browser goes on from here when the login is not usable yet.
+    pub next_url: Option<String>,
 }
 
 pub struct AuthUseCase {
@@ -93,7 +73,9 @@ impl AuthUseCase {
         let _guard = self.lifecycle.lock().await;
 
         match self.logins.get(token) {
-            Some(Login::Ready { session, .. }) => return Ok(SignIn::Ready(session)),
+            Some(Login::Ready {
+                session, attempt, ..
+            }) => return Ok(SignIn::Ready { session, attempt }),
             Some(pending @ Login::Pending { .. }) => {
                 self.logins.remove(token);
                 self.drop_login(pending).await?;
@@ -124,25 +106,24 @@ impl AuthUseCase {
             }
             Err(e) => return Err(e.into()),
         };
+        let attempt = self.logins.mint();
         match session.device_status().await {
             Ok(DeviceStatus::Verified) => {
                 self.logins.insert(
                     token.clone(),
-                    Login::Ready {
-                        session: session.clone(),
-                        login_id,
-                    },
+                    Login::ready(attempt, session.clone(), login_id),
                 );
-                Ok(SignIn::Ready(session))
+                Ok(SignIn::Ready { session, attempt })
             }
             Ok(DeviceStatus::Unverified) => {
                 self.logins.insert(
                     token.clone(),
-                    Login::pending(session, login_id, Step::VerifyDevice),
+                    Login::pending(attempt, session, login_id, Step::VerifyDevice),
                 );
                 Ok(SignIn::Pending {
                     step: Step::VerifyDevice,
                     url: self.web.confirm_device(token),
+                    attempt,
                 })
             }
             Err(e) => {
@@ -177,11 +158,12 @@ impl AuthUseCase {
         };
         let url = self.web.login_start(&flow_id);
         let step = Step::Authenticate { flow_id, prompt };
+        let attempt = self.logins.mint();
         self.logins.insert(
             token.clone(),
-            Login::pending(session, login_id, step.clone()),
+            Login::pending(attempt, session, login_id, step.clone()),
         );
-        Ok(SignIn::Pending { step, url })
+        Ok(SignIn::Pending { step, url, attempt })
     }
 
     /// Blocks until the pending login for `token` is usable, then hands out its session.
@@ -191,22 +173,23 @@ impl AuthUseCase {
         token: &TachyonToken,
     ) -> Result<Arc<dyn BackendSession>, AuthError> {
         loop {
-            let (session, step, changed) = match self.logins.get(token) {
+            let (attempt, session, login_id, step, changed) = match self.logins.get(token) {
                 None => return Err(AuthError::LoginNotFound),
                 Some(Login::Ready { session, .. }) => return Ok(session),
                 Some(Login::Pending {
+                    attempt,
                     session,
+                    login_id,
                     step,
                     changed,
-                    ..
-                }) => (session, step, changed),
+                }) => (attempt, session, login_id, step, changed),
             };
 
             match step {
                 Step::Authenticate { .. } => changed.notified().await,
                 Step::VerifyDevice => {
                     session.wait_until_verified().await?;
-                    return self.promote(token, &session).await;
+                    return self.promote(token, attempt, session, login_id).await;
                 }
             }
         }
@@ -217,28 +200,16 @@ impl AuthUseCase {
     async fn promote(
         &self,
         token: &TachyonToken,
-        session: &Arc<dyn BackendSession>,
+        attempt: Attempt,
+        session: Arc<dyn BackendSession>,
+        login_id: LoginId,
     ) -> Result<Arc<dyn BackendSession>, AuthError> {
         let _guard = self.lifecycle.lock().await;
-        match self.logins.get(token) {
-            Some(Login::Pending {
-                session: current,
-                login_id,
-                ..
-            }) if Arc::ptr_eq(&current, session) => {
-                self.logins.insert(
-                    token.clone(),
-                    Login::Ready {
-                        session: session.clone(),
-                        login_id,
-                    },
-                );
-                Ok(session.clone())
-            }
-            Some(Login::Ready {
-                session: current, ..
-            }) if Arc::ptr_eq(&current, session) => Ok(current),
-            _ => Err(AuthError::LoginNotFound),
+        let ready = Login::ready(attempt, session.clone(), login_id);
+        if self.logins.replace_if(token, attempt, ready) {
+            Ok(session)
+        } else {
+            Err(AuthError::LoginNotFound)
         }
     }
 
@@ -255,6 +226,7 @@ impl AuthUseCase {
             return Err(AuthError::LoginNotFound);
         };
         let Some(Login::Pending {
+            attempt,
             session,
             login_id,
             step: Step::Authenticate { .. },
@@ -266,57 +238,77 @@ impl AuthUseCase {
 
         session.authenticate(&credential).await?;
 
-        let finished = self.settle_authenticated(&token, &session, login_id).await;
-        if finished.is_err() {
-            if let Err(e) = self.abandon(&token).await {
-                log::warn!("Could not abandon a login that failed to settle: {e:?}");
-            }
-        }
+        let finished = self
+            .settle_authenticated(&token, attempt, &session, login_id)
+            .await;
         changed.notify_one();
         finished.map(|device_status| FinishedLogin {
+            next_url: match device_status {
+                DeviceStatus::Verified => None,
+                DeviceStatus::Unverified => Some(self.web.confirm_device(&token)),
+            },
             token,
             device_status,
         })
     }
 
+    /// Binds the token to the login it just authenticated and advances it. When the login
+    /// is no longer the one under the token, nothing points at the device it just made, so
+    /// that device is ended. A login that is still ours but cannot be settled is closed and
+    /// keeps its row: the next sign-in restores it.
     async fn settle_authenticated(
         &self,
         token: &TachyonToken,
+        attempt: Attempt,
         session: &Arc<dyn BackendSession>,
         login_id: LoginId,
     ) -> Result<DeviceStatus, AuthError> {
         let _guard = self.lifecycle.lock().await;
+        if self.logins.get(token).map(|current| current.attempt()) != Some(attempt) {
+            Self::log_out_and_discard(session).await;
+            return Err(AuthError::LoginNotFound);
+        }
+        let device_status = match self.bind_and_read_status(token, session, &login_id).await {
+            Ok(device_status) => device_status,
+            Err(e) => {
+                self.logins.remove_if(token, attempt);
+                session.close().await;
+                return Err(e);
+            }
+        };
+
+        let advanced = match device_status {
+            DeviceStatus::Verified => Login::ready(attempt, session.clone(), login_id),
+            DeviceStatus::Unverified => {
+                Login::pending(attempt, session.clone(), login_id, Step::VerifyDevice)
+            }
+        };
+        if self.logins.replace_if(token, attempt, advanced) {
+            Ok(device_status)
+        } else {
+            Err(AuthError::LoginNotFound)
+        }
+    }
+
+    async fn bind_and_read_status(
+        &self,
+        token: &TachyonToken,
+        session: &Arc<dyn BackendSession>,
+        login_id: &LoginId,
+    ) -> Result<DeviceStatus, AuthError> {
         self.account_repository
             .save_login_for_token(token.clone(), login_id.clone())
             .await?;
-        let device_status = session.device_status().await?;
-
-        let advanced = match device_status {
-            DeviceStatus::Verified => Login::Ready {
-                session: session.clone(),
-                login_id,
-            },
-            DeviceStatus::Unverified => {
-                Login::pending(session.clone(), login_id, Step::VerifyDevice)
-            }
-        };
-        match self.logins.get(token) {
-            Some(Login::Pending {
-                session: current, ..
-            }) if Arc::ptr_eq(&current, session) => {
-                self.logins.insert(token.clone(), advanced);
-                Ok(device_status)
-            }
-            _ => Err(AuthError::LoginNotFound),
-        }
+        Ok(session.device_status().await?)
     }
 
     /// Closes the backend session and drops the live login, whatever step it is at. What a
     /// bridge does when its client disconnects: a login that can be restored keeps its
-    /// store row, its device and its on-disk state. Nothing to do when there is none.
-    pub async fn abandon(&self, token: &TachyonToken) -> Result<(), AuthError> {
+    /// store row, its device and its on-disk state. Nothing to do when the login under the
+    /// token is not `attempt` any more: it is somebody else's.
+    pub async fn abandon(&self, token: &TachyonToken, attempt: Attempt) -> Result<(), AuthError> {
         let _guard = self.lifecycle.lock().await;
-        match self.logins.remove(token) {
+        match self.logins.remove_if(token, attempt) {
             Some(login) => self.drop_login(login).await,
             None => Ok(()),
         }
@@ -324,8 +316,12 @@ impl AuthUseCase {
 
     /// The authorization server refused the login behind `flow_id`, so nobody can finish it.
     pub async fn abandon_flow(&self, flow_id: &str) -> Result<(), AuthError> {
-        match self.logins.token_for_flow(flow_id) {
-            Some(token) => self.abandon(&token).await,
+        let _guard = self.lifecycle.lock().await;
+        let Some(token) = self.logins.token_for_flow(flow_id) else {
+            return Ok(());
+        };
+        match self.logins.remove(&token) {
+            Some(login) => self.drop_login(login).await,
             None => Ok(()),
         }
     }
@@ -402,6 +398,7 @@ impl AuthUseCase {
                 step: Step::Authenticate { .. },
                 session,
                 login_id,
+                ..
             } => {
                 changed.notify_one();
                 session.discard().await;

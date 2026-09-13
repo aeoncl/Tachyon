@@ -500,7 +500,6 @@ impl BackendSession for BackendSessionMatrix {
     }
 
     async fn log_out(&self) -> Result<(), BackendError> {
-        self.ensure_open()?;
         if self.client.session().is_none() {
             return Ok(());
         }

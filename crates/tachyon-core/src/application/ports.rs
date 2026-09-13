@@ -59,8 +59,9 @@ pub trait BackendSession: Send + Sync {
     /// that will never be restored. The device stays on the backend; only `log_out` ends it.
     async fn discard(&self);
 
-    /// Ends the device on the backend. Only the user's explicit "delete credentials" does
-    /// this; every other end of a login keeps the device so a later restore works.
+    /// Ends the device on the backend. Two callers: the user's explicit "delete credentials",
+    /// and a login that authenticated while nobody held it any more. Every other end of a
+    /// login keeps the device so a later restore works. Works on a closed session too.
     async fn log_out(&self) -> Result<(), BackendError>;
 
     /// FIXME: TEMPORARY, we won't expose the underlying client after the refactor is done
