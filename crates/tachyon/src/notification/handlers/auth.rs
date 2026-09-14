@@ -14,6 +14,7 @@ use msnp::msnp::notification::command::not::factories::NotificationFactory;
 use msnp::msnp::notification::command::not::{NotServer, NotificationPayloadType};
 use msnp::msnp::notification::command::usr::{AuthOperationTypeClient, AuthPolicy, OperationTypeServer, SsoPhaseClient, SsoPhaseServer, UsrServer};
 use msnp::msnp::raw_command_parser::RawCommand;
+use msnp::shared::models::client_version::ClientVersion;
 use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::endpoint_id::EndpointId;
@@ -24,9 +25,10 @@ use std::sync::Arc;
 use std::time::Duration;
 use tachyon_backend_matrix::infrastructure::backend::session::BackendSessionMatrix;
 use tachyon_core::application::auth_use_case::{AuthUseCase, SignIn};
-use tachyon_core::application::logins::{Attempt, Step};
+use tachyon_core::application::error::AuthError;
+use tachyon_core::application::logins::Step;
 use tachyon_core::application::ports::BackendSession;
-use tachyon_core::domain::auth::{BridgeMetadata, InteractiveAuthStarted, TachyonToken};
+use tachyon_core::domain::auth::{BridgeMetadata, InteractiveAuthStarted, BridgeLinkToken};
 use tachyon_core::domain::ids::UserId as CoreUserId;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::Sender;
@@ -63,10 +65,13 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 
                             let sign_in_deadline = Instant::now() + CLIENT_SIGN_IN_WINDOW;
                             let email_addr = local_store.email_addr.clone();
+                            let Some(client_version) = local_store.client_version.clone() else {
+                                return Err(anyhow!("USR before CVR: the client has not introduced itself"));
+                            };
 
-                            // The ticket is derived from the address, so a mismatch means it
-                            // was not issued by this instance for this account.
-                            let expected_ticket = tachyon_state.ticket_for(&email_addr);
+                            // The ticket is minted from the address and the client version, so a
+                            // mismatch means it was not issued by this bridge for this client.
+                            let expected_ticket = tachyon_state.ticket_for(&email_addr, &client_version);
                             if ticket_token.as_str() != expected_ticket.as_str() {
                                 return Err(anyhow!("Ticket token does not match {}", email_addr.as_str()));
                             }
@@ -85,10 +90,11 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             });
                             notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
 
-                            let (matrix_client, attempt) = authenticate(
+                            let matrix_client = authenticate(
                                 tachyon_state,
                                 &notif_sender,
                                 &email_addr,
+                                &client_version,
                                 &msn_user,
                                 config,
                                 sign_in_deadline,
@@ -96,7 +102,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             ).await?;
 
                             let tachyon_client = TachyonClient::new(matrix_client.clone(), config.clone(), msn_user.clone(), ticket_token.clone(), notif_sender.clone(), local_store.client_shutdown_snd.clone(), local_store.client_shutdown_recv.resubscribe());
-                            let drop_guard = tachyon_state.insert_clients(ticket_token.as_str().to_owned(), tachyon_client.clone(), attempt);
+                            let drop_guard = tachyon_state.insert_clients(ticket_token.as_str().to_owned(), tachyon_client.clone());
 
                             local_store.client_drop_guard = Some(drop_guard);
                             local_store.token = ticket_token.clone();
@@ -127,34 +133,44 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 /// Produces a live matrix client for `email_addr`, walking the user through the browser
 /// steps first when this instance has never authenticated the account or does not trust
 /// this device yet. Any failure past the sign-in drops the login: a backend session does
-/// not outlive the Messenger connection it was opened for. The attempt names that login
-/// for the connection's drop guard.
+/// not outlive the Messenger connection it was opened for.
 async fn authenticate(
     tachyon_state: &GlobalState,
     notif_sender: &Sender<NotificationServerCommand>,
     email_addr: &EmailAddress,
+    client_version: &ClientVersion,
     msn_user: &MsnUser,
     config: &TachyonConfig,
     deadline: Instant,
     client_shutdown_recv: broadcast::Receiver<()>,
-) -> Result<(Client, Attempt), Error> {
+) -> Result<Client, Error> {
     let auth_use_case = tachyon_state.app_state().auth_use_case();
-    let token = tachyon_state.token_for(email_addr);
+    let token = tachyon_state.token_for(email_addr, client_version);
     let matrix_id = email_addr.to_owned_user_id();
 
     let signed_in = auth_use_case
-        .sign_in(
+        .sign_in_or_restore_login(
             &token,
             matrix_id.server_name().as_str(),
             CoreUserId::new(matrix_id.as_str()),
             &bridge_metadata(),
         )
-        .await
-        .map_err(|e| anyhow!("Could not sign in: {:?}", e))?;
+        .await;
+    let signed_in = match signed_in {
+        Ok(signed_in) => signed_in,
+        Err(AuthError::AlreadySignedIn) => {
+            notif_sender.send(NotificationServerCommand::OUT).await?;
+            return Err(anyhow!(
+                "A client of this version is signed in already for {}",
+                email_addr.as_str()
+            ));
+        }
+        Err(e) => return Err(anyhow!("Could not sign in: {:?}", e)),
+    };
 
-    let (session, attempt) = match signed_in {
-        SignIn::Ready { session, attempt } => (session, attempt),
-        SignIn::Pending { step, url, attempt } => {
+    let session = match signed_in {
+        SignIn::Ready(session) => session,
+        SignIn::Pending { step, url } => {
             debug!("Sign-in for {} needs the browser: {:?}", email_addr.as_str(), step);
             let waited = wait_for_browser(
                 auth_use_case,
@@ -169,9 +185,9 @@ async fn authenticate(
             )
             .await;
             match waited {
-                Ok(session) => (session, attempt),
+                Ok(session) => session,
                 Err(e) => {
-                    give_up(auth_use_case, &token, attempt).await;
+                    give_up(auth_use_case, &token).await;
                     return Err(e);
                 }
             }
@@ -180,9 +196,9 @@ async fn authenticate(
 
     // FIXME: Remove this after the refactor is done.
     match session.as_any().downcast_ref::<BackendSessionMatrix>() {
-        Some(matrix) => Ok((matrix.matrix_client().clone(), attempt)),
+        Some(matrix) => Ok(matrix.matrix_client().clone()),
         None => {
-            give_up(auth_use_case, &token, attempt).await;
+            give_up(auth_use_case, &token).await;
             Err(anyhow!("Backend session is not a matrix session"))
         }
     }
@@ -191,7 +207,7 @@ async fn authenticate(
 async fn wait_for_browser(
     auth_use_case: &AuthUseCase,
     notif_sender: &Sender<NotificationServerCommand>,
-    token: &TachyonToken,
+    token: &BridgeLinkToken,
     step: &Step,
     url: &str,
     msn_user: &MsnUser,
@@ -204,7 +220,7 @@ async fn wait_for_browser(
         .await?;
 
     select! {
-        waited = timeout_at(deadline, auth_use_case.wait_for_session(token)) => match waited {
+        waited = timeout_at(deadline, auth_use_case.wait_until_session_ready(token)) => match waited {
             Ok(Ok(session)) => Ok(session),
             Ok(Err(e)) => Err(anyhow!("The sign-in could not be completed: {:?}", e)),
             Err(_elapsed) => Err(anyhow!("The sign-in was not completed in time")),
@@ -215,8 +231,8 @@ async fn wait_for_browser(
     }
 }
 
-async fn give_up(auth_use_case: &AuthUseCase, token: &TachyonToken, attempt: Attempt) {
-    if let Err(e) = auth_use_case.abandon(token, attempt).await {
+async fn give_up(auth_use_case: &AuthUseCase, token: &BridgeLinkToken) {
+    if let Err(e) = auth_use_case.abandon_login(token).await {
         error!("Could not abandon the sign-in: {:?}", e);
     }
 }

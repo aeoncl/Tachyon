@@ -26,3 +26,5 @@ str_id!(UserId);
 str_id!(ConversationId);
 str_id!(MediaId);
 str_id!(MessageId);
+str_id!(BridgeId);
+str_id!(ClientVersion);

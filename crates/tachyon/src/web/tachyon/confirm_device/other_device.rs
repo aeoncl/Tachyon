@@ -6,7 +6,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use maud::{html, Markup};
-use tachyon_core::domain::auth::TachyonToken;
+use tachyon_core::domain::auth::BridgeLinkToken;
 use tachyon_core::domain::ids::DeviceId;
 use tachyon_core::domain::verification::DeviceSummary;
 
@@ -16,7 +16,7 @@ pub async fn get_other_device(
 ) -> Html<String> {
     let use_case = state.app_state().device_verification_use_case();
 
-    let content = match use_case.options(&TachyonToken::new(&token)).await {
+    let content = match use_case.options(&BridgeLinkToken::new(&token)).await {
         Ok(options) => choose_device_content(&options.devices),
         Err(e) => error_fragment(&e.to_string()),
     };
@@ -36,7 +36,7 @@ pub async fn post_other_device(
 
     let use_case = state.app_state().device_verification_use_case();
     if let Err(e) = use_case
-        .start_device_verification(&TachyonToken::new(&token), &DeviceId::new(device))
+        .start_device_verification(&BridgeLinkToken::new(&token), &DeviceId::new(device))
         .await
     {
         return Html(error_fragment(&e.to_string()).into_string()).into_response();

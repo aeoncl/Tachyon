@@ -17,3 +17,4 @@ pub mod font_name;
 pub mod font_style;
 pub mod font_color;
 pub mod font_pitch_family;
+pub mod client_version;

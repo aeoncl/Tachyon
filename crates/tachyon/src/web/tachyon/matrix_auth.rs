@@ -25,7 +25,7 @@ pub async fn get_login_start(
         return error_page("This login link is missing its flow id.");
     };
 
-    match state.app_state().auth_use_case().prompt(flow_id) {
+    match state.app_state().auth_use_case().prompt_for_interactive_flow(flow_id) {
         Some(InteractiveAuthStarted::OAuth { auth_url, .. }) => redirect(&auth_url),
         Some(InteractiveAuthStarted::PasswordRequired) => password_page(flow_id, None),
         None => error_page("This login has expired or was already completed."),
@@ -49,7 +49,7 @@ pub async fn post_login_password(
     match state
         .app_state()
         .auth_use_case()
-        .finish_login(flow_id, credential)
+        .finish_interactive_flow(flow_id, credential)
         .await
     {
         Ok(finished) => login_finished(finished),
@@ -91,14 +91,14 @@ pub async fn get_login_callback(
 
     if let Some(error) = params.get("error") {
         warn!("Authorization was refused by the homeserver: {}", error);
-        if let Err(e) = auth_use_case.abandon_flow(flow_id).await {
+        if let Err(e) = auth_use_case.abandon_interactive_flow(flow_id).await {
             error!("Could not abandon the refused login: {:?}", e);
         }
         return error_page("Your homeserver refused the authorization.");
     }
 
     match auth_use_case
-        .finish_login(flow_id, Credential::OAuthCallback(query))
+        .finish_interactive_flow(flow_id, Credential::OAuthCallback(query))
         .await
     {
         Ok(finished) => login_finished(finished),
@@ -110,7 +110,7 @@ pub async fn get_login_callback(
 }
 
 fn login_finished(finished: FinishedLogin) -> Response {
-    match finished.next_url {
+    match finished.redirect_url {
         None => {
             debug!("Interactive login finished");
             success_page()
@@ -185,15 +185,15 @@ fn error_markup(message: &str) -> Markup {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tachyon_core::domain::auth::TachyonToken;
+    use tachyon_core::domain::auth::BridgeLinkToken;
     use tachyon_core::domain::verification::DeviceStatus;
 
     #[test]
     fn an_untrusted_device_is_sent_to_confirmation_with_a_get() {
         let response = login_finished(FinishedLogin {
-            token: TachyonToken::new("ticket"),
+            token: BridgeLinkToken::new("ticket"),
             device_status: DeviceStatus::Unverified,
-            next_url: Some("http://127.0.0.1:11866/tachyon/confirm_device?t=ticket".to_string()),
+            redirect_url: Some("http://127.0.0.1:11866/tachyon/confirm_device?t=ticket".to_string()),
         });
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);

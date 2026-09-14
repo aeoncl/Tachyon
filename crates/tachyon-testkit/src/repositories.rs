@@ -3,7 +3,7 @@ use dashmap::{DashMap, DashSet};
 use std::sync::Arc;
 use tachyon_core::application::error::StoreError;
 use tachyon_core::application::ports::{AccountRepository, CredentialRepository, StoredLogin};
-use tachyon_core::domain::auth::{CredentialBlob, TachyonToken};
+use tachyon_core::domain::auth::{CredentialBlob, BridgeLinkToken};
 use tachyon_core::domain::ids::LoginId;
 
 /// Logins and the tokens bound to them, the way the sqlite store keeps them: a login can
@@ -11,12 +11,12 @@ use tachyon_core::domain::ids::LoginId;
 #[derive(Default)]
 pub struct AccountRepositoryInMem {
     logins: DashSet<LoginId>,
-    tokens: DashMap<TachyonToken, LoginId>,
+    tokens: DashMap<BridgeLinkToken, LoginId>,
 }
 
 impl AccountRepositoryInMem {
     /// A store that already knows one account.
-    pub fn with_login(token: &TachyonToken, login_id: &LoginId) -> Arc<Self> {
+    pub fn with_login(token: &BridgeLinkToken, login_id: &LoginId) -> Arc<Self> {
         let repository = Self::default();
         repository.logins.insert(login_id.clone());
         repository.tokens.insert(token.clone(), login_id.clone());
@@ -34,14 +34,14 @@ impl AccountRepositoryInMem {
 impl AccountRepository for AccountRepositoryInMem {
     async fn login_id_by_token(
         &self,
-        tachyon_token: &TachyonToken,
+        tachyon_token: &BridgeLinkToken,
     ) -> Result<Option<LoginId>, StoreError> {
         Ok(self.tokens.get(tachyon_token).map(|entry| entry.value().clone()))
     }
 
     async fn save_login_for_token(
         &self,
-        tachyon_token: TachyonToken,
+        tachyon_token: BridgeLinkToken,
         login_id: LoginId,
     ) -> Result<(), StoreError> {
         self.logins.insert(login_id.clone());
@@ -60,7 +60,7 @@ impl AccountRepository for AccountRepositoryInMem {
             .logins
             .iter()
             .map(|login_id| StoredLogin {
-                bound: self.tokens.iter().any(|entry| entry.value() == &*login_id),
+                linked: self.tokens.iter().any(|entry| entry.value() == &*login_id),
                 login_id: login_id.clone(),
             })
             .collect())

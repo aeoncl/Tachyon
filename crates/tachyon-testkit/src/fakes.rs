@@ -206,7 +206,7 @@ impl BackendSession for FakeBackendSession {
         self.closed.notify_one();
     }
 
-    async fn log_out(&self) -> Result<(), BackendError> {
+    async fn hard_log_out(&self) -> Result<(), BackendError> {
         self.log_out_calls.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
@@ -320,12 +320,12 @@ impl AuthService for FakeAuthService {
         Ok(self.next_session())
     }
 
-    async fn forget(&self, login_id: &LoginId) -> Result<(), BackendError> {
+    async fn remove_login(&self, login_id: &LoginId) -> Result<(), BackendError> {
         self.forgotten.lock().unwrap().push(login_id.clone());
         Ok(())
     }
 
-    async fn sweep(&self, keep: &[LoginId]) -> Result<(), BackendError> {
+    async fn clear_logins_except(&self, keep: &[LoginId]) -> Result<(), BackendError> {
         *self.swept_keeping.lock().unwrap() = Some(keep.to_vec());
         Ok(())
     }

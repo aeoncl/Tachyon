@@ -97,7 +97,7 @@ core logic; the backend port stays thin and protocol-specific. Concretely:
 ### Configuration
 
 - `TachyonConfig` is backend-agnostic and owned by core: NS/SB/web ports, web base URL,
-  ticket lifetime, secret-key path, log level.
+  log level.
 - The backend adapter receives one **opaque config section** (a raw TOML/INI table or
   string) that it interprets itself: homeserver URL override, disable-SSL, store path,
   sync knobs. Core never learns backend vocabulary; adapters never read the config file.
@@ -115,14 +115,14 @@ choreography:
 
  [Authenticate] ──finish_login(flow_id, credential)──► authenticate ──► settle ──► [Ready]
        │                                                                  └─ Unverified ──► [VerifyDevice]
-       │ abandon(token, attempt) | abandon_flow
+       │ abandon(token) | abandon_flow
        ▼
    discarded (never authenticated, nothing to keep)
 
  [VerifyDevice]  ├─ recover | SAS Done | reset ──► wait_until_verified ──► promote ──► [Ready]
-                 └─ timeout, client gone ──► abandon(token, attempt) ──► closed, restorable
+                 └─ timeout, client gone ──► abandon(token) ──► closed, restorable
 
- settle(token, attempt, session) = still ours? then bind the token, then device_status
+ settle(token, session) = still ours? then bind the token, then device_status
      Verified   ──► [Ready]
      Unverified ──► [VerifyDevice]
      Err        ──► closed, row kept, the next sign_in restores it
@@ -130,7 +130,7 @@ choreography:
 ```
 
 The bracketed states are `Login` values held by `Logins` under the token, `Pending` at a
-`Step` or `Ready`, each stamped with the `Attempt` that names that occupancy of the slot.
+`Step` or `Ready`, each identified by its session when a late caller comes back to it.
 One `BackendSession` covers the whole lifetime of a login. Nothing is swapped for anything
 else when the device becomes trusted.
 
@@ -150,11 +150,12 @@ else when the device becomes trusted.
 
 ### Tickets and credentials
 
-- Ticket issuance (`TachyonToken`), expiry, and the ticket → `LoginId` mapping are core
-  logic backed by `tachyon-store-sqlite`.
+- Ticket minting is core's: `BridgeLinkToken::mint` over the bridge id, the user id and the
+  client's major.minor version, one token per client version per user per bridge, no expiry.
+  The ticket → `LoginId` mapping is core logic backed by `tachyon-store-sqlite`.
 - Credentials persist as an **opaque `CredentialBlob`** keyed by `LoginId` in
   the core-owned store — plaintext today; the schema's `credentials_format` column
-  reserves encryption at rest with the local key. The adapter's only job is
+  reserves encryption at rest with a key that does not exist yet. The adapter's only job is
   `SessionRestoreData::to_blob()` / `from_blob()` (a versioned JSON envelope).
   Interim until the phase-3 event stream exists: the adapter holds the core
   `CredentialRepository` port and re-persists the whole blob on `TokensRefreshed`; the
@@ -167,13 +168,15 @@ else when the device becomes trusted.
 **Use-case request/response with exported DTO structs.** Examples:
 
 ```rust
-AuthUseCase::sign_in(&TachyonToken, server_name, UserId, &BridgeMetadata) -> Result<SignIn, AuthError>
-AuthUseCase::wait_for_session(&TachyonToken) -> Result<Arc<dyn BackendSession>, AuthError>
+AuthUseCase::sign_in(&BridgeLinkToken, server_name, UserId, &BridgeMetadata) -> Result<SignIn, AuthError>
+AuthUseCase::wait_for_session(&BridgeLinkToken) -> Result<Arc<dyn BackendSession>, AuthError>
 AuthUseCase::finish_login(flow_id, Credential) -> Result<FinishedLogin, AuthError>
-AuthUseCase::abandon(&TachyonToken, Attempt) -> Result<(), AuthError>
+AuthUseCase::abandon(&BridgeLinkToken) -> Result<(), AuthError>
 ```
 
-- Async only where there is I/O.
+- Async only where there is I/O. A use case decides in sync code over plain values and
+  runs the effects afterwards (`ending()` and `AuthUseCase::run`); a rule that needs a fake
+  to test is a rule in the wrong place.
 - **No command-enum-with-reply-channels at context seams.** The
   `TachyonEvent::Bridge*` request variants + `EventSender` + `plumbing_event_listener`
   shape is rejected: bridges hold `Arc<AuthUseCase>` (and future use cases) and call
@@ -227,13 +230,12 @@ All ports live in `tachyon-core/src/application/ports.rs`.
   `LoginId` → `CredentialBlob` persistence, implemented by `tachyon-store-sqlite`
   (in-memory doubles in `tachyon-testkit`).
 - **`Logins`.** Not a port but the registry the use cases share, in
-  `application/logins.rs`: one live `Login` per `TachyonToken` plus the flow-id index the
+  `application/logins.rs`: one live `Login` per `BridgeLinkToken` plus the flow-id index the
   authorization callback needs. `AuthUseCase::session` is the only accessor a bridge may
   use, and it answers only for a `Ready` login, so the invariant "bridges only talk to
-  verified sessions" is one runtime gate rather than a type. Every login carries the
-  `Attempt` minted when it went in; `replace_if` and `remove_if` act only while the slot
-  still holds that attempt, which is what keeps lock-free waiters and late callbacks from
-  touching a login that replaced theirs.
+  verified sessions" is one runtime gate rather than a type. `replace_if` and `remove_if`
+  act only while the slot still holds the session the caller saw, which is what keeps
+  lock-free waiters and late callbacks from touching a login that replaced theirs.
 
 ## Auth and credentials
 
@@ -242,7 +244,7 @@ The invariant: **the Matrix token never reaches the client or IDCRL.**
 - Matrix is OAuth-era (MAS): access + refresh tokens persist as the opaque
   `CredentialBlob` (serialized matrix-sdk `AuthSession`) in the **core-owned** store —
   the adapter serializes (see "Tickets and credentials" above).
-- MSN-side tickets are **opaque, random, expiring** (`TachyonToken`), mapped
+- MSN-side tickets are **opaque and deterministic** (`BridgeLinkToken`, minted by core), mapped
   ticket → `LoginId` → credentials. The ticket is *not* the encrypted access token and is
   *not* the repository primary key — the legacy `TicketToken` conflated all three roles and
   leaked onto seven wires (RST2 body, MSG profile, NOT URLs, XFR, RNG blob, cookie, query
@@ -257,7 +259,7 @@ The invariant: **the Matrix token never reaches the client or IDCRL.**
 
 A login whose Matrix device is not cross-signed settles into `Pending` at
 `Step::VerifyDevice`, and `DeviceVerificationUseCase` owns everything the user does from
-there. The use case is keyed by `TachyonToken` and reads the login out of `Logins`, so it
+there. The use case is keyed by `BridgeLinkToken` and reads the login out of `Logins`, so it
 works on a login no bridge can reach yet. It reads the device status and the available
 options, imports cross-signing secrets from a recovery key, drives SAS verification against
 another of the user's devices, and resets the identity. It never advances a login: the
@@ -385,9 +387,10 @@ Ordered; 1–3 are prerequisites for shaping the port in 4.
   per-`MsnpSession` module in `tachyon-bridge-msn`.
 - [ ] 6. **Split `TachyonClient`** — first replace the 15+ external `.inner.*` field
   pokes with methods, then partition per "Sessions and lifecycle" above.
-- [x] 7. **Break the ticket = token identity** — done 2026-09-01: the `TachyonToken →
+- [x] 7. **Break the ticket = token identity** — done 2026-09-01: the `BridgeLinkToken →
    LoginId → CredentialBlob` flow persists end-to-end in `tachyon-store-sqlite`. Tickets
-   are still derived rather than issued; expiry is pending the ticket-issuance use case.
+   are minted by core since 2026-09-14, from the bridge id, the user id and the client
+   version; there is no expiry, by design.
 - [ ] 8. **Pull the flow back into core.** Partially done. Credentials became opaque blobs
   behind core's `CredentialRepository` on 2026-09-01 and the matrix-typed rows are gone.
   `AuthService::restore(login_id)` and `AuthService::start_interactive_login(..)` return a

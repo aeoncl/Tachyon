@@ -7,9 +7,16 @@ one of them is wrong — fix it or fix this file.
 
 - **LoginId** — Tachyon's own stable identifier for one authenticated account. Opaque
   UUID; survives token rotation. The key for sessions and credentials.
-- **TachyonToken** (a.k.a. **ticket**) — the opaque, random, *expiring* value the MSN
-  client holds and echoes back (RST2, cookies, `USR`). Maps to a `LoginId` server-side.
-  It is **not** a backend credential and is never derived from one.
+- **BridgeLinkToken** — a bridge's name for one client of an account: deterministic from
+  `(BridgeId, UserId, ClientVersion)`, minted only by `BridgeLinkToken::mint` in core, opaque
+  to everyone else. The MSN bridge hands it to the client as the **ticket** (RST2, cookies,
+  `USR`) and checks what comes back against a fresh mint. Maps to a `LoginId` server-side.
+  Not a credential, never derived from one, no expiry.
+- **BridgeId** — a frontend bridge's fixed name, `msn` today. Part of every token it mints,
+  so two bridges for the same user hold two backend logins.
+- **ClientVersion** — the client's major and minor, `14.0`, as the MSN bridge reads it from
+  `CVR` and from the RST2 `User-Agent`. Part of the token, so two client versions for one
+  user on one bridge hold two backend logins. Core never parses it.
 - **ConversationId** — core's opaque identifier for a conversation. Core never sees
   Matrix room ids or MSN addresses.
 - **ContactNameTable** — module in `tachyon-bridge-msn`, one instance per `MsnpSession`
@@ -22,25 +29,28 @@ one of them is wrong — fix it or fix this file.
 - **Login flow** is core's state machine over one live login: `Pending` at
   `Step::Authenticate`, then `Pending` at `Step::VerifyDevice`, then `Ready`. Backends
   implement steps, never the choreography. A step that fails drops the login.
-- **Login** is the live login `Logins` holds under a `TachyonToken`: `Pending { attempt,
-  session, login_id, step, changed }` or `Ready { attempt, session, login_id }`. In memory
-  only; the store keeps what rebuilds one after a restart.
+- **Login** is the live login `Logins` holds under a `BridgeLinkToken`: `Pending { session,
+  login_id, step, changed }` or `Ready { session, login_id }`. In memory only; the store
+  keeps what rebuilds one after a restart. The session is the login's identity: a browser
+  callback or a parked waiter that comes back after the slot changed hands names the
+  session it saw, and `Logins::replace_if` and `remove_if` leave a different login alone.
 - **Step** is what the user still has to do in a browser before a pending login can be
   used: `Authenticate { flow_id, prompt }` or `VerifyDevice`.
-- **Attempt** is one occupancy of a token's slot, minted by `Logins` for every login that
-  goes in and kept while it advances. `SignIn` hands it to the bridge, and `abandon` and
-  the guarded `Logins::replace_if` / `remove_if` act only while the slot still holds it,
-  so a caller that gave up on a login cannot take down one that replaced it.
-- **SignIn** is what `AuthUseCase::sign_in` hands back: `Ready { session, attempt }` or
-  `Pending { step, url, attempt }`, where `url` is the page the browser must visit.
+- **SignIn** is what `AuthUseCase::sign_in` hands back: `Ready(session)` or
+  `Pending { step, url }`, where `url` is the page the browser must visit.
   `AuthUseCase::wait_for_session` resolves once a pending login is usable.
 - **settle** is `AuthUseCase::settle_authenticated`, run under the login lifecycle mutex
   once `BackendSession::authenticate` succeeded. It binds the token to the login, reads
-  `device_status`, and advances the login. A login still ours that cannot be settled is
-  closed and keeps its row for the next sign-in; one that lost its slot meanwhile is
-  logged out and discarded, because nothing points at the device it just made.
+  `device_status`, and advances the login. One that cannot be settled ends as
+  `Ending::Unsettled` while still ours, or `Ending::Orphaned` when it lost its slot
+  meanwhile.
+- **Ending** is why a live login ends: `Dropped { authenticated }`, `Unsettled`, `Orphaned`
+  or `Deleted`. `ending()` in the domain says which `Effect`s each runs, in order, out of
+  `Close`, `Discard`, `LogOut` and `DeleteRow`. `LogOut` is the only thing that ends a
+  device, so that table is the one place to look for it. The use case runs the list; it
+  decides nothing itself.
 - **DeviceVerificationUseCase** is core's owner of the verification step, keyed by
-  `TachyonToken`: device status, recovery-key import, SAS verification against another
+  `BridgeLinkToken`: device status, recovery-key import, SAS verification against another
   device, identity reset. It works on logins a bridge cannot reach yet and never advances
   one: the session reports the device as verified and `AuthUseCase::wait_for_session`
   picks that up.

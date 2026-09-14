@@ -1,4 +1,5 @@
 use std::str::from_utf8_unchecked;
+use std::time::Duration;
 
 use anyhow::anyhow;
 use log::{debug, error, info, warn};
@@ -91,6 +92,9 @@ async fn handle_client(socket: TcpStream, mut global_shutdown_recv: broadcast::R
     }
 
     read_task.abort();
+    if let Some(guard) = local_client_data.client_drop_guard.take() {
+        guard.release().await;
+    }
 
     info!("Client gracefully shutdown...");
     Ok(())
@@ -192,6 +196,8 @@ fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> S
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tachyon_core::domain::ids::BridgeId;
+    use msnp::shared::models::client_version::ClientVersion;
     use msnp::shared::models::email_address::EmailAddress;
     use std::net::SocketAddr;
     use std::str::FromStr;
@@ -206,10 +212,13 @@ mod tests {
     use tokio::task::JoinHandle;
     use tokio::time::timeout;
 
-    const TEST_SECRET: [u8; 4] = [1, 2, 3, 4];
     const TEST_EMAIL: &str = "aeon@shlasouf.local";
     const TEST_ENDPOINT_GUID: &str = "{55192CF5-588E-4ABE-9CDF-395B616ED85B}";
     const REPLY_WINDOW: Duration = Duration::from_secs(2);
+
+    fn v14() -> ClientVersion {
+        "14.0".parse().expect("a valid client version")
+    }
 
     fn email() -> EmailAddress {
         EmailAddress::from_str(TEST_EMAIL).expect("a valid test address")
@@ -219,7 +228,7 @@ mod tests {
         let (global_state, account_repository) = test_state_without_login(auth_service);
 
         account_repository
-            .save_login_for_token(global_state.token_for(&email()), LoginId::new("login-1"))
+            .save_login_for_token(global_state.token_for(&email(), &v14()), LoginId::new("login-1"))
             .await
             .expect("the in-memory repository should accept the login");
 
@@ -237,7 +246,7 @@ mod tests {
             account_repository.clone(),
             "http://127.0.0.1:11866/tachyon".to_string(),
         ));
-        let global_state = GlobalState::new(Default::default(), TEST_SECRET.to_vec(), app_state);
+        let global_state = GlobalState::new(Default::default(), BridgeId::new("msn"), app_state);
         (global_state, account_repository)
     }
 
@@ -322,10 +331,19 @@ mod tests {
         }
 
         async fn sign_in(&mut self, global_state: &GlobalState) -> Result<(), anyhow::Error> {
+            self.sign_in_as(global_state, "14.0.8117.0416").await
+        }
+
+        async fn sign_in_as(
+            &mut self,
+            global_state: &GlobalState,
+            client_build: &str,
+        ) -> Result<(), anyhow::Error> {
+            let client: ClientVersion = client_build.parse().expect("a valid client build");
             self.send("VER 1 MSNP18 MSNP17 CVR0\r\n").await;
             self.send(&format!(
-                "CVR 2 0x0409 winnt 6.2.0 i386 MSNMSGR 14.0.8117.0416 msmsgs {}\r\n",
-                TEST_EMAIL
+                "CVR 2 0x0409 winnt 6.2.0 i386 MSNMSGR {} msmsgs {}\r\n",
+                client_build, TEST_EMAIL
             ))
             .await;
             self.send(&format!("USR 3 SSO I {}\r\n", TEST_EMAIL)).await;
@@ -333,7 +351,7 @@ mod tests {
 
             self.send(&format!(
                 "USR 4 SSO S t={} challenge {}\r\n",
-                global_state.ticket_for(&email()).as_str(),
+                global_state.ticket_for(&email(), &client).as_str(),
                 TEST_ENDPOINT_GUID
             ))
             .await;
@@ -362,7 +380,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_sign_in_that_lost_its_login_to_a_second_connection_leaves_that_one_alone() {
+    async fn a_second_connection_of_the_same_version_is_sent_out() {
         let auth_service = FakeAuthService::minting([DeviceStatus::Unverified]);
         let global_state = test_state(auth_service.clone()).await;
         let server = start_server(global_state.clone()).await;
@@ -373,23 +391,58 @@ mod tests {
 
         let mut second = TestClient::connect(server.addr).await;
         second.sign_in(&global_state).await.unwrap();
-        second.read_until(|received| received.contains("confirm_device")).await.unwrap();
+        second
+            .read_until(|received| received.contains("OUT\r\n"))
+            .await
+            .expect("the second client of the same version should be sent OUT");
 
-        let replaced = auth_service.session(0);
-        assert!(
-            wait_for(|| replaced.close_calls() == 1).await,
-            "the second sign-in should have replaced the first login"
-        );
-        // The first sign-in's wait fails on its closed session and it gives its login up.
-        // Nothing marks that giving up, so give it time to happen before looking.
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(auth_service.session(0).close_calls(), 0, "the first sign-in is untouched");
+        assert_eq!(auth_service.restore_calls(), 1);
+        let token = global_state.token_for(&email(), &v14());
+        assert!(global_state.is_session_token(token.as_str()));
+    }
 
-        let token = global_state.token_for(&email());
-        assert!(
-            global_state.is_session_token(token.as_str()),
-            "the second connection's login must survive the first one giving up"
-        );
-        assert_eq!(auth_service.session(1).close_calls(), 0);
+    #[tokio::test]
+    async fn a_client_of_another_version_signs_in_beside_the_first() {
+        let auth_service = FakeAuthService::minting([DeviceStatus::Unverified]);
+        let global_state = test_state(auth_service.clone()).await;
+        let server = start_server(global_state.clone()).await;
+
+        let mut first = TestClient::connect(server.addr).await;
+        first.sign_in(&global_state).await.unwrap();
+        first.read_until(|received| received.contains("confirm_device")).await.unwrap();
+
+        let mut second = TestClient::connect(server.addr).await;
+        second.sign_in_as(&global_state, "8.5.1302.1018").await.unwrap();
+        second
+            .read_until(|received| received.contains("login/start"))
+            .await
+            .expect("a client of another version gets its own login");
+
+        assert_eq!(auth_service.restore_calls(), 1, "the stored login belongs to 14.0");
+        assert_eq!(auth_service.start_calls(), 1, "8.5 starts a login of its own");
+        assert_eq!(auth_service.session(0).close_calls(), 0);
+    }
+
+    #[tokio::test]
+    async fn a_client_that_reconnects_right_after_leaving_signs_in_again() {
+        let auth_service = FakeAuthService::minting([DeviceStatus::Unverified]);
+        let global_state = test_state(auth_service.clone()).await;
+        let server = start_server(global_state.clone()).await;
+
+        let mut first = TestClient::connect(server.addr).await;
+        first.sign_in(&global_state).await.unwrap();
+        first.read_until(|received| received.contains("confirm_device")).await.unwrap();
+        drop(first);
+
+        let mut second = TestClient::connect(server.addr).await;
+        second.sign_in(&global_state).await.unwrap();
+        second
+            .read_until(|received| received.contains("confirm_device"))
+            .await
+            .expect("the reconnecting client should sign in, not be sent OUT");
+
+        assert_eq!(auth_service.restore_calls(), 2);
     }
 
     #[tokio::test]

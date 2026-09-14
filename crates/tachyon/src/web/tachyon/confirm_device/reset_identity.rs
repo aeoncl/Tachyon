@@ -4,7 +4,7 @@ use crate::web::tachyon::Params;
 use axum::extract::State;
 use axum::response::Html;
 use maud::{html, Markup};
-use tachyon_core::domain::auth::TachyonToken;
+use tachyon_core::domain::auth::BridgeLinkToken;
 use tachyon_core::domain::verification::{IdentityReset, Password, ResetAuth};
 
 pub async fn get_reset_identity(
@@ -36,7 +36,7 @@ pub async fn post_reset_identity(
 async fn reset(state: &GlobalState, token: &str, auth: Option<ResetAuth>) -> Html<String> {
     let use_case = state.app_state().device_verification_use_case();
 
-    let content = match use_case.reset_identity(&TachyonToken::new(token), auth).await {
+    let content = match use_case.reset_identity(&BridgeLinkToken::new(token), auth).await {
         Ok(IdentityReset::PasswordRequired) => password_form(),
         Ok(IdentityReset::ApprovalRequired { url }) => approval_content(&url),
         Ok(IdentityReset::ApprovalPending) => pending_content(),

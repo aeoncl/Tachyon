@@ -282,6 +282,7 @@ fn sha_1_encode(input: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
+    use tachyon_core::domain::ids::BridgeId;
     use super::confirm_device::{get_confirm, recover};
     use super::verification::{get_verification_poll, sas_v1_actions::post_sas_v1_action};
     use super::Params;
@@ -310,7 +311,7 @@ mod tests {
             "http://127.0.0.1:11866/tachyon".to_string(),
         ));
 
-        GlobalState::new(Default::default(), vec![0u8; 32], app_state)
+        GlobalState::new(Default::default(), BridgeId::new("msn"), app_state)
     }
 
     #[tokio::test]

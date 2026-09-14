@@ -1,4 +1,4 @@
-use crate::domain::auth::TachyonToken;
+use crate::domain::auth::BridgeLinkToken;
 
 /// The bridge's web pages as the user's browser reaches them. Every URL a backend or a user
 /// is sent to is built from this one base, so the pages and the links agree by construction.
@@ -28,7 +28,7 @@ impl WebUrls {
         )
     }
 
-    pub(crate) fn confirm_device(&self, token: &TachyonToken) -> String {
+    pub(crate) fn confirm_device(&self, token: &BridgeLinkToken) -> String {
         format!("{}/confirm_device?t={}", self.base, token.as_str())
     }
 }

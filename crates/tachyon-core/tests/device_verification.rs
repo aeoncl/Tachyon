@@ -8,7 +8,7 @@ use tachyon_core::application::web_urls::WebUrls;
 use tachyon_core::application::device_verification_use_case::DeviceVerificationUseCase;
 use tachyon_core::application::error::VerificationError;
 use tachyon_core::application::logins::Logins;
-use tachyon_core::domain::auth::{BridgeMetadata, TachyonToken};
+use tachyon_core::domain::auth::{BridgeMetadata, BridgeLinkToken};
 use tachyon_core::domain::ids::{DeviceId, LoginId, UserId};
 use tachyon_core::domain::verification::{
     DeviceStatus, RecoveryKey, VerificationAction, VerificationFlowState,
@@ -31,7 +31,7 @@ enum LoginState {
 struct Fixture {
     use_case: DeviceVerificationUseCase,
     session: Arc<FakeBackendSession>,
-    token: TachyonToken,
+    token: BridgeLinkToken,
 }
 
 impl Fixture {
@@ -39,7 +39,7 @@ impl Fixture {
     /// for every state past `Authenticating`.
     async fn new(statuses: impl IntoIterator<Item = DeviceStatus>, state: LoginState) -> Self {
         let session = FakeBackendSession::new(statuses);
-        let token = TachyonToken::new("tachyon-token");
+        let token = BridgeLinkToken::new("tachyon-token");
         let logins = Arc::new(Logins::default());
         let account_repository = match state {
             LoginState::Absent | LoginState::Authenticating => {
@@ -57,7 +57,7 @@ impl Fixture {
         );
 
         if state != LoginState::Absent {
-            auth.sign_in(
+            auth.sign_in_or_restore_login(
                 &token,
                 "example.org",
                 UserId::new("@someone:example.org"),

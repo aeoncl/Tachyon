@@ -4,7 +4,7 @@ use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{Response, StatusCode};
 use axum::response::{Html, IntoResponse};
-use tachyon_core::domain::auth::TachyonToken;
+use tachyon_core::domain::auth::BridgeLinkToken;
 use tachyon_core::domain::verification::VerificationAction;
 
 pub(crate) async fn post_sas_v1_action(
@@ -26,7 +26,7 @@ pub(crate) async fn post_sas_v1_action(
 
     let use_case = state.app_state().device_verification_use_case();
     if let Err(e) = use_case
-        .verification_action(&TachyonToken::new(&token), action)
+        .verification_action(&BridgeLinkToken::new(&token), action)
         .await
     {
         return Html(error_fragment(&e.to_string()).into_string()).into_response();

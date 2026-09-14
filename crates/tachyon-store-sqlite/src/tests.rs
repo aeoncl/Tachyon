@@ -1,10 +1,10 @@
 use crate::SqliteStore;
 use tachyon_core::application::ports::{AccountRepository, CredentialRepository, StoredLogin};
-use tachyon_core::domain::auth::{CredentialBlob, TachyonToken};
+use tachyon_core::domain::auth::{CredentialBlob, BridgeLinkToken};
 use tachyon_core::domain::ids::LoginId;
 
-fn token(s: &str) -> TachyonToken {
-    TachyonToken::new(s)
+fn token(s: &str) -> BridgeLinkToken {
+    BridgeLinkToken::new(s)
 }
 
 fn login(s: &str) -> LoginId {
@@ -78,8 +78,8 @@ async fn logins_report_whether_a_token_still_points_at_them() {
     assert_eq!(
         logins,
         vec![
-            StoredLogin { login_id: login("bound"), bound: true },
-            StoredLogin { login_id: login("leftover"), bound: false },
+            StoredLogin { login_id: login("bound"), linked: true },
+            StoredLogin { login_id: login("leftover"), linked: false },
         ]
     );
 }

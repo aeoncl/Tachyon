@@ -3,14 +3,14 @@ use async_trait::async_trait;
 use rusqlite::{OptionalExtension, params};
 use tachyon_core::application::error::StoreError;
 use tachyon_core::application::ports::{AccountRepository, StoredLogin};
-use tachyon_core::domain::auth::TachyonToken;
+use tachyon_core::domain::auth::BridgeLinkToken;
 use tachyon_core::domain::ids::LoginId;
 
 #[async_trait]
 impl AccountRepository for SqliteStore {
     async fn login_id_by_token(
         &self,
-        tachyon_token: &TachyonToken,
+        tachyon_token: &BridgeLinkToken,
     ) -> Result<Option<LoginId>, StoreError> {
         let token = tachyon_token.as_str().to_owned();
         let login_id: Option<String> = self
@@ -27,7 +27,7 @@ impl AccountRepository for SqliteStore {
         Ok(login_id.map(LoginId::from))
     }
 
-    async fn save_login_for_token(&self, tachyon_token: TachyonToken, login_id: LoginId) -> Result<(), StoreError> {
+    async fn save_login_for_token(&self, tachyon_token: BridgeLinkToken, login_id: LoginId) -> Result<(), StoreError> {
         let token = tachyon_token.as_str().to_owned();
         let login_id = login_id.to_string();
         let now = now_unix();
@@ -74,7 +74,7 @@ impl AccountRepository for SqliteStore {
             let rows = statement.query_map([], |row| {
                 Ok(StoredLogin {
                     login_id: LoginId::from(row.get::<_, String>(0)?),
-                    bound: row.get(1)?,
+                    linked: row.get(1)?,
                 })
             })?;
             rows.collect()

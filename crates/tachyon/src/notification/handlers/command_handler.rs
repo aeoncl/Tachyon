@@ -27,6 +27,7 @@ pub(crate) async fn handle_command(command: NotificationClientCommand, command_s
 
 #[cfg(test)]
 mod tests {
+    use tachyon_core::domain::ids::BridgeId;
     use crate::notification::handlers::command_handler::handle_command;
     use crate::notification::models::connection_phase::ConnectionPhase;
     use crate::notification::models::local_client_data::LocalClientData;
@@ -45,7 +46,7 @@ mod tests {
     use tachyon_testkit::repositories::{AccountRepositoryInMem, CredentialRepositoryInMem};
     use tachyon_core::infrastructure::app_state::AppState;
 
-    const TEST_SECRET: [u8; 32] = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+
 
     fn test_state() -> GlobalState {
         let auth_service = Arc::new(AuthServiceMatrixSdk::new(
@@ -60,7 +61,7 @@ mod tests {
 
         GlobalState::new(
             Default::default(),
-            TEST_SECRET.to_vec(),
+            BridgeId::new("msn"),
             app_state,
         )
     }

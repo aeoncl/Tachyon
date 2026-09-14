@@ -1,6 +1,6 @@
 use crate::application::error::{BackendError, StoreError, VerificationError};
 use crate::domain::auth::{
-    BridgeMetadata, Credential, CredentialBlob, InteractiveAuthStarted, TachyonToken,
+    BridgeMetadata, Credential, CredentialBlob, InteractiveAuthStarted, BridgeLinkToken,
 };
 use crate::domain::ids::{DeviceId, LoginId, UserId};
 use crate::domain::verification::{
@@ -22,9 +22,7 @@ pub trait BackendSession: Send + Sync {
 
     async fn device_status(&self) -> Result<DeviceStatus, BackendError>;
 
-    /// Resolves once this device is trusted by the user's identity, however that happens:
-    /// a recovery key, another device's signature, or an identity reset. Returns at once
-    /// when it already is. Fails when the session is closed while waiting.
+
     async fn wait_until_verified(&self) -> Result<(), BackendError>;
 
     async fn verification_options(&self) -> Result<VerificationOptions, VerificationError>;
@@ -59,10 +57,7 @@ pub trait BackendSession: Send + Sync {
     /// that will never be restored. The device stays on the backend; only `log_out` ends it.
     async fn discard(&self);
 
-    /// Ends the device on the backend. Two callers: the user's explicit "delete credentials",
-    /// and a login that authenticated while nobody held it any more. Every other end of a
-    /// login keeps the device so a later restore works. Works on a closed session too.
-    async fn log_out(&self) -> Result<(), BackendError>;
+    async fn hard_log_out(&self) -> Result<(), BackendError>;
 
     /// FIXME: TEMPORARY, we won't expose the underlying client after the refactor is done
     fn as_any(&self) -> &dyn Any;
@@ -84,10 +79,10 @@ pub trait AuthService: Send + Sync {
 
     /// Removes what the backend keeps on disk for a login that is not live. Nothing to do
     /// when there is nothing.
-    async fn forget(&self, login_id: &LoginId) -> Result<(), BackendError>;
+    async fn remove_login(&self, login_id: &LoginId) -> Result<(), BackendError>;
 
     /// Removes the on-disk state of every login not in `keep`.
-    async fn sweep(&self, keep: &[LoginId]) -> Result<(), BackendError>;
+    async fn clear_logins_except(&self, keep: &[LoginId]) -> Result<(), BackendError>;
 }
 
 /// A login row as the store holds it.
@@ -95,19 +90,19 @@ pub trait AuthService: Send + Sync {
 pub struct StoredLogin {
     pub login_id: LoginId,
     /// Whether any token still points at it. One nobody points at is a leftover.
-    pub bound: bool,
+    pub linked: bool,
 }
 
 #[async_trait]
 pub trait AccountRepository: Send + Sync {
     async fn login_id_by_token(
         &self,
-        tachyon_token: &TachyonToken,
+        tachyon_token: &BridgeLinkToken,
     ) -> Result<Option<LoginId>, StoreError>;
 
     async fn save_login_for_token(
         &self,
-        tachyon_token: TachyonToken,
+        tachyon_token: BridgeLinkToken,
         login_id: LoginId,
     ) -> Result<(), StoreError>;
 

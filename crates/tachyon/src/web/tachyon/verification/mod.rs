@@ -8,7 +8,7 @@ use axum::extract::State;
 use axum::http::{Response, StatusCode};
 use axum::response::{Html, IntoResponse};
 use maud::{html, Markup};
-use tachyon_core::domain::auth::TachyonToken;
+use tachyon_core::domain::auth::BridgeLinkToken;
 use tachyon_core::domain::verification::{SasEmoji, VerificationFlowState};
 
 pub async fn get_verification_poll(
@@ -18,7 +18,7 @@ pub async fn get_verification_poll(
 ) -> Response<Body> {
     let use_case = state.app_state().device_verification_use_case();
 
-    let flow_state = match use_case.verification_state(&TachyonToken::new(&token)).await {
+    let flow_state = match use_case.verification_state(&BridgeLinkToken::new(&token)).await {
         Ok(flow_state) => flow_state,
         Err(e) => return Html(error_fragment(&e.to_string()).into_string()).into_response(),
     };

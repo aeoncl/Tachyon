@@ -11,13 +11,13 @@ use crate::tachyon::global_state::GlobalState;
 use crate::web::web_server::WebServer;
 use anyhow::anyhow;
 use directories::ProjectDirs;
-use rand::{random, Rng};
 use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use tachyon_backend_matrix::infrastructure::backend::auth_service::{AuthServiceMatrixSdk, MatrixBackendConfig};
 use tachyon_store_sqlite::SqliteStore;
+use tachyon_core::domain::ids::BridgeId;
 use tachyon_core::infrastructure::app_state::AppState;
 use self::tachyon::config::paths;
 use self::tachyon::config::paths::create_dirs;
@@ -40,18 +40,17 @@ async fn main() {
 
     let config = setup_config(tachyon_path.config_dir().to_path_buf());
     setup_logs(tachyon_path.data_dir().to_path_buf(), &config);
-    let secret = setup_key(tachyon_path.data_local_dir().to_path_buf()).expect("secret key is mandatory");
 
     let (global_shutdown_signal_snd, global_shutdown_signal_rcv) = broadcast::channel::<()>(1);
 
     let app_state = build_app_state(&config, tachyon_path.data_local_dir().to_path_buf());
-    if let Err(e) = app_state.auth_use_case().sweep().await {
+    if let Err(e) = app_state.auth_use_case().clear_unlinked_logins().await {
         log::warn!("Could not clear out stale logins: {:?}", e);
     }
 
     let global_state = GlobalState::new(
         config.clone(),
-        secret,
+        BridgeId::new("msn"),
         app_state,
     );
 
@@ -81,21 +80,6 @@ fn build_app_state(config: &TachyonConfig, data_local_dir: PathBuf) -> Arc<AppSt
     let web_base_url = format!("http://127.0.0.1:{}/tachyon", config.http_port);
 
     Arc::new(AppState::new(auth_service, Arc::new(store), web_base_url))
-}
-
-fn setup_key(config_folder_path: PathBuf) -> Result<Vec<u8>, anyhow::Error> {
-
-    let key_path = config_folder_path.join("local.key");
-    match fs::read(&key_path) {
-        Ok(existing_key) => {
-            Ok(existing_key)
-        }
-        Err(_) => {
-            let secret_bytes: [u8; 32] = random();
-            fs::write(&key_path, secret_bytes)?;
-            Ok(secret_bytes.to_vec())
-        }
-    }
 }
 
 fn setup_config(config_dir: PathBuf) -> TachyonConfig {

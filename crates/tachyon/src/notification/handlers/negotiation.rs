@@ -2,6 +2,7 @@ use msnp::msnp::notification::command::command::{NotificationClientCommand, Noti
 use tokio::sync::mpsc::Sender;
 use anyhow::anyhow;
 use msnp::msnp::notification::command::cvr::CvrServer;
+use msnp::shared::models::client_version::ClientVersion;
 use msnp::msnp::notification::models::msnp_version::MsnpVersion::MSNP18;
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
@@ -20,6 +21,7 @@ pub(crate) async fn handle_negotiation(raw_command: NotificationClientCommand, n
             Ok(())
         },
         NotificationClientCommand::CVR(command) => {
+            local_client_data.client_version = Some(command.client_ver.parse::<ClientVersion>()?);
             local_client_data.phase = ConnectionPhase::Authenticating;
             notif_sender.send(NotificationServerCommand::CVR(CvrServer::new(command.tr_id, "14.0.8117.0416".to_string(), "14.0.8117.0416".to_string(), "14.0.8117.0416".to_string(), "localhost".to_string(), "localhost".to_string() ))).await?;
             Ok(())

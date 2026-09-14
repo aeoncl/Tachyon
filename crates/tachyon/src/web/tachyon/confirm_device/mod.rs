@@ -3,7 +3,7 @@ use crate::web::tachyon::layout::error_fragment;
 use axum::extract::State;
 use axum::response::Html;
 use maud::{html, Markup};
-use tachyon_core::domain::auth::TachyonToken;
+use tachyon_core::domain::auth::BridgeLinkToken;
 use tachyon_core::domain::verification::{DeviceStatus, VerificationOptions};
 
 pub(super) mod recover;
@@ -15,7 +15,7 @@ pub async fn get_confirm(
     axum::extract::Extension(token): axum::extract::Extension<String>,
 ) -> Html<String> {
     let use_case = state.app_state().device_verification_use_case();
-    let core_token = TachyonToken::new(&token);
+    let core_token = BridgeLinkToken::new(&token);
 
     let content = match use_case.status(&core_token).await {
         Ok(DeviceStatus::Verified) => already_confirmed_content(),

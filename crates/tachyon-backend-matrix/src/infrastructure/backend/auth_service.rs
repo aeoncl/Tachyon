@@ -211,14 +211,14 @@ impl AuthService for AuthServiceMatrixSdk {
         ))
     }
 
-    async fn forget(&self, login_id: &LoginId) -> Result<(), BackendError> {
+    async fn remove_login(&self, login_id: &LoginId) -> Result<(), BackendError> {
         if let Some(login_dir) = self.login_dir(login_id) {
             remove_login_dir(&login_dir)?;
         }
         Ok(())
     }
 
-    async fn sweep(&self, keep: &[LoginId]) -> Result<(), BackendError> {
+    async fn clear_logins_except(&self, keep: &[LoginId]) -> Result<(), BackendError> {
         let Some(root) = &self.config.store_root else {
             return Ok(());
         };
@@ -452,7 +452,7 @@ pub(crate) mod tests {
         let (auth_service, _mock) = build_test_auth_service_storing_in(&root).await;
         std::fs::create_dir_all(root.login_dir("stale").join("store")).unwrap();
 
-        auth_service.forget(&LoginId::new("stale")).await.unwrap();
+        auth_service.remove_login(&LoginId::new("stale")).await.unwrap();
 
         assert!(!root.login_dir("stale").exists());
     }
@@ -465,7 +465,7 @@ pub(crate) mod tests {
             std::fs::create_dir_all(root.login_dir(login_id).join("store")).unwrap();
         }
 
-        auth_service.sweep(&[LoginId::new("kept")]).await.unwrap();
+        auth_service.clear_logins_except(&[LoginId::new("kept")]).await.unwrap();
 
         assert!(root.login_dir("kept").is_dir());
         assert!(!root.login_dir("stale").exists());
@@ -476,7 +476,7 @@ pub(crate) mod tests {
         let root = StoreRoot::new();
         let (auth_service, _mock) = build_test_auth_service_storing_in(&root).await;
 
-        auth_service.sweep(&[]).await.unwrap();
+        auth_service.clear_logins_except(&[]).await.unwrap();
     }
 
     #[tokio::test]

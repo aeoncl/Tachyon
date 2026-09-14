@@ -5,7 +5,7 @@ use axum::extract::State;
 use axum::response::Html;
 use maud::{html, Markup};
 use tachyon_core::application::error::VerificationError;
-use tachyon_core::domain::auth::TachyonToken;
+use tachyon_core::domain::auth::BridgeLinkToken;
 use tachyon_core::domain::verification::RecoveryKey;
 
 pub async fn get_recover() -> Html<String> {
@@ -31,7 +31,7 @@ pub async fn post_recover(
 
     let use_case = state.app_state().device_verification_use_case();
     let content = match use_case
-        .recover(&TachyonToken::new(&token), &RecoveryKey::new(secret))
+        .recover(&BridgeLinkToken::new(&token), &RecoveryKey::new(secret))
         .await
     {
         Ok(()) => confirmed_content(),

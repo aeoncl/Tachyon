@@ -499,7 +499,7 @@ impl BackendSession for BackendSessionMatrix {
         self.shutdown();
     }
 
-    async fn log_out(&self) -> Result<(), BackendError> {
+    async fn hard_log_out(&self) -> Result<(), BackendError> {
         if self.client.session().is_none() {
             return Ok(());
         }
@@ -676,7 +676,7 @@ mod tests {
             .await
             .unwrap();
 
-        session.log_out().await.unwrap();
+        session.hard_log_out().await.unwrap();
 
         assert_eq!(logouts(&server).await, 1);
     }

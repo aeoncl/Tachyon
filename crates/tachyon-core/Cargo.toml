@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-uuid = { version = "1.25.0", features = ["v4"] }
+uuid = { version = "1.25.0", features = ["v4", "v5"] }
 mime = "0.3.17"
 bytes = "1.12.1"
 dashmap = "6.2.1"

@@ -2,21 +2,22 @@ use crate::tachyon::alert::AlertReceiver;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::client::tachyon_client_repository::TachyonClientRepository;
 use crate::tachyon::config::tachyon_config::TachyonConfig;
-use crate::tachyon::identifiers::ticket::{derive_ticket, derive_token};
+use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::repository::RepositoryStr;
 use dashmap::DashMap;
+use msnp::shared::models::client_version::ClientVersion;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::Arc;
-use tachyon_core::application::logins::Attempt;
-use tachyon_core::domain::auth::TachyonToken;
+use tachyon_core::domain::auth::BridgeLinkToken;
+use tachyon_core::domain::ids::{BridgeId, ClientVersion as CoreClientVersion, UserId};
 use tachyon_core::infrastructure::app_state::AppState;
 
 pub struct GlobalStateInner {
     config: TachyonConfig,
     tachyon_clients: TachyonClientRepository,
-    /// Raw `local.key`, used to derive each account's ticket.
-    token_secret: Vec<u8>,
+    /// This bridge's name in every token it mints, so its logins never meet another bridge's.
+    bridge: BridgeId,
     pending_alerts: DashMap<i32, AlertReceiver>,
     app_state: Arc<AppState>,
 }
@@ -32,11 +33,22 @@ pub struct ClientDropGuard {
     global_state: GlobalState,
     key: String,
     client: TachyonClient,
-    attempt: Attempt,
+    released: bool,
 }
 
-impl Drop for ClientDropGuard {
-    fn drop(&mut self) {
+impl ClientDropGuard {
+    /// Takes the client and its login down before the connection handler returns, so a
+    /// reconnection finds the token free. `Drop` covers a handler that never got here.
+    pub async fn release(mut self) {
+        self.released = true;
+        self.remove_client();
+        let token = BridgeLinkToken::new(&self.key);
+        if let Err(e) = self.global_state.app_state().auth_use_case().abandon_login(&token).await {
+            log::error!("Could not close the backend session: {:?}", e);
+        }
+    }
+
+    fn remove_client(&self) {
         if let Some(client) = self
             .global_state
             .tachyon_clients()
@@ -44,12 +56,20 @@ impl Drop for ClientDropGuard {
         {
             client.shutdown();
         }
+    }
+}
+
+impl Drop for ClientDropGuard {
+    fn drop(&mut self) {
+        if self.released {
+            return;
+        }
+        self.remove_client();
         // The backend session does not outlive the Messenger connection it served.
         let auth_use_case = self.global_state.app_state().auth_use_case().clone();
-        let token = TachyonToken::new(&self.key);
-        let attempt = self.attempt;
+        let token = BridgeLinkToken::new(&self.key);
         tokio::spawn(async move {
-            if let Err(e) = auth_use_case.abandon(&token, attempt).await {
+            if let Err(e) = auth_use_case.abandon_login(&token).await {
                 log::error!("Could not close the backend session: {:?}", e);
             }
         });
@@ -57,12 +77,12 @@ impl Drop for ClientDropGuard {
 }
 
 impl GlobalState {
-    pub fn new(config: TachyonConfig, token_secret: Vec<u8>, app_state: Arc<AppState>) -> Self {
+    pub fn new(config: TachyonConfig, bridge: BridgeId, app_state: Arc<AppState>) -> Self {
         Self {
             inner: Arc::new(GlobalStateInner {
                 config,
                 tachyon_clients: Default::default(),
-                token_secret,
+                bridge,
                 pending_alerts: Default::default(),
                 app_state,
             }),
@@ -86,7 +106,6 @@ impl GlobalState {
         &self,
         key: String,
         tachyon_client: TachyonClient,
-        attempt: Attempt,
     ) -> ClientDropGuard {
         self.inner
             .tachyon_clients
@@ -95,7 +114,7 @@ impl GlobalState {
             global_state: self.clone(),
             key,
             client: tachyon_client,
-            attempt,
+            released: false,
         }
     }
 
@@ -103,15 +122,20 @@ impl GlobalState {
         self.inner.tachyon_clients.get(key)
     }
 
-    /// The ticket this instance hands out for an address. Stable across restarts, so the
-    /// client's saved copy keeps working.
-    pub fn ticket_for(&self, email: &EmailAddress) -> TicketToken {
-        derive_ticket(&self.inner.token_secret, email)
+    /// The ticket this bridge hands out for one client of an address. Deterministic, so the
+    /// client's saved copy keeps working across restarts.
+    pub fn ticket_for(&self, email: &EmailAddress, client: &ClientVersion) -> TicketToken {
+        TicketToken(self.token_for(email, client).as_str().to_owned())
     }
 
-    /// The same value, as core's opaque account token.
-    pub fn token_for(&self, email: &EmailAddress) -> TachyonToken {
-        derive_token(&self.inner.token_secret, email)
+    /// The same value, as the token core keys the login by.
+    pub fn token_for(&self, email: &EmailAddress, client: &ClientVersion) -> BridgeLinkToken {
+        let user = UserId::new(email.to_owned_user_id().as_str());
+        BridgeLinkToken::mint(
+            &self.inner.bridge,
+            &user,
+            &CoreClientVersion::new(client.to_string()),
+        )
     }
 
     pub fn store_pending_alert(&self, key: i32, receiver: AlertReceiver) {
@@ -126,7 +150,7 @@ impl GlobalState {
     /// login that is still finishing.
     pub fn is_session_token(&self, token: &str) -> bool {
         self.tachyon_clients().get(token).is_some()
-            || self.app_state().auth_use_case().has_login(&TachyonToken::new(token))
+            || self.app_state().auth_use_case().has_login(&BridgeLinkToken::new(token))
     }
 
     pub fn app_state(&self) -> &Arc<AppState> {
