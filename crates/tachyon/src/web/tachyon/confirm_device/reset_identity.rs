@@ -41,7 +41,7 @@ async fn reset(state: &GlobalState, token: &str, auth: Option<ResetAuth>) -> Htm
         Ok(IdentityReset::ApprovalRequired { url }) => approval_content(&url),
         Ok(IdentityReset::ApprovalPending) => pending_content(),
         Ok(IdentityReset::Done { recovery_key }) => done_content(recovery_key.as_str()),
-        Err(e) => error_fragment(&e.to_string()),
+        Err(e) => error_fragment(e),
     };
 
     Html(content.into_string())

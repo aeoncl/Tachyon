@@ -1,4 +1,8 @@
+use axum::body::Body;
+use axum::http::{Response, StatusCode};
+use axum::response::Html;
 use maud::{html, Markup, DOCTYPE};
+use std::fmt::Display;
 
 fn page_head() -> Markup {
     html! {
@@ -73,11 +77,24 @@ pub fn tachyon_page_no_nav(content: Markup) -> Markup {
 }
 
 /// The secured pages render fragments: `intercooler_layout_wrapper` supplies the shell.
-pub fn error_fragment(message: &str) -> Markup {
+pub fn error_fragment(message: impl Display) -> Markup {
     html! {
         div class="container" {
             h2 { "Something went wrong" }
             p { (message) }
         }
     }
+}
+
+pub fn error_html(message: impl Display) -> Html<String> {
+    Html(error_fragment(message).into_string())
+}
+
+/// Has intercooler load `location` in place of the current page.
+pub fn ic_redirect(location: &str) -> Response<Body> {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("X-IC-Redirect", location)
+        .body(Body::empty())
+        .unwrap()
 }

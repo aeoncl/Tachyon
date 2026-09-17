@@ -1,9 +1,7 @@
 use crate::tachyon::global_state::GlobalState;
-use crate::web::tachyon::layout::error_fragment;
+use crate::web::tachyon::layout::{error_fragment, error_html, ic_redirect};
 use crate::web::tachyon::Params;
-use axum::body::Body;
 use axum::extract::State;
-use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use maud::{html, Markup};
 use tachyon_core::domain::auth::BridgeLinkToken;
@@ -18,7 +16,7 @@ pub async fn get_other_device(
 
     let content = match use_case.options(&BridgeLinkToken::new(&token)).await {
         Ok(options) => choose_device_content(&options.devices),
-        Err(e) => error_fragment(&e.to_string()),
+        Err(e) => error_fragment(e),
     };
 
     Html(content.into_string())
@@ -30,8 +28,7 @@ pub async fn post_other_device(
     axum::extract::Form(form_data): axum::extract::Form<Params>,
 ) -> Response {
     let Some(device) = form_data.get("device").filter(|id| !id.is_empty()) else {
-        return Html(error_fragment("Please choose a device to confirm with.").into_string())
-            .into_response();
+        return error_html("Please choose a device to confirm with.").into_response();
     };
 
     let use_case = state.app_state().device_verification_use_case();
@@ -39,14 +36,10 @@ pub async fn post_other_device(
         .start_device_verification(&BridgeLinkToken::new(&token), &DeviceId::new(device))
         .await
     {
-        return Html(error_fragment(&e.to_string()).into_string()).into_response();
+        return error_html(e).into_response();
     }
 
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("X-IC-Redirect", "/tachyon/verification")
-        .body(Body::empty())
-        .unwrap()
+    ic_redirect("/tachyon/verification")
 }
 
 fn choose_device_content(devices: &[DeviceSummary]) -> Markup {

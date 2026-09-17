@@ -77,9 +77,7 @@ fn build_app_state(config: &TachyonConfig, data_local_dir: PathBuf) -> Arc<AppSt
 
     let auth_service = Arc::new(AuthServiceMatrixSdk::new(Arc::new(store.clone()), backend_config));
 
-    let web_base_url = format!("http://127.0.0.1:{}/tachyon", config.http_port);
-
-    Arc::new(AppState::new(auth_service, Arc::new(store), web_base_url))
+    Arc::new(AppState::new(auth_service, Arc::new(store), config.web_base_url()))
 }
 
 fn setup_config(config_dir: PathBuf) -> TachyonConfig {

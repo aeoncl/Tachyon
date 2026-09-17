@@ -14,6 +14,13 @@ pub struct TachyonConfig {
 
 }
 
+impl TachyonConfig {
+    /// Where the user's browser reaches the bridge's pages.
+    pub fn web_base_url(&self) -> String {
+        format!("http://127.0.0.1:{}/tachyon", self.http_port)
+    }
+}
+
 impl Default for TachyonConfig {
     fn default() -> Self {
         

@@ -1,7 +1,7 @@
 pub(super) mod sas_v1_actions;
 
 use crate::tachyon::global_state::GlobalState;
-use crate::web::tachyon::layout::error_fragment;
+use crate::web::tachyon::layout::error_html;
 use crate::web::tachyon::Params;
 use axum::body::Body;
 use axum::extract::State;
@@ -18,9 +18,9 @@ pub async fn get_verification_poll(
 ) -> Response<Body> {
     let use_case = state.app_state().device_verification_use_case();
 
-    let flow_state = match use_case.verification_state(&BridgeLinkToken::new(&token)).await {
+    let flow_state = match use_case.verification_state(&BridgeLinkToken::new(&token)) {
         Ok(flow_state) => flow_state,
-        Err(e) => return Html(error_fragment(&e.to_string()).into_string()).into_response(),
+        Err(e) => return error_html(e).into_response(),
     };
 
     let shown = params.get("state").map(|state| state.trim()).unwrap_or_default();

@@ -1,7 +1,6 @@
 use std::pin::pin;
 use std::time::Duration;
 
-use anyhow::anyhow;
 use futures_util::{Stream, StreamExt};
 use matrix_sdk::encryption::identities::Device;
 use matrix_sdk::encryption::verification::{
@@ -15,8 +14,10 @@ use matrix_sdk::{Client, SlidingSync, SlidingSyncList, SlidingSyncListBuilder, S
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use tachyon_core::application::error::{BackendError, VerificationError};
+use tachyon_core::application::error::VerificationError;
 use tachyon_core::domain::verification::{SasEmoji, VerificationFlowState};
+
+use crate::infrastructure::backend::technical;
 
 /// Drives one SAS request against another of the user's devices. The to-device traffic it
 /// rides on is the session's `sync_until_verified`, which runs for as long as the device is
@@ -31,7 +32,7 @@ impl VerificationFlowMatrix {
         let request = device
             .request_verification_with_methods(vec![VerificationMethod::SasV1])
             .await
-            .map_err(|e| VerificationError::Backend(BackendError::Technical(anyhow!("{e}"))))?;
+            .map_err(technical)?;
 
         let driver = tokio::spawn(drive(request.clone()));
 
@@ -47,9 +48,7 @@ impl VerificationFlowMatrix {
     }
 
     pub(crate) async fn cancel(&self) {
-        if let Err(e) = self.request.cancel().await {
-            log::warn!("Could not cancel the verification request: {e}");
-        }
+        cancel_request(&self.request).await
     }
 }
 
@@ -211,21 +210,23 @@ async fn cancel_request(request: &VerificationRequest) {
 /// step is also what uploads this device's own keys, which nothing else does before the
 /// bridge starts its full sync.
 pub(crate) async fn run_to_device_sync(client: Client, cancel: CancellationToken) {
-    // The SDK's sync stream terminates on any error, so the sync is rebuilt until cancelled.
+    // The SDK's sync stream terminates on any error, so the sync is rebuilt until cancelled,
+    // backing off while the homeserver keeps failing.
+    let mut delay = Duration::from_secs(1);
     loop {
         tokio::select! {
             _ = cancel.cancelled() => break,
-            result = sync_to_device_once(&client) => {
-                if let Err(e) = result {
-                    log::warn!("To-device sync stopped, restarting: {e}");
-                }
+            result = sync_to_device_once(&client) => match result {
+                Ok(()) => delay = Duration::from_secs(1),
+                Err(e) => log::warn!("To-device sync stopped, restarting in {}s: {e}", delay.as_secs()),
             }
         }
 
         tokio::select! {
             _ = cancel.cancelled() => break,
-            _ = tokio::time::sleep(Duration::from_secs(1)) => {}
+            _ = tokio::time::sleep(delay) => {}
         }
+        delay = (delay * 2).min(Duration::from_secs(30));
     }
 }
 

@@ -3,6 +3,8 @@ use crate::web::tachyon::layout::error_fragment;
 use axum::extract::State;
 use axum::response::Html;
 use maud::{html, Markup};
+use tachyon_core::application::device_verification_use_case::DeviceVerificationUseCase;
+use tachyon_core::application::error::VerificationError;
 use tachyon_core::domain::auth::BridgeLinkToken;
 use tachyon_core::domain::verification::{DeviceStatus, VerificationOptions};
 
@@ -15,18 +17,23 @@ pub async fn get_confirm(
     axum::extract::Extension(token): axum::extract::Extension<String>,
 ) -> Html<String> {
     let use_case = state.app_state().device_verification_use_case();
-    let core_token = BridgeLinkToken::new(&token);
 
-    let content = match use_case.status(&core_token).await {
-        Ok(DeviceStatus::Verified) => already_confirmed_content(),
-        Ok(DeviceStatus::Unverified) => match use_case.options(&core_token).await {
-            Ok(options) => device_confirmation_content(&options),
-            Err(e) => error_fragment(&e.to_string()),
-        },
-        Err(e) => error_fragment(&e.to_string()),
+    let content = match confirm_content(use_case, &BridgeLinkToken::new(&token)).await {
+        Ok(content) => content,
+        Err(e) => error_fragment(e),
     };
 
     Html(content.into_string())
+}
+
+async fn confirm_content(
+    use_case: &DeviceVerificationUseCase,
+    token: &BridgeLinkToken,
+) -> Result<Markup, VerificationError> {
+    Ok(match use_case.status(token).await? {
+        DeviceStatus::Verified => already_confirmed_content(),
+        DeviceStatus::Unverified => device_confirmation_content(&use_case.options(token).await?),
+    })
 }
 
 fn already_confirmed_content() -> Markup {

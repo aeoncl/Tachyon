@@ -19,6 +19,7 @@ use tachyon_core::domain::ids::{LoginId, UserId};
 
 use crate::domain::auth::SessionRestoreData;
 use crate::infrastructure::backend::session::BackendSessionMatrix;
+use crate::infrastructure::backend::technical;
 use crate::infrastructure::mappers::IntoMapper;
 
 #[derive(Clone, Default)]
@@ -51,19 +52,14 @@ impl AuthServiceMatrixSdk {
             .map(|root| root.join("logins").join(login_id.to_string()))
     }
 
-    /// Whether the login's SDK store holds a crypto database. A directory the builder
-    /// created but never populated does not count; nor does no directory at all. With no
-    /// store root everything is in memory and there is nothing to check.
+
     fn has_store(&self, login_id: &LoginId) -> bool {
         match self.login_dir(login_id) {
             None => true,
-            Some(login_dir) => login_dir.join("store").join(CRYPTO_DATABASE).is_file(),
+            Some(login_dir) => login_dir.join("store").exists(),
         }
     }
 
-    /// Every login gets its own directory, so the same account signed in twice, through two
-    /// bridges say, never shares an SDK store. The directory is handed back so the session
-    /// can remove it if the login is discarded.
     async fn build_client(
         &self,
         server_name: &ServerName,
@@ -92,7 +88,7 @@ impl AuthServiceMatrixSdk {
         let client = client_builder
             .build()
             .await
-            .map_err(|e| BackendError::Technical(anyhow::anyhow!("{}", e)))?;
+            .map_err(technical)?;
         Ok((client, login_dir))
     }
 }
@@ -123,7 +119,7 @@ impl AuthService for AuthServiceMatrixSdk {
             client,
             login_id.clone(),
             self.credential_repository.clone(),
-            Some(user_id),
+            user_id,
             login_dir,
         );
         // The first request after restore can already refresh the tokens, and MAS rotates
@@ -149,21 +145,16 @@ impl AuthService for AuthServiceMatrixSdk {
         &self,
         login_id: &LoginId,
         server_name: &str,
-        user_id: Option<UserId>,
+        user_id: UserId,
         redirect_url: &str,
         bridge_metadata: &BridgeMetadata,
     ) -> Result<(Arc<dyn BackendSession>, InteractiveAuthStarted), BackendError> {
-        let user_id: Option<OwnedUserId> = match user_id {
-            None => None,
-            Some(user_id) => Some(
-                user_id
-                    .map_into()
-                    .map_err(|e| BackendError::Technical(anyhow!("{:?}", e)))?,
-            ),
-        };
+        let user_id: OwnedUserId = user_id
+            .map_into()
+            .map_err(|e| BackendError::Technical(anyhow!("{:?}", e)))?;
 
         let server_name =
-            ServerName::parse(server_name).map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
+            ServerName::parse(server_name).map_err(technical)?;
 
         let (client, login_dir) = self.build_client(&server_name, login_id).await?;
 
@@ -180,27 +171,24 @@ impl AuthService for AuthServiceMatrixSdk {
         }
 
         let redirect_url =
-            Url::parse(redirect_url).map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
+            Url::parse(redirect_url).map_err(technical)?;
         let client_metadata = build_client_metadata(bridge_metadata, redirect_url.clone())?;
         let raw_client_metadata =
-            Raw::new(&client_metadata).map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
+            Raw::new(&client_metadata).map_err(technical)?;
 
         client
             .oauth()
             .register_client(&raw_client_metadata)
             .await
-            .map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
+            .map_err(technical)?;
 
-        let authorization_data = {
-            let mut builder = client.oauth().login(redirect_url, None, None, None);
-            if let Some(user_id) = user_id {
-                builder = builder.user_id_hint(&user_id);
-            }
-            builder
-                .build()
-                .await
-                .map_err(|e| BackendError::Technical(anyhow!("{}", e)))?
-        };
+        let authorization_data = client
+            .oauth()
+            .login(redirect_url, None, None, None)
+            .user_id_hint(&user_id)
+            .build()
+            .await
+            .map_err(technical)?;
 
         Ok((
             session,
@@ -213,7 +201,7 @@ impl AuthService for AuthServiceMatrixSdk {
 
     async fn remove_login(&self, login_id: &LoginId) -> Result<(), BackendError> {
         if let Some(login_dir) = self.login_dir(login_id) {
-            remove_login_dir(&login_dir)?;
+            remove_login_dir(&login_dir).await?;
         }
         Ok(())
     }
@@ -238,7 +226,7 @@ impl AuthService for AuthServiceMatrixSdk {
         for entry in entries {
             let entry = entry.map_err(|e| BackendError::Technical(anyhow!("{e}")))?;
             if !keep.contains(&entry.file_name().to_string_lossy().to_string()) {
-                remove_login_dir(&entry.path())?;
+                remove_login_dir(&entry.path()).await?;
             }
         }
         Ok(())
@@ -249,8 +237,9 @@ impl AuthService for AuthServiceMatrixSdk {
 /// a device's store rather than an empty folder.
 const CRYPTO_DATABASE: &str = "matrix-sdk-crypto.sqlite3";
 
-fn remove_login_dir(login_dir: &std::path::Path) -> Result<(), BackendError> {
-    match std::fs::remove_dir_all(login_dir) {
+/// Nothing to do when the directory is already gone.
+pub(crate) async fn remove_login_dir(login_dir: &std::path::Path) -> Result<(), BackendError> {
+    match tokio::fs::remove_dir_all(login_dir).await {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(BackendError::Technical(anyhow!(
@@ -354,27 +343,15 @@ pub(crate) mod tests {
     }
 
     /// A store root nobody else writes to, removed when dropped.
-    struct StoreRoot(PathBuf);
+    struct StoreRoot(tempfile::TempDir);
 
     impl StoreRoot {
         fn new() -> Self {
-            let unique = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos();
-            let root = std::env::temp_dir().join(format!("tachyon-store-{}-{unique}", std::process::id()));
-            std::fs::create_dir_all(&root).unwrap();
-            Self(root)
+            Self(tempfile::tempdir().unwrap())
         }
 
         fn login_dir(&self, login_id: &str) -> PathBuf {
-            self.0.join("logins").join(login_id)
-        }
-    }
-
-    impl Drop for StoreRoot {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
+            self.0.path().join("logins").join(login_id)
         }
     }
 
@@ -383,7 +360,7 @@ pub(crate) mod tests {
         let auth_service = AuthServiceMatrixSdk::new(
             auth_service.credential_repository.clone(),
             MatrixBackendConfig {
-                store_root: Some(root.0.clone()),
+                store_root: Some(root.0.path().to_path_buf()),
                 ..auth_service.config
             },
         );
@@ -434,7 +411,7 @@ pub(crate) mod tests {
                 .start_interactive_login(
                     &LoginId::new(login_id),
                     "localhost",
-                    Some(UserId::new("@aeon:localhost")),
+                    UserId::new("@aeon:localhost"),
                     "https://localhost/callback",
                     &bridge_metadata(),
                 )
@@ -487,7 +464,7 @@ pub(crate) mod tests {
             .start_interactive_login(
                 &LoginId::new("l1"),
                 "localhost",
-                Some(UserId::new("@aeon:localhost")),
+                UserId::new("@aeon:localhost"),
                 "https://localhost/callback",
                 &bridge_metadata(),
             )
@@ -513,7 +490,7 @@ pub(crate) mod tests {
             .start_interactive_login(
                 &LoginId::new("l1"),
                 "localhost",
-                None,
+                UserId::new("@aeon:localhost"),
                 "https://localhost/callback",
                 &bridge_metadata(),
             )

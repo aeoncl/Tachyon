@@ -9,6 +9,7 @@ use msnp::shared::models::client_version::ClientVersion;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::Arc;
+use tachyon_core::application::auth_use_case::AuthUseCase;
 use tachyon_core::domain::auth::BridgeLinkToken;
 use tachyon_core::domain::ids::{BridgeId, ClientVersion as CoreClientVersion, UserId};
 use tachyon_core::infrastructure::app_state::AppState;
@@ -31,28 +32,26 @@ pub struct GlobalState {
 /// already have put its own client and login under the same key by the time this drops.
 pub struct ClientDropGuard {
     global_state: GlobalState,
-    key: String,
-    client: TachyonClient,
-    released: bool,
+    token: BridgeLinkToken,
+    /// Taken by `release`, so `Drop` knows the teardown already ran.
+    client: Option<TachyonClient>,
 }
 
 impl ClientDropGuard {
     /// Takes the client and its login down before the connection handler returns, so a
     /// reconnection finds the token free. `Drop` covers a handler that never got here.
     pub async fn release(mut self) {
-        self.released = true;
-        self.remove_client();
-        let token = BridgeLinkToken::new(&self.key);
-        if let Err(e) = self.global_state.app_state().auth_use_case().abandon_login(&token).await {
-            log::error!("Could not close the backend session: {:?}", e);
+        if let Some(client) = self.client.take() {
+            self.remove_client(&client);
+            abandon_login(self.global_state.app_state().auth_use_case(), &self.token).await;
         }
     }
 
-    fn remove_client(&self) {
+    fn remove_client(&self, client: &TachyonClient) {
         if let Some(client) = self
             .global_state
             .tachyon_clients()
-            .remove_if_same(&self.key, &self.client)
+            .remove_if_same(self.token.as_str(), client)
         {
             client.shutdown();
         }
@@ -61,18 +60,20 @@ impl ClientDropGuard {
 
 impl Drop for ClientDropGuard {
     fn drop(&mut self) {
-        if self.released {
+        let Some(client) = self.client.take() else {
             return;
-        }
-        self.remove_client();
+        };
+        self.remove_client(&client);
         // The backend session does not outlive the Messenger connection it served.
         let auth_use_case = self.global_state.app_state().auth_use_case().clone();
-        let token = BridgeLinkToken::new(&self.key);
-        tokio::spawn(async move {
-            if let Err(e) = auth_use_case.abandon_login(&token).await {
-                log::error!("Could not close the backend session: {:?}", e);
-            }
-        });
+        let token = self.token.clone();
+        tokio::spawn(async move { abandon_login(&auth_use_case, &token).await });
+    }
+}
+
+pub(crate) async fn abandon_login(auth_use_case: &AuthUseCase, token: &BridgeLinkToken) {
+    if let Err(e) = auth_use_case.abandon_login(token).await {
+        log::error!("Could not close the backend session: {:?}", e);
     }
 }
 
@@ -104,17 +105,16 @@ impl GlobalState {
 
     pub fn insert_clients(
         &self,
-        key: String,
+        token: BridgeLinkToken,
         tachyon_client: TachyonClient,
     ) -> ClientDropGuard {
         self.inner
             .tachyon_clients
-            .insert(key.clone(), tachyon_client.clone());
+            .insert(token.as_str().to_owned(), tachyon_client.clone());
         ClientDropGuard {
             global_state: self.clone(),
-            key,
-            client: tachyon_client,
-            released: false,
+            token,
+            client: Some(tachyon_client),
         }
     }
 
@@ -146,11 +146,8 @@ impl GlobalState {
         self.inner.pending_alerts.remove(key).map(|(_, recv)| recv)
     }
 
-    /// Whether a token names something we will serve pages for: a signed-in client, or a
-    /// login that is still finishing.
-    pub fn is_session_token(&self, token: &str) -> bool {
-        self.tachyon_clients().get(token).is_some()
-            || self.app_state().auth_use_case().has_login(&BridgeLinkToken::new(token))
+    pub fn is_token_linked(&self, token: &str) -> bool {
+        self.app_state().auth_use_case().has_login(&BridgeLinkToken::new(token))
     }
 
     pub fn app_state(&self) -> &Arc<AppState> {

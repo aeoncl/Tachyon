@@ -3,10 +3,10 @@ use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::config::tachyon_config::TachyonConfig;
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global_state::{abandon_login, GlobalState};
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use anyhow::{anyhow, Error};
-use log::{debug, error};
+use log::debug;
 use matrix_sdk::Client;
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
 use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
@@ -14,7 +14,6 @@ use msnp::msnp::notification::command::not::factories::NotificationFactory;
 use msnp::msnp::notification::command::not::{NotServer, NotificationPayloadType};
 use msnp::msnp::notification::command::usr::{AuthOperationTypeClient, AuthPolicy, OperationTypeServer, SsoPhaseClient, SsoPhaseServer, UsrServer};
 use msnp::msnp::raw_command_parser::RawCommand;
-use msnp::shared::models::client_version::ClientVersion;
 use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::endpoint_id::EndpointId;
@@ -39,11 +38,7 @@ const SHIELDS_PAYLOAD: &str = "<Policies><Policy type= \"SHIELDS\"><config><shie
 
 /// Once the client has its `USR OK` it sits on the "signing in" screen waiting for the intial profile `MSG`.
 /// rendering any `NOT` alert we send, for about five minutes before it gives up. That wait
-/// is the only window we get to ask the user for something out-of-band.
-///
-/// Every such step — an interactive login, then device verification — has to fit inside
-/// that one budget, so the deadline is computed once per sign-in and shared, rather than
-/// each step claiming five minutes of its own.
+/// is the only window we get to ask the user for some interactive action
 const CLIENT_SIGN_IN_WINDOW: Duration = Duration::from_secs(5 * 60);
 
 pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, tachyon_state: &GlobalState, local_store: &mut LocalClientData, config: &TachyonConfig) -> Result<(), anyhow::Error> {
@@ -69,10 +64,8 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                                 return Err(anyhow!("USR before CVR: the client has not introduced itself"));
                             };
 
-                            // The ticket is minted from the address and the client version, so a
-                            // mismatch means it was not issued by this bridge for this client.
-                            let expected_ticket = tachyon_state.ticket_for(&email_addr, &client_version);
-                            if ticket_token.as_str() != expected_ticket.as_str() {
+                            let token = tachyon_state.token_for(&email_addr, &client_version);
+                            if ticket_token.as_str() != token.as_str() {
                                 return Err(anyhow!("Ticket token does not match {}", email_addr.as_str()));
                             }
 
@@ -94,7 +87,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                                 tachyon_state,
                                 &notif_sender,
                                 &email_addr,
-                                &client_version,
+                                &token,
                                 &msn_user,
                                 config,
                                 sign_in_deadline,
@@ -102,7 +95,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             ).await?;
 
                             let tachyon_client = TachyonClient::new(matrix_client.clone(), config.clone(), msn_user.clone(), ticket_token.clone(), notif_sender.clone(), local_store.client_shutdown_snd.clone(), local_store.client_shutdown_recv.resubscribe());
-                            let drop_guard = tachyon_state.insert_clients(ticket_token.as_str().to_owned(), tachyon_client.clone());
+                            let drop_guard = tachyon_state.insert_clients(token, tachyon_client.clone());
 
                             local_store.client_drop_guard = Some(drop_guard);
                             local_store.token = ticket_token.clone();
@@ -138,19 +131,18 @@ async fn authenticate(
     tachyon_state: &GlobalState,
     notif_sender: &Sender<NotificationServerCommand>,
     email_addr: &EmailAddress,
-    client_version: &ClientVersion,
+    token: &BridgeLinkToken,
     msn_user: &MsnUser,
     config: &TachyonConfig,
     deadline: Instant,
     client_shutdown_recv: broadcast::Receiver<()>,
 ) -> Result<Client, Error> {
     let auth_use_case = tachyon_state.app_state().auth_use_case();
-    let token = tachyon_state.token_for(email_addr, client_version);
     let matrix_id = email_addr.to_owned_user_id();
 
     let signed_in = auth_use_case
         .sign_in_or_restore_login(
-            &token,
+            token,
             matrix_id.server_name().as_str(),
             CoreUserId::new(matrix_id.as_str()),
             &bridge_metadata(),
@@ -175,7 +167,7 @@ async fn authenticate(
             let waited = wait_for_browser(
                 auth_use_case,
                 notif_sender,
-                &token,
+                token,
                 &step,
                 &url,
                 msn_user,
@@ -187,7 +179,7 @@ async fn authenticate(
             match waited {
                 Ok(session) => session,
                 Err(e) => {
-                    give_up(auth_use_case, &token).await;
+                    abandon_login(auth_use_case, token).await;
                     return Err(e);
                 }
             }
@@ -198,7 +190,7 @@ async fn authenticate(
     match session.as_any().downcast_ref::<BackendSessionMatrix>() {
         Some(matrix) => Ok(matrix.matrix_client().clone()),
         None => {
-            give_up(auth_use_case, &token).await;
+            abandon_login(auth_use_case, token).await;
             Err(anyhow!("Backend session is not a matrix session"))
         }
     }
@@ -228,12 +220,6 @@ async fn wait_for_browser(
         _shutdown = client_shutdown_recv.recv() => {
             Err(anyhow!("The client disconnected while signing in"))
         }
-    }
-}
-
-async fn give_up(auth_use_case: &AuthUseCase, token: &BridgeLinkToken) {
-    if let Err(e) = auth_use_case.abandon_login(token).await {
-        error!("Could not abandon the sign-in: {:?}", e);
     }
 }
 
@@ -268,7 +254,7 @@ fn browser_step_alert(
             &msn_user.uuid,
             msn_user.get_email_address(),
             label,
-            format!("http://127.0.0.1:{}/tachyon", config.http_port).as_str(),
+            &config.web_base_url(),
             url,
             url,
             Some(icon),

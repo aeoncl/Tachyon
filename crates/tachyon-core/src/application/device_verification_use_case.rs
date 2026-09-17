@@ -54,7 +54,7 @@ impl DeviceVerificationUseCase {
             .await
     }
 
-    pub async fn verification_state(
+    pub fn verification_state(
         &self,
         token: &BridgeLinkToken,
     ) -> Result<VerificationFlowState, VerificationError> {

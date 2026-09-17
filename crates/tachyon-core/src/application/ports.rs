@@ -22,7 +22,6 @@ pub trait BackendSession: Send + Sync {
 
     async fn device_status(&self) -> Result<DeviceStatus, BackendError>;
 
-
     async fn wait_until_verified(&self) -> Result<(), BackendError>;
 
     async fn verification_options(&self) -> Result<VerificationOptions, VerificationError>;
@@ -72,7 +71,7 @@ pub trait AuthService: Send + Sync {
         &self,
         login_id: &LoginId,
         server_name: &str,
-        user_id: Option<UserId>,
+        user_id: UserId,
         redirect_url: &str,
         bridge_metadata: &BridgeMetadata,
     ) -> Result<(Arc<dyn BackendSession>, InteractiveAuthStarted), BackendError>;

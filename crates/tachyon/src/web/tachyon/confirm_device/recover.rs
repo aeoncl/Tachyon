@@ -38,7 +38,7 @@ pub async fn post_recover(
         Err(VerificationError::RecoveryKeyRejected) => restore_device_content(Some(
             "That recovery key or passphrase was not accepted. Please check it and try again.",
         )),
-        Err(e) => error_fragment(&e.to_string()),
+        Err(e) => error_fragment(e),
     };
 
     Html(content.into_string())

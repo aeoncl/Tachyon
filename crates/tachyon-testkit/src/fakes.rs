@@ -334,7 +334,7 @@ impl AuthService for FakeAuthService {
         &self,
         _login_id: &LoginId,
         _server_name: &str,
-        _user_id: Option<UserId>,
+        _user_id: UserId,
         _redirect_url: &str,
         _bridge_metadata: &BridgeMetadata,
     ) -> Result<(Arc<dyn BackendSession>, InteractiveAuthStarted), BackendError> {

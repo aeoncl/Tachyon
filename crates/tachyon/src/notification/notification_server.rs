@@ -399,7 +399,7 @@ mod tests {
         assert_eq!(auth_service.session(0).close_calls(), 0, "the first sign-in is untouched");
         assert_eq!(auth_service.restore_calls(), 1);
         let token = global_state.token_for(&email(), &v14());
-        assert!(global_state.is_session_token(token.as_str()));
+        assert!(global_state.is_token_linked(token.as_str()));
     }
 
     #[tokio::test]

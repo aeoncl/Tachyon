@@ -2,8 +2,8 @@ use std::any::Any;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Duration;
 
-use anyhow::anyhow;
 use async_trait::async_trait;
 use matrix_sdk::utils::UrlOrQuery;
 use matrix_sdk::encryption::recovery::{IdentityResetHandle, RecoveryError};
@@ -26,21 +26,23 @@ use tachyon_core::domain::verification::{
 };
 
 use crate::domain::auth::SessionRestoreData;
+use crate::infrastructure::backend::auth_service::remove_login_dir;
 use crate::infrastructure::backend::identity_reset::{
     PendingReset, password_auth, run_reset, start_identity_reset,
 };
+use crate::infrastructure::backend::technical;
 use crate::infrastructure::backend::verification::{VerificationFlowMatrix, run_to_device_sync, sas_of};
 use crate::infrastructure::mappers::IntoMapper;
 
 /// How long `log_out` waits for the homeserver to acknowledge before giving up. The caller
 /// is forgetting the login locally either way.
-const LOGOUT_WINDOW: std::time::Duration = std::time::Duration::from_secs(5);
+const LOGOUT_WINDOW: Duration = Duration::from_secs(5);
 
 pub struct BackendSessionMatrix {
     client: Client,
     login_id: LoginId,
-    /// Who is signing in, for a password login. Known once the bridge names the account.
-    user_id: Option<OwnedUserId>,
+    /// Who is signing in, for a password login before the client knows it.
+    user_id: OwnedUserId,
     /// This login's directory under the store root, if the client persists anything.
     login_dir: Option<PathBuf>,
     discard_store: AtomicBool,
@@ -50,7 +52,6 @@ pub struct BackendSessionMatrix {
     pre_ready_sync: CancellationToken,
     verification: Mutex<Option<VerificationFlowMatrix>>,
     reset: Mutex<Option<PendingReset>>,
-    closed: AtomicBool,
 }
 
 impl BackendSessionMatrix {
@@ -58,7 +59,7 @@ impl BackendSessionMatrix {
         client: Client,
         login_id: LoginId,
         credential_repository: Arc<dyn CredentialRepository>,
-        user_id: Option<OwnedUserId>,
+        user_id: OwnedUserId,
         login_dir: Option<PathBuf>,
     ) -> Self {
         let tasks_token = CancellationToken::new();
@@ -73,7 +74,6 @@ impl BackendSessionMatrix {
             tasks_token,
             verification: Mutex::new(None),
             reset: Mutex::new(None),
-            closed: AtomicBool::new(false),
         }
     }
 
@@ -106,7 +106,9 @@ impl BackendSessionMatrix {
                                 //Todo push Logout or SoftLogoutEvent
                             }
                             SessionChange::TokensRefreshed => {
-                                persist_tokens(&login_id, &client, &credential_repository).await;
+                                if let Err(e) = store_session(&login_id, &client, &credential_repository).await {
+                                    log::warn!("Could not persist refreshed tokens: {e:?}");
+                                }
                             }
                         }
                     }
@@ -142,38 +144,24 @@ impl BackendSessionMatrix {
     }
 
     pub(crate) async fn store_credentials(&self) -> Result<(), BackendError> {
-        let session = self
-            .client
-            .session()
-            .ok_or_else(|| BackendError::Technical(anyhow!("Client has no session after login")))?;
-
-        let blob = SessionRestoreData::try_from(session)
-            .map_err(BackendError::Technical)?
-            .to_blob()
-            .map_err(BackendError::Technical)?;
-
-        self.credential_repository
-            .store(&self.login_id, blob)
-            .await?;
-
-        Ok(())
+        store_session(&self.login_id, &self.client, &self.credential_repository).await
     }
 
+    /// Closed is the same thing as the session's tasks being cancelled.
     fn ensure_open(&self) -> Result<(), BackendError> {
-        if self.closed.load(Ordering::SeqCst) {
-            return Err(BackendError::Technical(anyhow!("session closed")));
+        if self.tasks_token.is_cancelled() {
+            return Err(technical("session closed"));
         }
         Ok(())
     }
 
     fn shutdown(&self) {
-        self.closed.store(true, Ordering::SeqCst);
         self.tasks_token.cancel();
         drop(lock(&self.verification).take());
         drop(lock(&self.reset).take());
     }
 
-    fn user_id(&self) -> Result<&matrix_sdk::ruma::UserId, VerificationError> {
+    fn user_id(&self) -> Result<&matrix_sdk::ruma::UserId, BackendError> {
         self.client
             .user_id()
             .ok_or_else(|| technical("Client has no user id"))
@@ -184,17 +172,17 @@ impl BackendSessionMatrix {
 
         let mut slot = lock(&self.reset);
         if !matches!(*slot, Some(PendingReset::Starting)) {
-            return Err(technical("session closed"));
+            return Err(technical("session closed").into());
         }
         match started {
             Ok(mut pending) => {
                 let report = pending.observe();
                 *slot = Some(pending);
-                report.map_err(technical)
+                Ok(report.map_err(technical)?)
             }
             Err(e) => {
                 *slot = None;
-                Err(technical(e))
+                Err(technical(e).into())
             }
         }
     }
@@ -241,18 +229,15 @@ impl BackendSession for BackendSessionMatrix {
                     .oauth()
                     .finish_login(UrlOrQuery::Query(query.clone()))
                     .await
-                    .map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
+                    .map_err(technical)?;
             }
             Credential::Password(password) => {
-                let user_id = self.user_id.as_ref().ok_or_else(|| {
-                    BackendError::Technical(anyhow!("a password login needs the user id"))
-                })?;
                 self.client
                     .matrix_auth()
-                    .login_username(user_id, password.as_str())
+                    .login_username(&self.user_id, password.as_str())
                     .send()
                     .await
-                    .map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
+                    .map_err(technical)?;
             }
         }
 
@@ -269,20 +254,12 @@ impl BackendSession for BackendSessionMatrix {
         let encryption = self.client.encryption();
         encryption.wait_for_e2ee_initialization_tasks().await;
 
-        let user_id = self
-            .client
-            .user_id()
-            .ok_or_else(|| BackendError::Technical(anyhow!("Client has no user id")))?;
-
         encryption
-            .request_user_identity(user_id)
+            .request_user_identity(self.user_id()?)
             .await
-            .map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
+            .map_err(technical)?;
 
-        let own_device = encryption
-            .get_own_device()
-            .await
-            .map_err(|e| BackendError::Technical(anyhow!("{}", e)))?;
+        let own_device = encryption.get_own_device().await.map_err(technical)?;
 
         let Some(own_device) = own_device else {
             return Ok(DeviceStatus::Unverified);
@@ -308,7 +285,7 @@ impl BackendSession for BackendSessionMatrix {
         loop {
             select! {
                 _ = self.tasks_token.cancelled() => {
-                    return Err(BackendError::Technical(anyhow!("session closed")));
+                    return Err(technical("session closed"));
                 }
                 state = states.next() => match state {
                     Some(VerificationState::Verified) => {
@@ -316,11 +293,7 @@ impl BackendSession for BackendSessionMatrix {
                         return Ok(());
                     }
                     Some(_) => {}
-                    None => {
-                        return Err(BackendError::Technical(anyhow!(
-                            "the verification state stream ended"
-                        )));
-                    }
+                    None => return Err(technical("the verification state stream ended")),
                 },
             }
         }
@@ -381,16 +354,12 @@ impl BackendSession for BackendSessionMatrix {
     async fn start_device_verification(&self, device: &DeviceId) -> Result<(), VerificationError> {
         self.ensure_open()?;
 
-        let user_id = self
-            .client
-            .user_id()
-            .ok_or_else(|| technical("Client has no user id"))?;
         let Ok(device_id) = device.clone().map_into();
 
         let device = self
             .client
             .encryption()
-            .get_device(user_id, &device_id)
+            .get_device(self.user_id()?, &device_id)
             .await
             .map_err(technical)?
             .ok_or_else(|| technical(format!("unknown device {device_id}")))?;
@@ -426,18 +395,19 @@ impl BackendSession for BackendSessionMatrix {
             .ok_or(VerificationError::NoVerificationInProgress)?;
 
         match action {
-            VerificationAction::Cancel => request.cancel().await.map_err(technical),
+            VerificationAction::Cancel => request.cancel().await.map_err(technical)?,
             VerificationAction::Confirm => sas_of(&request)
                 .ok_or(VerificationError::NoVerificationInProgress)?
                 .confirm()
                 .await
-                .map_err(technical),
+                .map_err(technical)?,
             VerificationAction::Mismatch => sas_of(&request)
                 .ok_or(VerificationError::NoVerificationInProgress)?
                 .mismatch()
                 .await
-                .map_err(technical),
+                .map_err(technical)?,
         }
+        Ok(())
     }
 
     async fn reset_identity(
@@ -456,7 +426,7 @@ impl BackendSession for BackendSessionMatrix {
                 (Some(_), None) => {
                     ResetStep::Report(Err(VerificationError::NoVerificationInProgress))
                 }
-                (None, Some(pending)) => ResetStep::Report(pending.observe().map_err(technical)),
+                (None, Some(pending)) => ResetStep::Report(observed(pending.observe())),
                 (
                     Some(ResetAuth::Password(password)),
                     Some(PendingReset::PasswordRequired {
@@ -471,8 +441,8 @@ impl BackendSession for BackendSessionMatrix {
                 (
                     Some(ResetAuth::Approved),
                     Some(pending @ PendingReset::ApprovalRequired { .. }),
-                ) => ResetStep::Report(pending.approve(&self.client).map_err(technical)),
-                (Some(_), Some(pending)) => ResetStep::Report(pending.observe().map_err(technical)),
+                ) => ResetStep::Report(observed(pending.approve(&self.client))),
+                (Some(_), Some(pending)) => ResetStep::Report(observed(pending.observe())),
             }
         };
 
@@ -505,8 +475,8 @@ impl BackendSession for BackendSessionMatrix {
         }
         match tokio::time::timeout(LOGOUT_WINDOW, self.client.logout()).await {
             Ok(Ok(())) => Ok(()),
-            Ok(Err(e)) => Err(BackendError::Technical(anyhow!("{e}"))),
-            Err(_) => Err(BackendError::Technical(anyhow!(
+            Ok(Err(e)) => Err(technical(e)),
+            Err(_) => Err(technical(format!(
                 "the homeserver did not acknowledge the logout within {}s",
                 LOGOUT_WINDOW.as_secs()
             ))),
@@ -539,11 +509,10 @@ fn remove_login_dir_once_released(login_dir: PathBuf) {
     };
     runtime.spawn(async move {
         for _ in 0..40 {
-            match std::fs::remove_dir_all(&login_dir) {
-                Ok(()) => return,
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
-                Err(_) => tokio::time::sleep(std::time::Duration::from_millis(250)).await,
+            if remove_login_dir(&login_dir).await.is_ok() {
+                return;
             }
+            tokio::time::sleep(Duration::from_millis(250)).await;
         }
         log::warn!(
             "Could not remove the store of a discarded login at {}",
@@ -552,8 +521,8 @@ fn remove_login_dir_once_released(login_dir: PathBuf) {
     });
 }
 
-fn technical(error: impl std::fmt::Display) -> VerificationError {
-    VerificationError::Backend(BackendError::Technical(anyhow!("{error}")))
+fn observed(report: anyhow::Result<IdentityReset>) -> Result<IdentityReset, VerificationError> {
+    Ok(report.map_err(technical)?)
 }
 
 fn map_recovery_error(error: RecoveryError) -> VerificationError {
@@ -564,14 +533,14 @@ fn map_recovery_error(error: RecoveryError) -> VerificationError {
         RecoveryError::SecretStorage(SecretStorageError::ImportError { name, error }) => {
             match error {
                 ImportError::Sdk(_) | ImportError::Json(_) => {
-                    technical(format!("importing {name}: {error}"))
+                    technical(format!("importing {name}: {error}")).into()
                 }
                 ImportError::Key(_)
                 | ImportError::MismatchedPublicKeys
                 | ImportError::Decryption(_) => VerificationError::RecoveryKeyRejected,
             }
         }
-        other => technical(other),
+        other => technical(other).into(),
     }
 }
 
@@ -579,26 +548,23 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-async fn persist_tokens(
+/// Writes the client's current tokens to the store under the login.
+async fn store_session(
     login_id: &LoginId,
     client: &Client,
     credential_repository: &Arc<dyn CredentialRepository>,
-) {
-    let Some(session) = client.session() else {
-        log::warn!("Tokens refreshed but the client has no session to persist");
-        return;
-    };
+) -> Result<(), BackendError> {
+    let session = client
+        .session()
+        .ok_or_else(|| technical("Client has no session to persist"))?;
 
-    let blob = SessionRestoreData::try_from(session).and_then(|data| data.to_blob());
+    let blob = SessionRestoreData::try_from(session)
+        .map_err(BackendError::Technical)?
+        .to_blob()
+        .map_err(BackendError::Technical)?;
 
-    match blob {
-        Ok(blob) => {
-            if let Err(e) = credential_repository.store(login_id, blob).await {
-                log::warn!("Could not persist refreshed tokens: {:?}", e);
-            }
-        }
-        Err(e) => log::warn!("Could not serialize refreshed tokens: {:?}", e),
-    }
+    credential_repository.store(login_id, blob).await?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -610,7 +576,6 @@ mod tests {
     use matrix_sdk::ruma::api::client::sync::sync_events::v5::Response as SlidingSyncResponse;
     use matrix_sdk::ruma::{device_id, user_id};
     use matrix_sdk::test_utils::mocks::MatrixMockServer;
-    use std::time::Duration;
     use tokio::time::timeout;
     use matrix_sdk::ruma::events::secret::request::SecretName;
     use matrix_sdk_crypto::secret_storage::DecodeError;
@@ -624,7 +589,7 @@ mod tests {
             client,
             LoginId::new("l1"),
             Arc::new(CredentialRepositoryInMem::default()),
-            None,
+            user_id!("@aeon:shlasouf.local").to_owned(),
             None,
         )
     }
@@ -639,7 +604,7 @@ mod tests {
             client,
             LoginId::new("l1"),
             repository.clone(),
-            Some(user_id!("@aeon:shlasouf.local").to_owned()),
+            user_id!("@aeon:shlasouf.local").to_owned(),
             None,
         );
 
@@ -668,7 +633,7 @@ mod tests {
             client,
             LoginId::new("l1"),
             Arc::new(CredentialRepositoryInMem::default()),
-            Some(user_id!("@aeon:shlasouf.local").to_owned()),
+            user_id!("@aeon:shlasouf.local").to_owned(),
             None,
         );
         session
@@ -678,7 +643,7 @@ mod tests {
 
         session.hard_log_out().await.unwrap();
 
-        assert_eq!(logouts(&server).await, 1);
+        assert_eq!(requests_to(&server, "/logout").await, 1);
     }
 
     /// The SDK mock's logout endpoint insists on its own default access token, which the
@@ -691,17 +656,6 @@ mod tests {
             .await;
     }
 
-    async fn logouts(server: &MatrixMockServer) -> usize {
-        server
-            .server()
-            .received_requests()
-            .await
-            .unwrap()
-            .iter()
-            .filter(|request| request.url.path().ends_with("/logout"))
-            .count()
-    }
-
     #[tokio::test]
     async fn closing_or_discarding_an_authenticated_session_keeps_its_device() {
         let server = MatrixMockServer::new().await;
@@ -712,7 +666,7 @@ mod tests {
             client,
             LoginId::new("l1"),
             Arc::new(CredentialRepositoryInMem::default()),
-            Some(user_id!("@aeon:shlasouf.local").to_owned()),
+            user_id!("@aeon:shlasouf.local").to_owned(),
             None,
         );
         session
@@ -723,20 +677,7 @@ mod tests {
         session.close().await;
         session.discard().await;
 
-        assert_eq!(logouts(&server).await, 0);
-    }
-
-    #[tokio::test]
-    async fn a_password_login_without_a_user_id_is_refused() {
-        let server = MatrixMockServer::new().await;
-        let client = server.client_builder().unlogged().build().await;
-        let session = session(client);
-
-        let refused = session
-            .authenticate(&Credential::Password(Password::new("hunter2")))
-            .await;
-
-        assert!(matches!(refused, Err(BackendError::Technical(_))));
+        assert_eq!(requests_to(&server, "/logout").await, 0);
     }
 
     async fn logged_in_session() -> (BackendSessionMatrix, MockServer) {
@@ -976,8 +917,13 @@ mod tests {
 
         let repository = Arc::new(CredentialRepositoryInMem::default());
         let login_id = LoginId::new("l1");
-        let session =
-            BackendSessionMatrix::new(client, login_id.clone(), repository.clone(), None, None);
+        let session = BackendSessionMatrix::new(
+            client,
+            login_id.clone(),
+            repository.clone(),
+            restore_data.user_id.clone(),
+            None,
+        );
 
         session.store_credentials().await.unwrap();
 

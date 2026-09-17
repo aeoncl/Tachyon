@@ -6,11 +6,10 @@ use dashmap::DashMap;
 use std::sync::Arc;
 use tokio::sync::Notify;
 
-/// What the user still has to do in a browser before a pending login can be used.
+/// What the user still has to do before a pending login can be Ready
 #[derive(Clone, Debug)]
 pub enum Step {
     /// The backend has not accepted the login yet. `flow_id` is how the authorization
-    /// callback finds its way back to this login; for OAuth it is the CSRF `state`.
     Authenticate {
         flow_id: String,
         prompt: InteractiveAuthStarted,
@@ -19,10 +18,7 @@ pub enum Step {
     VerifyDevice,
 }
 
-/// A live login for one account. Sessions hold open backend connections, so this only ever
-/// lives in memory; the store keeps what is needed to rebuild one after a restart. The
-/// session is the login's identity: a caller that looked at a login and comes back later
-/// names the session it saw, and a login that took the slot since is left alone.
+/// A live login for one account
 #[derive(Clone)]
 pub(crate) enum Login {
     Pending {
@@ -85,7 +81,7 @@ impl Login {
         }
     }
 
-    fn holds(&self, session: &Arc<dyn BackendSession>) -> bool {
+    fn session_equals(&self, session: &Arc<dyn BackendSession>) -> bool {
         Arc::ptr_eq(self.session(), session)
     }
 
@@ -100,9 +96,6 @@ impl Login {
     }
 }
 
-/// One live login per token, plus the reverse index the authorization callback needs. A
-/// token is a bridge's name for one client of an account, so the same account signed in
-/// through two bridges is two logins with two backend sessions.
 #[derive(Default)]
 pub struct Logins {
     logins: DashMap<BridgeLinkToken, Login>,
@@ -118,11 +111,10 @@ impl Logins {
         self.logins.contains_key(token)
     }
 
-    /// Whether the login under the token is still the one built on `session`.
-    pub(crate) fn holds(&self, token: &BridgeLinkToken, session: &Arc<dyn BackendSession>) -> bool {
+    pub(crate) fn is_token_linked_to(&self, token: &BridgeLinkToken, session: &Arc<dyn BackendSession>) -> bool {
         self.logins
             .get(token)
-            .is_some_and(|entry| entry.value().holds(session))
+            .is_some_and(|entry| entry.value().session_equals(session))
     }
 
     pub(crate) fn ready_session(&self, token: &BridgeLinkToken) -> Option<Arc<dyn BackendSession>> {
@@ -154,7 +146,7 @@ impl Logins {
         let Some(mut slot) = self.logins.get_mut(token) else {
             return false;
         };
-        if !slot.holds(expected) {
+        if !slot.session_equals(expected) {
             return false;
         }
         let flow = login.flow_id().map(str::to_owned);
@@ -169,19 +161,6 @@ impl Logins {
 
     pub(crate) fn remove(&self, token: &BridgeLinkToken) -> Option<Login> {
         let (_, removed) = self.logins.remove(token)?;
-        self.forget_flow(&removed);
-        Some(removed)
-    }
-
-    /// Takes the login out only while the slot still holds the login built on `expected`.
-    pub(crate) fn remove_if(
-        &self,
-        token: &BridgeLinkToken,
-        expected: &Arc<dyn BackendSession>,
-    ) -> Option<Login> {
-        let (_, removed) = self
-            .logins
-            .remove_if(token, |_, login| login.holds(expected))?;
         self.forget_flow(&removed);
         Some(removed)
     }

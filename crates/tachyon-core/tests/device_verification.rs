@@ -139,7 +139,6 @@ async fn a_ready_login_still_reports_the_flow_that_verified_it() {
     let state = fixture
         .use_case
         .verification_state(&fixture.token)
-        .await
         .unwrap();
 
     assert_eq!(state, VerificationFlowState::Done);
@@ -191,7 +190,7 @@ async fn a_token_with_no_login_is_not_found() {
 async fn asking_for_a_flow_that_was_never_started_reports_no_verification_in_progress() {
     let fixture = Fixture::verifying([DeviceStatus::Unverified]).await;
 
-    let outcome = fixture.use_case.verification_state(&fixture.token).await;
+    let outcome = fixture.use_case.verification_state(&fixture.token);
 
     assert!(matches!(
         outcome,

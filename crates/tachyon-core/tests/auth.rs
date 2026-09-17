@@ -621,7 +621,8 @@ async fn sweeping_forgets_unbound_logins_and_prunes_the_backend_to_the_rest() {
 
     fixture.use_case.clear_unlinked_logins().await.unwrap();
 
-    assert_eq!(fixture.auth_service.forgotten(), vec![LoginId::new("leftover")]);
     assert_eq!(fixture.auth_service.swept_keeping(), Some(vec![LoginId::new("login-1")]));
     assert!(fixture.stored_login().await.is_some(), "a bound login is kept");
+    let stored = fixture.account_repository.logins().await.unwrap();
+    assert!(stored.iter().all(|login| login.linked), "the leftover row is gone: {stored:?}");
 }

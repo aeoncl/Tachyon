@@ -89,15 +89,14 @@ impl AuthUseCase {
             token.clone(),
             Login::after_auth(session.clone(), login_id, device_status),
         );
-        Ok(match device_status {
-            DeviceStatus::Verified => SignIn::Ready(session),
-            DeviceStatus::Unverified => SignIn::Pending {
+        Ok(match self.confirm_device_url(token, device_status) {
+            None => SignIn::Ready(session),
+            Some(url) => SignIn::Pending {
                 step: Step::VerifyDevice,
-                url: self.web_urls.confirm_device(token),
+                url,
             },
         })
     }
-
 
     /// Waits until a session is ready, or time out.
     pub async fn wait_until_session_ready(
@@ -141,6 +140,8 @@ impl AuthUseCase {
         }
     }
 
+    /// Under the guard the slot cannot change hands, so once `holds` passes the plain
+    /// `remove`/`insert` below act on the login built on `session`.
     async fn settle_device_status_after_authenticated(
         &self,
         token: &BridgeLinkToken,
@@ -148,38 +149,32 @@ impl AuthUseCase {
         login_id: LoginId,
     ) -> Result<DeviceStatus, AuthError> {
         let _guard = self.login_guard.lock().await;
-        if !self.logins.holds(token, session) {
+        if !self.logins.is_token_linked_to(token, session) {
             self.execute_effects(session, &login_id, ending(Ending::Orphaned)).await?;
             return Err(AuthError::LoginNotFound);
         }
 
-        let device_status = match self.link_login_and_read_device_status(token, session, &login_id).await {
+        let settled = async {
+            self.account_repository
+                .save_login_for_token(token.clone(), login_id.clone())
+                .await?;
+            Ok::<_, AuthError>(session.device_status().await?)
+        }
+        .await;
+        let device_status = match settled {
             Ok(device_status) => device_status,
             Err(e) => {
-                self.logins.remove_if(token, session);
+                self.logins.remove(token);
                 self.execute_effects(session, &login_id, ending(Ending::Unsettled)).await?;
                 return Err(e);
             }
         };
 
-        let advanced = Login::after_auth(session.clone(), login_id, device_status);
-        if self.logins.replace_if(token, session, advanced) {
-            Ok(device_status)
-        } else {
-            Err(AuthError::LoginNotFound)
-        }
-    }
-
-    async fn link_login_and_read_device_status(
-        &self,
-        token: &BridgeLinkToken,
-        session: &Arc<dyn BackendSession>,
-        login_id: &LoginId,
-    ) -> Result<DeviceStatus, AuthError> {
-        self.account_repository
-            .save_login_for_token(token.clone(), login_id.clone())
-            .await?;
-        Ok(session.device_status().await?)
+        self.logins.insert(
+            token.clone(),
+            Login::after_auth(session.clone(), login_id, device_status),
+        );
+        Ok(device_status)
     }
 
     pub async fn abandon_login(&self, token: &BridgeLinkToken) -> Result<(), AuthError> {
@@ -200,7 +195,7 @@ impl AuthUseCase {
             return Ok(());
         };
 
-        // Logging out needs a client with the login's tokens; one that cannot be rebuilt
+        // Logging out needs a client with the login's tokens; one the backend says is over
         // has no device left to end anyway.
         match self.auth_service.restore(&login_id).await {
             Ok(session) => {
@@ -208,10 +203,13 @@ impl AuthUseCase {
                 self.auth_service.remove_login(&login_id).await?;
                 Ok(())
             }
-            Err(_) => self.remove_stored_login(&login_id).await,
+            Err(e) if e.ends_the_login() => self.remove_stored_login(&login_id).await,
+            Err(e) => Err(e.into()),
         }
     }
 
+    /// Drops the rows no token points at, then has the backend drop everything it keeps
+    /// for a login that is not in the store any more.
     pub async fn clear_unlinked_logins(&self) -> Result<(), AuthError> {
         let _guard = self.login_guard.lock().await;
 
@@ -220,7 +218,7 @@ impl AuthUseCase {
             if stored.linked {
                 keep.push(stored.login_id);
             } else {
-                self.remove_stored_login(&stored.login_id).await?;
+                self.account_repository.delete_login(&stored.login_id).await?;
             }
         }
         self.auth_service.clear_logins_except(&keep).await?;
@@ -246,7 +244,7 @@ impl AuthUseCase {
         &self,
         session: &Arc<dyn BackendSession>,
         login_id: &LoginId,
-        effects: Vec<Effect>,
+        effects: &[Effect],
     ) -> Result<(), AuthError> {
         for effect in effects {
             match effect {
@@ -269,6 +267,15 @@ impl AuthUseCase {
         Ok(())
     }
 
+    /// Where the browser goes next once the login has authenticated: nowhere for a trusted
+    /// device, the confirmation page otherwise.
+    fn confirm_device_url(&self, token: &BridgeLinkToken, status: DeviceStatus) -> Option<String> {
+        match status {
+            DeviceStatus::Verified => None,
+            DeviceStatus::Unverified => Some(self.web_urls.confirm_device(token)),
+        }
+    }
+
     pub fn ready_session(&self, token: &BridgeLinkToken) -> Option<Arc<dyn BackendSession>> {
         self.logins.ready_session(token)
     }
@@ -276,11 +283,6 @@ impl AuthUseCase {
     pub fn has_login(&self, token: &BridgeLinkToken) -> bool {
         self.logins.contains(token)
     }
-
-
-}
-
-impl AuthUseCase {
 
     async fn start_interactive_flow(
         &self,
@@ -295,7 +297,7 @@ impl AuthUseCase {
             .start_interactive_login(
                 &login_id,
                 server_name,
-                Some(user_id),
+                user_id,
                 &self.web_urls.oauth_callback(),
                 bridge_metadata,
             )
@@ -313,7 +315,6 @@ impl AuthUseCase {
         );
         Ok(SignIn::Pending { step, url })
     }
-
 
     pub async fn abandon_interactive_flow(&self, flow_id: &str) -> Result<(), AuthError> {
         let _guard = self.login_guard.lock().await;
@@ -335,24 +336,23 @@ impl AuthUseCase {
             return Err(AuthError::LoginNotFound);
         };
         let Some(Login::Pending {
-                     session,
-                     login_id,
-                     step: Step::Authenticate { .. },
-                     changed,
-                 }) = self.logins.get(&token)
+            session,
+            login_id,
+            step: Step::Authenticate { .. },
+            changed,
+        }) = self.logins.get(&token)
         else {
             return Err(AuthError::LoginNotFound);
         };
 
         session.authenticate(&credential).await?;
 
-        let finished = self.settle_device_status_after_authenticated(&token, &session, login_id).await;
+        let finished = self
+            .settle_device_status_after_authenticated(&token, &session, login_id)
+            .await;
         changed.notify_one();
         finished.map(|device_status| FinishedLogin {
-            redirect_url: match device_status {
-                DeviceStatus::Verified => None,
-                DeviceStatus::Unverified => Some(self.web_urls.confirm_device(&token)),
-            },
+            redirect_url: self.confirm_device_url(&token, device_status),
             token,
             device_status,
         })
@@ -368,5 +368,4 @@ impl AuthUseCase {
             _ => None,
         }
     }
-
 }

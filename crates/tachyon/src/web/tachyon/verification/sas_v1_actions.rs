@@ -1,9 +1,9 @@
 use crate::tachyon::global_state::GlobalState;
-use crate::web::tachyon::layout::error_fragment;
+use crate::web::tachyon::layout::{error_html, ic_redirect};
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{Response, StatusCode};
-use axum::response::{Html, IntoResponse};
+use axum::response::IntoResponse;
 use tachyon_core::domain::auth::BridgeLinkToken;
 use tachyon_core::domain::verification::VerificationAction;
 
@@ -29,12 +29,8 @@ pub(crate) async fn post_sas_v1_action(
         .verification_action(&BridgeLinkToken::new(&token), action)
         .await
     {
-        return Html(error_fragment(&e.to_string()).into_string()).into_response();
+        return error_html(e).into_response();
     }
 
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("X-IC-Redirect", "/tachyon/verification")
-        .body(Body::empty())
-        .unwrap()
+    ic_redirect("/tachyon/verification")
 }

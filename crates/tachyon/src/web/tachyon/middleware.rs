@@ -18,7 +18,7 @@ pub async fn is_authenticated(
     if let Some(token) = req.extensions().get::<String>() {
         // A login still finishing counts: device confirmation happens before the MSNP
         // client has a session of its own.
-        if state.is_session_token(token) {
+        if state.is_token_linked(token) {
             return next.run(req).await;
         }
     }

@@ -114,13 +114,13 @@ pub enum Ending {
 
 /// The effects an ending runs, in order. `LogOut` precedes `Discard` so the device ends
 /// before its on-disk state goes.
-pub fn ending(ending: Ending) -> Vec<Effect> {
+pub fn ending(ending: Ending) -> &'static [Effect] {
     use Effect::*;
     match ending {
-        Ending::Dropped { authenticated: false } => vec![Discard, DeleteRow],
-        Ending::Dropped { authenticated: true } | Ending::Unsettled => vec![Close],
-        Ending::Orphaned => vec![LogOut, Discard],
-        Ending::Deleted => vec![LogOut, Discard, DeleteRow],
+        Ending::Dropped { authenticated: false } => &[Discard, DeleteRow],
+        Ending::Dropped { authenticated: true } | Ending::Unsettled => &[Close],
+        Ending::Orphaned => &[LogOut, Discard],
+        Ending::Deleted => &[LogOut, Discard, DeleteRow],
     }
 }
 

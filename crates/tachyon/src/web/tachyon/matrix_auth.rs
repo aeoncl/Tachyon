@@ -6,7 +6,7 @@ use axum::http::header::LOCATION;
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use log::{debug, error, warn};
-use maud::{html, Markup};
+use maud::html;
 use tachyon_core::application::auth_use_case::FinishedLogin;
 use tachyon_core::application::error::AuthError;
 use tachyon_core::domain::auth::{Credential, InteractiveAuthStarted};
@@ -168,18 +168,14 @@ fn password_page(flow_id: &str, error: Option<&str>) -> Response {
 }
 
 fn error_page(message: &str) -> Response {
-    let content = error_markup(message);
-    Html(layout::tachyon_page_no_nav(content).into_string()).into_response()
-}
-
-fn error_markup(message: &str) -> Markup {
-    html! {
+    let content = html! {
         div class="container" {
             h2 { "Sign-in problem" }
             p { (message) }
             p { "Sign out of Messenger and sign in again to start over." }
         }
-    }
+    };
+    Html(layout::tachyon_page_no_nav(content).into_string()).into_response()
 }
 
 #[cfg(test)]

@@ -41,9 +41,6 @@ impl BackendError {
 pub enum VerificationError {
     #[error("no login with that id")]
     LoginNotFound,
-    /// A login for the token is live already, pending or ready. One client per token.
-    #[error("a login for that token is live already")]
-    AlreadySignedIn,
     /// The login is still at `Step::Authenticate`.
     #[error("login has not finished authenticating")]
     NotAuthenticated,
@@ -58,8 +55,6 @@ pub enum VerificationError {
     StillUnverified,
     #[error(transparent)]
     Backend(#[from] BackendError),
-    #[error(transparent)]
-    Store(#[from] StoreError),
 }
 
 #[derive(Debug, thiserror::Error)]
