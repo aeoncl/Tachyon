@@ -1,8 +1,8 @@
 use anyhow::anyhow;
 use log::{info, warn};
 use matrix_sdk::attachment::{AttachmentConfig, AttachmentInfo, BaseAudioInfo, BaseFileInfo, BaseImageInfo, BaseVideoInfo};
+use matrix_sdk::ruma::{RoomId, UInt};
 use mime::Mime;
-use ruma::{RoomId, UInt};
 use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
 use crate::p2p::client::session::SessionId;
 use crate::tachyon::client::tachyon_client::TachyonClient;

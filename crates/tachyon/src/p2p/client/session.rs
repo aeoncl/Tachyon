@@ -8,7 +8,7 @@ use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::traits::IntoBytes;
 use std::sync::{Arc, Mutex};
 use anyhow::anyhow;
-use ruma::{OwnedRoomId, RoomId};
+use matrix_sdk::ruma::OwnedRoomId;
 use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
 use msnp::shared::models::msn_object::MsnObject;
 use msnp::shared::models::msn_user::MsnUser;

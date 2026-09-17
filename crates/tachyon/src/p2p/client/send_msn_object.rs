@@ -9,8 +9,8 @@ use matrix_sdk::Room;
 use mime::Mime;
 use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
 use msnp::shared::models::msn_object::{MsnObject, MsnObjectType};
-use ruma::{RoomId, UInt};
 use std::str::FromStr;
+use matrix_sdk::ruma::{RoomId, UInt};
 
 impl TachyonClient {
 

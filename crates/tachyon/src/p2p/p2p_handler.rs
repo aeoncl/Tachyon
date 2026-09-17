@@ -16,9 +16,9 @@ use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_object::MsnObjectType;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::traits::IntoBytes;
-use ruma::RoomId;
 use std::str::FromStr;
 use std::time::Duration;
+use matrix_sdk::ruma::RoomId;
 use tokio::time::sleep;
 
 pub async fn handle_p2p_packet(room_id: &RoomId, transport: Transport, p2p_packet: P2PTransportPacket, tachyon_client: TachyonClient) {

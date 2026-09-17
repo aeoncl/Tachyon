@@ -1,11 +1,8 @@
-use std::time::Duration;
 use futures_util::StreamExt;
-use matrix_sdk::event_handler::Ctx;
-use matrix_sdk::{Client, Room};
 use matrix_sdk::encryption::verification::{SasState, SasVerification, Verification, VerificationRequest, VerificationRequestState};
-use ruma::events::presence::PresenceEvent;
+use matrix_sdk::Client;
+use std::time::Duration;
 use tokio::time::sleep;
-use crate::matrix::handlers::context::TachyonContext;
 
 pub async fn request_verification_handler(client: Client, request: VerificationRequest) {
     println!("Accepting verification request from {}", request.other_user_id());

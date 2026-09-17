@@ -5,10 +5,11 @@ use base64::engine::general_purpose;
 use base64::Engine;
 use matrix_sdk::media::{MediaFormat, MediaRequestParameters, MediaThumbnailSettings};
 use matrix_sdk::Room;
+use matrix_sdk::ruma::{OwnedMxcUri, RoomId, UInt, UserId};
+use matrix_sdk::ruma::events::room::MediaSource;
+use matrix_sdk::ruma::media::Method;
 use msnp::shared::models::msn_object::{FriendlyName, MSNObjectFactory, MsnObject};
-use ruma::events::room::MediaSource;
-use ruma::media::Method;
-use ruma::{OwnedMxcUri, RoomId, UInt, UserId};
+
 
 impl TachyonClient {
     pub async fn get_avatar_as_msn_object(

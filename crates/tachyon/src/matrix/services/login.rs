@@ -4,7 +4,7 @@ use std::fs;
 
 use matrix_sdk::authentication::matrix::MatrixSession;
 use matrix_sdk::ruma::api::client::uiaa;
-use matrix_sdk::ruma::api::client::uiaa::AuthData;
+use matrix_sdk::ruma::api::client::uiaa::{AuthData, MatrixUserIdentifier};
 use matrix_sdk::ruma::UserId;
 use matrix_sdk::ruma::{device_id, DeviceId, OwnedDeviceId, OwnedUserId};
 use matrix_sdk::{async_trait, AuthSession, Client, ClientBuilder, ServerName, SessionTokens};
@@ -84,7 +84,7 @@ impl MatrixLoginService for MatrixLoginServiceImpl {
         if let Err(e) = client.encryption().bootstrap_cross_signing_if_needed(None).await {
             if let Some(response) = e.as_uiaa_response() {
                 let mut password = uiaa::Password::new(
-                    uiaa::UserIdentifier::UserIdOrLocalpart(matrix_id.to_string()),
+                    uiaa::UserIdentifier::Matrix(MatrixUserIdentifier::new(matrix_id.to_string())),
                     password.to_string(),
                 );
                 password.session = response.session.clone();

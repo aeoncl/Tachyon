@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use axum::extract::State;
 use axum::response::Html;
-use matrix_sdk::ruma::api::client::uiaa::{AuthData, Password, UserIdentifier};
+use matrix_sdk::ruma::api::client::uiaa::{AuthData, MatrixUserIdentifier, Password, UserIdentifier};
 use maud::html;
 use crate::matrix::cross_signing::check_device_is_crossed_signed;
 use crate::tachyon::alert::{AlertError, AlertNotify, AlertSuccess};
@@ -29,7 +29,7 @@ pub async fn post_reset_identity(
 
     let handle = matrix_client.encryption().recovery().reset_identity().await.unwrap();
     if let Some(handle) = handle {
-        handle.reset(Some(AuthData::Password(Password::new(UserIdentifier::UserIdOrLocalpart(own_user.to_string()), password.to_string())))).await.unwrap();
+        handle.reset(Some(AuthData::Password(Password::new(UserIdentifier::Matrix(MatrixUserIdentifier::new(own_user.to_string())), password.to_string())))).await.unwrap();
     }
 
     let secret_storage_key = matrix_client.encryption()

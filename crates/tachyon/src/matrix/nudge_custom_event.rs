@@ -1,5 +1,4 @@
-use ruma::events::room::message::{MessageType, RoomMessageEventContent};
-
+use matrix_sdk::ruma::events::room::message::{MessageType, RoomMessageEventContent};
 
 pub fn create_fireworks_message(content: &str) -> RoomMessageEventContent {
 

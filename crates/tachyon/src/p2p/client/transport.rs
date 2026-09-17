@@ -14,7 +14,6 @@ use dashmap::DashMap;
 use futures_util::StreamExt;
 use lazy_static_include::syn::parse::End;
 use log::{debug, error};
-use ruma::int;
 use msnp::p2p::v2::factories::{P2PPayloadFactory, P2PTransportPacketFactory, TLVFactory};
 use msnp::p2p::v2::slp::raw_slp_payload::{RawSlpPayload, SlpPayloadFactory};
 use msnp::shared::models::uuid::Uuid;

@@ -8,7 +8,6 @@ use matrix_sdk::{Client, Error, Room};
 use matrix_sdk::attachment::AttachmentConfig;
 use matrix_sdk::room::futures::SendMessageLikeEventResult;
 use mime::Mime;
-use ruma::events::room::message::MessageType;
 use msnp::msnp::switchboard::command::ack::AckServer;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::msnp::switchboard::command::msg::{MsgAcknowledgment, MsgClient, MsgPayload};

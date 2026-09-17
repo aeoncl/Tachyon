@@ -1,7 +1,6 @@
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::{Client, Room};
-use ruma::events::presence::PresenceEvent;
-use ruma::events::room::member::RoomMemberEvent;
+use matrix_sdk::ruma::events::presence::PresenceEvent;
 use crate::matrix::handlers::context::TachyonContext;
 
 pub async fn handle_presence_event(
