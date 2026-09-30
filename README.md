@@ -8,8 +8,8 @@ Tachyon is a work in progress **translation layer** between **MSNP18** & **the M
 ## Components
 There are three distinct components making Tachyon tick:
 
- 1. **Notification Server** - TCP Server listening on port 1863: This server handles the meat of MSNP18.
- 2. **Switchboard Server** (or Mixer) - TCP Server listening on port 1864: This server handles rooms. One room per TCP connection.
+ 1. **Notification Server**: TCP Server listening on port 1863: This server handles the meat of MSNP18.
+ 2. **Switchboard Server** (or Mixer): TCP Server listening on port 1864: This server handles rooms. One room per TCP connection.
  3. **HTTP Server**: This server handles all the SOAP Services used by the client (and various bits and bops)
 	 - **The Address Book**: Handles the Contact List
 	 - **Sharing Service**: Handles the membership lists (Who has added you back, Who did you add in your contact list)
@@ -17,9 +17,11 @@ There are three distinct components making Tachyon tick:
 	 - **RST2, Request Security Token**: The SOAP Service responsible for authenticating the client
 
 ## Building
-Clone with submodules (`git clone --recursive`, or `git submodule update --init`): `lib/matrix-rust-sdk` and `lib/libsiren` are both required. 
-libsiren is compiled from source by Tachyon's build script, so a C compiler must be available.
-**ffmpeg** must be installed and on the `PATH` at runtime, built with the `msnsiren` decoder and `libopus`. It is used to transcode voice clips both ways; without it, audio messages degrade to plain file transfers.
+
+1. Clone with submodules
+```git clone --recursive```
+2. You need a C compiler to compile libsiren (the weird microsoft wav audio coded for voice messages & voip)
+3. You need ffmpeg built with `msnsiren` & `libopus` in your PATH (i'll try to build against the ffmpeg library directly in the future)
 
 ## Special Thanks
  - The Escargot Project
