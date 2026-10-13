@@ -27,8 +27,26 @@ impl YaSerialize for EndpointGuid {
 }
 
 impl YaDeserialize for EndpointGuid {
-    fn deserialize<R: Read>(_reader: &mut Deserializer<R>) -> Result<Self, String> {
-        todo!()
+    fn deserialize<R: Read>(reader: &mut Deserializer<R>) -> Result<Self, String> {
+        if let xml::reader::XmlEvent::StartElement { name, .. } = reader.peek()?.to_owned() {
+            let expected_name = "EndpointGuid".to_owned();
+            if name.local_name != expected_name {
+                return Err(format!(
+                    "Wrong StartElement name: {}, expected: {}",
+                    name, expected_name
+                ));
+            }
+            let _next = reader.next_event();
+        } else {
+            return Err("StartElement missing".to_string());
+        }
+
+        if let xml::reader::XmlEvent::Characters(text) = reader.peek()?.to_owned() {
+            EndpointGuid::from_str(text.as_str())
+                .map_err(|e| format!("Couldn't parse EndpointGuid: {}", e))
+        } else {
+            Err("Characters missing".to_string())
+        }
     }
 }
 

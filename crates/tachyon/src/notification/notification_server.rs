@@ -33,7 +33,7 @@ impl NotificationServer {
                         let (socket, _addr)  = accepted.map_err(|e| anyhow!(e))?;
                         let _result = tokio::spawn(async move {
                             handle_client(socket, global_shutdown_recv_clone.resubscribe(), global_state_clone).await
-                        }).await;
+                        });
                     }
                     global_shutdown = global_shutdown_recv_clone.recv() => {
                         if let Err(err) = global_shutdown {
@@ -103,6 +103,7 @@ async fn handle_client(socket: TcpStream, mut global_shutdown_recv: broadcast::R
     }
 
     info!("Client gracefully shutdown...");
+    global_state.remove_pending_login(local_client_data.token.as_str());
     Ok(())
 
 }

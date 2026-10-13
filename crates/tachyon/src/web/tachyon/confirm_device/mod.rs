@@ -10,6 +10,8 @@ use crate::web::tachyon::Params;
 pub(super) mod recover;
 pub(super) mod reset_identity;
 pub(super) mod other_device;
+pub(super) mod enable;
+pub(super) mod recovery_key;
 
 pub async fn get_confirm(
     State(state): State<GlobalState>,

@@ -2,6 +2,7 @@ use std::{fmt::Display, str::{from_utf8, FromStr}};
 
 use anyhow::anyhow;
 use num_derive::{FromPrimitive, ToPrimitive};
+use num_traits::ToPrimitive;
 use yaserde::{de::from_str, ser::to_string_with_config};
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
@@ -77,6 +78,37 @@ impl IntoBytes for UunPayload {
             UunPayload::P2PData(payload) => payload.into_bytes(),
             UunPayload::Unknown(payload) => payload.to_owned(),
         }
+    }
+}
+
+impl UunPayload {
+    fn wire_type(&self) -> UserNotificationType {
+        match self {
+            Self::DisconnectClient => UserNotificationType::DisconnectClient,
+            Self::DisconnectAllClients => UserNotificationType::DisconnectAllClients,
+            Self::ConversationWindowClosed { .. } => UserNotificationType::ClosedConversation,
+            Self::DismissUserInvite { .. } => UserNotificationType::DismissUserInvite,
+            Self::Resynchronize(_) => UserNotificationType::Resynchronize,
+            Self::P2PData(_) => UserNotificationType::P2PData,
+            Self::Unknown(_) => UserNotificationType::XmlData,
+        }
+    }
+}
+
+impl IntoBytes for UunClient {
+    fn into_bytes(self) -> Vec<u8> {
+        let notification_type = self.payload.wire_type().to_u32().unwrap_or(0);
+        let payload = self.payload.into_bytes();
+        let mut out = format!(
+            "UUN {tr_id} {destination} {notification_type} {len}\r\n",
+            tr_id = self.tr_id,
+            destination = self.destination,
+            notification_type = notification_type,
+            len = payload.len(),
+        )
+        .into_bytes();
+        out.extend_from_slice(&payload);
+        out
     }
 }
 
@@ -174,5 +206,69 @@ impl Display for UunSoapStatePayload {
             Err(std::fmt::Error)
         }
      
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use yaserde::de::from_str;
+
+    use super::{UunService, UunSoapStatePayload};
+
+    #[test]
+    fn deser_uun_soap_state_payload() {
+        let raw = r#"<State><services type="ABCH" reason="0" /><services type="Membership" reason="1" /></State>"#;
+
+        let parsed = from_str::<UunSoapStatePayload>(raw).expect("to deserialize");
+
+        assert_eq!(parsed.services.len(), 2);
+        assert_eq!(parsed.services[0].service_type, "ABCH");
+        assert_eq!(parsed.services[0].reason, 0);
+        assert_eq!(parsed.services[1].service_type, "Membership");
+        assert_eq!(parsed.services[1].reason, 1);
+    }
+
+    #[test]
+    fn ser_uun_soap_state_payload_golden() {
+        let state = UunSoapStatePayload {
+            services: vec![
+                UunService { service_type: "ABCH".to_string(), reason: 0 },
+                UunService { service_type: "Membership".to_string(), reason: 1 },
+            ],
+        };
+
+        let xml = state.to_string();
+
+        assert_eq!(xml, r#"<State><services type="ABCH" reason="0" /><services type="Membership" reason="1" /></State>"#);
+    }
+
+    use std::str::FromStr;
+
+    use crate::msnp::raw_command_parser::RawCommandParser;
+    use crate::shared::models::endpoint_id::EndpointId;
+    use crate::shared::traits::{IntoBytes, TryFromRawCommand};
+
+    use super::{UunClient, UunPayload};
+
+    #[test]
+    fn round_trips_the_disconnect_client_payload() {
+        let uun = UunClient {
+            tr_id: 5,
+            destination: EndpointId::from_str("a@b.c;{C8D73CAE-A6F5-491B-A74B-A85E657CFC2C}").unwrap(),
+            payload: UunPayload::DisconnectClient,
+        };
+
+        let bytes = uun.into_bytes();
+        assert_eq!(
+            String::from_utf8(bytes.clone()).unwrap(),
+            "UUN 5 a@b.c;{C8D73CAE-A6F5-491B-A74B-A85E657CFC2C} 4 14\r\ngoawyplzthxbye"
+        );
+
+        let mut parser = RawCommandParser::new();
+        let raw = parser.parse_message(&bytes).unwrap().pop().unwrap();
+        let parsed = UunClient::try_from_raw(raw).unwrap();
+
+        assert_eq!(parsed.tr_id, 5);
+        assert!(matches!(parsed.payload, UunPayload::DisconnectClient));
     }
 }

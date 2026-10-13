@@ -30,8 +30,15 @@ impl IntoBytes for NotificationPayloadType {
 impl TryFromRawCommand for NotServer {
     type Err = PayloadError;
 
-    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
-        todo!()
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
+        let payload = String::from_utf8(raw.payload).map_err(|error| {
+            PayloadError::StringPayloadParsingError {
+                payload: String::from_utf8_lossy(error.as_bytes()).to_string(),
+                source: error.into(),
+            }
+        })?;
+
+        Ok(Self { payload: NotificationPayloadType::Raw(payload) })
     }
 
 }
@@ -381,6 +388,9 @@ pub mod factories {
 mod tests {
     use std::str::FromStr;
 
+    use yaserde::de::from_str;
+
+    use super::{Message, MessageBody, MessageBodyContent, NotificationData, NotificationPayload, RawStringMessageBody, Recipient, TextMessageBody, Url, Via};
     use crate::shared::models::email_address::EmailAddress;
     use crate::soap::traits::xml::ToXml;
     use crate::{msnp::notification::command::not::factories::NotificationFactory, shared::models::msn_user::MsnUser};
@@ -406,5 +416,161 @@ mod tests {
 
         let notif_legacy = NotificationFactory::test(&msn_user.uuid, &msn_user.endpoint_id.email_addr.as_str());
         assert_eq!(notif.to_xml().unwrap().as_str(), notif_legacy.replace("\r\n", ""));
+    }
+
+    #[test]
+    fn deser_notification_payload() {
+        let raw = r#"<NOTIFICATION id="1342902633" ver="2" siteid="199999999" siteurl="http://127.0.0.1:8080/ads"><TO pid="0x97f337aa885ae2bc:0x4d555fd33077064c" name="aeon.shl@shl.local" email="aeon.shl@shl.local" /><MSG id="1"><SUBSCR url="http://127.0.0.1:8080/tachyon?s=true" /><ACTION url="http://127.0.0.1:8080/tachyon?a=true" /><BODY lang="3076" icon="spongebob-icon_32x32.png"><TEXT>this is an alert</TEXT></BODY></MSG></NOTIFICATION>"#;
+
+        let parsed = from_str::<NotificationPayload>(raw).expect("to deserialize");
+
+        assert_eq!(parsed.id, 1342902633);
+        assert_eq!(parsed.ver, Some(2));
+        assert_eq!(parsed.site_id, 199999999);
+        assert_eq!(parsed.site_url, "http://127.0.0.1:8080/ads");
+        assert_eq!(parsed.to.pid, "0x97f337aa885ae2bc:0x4d555fd33077064c");
+        assert_eq!(parsed.to.name, "aeon.shl@shl.local");
+        assert_eq!(parsed.to.email.as_deref(), Some("aeon.shl@shl.local"));
+        assert!(parsed.to.via.is_none());
+        assert_eq!(parsed.message.id, 1);
+        assert_eq!(parsed.message.subscriber.url, "http://127.0.0.1:8080/tachyon?s=true");
+        assert_eq!(parsed.message.action.url, "http://127.0.0.1:8080/tachyon?a=true");
+        assert_eq!(parsed.message.body.lang.as_deref(), Some("3076"));
+        assert_eq!(parsed.message.body.icon.as_deref(), Some("spongebob-icon_32x32.png"));
+
+        match &parsed.message.body.content {
+            MessageBodyContent::Text(text) => assert_eq!(text.content, "this is an alert"),
+            MessageBodyContent::String(raw) => assert_eq!(raw.content, ""),
+            MessageBodyContent::TextXml(raw) => panic!("wrong body variant, textxml content: {}", raw.content),
+        }
+    }
+
+    #[test]
+    fn deser_notification_data() {
+        let raw = r#"<NotificationData xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><Service>ABCHInternal</Service><CID>1234567890</CID><LastModifiedDate>2026-01-02T03:04:05Z</LastModifiedDate><HasNewItem>true</HasNewItem></NotificationData>"#;
+
+        let parsed = from_str::<NotificationData>(raw).expect("to deserialize");
+
+        assert_eq!(parsed.service.as_deref(), Some("ABCHInternal"));
+        assert_eq!(parsed.cid, Some(1234567890));
+        assert_eq!(parsed.last_modified_date.as_deref(), Some("2026-01-02T03:04:05Z"));
+        assert!(parsed.has_new_item);
+        assert!(parsed.circle_id.is_none());
+    }
+
+    #[test]
+    fn ser_notification_abch_golden() {
+        let notification_data = r#"<NotificationData xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><Service>ABCHInternal</Service><CID>1234567890</CID><LastModifiedDate>2026-01-02T03:04:05Z</LastModifiedDate><HasNewItem>true</HasNewItem></NotificationData>"#;
+
+        let payload = NotificationPayload {
+            id: 0,
+            ver: None,
+            site_id: 45705,
+            site_url: "http://contacts.msn.com".to_string(),
+            to: Recipient {
+                pid: "0x885ae2bc97f337aa:0x4d555fd33077064c".to_string(),
+                name: "aeon.shl@shl.local".to_string(),
+                email: None,
+                via: Some(Via { agent: "messenger".to_string() }),
+            },
+            message: Message {
+                id: 0,
+                subscriber: Url { url: "s.htm".to_string() },
+                action: Url { url: "a.htm".to_string() },
+                body: MessageBody {
+                    lang: None,
+                    icon: None,
+                    content: MessageBodyContent::String(RawStringMessageBody::new(notification_data.to_string())),
+                },
+            },
+        };
+
+        let xml = payload.to_xml().expect("to serialize");
+
+        assert_eq!(xml, r#"<NOTIFICATION id="0" siteid="45705" siteurl="http://contacts.msn.com"><TO pid="0x885ae2bc97f337aa:0x4d555fd33077064c" name="aeon.shl@shl.local"><VIA agent="messenger" /></TO><MSG id="0"><SUBSCR url="s.htm" /><ACTION url="a.htm" /><BODY>&lt;NotificationData xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"&gt;&lt;Service&gt;ABCHInternal&lt;/Service&gt;&lt;CID&gt;1234567890&lt;/CID&gt;&lt;LastModifiedDate&gt;2026-01-02T03:04:05Z&lt;/LastModifiedDate&gt;&lt;HasNewItem&gt;true&lt;/HasNewItem&gt;&lt;/NotificationData&gt;</BODY></MSG></NOTIFICATION>"#);
+    }
+
+    #[test]
+    fn ser_notification_alert_text_golden() {
+        let payload = NotificationPayload {
+            id: 1342902633,
+            ver: Some(2),
+            site_id: 199999999,
+            site_url: "http://127.0.0.1:8080/ads".to_string(),
+            to: Recipient {
+                pid: "0x97f337aa885ae2bc:0x4d555fd33077064c".to_string(),
+                name: "aeon.shl@shl.local".to_string(),
+                email: Some("aeon.shl@shl.local".to_string()),
+                via: None,
+            },
+            message: Message {
+                id: 1,
+                subscriber: Url { url: "http://127.0.0.1:8080/tachyon?s=true".to_string() },
+                action: Url { url: "http://127.0.0.1:8080/tachyon?a=true".to_string() },
+                body: MessageBody {
+                    lang: Some("3076".to_string()),
+                    icon: Some("spongebob-icon_32x32.png".to_string()),
+                    content: MessageBodyContent::Text(TextMessageBody::new("this is an alert".to_string())),
+                },
+            },
+        };
+
+        let xml = payload.to_xml().expect("to serialize");
+
+        assert_eq!(xml, r#"<NOTIFICATION id="1342902633" ver="2" siteid="199999999" siteurl="http://127.0.0.1:8080/ads"><TO pid="0x97f337aa885ae2bc:0x4d555fd33077064c" name="aeon.shl@shl.local" email="aeon.shl@shl.local" /><MSG id="1"><SUBSCR url="http://127.0.0.1:8080/tachyon?s=true" /><ACTION url="http://127.0.0.1:8080/tachyon?a=true" /><BODY lang="3076" icon="spongebob-icon_32x32.png"><TEXT>this is an alert</TEXT></BODY></MSG></NOTIFICATION>"#);
+    }
+
+    #[test]
+    fn ser_notification_data_golden() {
+        let data = NotificationData {
+            service: Some("ABCHInternal".to_string()),
+            cid: Some(1234567890),
+            last_modified_date: Some("2026-01-02T03:04:05Z".to_string()),
+            has_new_item: true,
+            circle_id: None,
+        };
+
+        let xml = data.to_xml().expect("to serialize");
+
+        assert_eq!(xml, r#"<NotificationData xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><Service>ABCHInternal</Service><CID>1234567890</CID><LastModifiedDate>2026-01-02T03:04:05Z</LastModifiedDate><HasNewItem>true</HasNewItem></NotificationData>"#);
+    }
+
+    #[test]
+    fn ser_notification_data_circle_golden() {
+        let data = NotificationData {
+            service: None,
+            cid: None,
+            last_modified_date: None,
+            has_new_item: true,
+            circle_id: Some("00000000-0000-0000-0000-000000000001".to_string()),
+        };
+
+        let xml = data.to_xml().expect("to serialize");
+
+        assert_eq!(xml, r#"<NotificationData xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><HasNewItem>true</HasNewItem><CircleId>00000000-0000-0000-0000-000000000001</CircleId></NotificationData>"#);
+    }
+
+    use crate::msnp::raw_command_parser::ServerCommandParser;
+    use crate::shared::traits::{IntoBytes, TryFromRawCommand};
+
+    use super::{NotServer, NotificationPayloadType};
+
+    #[test]
+    fn serializes_the_payload_length_header() {
+        let not = NotServer { payload: NotificationPayloadType::Raw("<foo/>".to_string()) };
+
+        assert_eq!(not.into_bytes(), b"NOT 6\r\n<foo/>");
+    }
+
+    #[test]
+    fn round_trips() {
+        let not = NotServer { payload: NotificationPayloadType::Raw("<foo/>".to_string()) };
+        let bytes = not.into_bytes();
+
+        let mut parser = ServerCommandParser::new();
+        let raw = parser.parse_message(&bytes).unwrap().pop().unwrap();
+        let parsed = NotServer::try_from_raw(raw).unwrap();
+
+        assert_eq!(parsed.into_bytes(), b"NOT 6\r\n<foo/>");
     }
 }

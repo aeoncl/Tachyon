@@ -4,6 +4,7 @@ use crate::msnp::raw_command_parser::RawCommand;
 use crate::shared::models::network_id_email::NetworkIdEmail;
 use crate::shared::traits::{IntoBytes, TryFromBytes, TryFromRawCommand};
 use std::fmt::Display;
+use std::str::{from_utf8, FromStr};
 use yaserde::ser::to_string_with_config;
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
@@ -18,7 +19,7 @@ mod tests {
     use crate::shared::models::network_id::NetworkId;
     use crate::shared::models::network_id_email::NetworkIdEmail;
     use crate::shared::models::uuid::Uuid;
-    use crate::shared::traits::IntoBytes;
+    use crate::shared::traits::{IntoBytes, TryFromRawCommand};
     use std::str::FromStr;
 
     #[test]
@@ -43,6 +44,82 @@ mod tests {
 
         assert_eq!("UBX 1:aeon@lukewarmmail.com 163\r\n<Data><PSM>Hello</PSM><CurrentMedia></CurrentMedia><EndpointData id=\"{00000000-0000-0000-0000-000000000000}\"><Capabilities>0:0</Capabilities></EndpointData></Data>", deser);
     }
+
+    #[test]
+    pub fn deser_ubx_extended_presence() {
+        let raw = r#"<Data><PSM>Hello</PSM><CurrentMedia></CurrentMedia><EndpointData id="{00000000-0000-0000-0000-000000000000}"><Capabilities>0:0</Capabilities></EndpointData></Data>"#;
+
+        let parsed = yaserde::de::from_str::<ExtendedPresenceContent>(raw).expect("to deserialize");
+
+        assert_eq!(parsed.psm, "Hello");
+        assert_eq!(parsed.current_media, "");
+        assert_eq!(parsed.endpoint_data.machine_guid.as_ref().map(|g| g.0.to_string()), Some("00000000-0000-0000-0000-000000000000".to_string()));
+        assert_eq!(parsed.endpoint_data.capabilities.to_string(), "0:0");
+        assert!(parsed.private_endpoint_data.is_none());
+    }
+
+    #[test]
+    fn server_round_trips_extended_presence() {
+        let ubx = UbxServer {
+            target_user: NetworkIdEmail::new(NetworkId::WindowsLive, EmailAddress::from_str("aeon@lukewarmmail.com").unwrap()),
+            via: None,
+            payload: UbxPayload::ExtendedPresence(ExtendedPresenceContent {
+                psm: "Hello".to_string(),
+                current_media: "".to_string(),
+                endpoint_data: EndpointData {
+                    machine_guid: Some(EndpointGuid(Uuid::nil())),
+                    capabilities: ClientCapabilities::new(0, 0),
+                },
+                private_endpoint_data: None,
+            }),
+        };
+        let bytes = ubx.into_bytes();
+
+        let mut parser = crate::msnp::raw_command_parser::ServerCommandParser::new();
+        let raw = parser.parse_message(&bytes).unwrap().pop().unwrap();
+        let parsed = UbxServer::try_from_raw(raw).unwrap();
+
+        assert_eq!(parsed.target_user.email.as_str(), "aeon@lukewarmmail.com");
+        assert!(parsed.via.is_none());
+        let UbxPayload::ExtendedPresence(content) = parsed.payload else {
+            panic!("expected an extended presence payload");
+        };
+        assert_eq!(content.psm, "Hello");
+    }
+
+    #[test]
+    fn server_deserializes_unknown_payloads_as_raw() {
+        let mut parser = crate::msnp::raw_command_parser::ServerCommandParser::new();
+        let raw = parser
+            .parse_message(b"UBX 1:aeon@lukewarmmail.com 13\r\n<Data></Data>")
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        let parsed = UbxServer::try_from_raw(raw).unwrap();
+
+        assert_eq!(parsed.target_user.email.as_str(), "aeon@lukewarmmail.com");
+        match parsed.payload {
+            UbxPayload::Raw(payload) => assert_eq!(payload, "<Data></Data>"),
+            _ => panic!("expected the raw payload fallback"),
+        }
+    }
+
+    #[test]
+    fn server_deserializes_the_via_route() {
+        let mut parser = crate::msnp::raw_command_parser::ServerCommandParser::new();
+        let raw = parser
+            .parse_message(b"UBX 1:me@lukewarmmail.com;via=1:peer@lukewarmmail.com 0\r\n")
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        let parsed = UbxServer::try_from_raw(raw).unwrap();
+
+        assert_eq!(parsed.target_user.email.as_str(), "me@lukewarmmail.com");
+        let via = parsed.via.expect("via route");
+        assert_eq!(via.email.as_str(), "peer@lukewarmmail.com");
+    }
 }
 
 
@@ -56,8 +133,22 @@ pub struct UbxServer {
 impl TryFromRawCommand for UbxServer {
     type Err = CommandError;
 
-    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
-        todo!()
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> where Self: Sized {
+        let mut split = raw.command_split;
+        let _operand = split.pop_front();
+
+        let raw_target_user = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "target_user".into(), 1))?;
+        let (target_user, via) = match raw_target_user.split_once(";via=") {
+            Some((target, via)) => (
+                NetworkIdEmail::from_str(target)?,
+                Some(NetworkIdEmail::from_str(via)?),
+            ),
+            None => (NetworkIdEmail::from_str(&raw_target_user)?, None),
+        };
+
+        let payload = UbxPayload::try_from_bytes(raw.payload)?;
+
+        Ok(Self { target_user, via, payload })
     }
 
 }
@@ -88,14 +179,20 @@ impl IntoBytes for UbxServer {
 
 
 pub enum UbxPayload {
-    ExtendedPresence(ExtendedPresenceContent)
+    ExtendedPresence(ExtendedPresenceContent),
+    Raw(String),
 }
 
 impl TryFromBytes for UbxPayload {
     type Err = PayloadError;
 
-    fn try_from_bytes(_bytes: Vec<u8>) -> Result<Self, Self::Err> where Self: Sized {
-        todo!()
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Self::Err> where Self: Sized {
+        let payload = from_utf8(&bytes)?;
+
+        match yaserde::de::from_str::<ExtendedPresenceContent>(payload) {
+            Ok(content) if content.to_string() == payload => Ok(Self::ExtendedPresence(content)),
+            _ => Ok(Self::Raw(payload.to_string())),
+        }
     }
 
 }
@@ -106,6 +203,7 @@ impl IntoBytes for UbxPayload {
             UbxPayload::ExtendedPresence(content) => {
                 content.to_string().into_bytes()
             }
+            UbxPayload::Raw(payload) => payload.into_bytes(),
         }
     }
 }

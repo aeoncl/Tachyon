@@ -1,33 +1,17 @@
 use chrono::Local;
 use env_logger::Builder;
-use log::{error, info, warn, LevelFilter};
+use log::{error, info, LevelFilter};
 use std::fs;
 use std::fs::File;
 use tokio::{join, signal, sync::broadcast::{self, Sender}};
 
-use crate::notification::notification_server::NotificationServer;
-use crate::switchboard::switchboard_server::SwitchboardServer;
-use crate::tachyon::global_state::GlobalState;
-use self::tachyon::config::secret_encryptor::SecretEncryptor;
-use crate::web::web_server::WebServer;
+use tachyon::tachyon::config::paths;
+use tachyon::tachyon::config::paths::create_dirs;
+use tachyon::tachyon::config::tachyon_config::TachyonConfig;
 use anyhow::anyhow;
-use directories::ProjectDirs;
-use rand::{random, Rng};
+use std::str::FromStr;
 use std::io::Write;
 use std::path::PathBuf;
-use std::str::FromStr;
-use crate::matrix::services::login::MatrixLoginServiceImpl;
-use self::tachyon::config::paths;
-use self::tachyon::config::paths::create_dirs;
-use self::tachyon::config::tachyon_config::TachyonConfig;
-
-mod notification;
-mod web;
-mod switchboard;
-mod matrix;
-mod tachyon;
-mod p2p;
-mod audio;
 
 #[tokio::main]
 async fn main() {
@@ -38,34 +22,12 @@ async fn main() {
 
     let config = setup_config(tachyon_path.config_dir().to_path_buf());
     setup_logs(tachyon_path.data_dir().to_path_buf(), &config);
-    let secret = setup_key(tachyon_path.data_local_dir().to_path_buf()).expect("secret key is mandatory");
 
     let (global_shutdown_signal_snd, global_shutdown_signal_rcv) = broadcast::channel::<()>(1);
 
-    let global_state = GlobalState::new(config.clone(), SecretEncryptor::new(&secret).expect("secret key to be valid"), Box::new(MatrixLoginServiceImpl::new()));
-
-    let notification_server = NotificationServer::listen("127.0.0.1", config.notification_port, global_shutdown_signal_rcv.resubscribe(), global_state.clone());
-    let switchboard_server = SwitchboardServer::listen("127.0.0.1", config.switchboard_port, global_shutdown_signal_rcv.resubscribe(), global_state.clone());
-    let web_server = WebServer::listen("127.0.0.1", config.http_port, global_shutdown_signal_rcv, global_state);
-
-    let _result = join!(notification_server, switchboard_server, web_server, listen_for_stop_signal(global_shutdown_signal_snd));
+    let _result = join!(tachyon::run(config, global_shutdown_signal_rcv), listen_for_stop_signal(global_shutdown_signal_snd));
 
     info!("Byebye, world!");
-}
-
-fn setup_key(config_folder_path: PathBuf) -> Result<Vec<u8>, anyhow::Error> {
-
-    let key_path = config_folder_path.join("local.key");
-    match fs::read(&key_path) {
-        Ok(existing_key) => {
-            Ok(existing_key)
-        }
-        Err(_) => {
-            let secret_bytes: [u8; 32] = random();
-            fs::write(&key_path, secret_bytes)?;
-            Ok(secret_bytes.to_vec())
-        }
-    }
 }
 
 fn setup_config(config_dir: PathBuf) -> TachyonConfig {
@@ -138,4 +100,3 @@ async fn listen_for_stop_signal(global_shutdown_signal_snd: Sender<()>) {
     let _result = global_shutdown_signal_snd.send(());
 
 }
-

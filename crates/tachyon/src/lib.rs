@@ -1,0 +1,55 @@
+use std::fs;
+use std::sync::Arc;
+use tokio::{join, sync::broadcast::Receiver};
+
+use crate::notification::notification_server::NotificationServer;
+use crate::switchboard::switchboard_server::SwitchboardServer;
+use crate::tachyon::config::secret_encryptor::SecretEncryptor;
+use crate::tachyon::global_state::GlobalState;
+use crate::web::web_server::WebServer;
+use crate::matrix::services::login::MatrixLoginServiceImpl;
+use crate::tachyon::config::paths;
+use crate::tachyon::config::paths::create_dirs;
+use crate::tachyon::config::tachyon_config::TachyonConfig;
+use tachyon_sqlite_store::SqliteCredentialsStore;
+
+pub mod notification;
+pub mod web;
+pub mod switchboard;
+pub mod matrix;
+pub mod tachyon;
+pub mod p2p;
+pub mod audio;
+
+pub async fn run(config: TachyonConfig, global_shutdown_signal_rcv: Receiver<()>) -> Result<(), anyhow::Error> {
+    let tachyon_path = paths::get_tachyon_path();
+    create_dirs(&tachyon_path);
+
+    let secret = setup_key(tachyon_path.data_local_dir().to_path_buf()).expect("secret key is mandatory");
+    let credentials = Arc::new(SqliteCredentialsStore::open(&paths::credentials_db_path())?);
+
+    let global_state = GlobalState::new(config.clone(), SecretEncryptor::new(&secret).expect("secret key to be valid"), Box::new(MatrixLoginServiceImpl::new()), credentials);
+
+    let notification_server = NotificationServer::listen("127.0.0.1", config.notification_port, global_shutdown_signal_rcv.resubscribe(), global_state.clone());
+    let switchboard_server = SwitchboardServer::listen("127.0.0.1", config.switchboard_port, global_shutdown_signal_rcv.resubscribe(), global_state.clone());
+    let web_server = WebServer::listen("127.0.0.1", config.http_port, global_shutdown_signal_rcv, global_state);
+
+    let _result = join!(notification_server, switchboard_server, web_server);
+
+    Ok(())
+}
+
+fn setup_key(config_folder_path: std::path::PathBuf) -> Result<Vec<u8>, anyhow::Error> {
+
+    let key_path = config_folder_path.join("local.key");
+    match fs::read(&key_path) {
+        Ok(existing_key) => {
+            Ok(existing_key)
+        }
+        Err(_) => {
+            let secret_bytes: [u8; 32] = rand::random();
+            fs::write(&key_path, secret_bytes)?;
+            Ok(secret_bytes.to_vec())
+        }
+    }
+}

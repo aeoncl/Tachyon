@@ -16,7 +16,7 @@ pub(crate) struct LocalClientData {
     pub(crate) needs_initial_presence: bool,
     pub(crate) client_shutdown_recv: Receiver<()>,
     pub(crate) client_shutdown_snd: Sender<()>,
-    pub(crate) client_drop_guard: Option<ClientDropGuard>
+    pub(crate) client_drop_guard: Option<ClientDropGuard>,
 }
 
 impl LocalClientData {
@@ -31,7 +31,7 @@ impl LocalClientData {
             needs_initial_presence: true,
             client_shutdown_recv,
             client_shutdown_snd,
-            client_drop_guard: None
+            client_drop_guard: None,
         }
     }
 }

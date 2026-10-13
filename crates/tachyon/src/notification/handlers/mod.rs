@@ -1,5 +1,5 @@
 pub(crate) mod command_handler;
 mod ready;
-mod auth;
+pub(crate) mod auth;
 mod negotiation;
 

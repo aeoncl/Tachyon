@@ -17,6 +17,19 @@ impl AdlClient {
     }
 }
 
+impl IntoBytes for AdlClient {
+    fn into_bytes(self) -> Vec<u8> {
+        self.into_bytes_with_operand("ADL")
+    }
+}
+
+impl AdlClient {
+    pub(crate) fn into_bytes_with_operand(self, operand: &str) -> Vec<u8> {
+        let payload = self.payload.to_string();
+        format!("{operand} {tr_id} {len}\r\n{payload}", tr_id = self.tr_id, len = payload.len(), payload = payload).into_bytes()
+    }
+}
+
 
 impl TryFromRawCommand for AdlClient {
 
@@ -97,4 +110,28 @@ mod tests {
 
     }
 
+
+
+    use crate::msnp::raw_command_parser::RawCommandParser;
+    use crate::shared::traits::{IntoBytes, TryFromRawCommand};
+
+    use super::AdlClient;
+
+    #[test]
+    fn serializes_the_payload_length_and_round_trips() {
+        let adl = AdlClient {
+            tr_id: 7,
+            payload: ADLPayload::from_str("<ml l=\"1\"></ml>").unwrap(),
+        };
+
+        let bytes = adl.into_bytes();
+        assert_eq!(String::from_utf8(bytes.clone()).unwrap(), "ADL 7 12\r\n<ml l=\"1\" />");
+
+        let mut parser = RawCommandParser::new();
+        let raw = parser.parse_message(&bytes).unwrap().pop().unwrap();
+        let parsed = AdlClient::try_from_raw(raw).unwrap();
+
+        assert_eq!(parsed.tr_id, 7);
+        assert_eq!(parsed.payload.to_string(), "<ml l=\"1\" />");
+    }
 }

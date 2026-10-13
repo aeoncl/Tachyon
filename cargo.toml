@@ -1,12 +1,14 @@
 [workspace]
 members = [
     "crates/tachyon",
-    "crates/msnp"
+    "crates/msnp",
+    "crates/tachyon-sqlite-store"
 ]
 
 default-members = [
     "crates/tachyon",
-    "crates/msnp"
+    "crates/msnp",
+    "crates/tachyon-sqlite-store"
 ]
 
 exclude = [

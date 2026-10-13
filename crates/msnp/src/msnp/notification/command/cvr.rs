@@ -85,6 +85,28 @@ impl TryFromRawCommand for CvrClient {
     }
 }
 
+impl Display for CvrClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CVR {tr_id} {region_code} {os_type} {os_version} {cpu_arch} {msnp_lib_name} {client_ver} {client_name} {email_addr}\r\n",
+            tr_id = self.tr_id,
+            region_code = format!("0x{:04x}", self.region_code),
+            os_type = self.os_type,
+            os_version = self.os_version,
+            cpu_arch = self.cpu_arch,
+            msnp_lib_name = self.msnp_lib_name,
+            client_ver = self.client_ver,
+            client_name = self.client_name,
+            email_addr = self.email_addr
+        )
+    }
+}
+
+impl IntoBytes for CvrClient {
+    fn into_bytes(self) -> Vec<u8> {
+        self.to_string().into_bytes()
+    }
+}
+
 pub struct CvrServer {
     pub tr_id: u128,
     pub rec_client_ver: String,
@@ -134,8 +156,27 @@ impl Display for CvrServer {
 impl TryFromRawCommand for CvrServer {
     type Err = CommandError;
 
-    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
-        todo!()
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        let mut split = raw.command_split;
+        let _operand = split.pop_front();
+
+        let raw_tr_id = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "tr_id".into(), 1))?;
+        let tr_id = u128::from_str(&raw_tr_id)?;
+
+        let rec_client_ver = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "rec_client_ver".into(), 2))?;
+        let rec_client_ver2 = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "rec_client_ver2".into(), 3))?;
+        let min_client_ver = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "min_client_ver".into(), 4))?;
+        let client_dl_url = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "client_dl_url".into(), 5))?;
+        let client_info_url = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "client_info_url".into(), 6))?;
+
+        Ok(Self {
+            tr_id,
+            rec_client_ver,
+            rec_client_ver2,
+            min_client_ver,
+            client_dl_url,
+            client_info_url,
+        })
     }
 }
 
@@ -147,9 +188,9 @@ impl IntoBytes for CvrServer {
 
 #[cfg(test)]
 mod tests {
-    use crate::msnp::notification::command::cvr::CvrClient;
-    use crate::msnp::raw_command_parser::RawCommand;
-    use crate::shared::traits::TryFromRawCommand;
+    use crate::msnp::notification::command::cvr::{CvrClient, CvrServer};
+    use crate::msnp::raw_command_parser::{RawCommand, ServerCommandParser};
+    use crate::shared::traits::{IntoBytes, TryFromRawCommand};
     use std::str::FromStr;
 
 
@@ -158,4 +199,68 @@ mod tests {
        let cvr =  CvrClient::try_from_raw(RawCommand::from_str("CVR 2 0x0409 winnt 6.2.0 i386 MSNMSGR 14.0.8117.0416 msmsgs aeontest3@shlasouf.local").unwrap()).unwrap();
     }
 
+    #[test]
+    fn client_serializes_the_region_code_with_the_0x_prefix() {
+        let cvr = CvrClient::new(
+            2,
+            0x0409,
+            "winnt".to_string(),
+            "6.2.0".to_string(),
+            "i386".to_string(),
+            "MSNMSGR".to_string(),
+            "14.0.8117.0416".to_string(),
+            "msmsgs".to_string(),
+            "aeontest3@shlasouf.local".to_string(),
+        );
+
+        let bytes = cvr.into_bytes();
+
+        assert_eq!(
+            String::from_utf8(bytes).unwrap(),
+            "CVR 2 0x0409 winnt 6.2.0 i386 MSNMSGR 14.0.8117.0416 msmsgs aeontest3@shlasouf.local\r\n"
+        );
+    }
+
+    #[test]
+    fn client_round_trips_through_the_parser() {
+        let cvr = CvrClient::new(
+            2,
+            0x0409,
+            "winnt".to_string(),
+            "6.2.0".to_string(),
+            "i386".to_string(),
+            "MSNMSGR".to_string(),
+            "14.0.8117.0416".to_string(),
+            "msmsgs".to_string(),
+            "aeontest3@shlasouf.local".to_string(),
+        );
+
+        let mut parser = crate::msnp::raw_command_parser::RawCommandParser::new();
+        let raw = parser.parse_message(&cvr.into_bytes()).unwrap().pop().unwrap();
+        let parsed = CvrClient::try_from_raw(raw).unwrap();
+
+        assert_eq!(parsed.tr_id, 2);
+        assert_eq!(parsed.region_code, 0x0409);
+        assert_eq!(parsed.email_addr, "aeontest3@shlasouf.local");
+        assert_eq!(parsed.client_ver, "14.0.8117.0416");
+    }
+
+    #[test]
+    fn server_deserializes_the_recommendation_reply() {
+        let mut parser = ServerCommandParser::new();
+        let raw = parser
+            .parse_message(b"CVR 2 14.0.8117.0416 14.0.8117.0416 14.0.8117.0416 localhost localhost\r\n")
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        let parsed = CvrServer::try_from_raw(raw).unwrap();
+
+        assert_eq!(parsed.tr_id, 2);
+        assert_eq!(parsed.rec_client_ver, "14.0.8117.0416");
+        assert_eq!(parsed.rec_client_ver2, "14.0.8117.0416");
+        assert_eq!(parsed.min_client_ver, "14.0.8117.0416");
+        assert_eq!(parsed.client_dl_url, "localhost");
+        assert_eq!(parsed.client_info_url, "localhost");
+    }
 }

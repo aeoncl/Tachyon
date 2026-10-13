@@ -17,7 +17,6 @@ tokio-retry2 = { version = "0.5", features = ["jitter"] }
 sha1 = "0.10.6"
 hex = "0.4.3"
 maud = { version = "0.27.0", features = ["axum"] }
-url_open = "0.0.2"
 aes-gcm = "0.10.3"
 configparser = "3.1.0"
 console-subscriber = "0.5.0"
@@ -46,13 +45,18 @@ futures-util = "0.3.31"
 
 rand = "0.10.1"
 reqwest = "0.12.28"
+sha2 = "0.10.9"
 mime = "0.3.17"
 mime_guess = "2.0.5"
 serde_json = "1.0.149"
 
+[dependencies.tachyon-sqlite-store]
+path = "../tachyon-sqlite-store"
+
 [dev-dependencies]
 mockall = "0.13.1"
 wiremock = "0.6.3"
+testcontainers = { version = "0.28.0", features = ["http_wait_plain"] }
 
 [dev-dependencies.matrix-sdk]
 path = "../../lib/matrix-rust-sdk/crates/matrix-sdk"

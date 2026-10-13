@@ -108,6 +108,35 @@ impl TryFromRawCommand for UrlClient {
     }
 }
 
+impl Display for UrlClient {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "URL {tr_id} {url_type}\r\n", tr_id = self.tr_id, url_type = self.url_type)
+    }
+}
+
+impl Display for UrlType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UrlType::Inbox => write!(f, "INBOX"),
+            UrlType::Folders => write!(f, "FOLDERS"),
+            UrlType::Compose => write!(f, "COMPOSE"),
+            UrlType::ComposeFor { email_addr } => write!(f, "COMPOSE {email_addr}"),
+            UrlType::Profile { locale_id } => write!(f, "PROFILE {locale_id}"),
+            UrlType::Person { locale_id } => write!(f, "PERSON {locale_id}"),
+            UrlType::Chat { locale_id } => write!(f, "CHAT {locale_id}"),
+            UrlType::Mobile | UrlType::AddrBook | UrlType::AdvSearch | UrlType::IntSearch | UrlType::UnknownYet(_) => {
+                unimplemented!("no wire token is known for this URL type")
+            }
+        }
+    }
+}
+
+impl IntoBytes for UrlClient {
+    fn into_bytes(self) -> Vec<u8> {
+        self.to_string().into_bytes()
+    }
+}
+
 pub struct UrlServer {
     tr_id: u128,
     main_url: String,
@@ -147,7 +176,7 @@ mod tests {
 
     use crate::msnp::raw_command_parser::RawCommandParser;
     use crate::shared::models::email_address::EmailAddress;
-    use crate::shared::traits::TryFromRawCommand;
+    use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 
     use super::{UrlClient, UrlServer, UrlType};
 
@@ -202,4 +231,47 @@ mod tests {
 
     }
 
+
+
+
+
+    #[test]
+    fn round_trips_inbox() {
+        let url = UrlClient { tr_id: 14, url_type: UrlType::Inbox };
+        let bytes = url.into_bytes();
+        assert_eq!(String::from_utf8(bytes.clone()).unwrap(), "URL 14 INBOX\r\n");
+
+        let mut parser = RawCommandParser::new();
+        let raw = parser.parse_message(&bytes).unwrap().pop().unwrap();
+        let parsed = UrlClient::try_from_raw(raw).unwrap();
+        assert_eq!(parsed.tr_id, 14);
+        assert_eq!(parsed.url_type, UrlType::Inbox);
+    }
+
+    #[test]
+    fn round_trips_profile_with_locale() {
+        let url = UrlClient { tr_id: 15, url_type: UrlType::Profile { locale_id: "1033".to_string() } };
+        let bytes = url.into_bytes();
+        assert_eq!(String::from_utf8(bytes.clone()).unwrap(), "URL 15 PROFILE 1033\r\n");
+
+        let mut parser = RawCommandParser::new();
+        let raw = parser.parse_message(&bytes).unwrap().pop().unwrap();
+        let parsed = UrlClient::try_from_raw(raw).unwrap();
+        assert_eq!(parsed.url_type, UrlType::Profile { locale_id: "1033".to_string() });
+    }
+
+    #[test]
+    fn round_trips_compose_for() {
+        let url = UrlClient {
+            tr_id: 16,
+            url_type: UrlType::ComposeFor { email_addr: EmailAddress::from_str("peer@lukewarmmail.com").unwrap() },
+        };
+        let bytes = url.into_bytes();
+        assert_eq!(String::from_utf8(bytes.clone()).unwrap(), "URL 16 COMPOSE peer@lukewarmmail.com\r\n");
+
+        let mut parser = RawCommandParser::new();
+        let raw = parser.parse_message(&bytes).unwrap().pop().unwrap();
+        let parsed = UrlClient::try_from_raw(raw).unwrap();
+        assert_eq!(parsed.url_type, UrlType::ComposeFor { email_addr: EmailAddress::from_str("peer@lukewarmmail.com").unwrap() });
+    }
 }

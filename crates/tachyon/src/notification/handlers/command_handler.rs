@@ -5,6 +5,7 @@ use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::config::tachyon_config::TachyonConfig;
 use crate::tachyon::global_state::GlobalState;
 use anyhow::anyhow;
+use log::warn;
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
 use tokio::sync::mpsc::Sender;
 
@@ -15,7 +16,17 @@ pub(crate) async fn handle_command(command: NotificationClientCommand, command_s
             negotiation::handle_negotiation(command, command_sender, local_client_data).await
         },
         ConnectionPhase::Authenticating  => {
-            auth::handle_auth(command, command_sender, &global_state, local_client_data, config, global_state.matrix_login_service()).await
+            auth::handle_auth(command, command_sender, &global_state, local_client_data, config).await
+        },
+        ConnectionPhase::AwaitingLogin => {
+            if let Some(tachyon_client) = global_state.get_clients(local_client_data.token.as_str()) {
+                local_client_data.matrix_client = Some(tachyon_client.matrix_client());
+                local_client_data.tachyon_client = Some(tachyon_client.clone());
+                local_client_data.phase = ConnectionPhase::Ready;
+                handle_ready(command, command_sender, tachyon_client, local_client_data.matrix_client.clone().expect("just stored"), local_client_data, config).await
+            } else {
+                handle_awaiting_login(command, command_sender).await
+            }
         },
         ConnectionPhase::Ready => {
             let matrix_client = local_client_data.matrix_client.as_ref().ok_or(anyhow!("Matrix Client should be here by now"))?.clone();
@@ -26,6 +37,25 @@ pub(crate) async fn handle_command(command: NotificationClientCommand, command_s
 
     Ok(())
 
+}
+
+// the backend is still logging in: keep the client alive with pings and list acknowledgements
+async fn handle_awaiting_login(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error> {
+    match command {
+        NotificationClientCommand::PNG => {
+            command_sender.send(NotificationServerCommand::QNG(120)).await?;
+            Ok(())
+        }
+        NotificationClientCommand::ADL(command) => {
+            command_sender.send(NotificationServerCommand::OK(msnp::shared::command::ok::OkCommand { operand: "ADL".to_string(), tr_id: command.tr_id })).await?;
+            Ok(())
+        }
+        NotificationClientCommand::RML(_) | NotificationClientCommand::UUX(_) | NotificationClientCommand::PRP(_) | NotificationClientCommand::OUT | NotificationClientCommand::VER(_) | NotificationClientCommand::CVR(_) => Ok(()),
+        other => {
+            warn!("MSNP|NS: command {} needs the backend; still authenticating", other);
+            Ok(())
+        }
+    }
 }
 
 #[cfg(test)]
@@ -44,13 +74,21 @@ mod tests {
     use msnp::shared::models::email_address::EmailAddress;
     use msnp::shared::traits::TryFromRawCommand;
     use std::str::FromStr;
+    use std::sync::Arc;
     use matrix_sdk::{async_trait, Client};
     use matrix_sdk::ruma::UserId;
     use matrix_sdk::test_utils::mocks::{MatrixMock, MatrixMockServer};
-    use crate::matrix::services::login::{AccessToken, MatrixLoginService, MatrixLoginServiceImpl};
+    use crate::matrix::services::login::{MatrixLoginService, MatrixLoginServiceImpl};
     use crate::tachyon::error::TachyonError;
+    use tachyon_sqlite_store::SqliteCredentialsStore;
 
     const TEST_SECRET: [u8; 32] = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+
+    fn test_credentials_store() -> Arc<SqliteCredentialsStore> {
+        let dir = std::env::temp_dir().join(format!("tachyon-cmdh-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        Arc::new(SqliteCredentialsStore::open(&dir.join("credentials.db")).expect("store opens"))
+    }
 
     struct TestMatrixLoginService {
         client: Client,
@@ -64,14 +102,12 @@ mod tests {
 
     #[async_trait]
     impl MatrixLoginService for TestMatrixLoginService {
-        async fn login_with_token(&self, user_id: &UserId, token: &str, disable_ssl: bool) -> Result<Client, TachyonError> {
-            self.client.matrix_auth().login_token(token).await;
+        async fn restore_saved_session(&self, _credentials: &tachyon_sqlite_store::Credentials, _homeserver_url: Option<&tachyon_sqlite_store::HomeserverUrl>, _disable_ssl: bool) -> Result<Client, TachyonError> {
             Ok(self.client.clone())
         }
 
-        async fn login_with_password(&self, matrix_id: &UserId, password: &str, disable_ssl: bool) -> Result<(AccessToken, Client), TachyonError> {
-            let test = self.client.matrix_auth().login_username(matrix_id.to_string(), password).await.unwrap();
-            Ok((test.access_token, self.client.clone()))
+        async fn login_with_password(&self, _matrix_id: &UserId, _password: &str, _device_id: Option<&tachyon_sqlite_store::DeviceId>, _homeserver_url: Option<&tachyon_sqlite_store::HomeserverUrl>, _disable_ssl: bool) -> Result<Client, TachyonError> {
+            Ok(self.client.clone())
         }
     }
 
@@ -81,7 +117,7 @@ mod tests {
 
         let (snd, mut rcv) = tokio::sync::mpsc::channel::<NotificationServerCommand>(10);
 
-        let state = GlobalState::new(Default::default(), SecretEncryptor::new(&TEST_SECRET).unwrap(), Box::new(MatrixLoginServiceImpl::new()));
+        let state = GlobalState::new(Default::default(), SecretEncryptor::new(&TEST_SECRET).unwrap(), Box::new(MatrixLoginServiceImpl::new()), test_credentials_store());
 
         let (kill_snd, kill_recv) = tokio::sync::broadcast::channel::<()>(1);
         let mut local_client_data = LocalClientData::new(kill_snd.clone(), kill_recv.resubscribe());
@@ -108,7 +144,7 @@ mod tests {
             panic!("Expected CVR response, got {}", &cvr_respo);
         };
 
-        assert!(matches!(local_client_data.phase, ConnectionPhase::Authenticating));
+        assert_eq!(local_client_data.phase, ConnectionPhase::Authenticating);
     }
 
 
@@ -123,12 +159,12 @@ mod tests {
 
         let (snd, mut rcv) = tokio::sync::mpsc::channel::<NotificationServerCommand>(10);
 
-        let state = GlobalState::new(Default::default(), SecretEncryptor::new(&TEST_SECRET).unwrap(), Box::new(matrix_login_service));
+        let state = GlobalState::new(Default::default(), SecretEncryptor::new(&TEST_SECRET).unwrap(), Box::new(matrix_login_service), test_credentials_store());
 
         let (kill_snd, kill_recv) = tokio::sync::broadcast::channel::<()>(1);
         let mut local_client_data = LocalClientData::new(kill_snd.clone(), kill_recv.resubscribe());
         local_client_data.phase = ConnectionPhase::Authenticating;
-            
+
         let usr_i = NotificationClientCommand::USR(UsrClient {
             tr_id: 1,
             auth_type: AuthOperationTypeClient::Sso(SsoPhaseClient::I { email_addr: EmailAddress::from_str("aeon@test.com").unwrap() }),

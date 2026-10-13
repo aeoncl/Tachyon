@@ -1,7 +1,9 @@
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum ConnectionPhase {
     Negotiating,
     Authenticating,
+    AwaitingLogin,
     Ready
 }
 

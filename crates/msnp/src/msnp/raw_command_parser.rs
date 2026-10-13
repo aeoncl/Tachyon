@@ -9,17 +9,56 @@ use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 
 use super::error::{CommandError, PayloadError};
 
+/// Framer for client→server commands (the notification server's ingress).
 pub struct RawCommandParser {
-    incomplete_command: Option<RawCommand>
-} 
+    framer: CommandFramer,
+}
 
 impl RawCommandParser {
 
     pub fn new() -> Self {
-        RawCommandParser { incomplete_command: None }
+        RawCommandParser { framer: CommandFramer::new(CLIENT_PAYLOAD_COMMANDS) }
     }
 
     pub fn parse_message(&mut self, message: &[u8]) -> Result<Vec<RawCommand>, CommandError> {
+        self.framer.parse_message(message)
+    }
+
+}
+
+/// Framer for server→client commands (a client's ingress): the payload
+/// commands the server emits are not the ones clients send.
+pub struct ServerCommandParser {
+    framer: CommandFramer,
+}
+
+impl ServerCommandParser {
+
+    pub fn new() -> Self {
+        ServerCommandParser { framer: CommandFramer::new(SERVER_PAYLOAD_COMMANDS) }
+    }
+
+    pub fn parse_message(&mut self, message: &[u8]) -> Result<Vec<RawCommand>, CommandError> {
+        self.framer.parse_message(message)
+    }
+
+}
+
+const CLIENT_PAYLOAD_COMMANDS: &[&str] = &["ADL", "RML", "UUX", "UUN", "UUM", "UBM", "MSG", "NOT", "QRY", "FQY", "PUT", "DEL", "SDC", "SDG"];
+const SERVER_PAYLOAD_COMMANDS: &[&str] = &["MSG", "NOT", "GCF", "UBX", "NFY", "UBM", "UUX", "PUT", "SDG", "UBN"];
+
+struct CommandFramer {
+    incomplete_command: Option<RawCommand>,
+    payload_commands: &'static [&'static str],
+}
+
+impl CommandFramer {
+
+    fn new(payload_commands: &'static [&'static str]) -> Self {
+        CommandFramer { incomplete_command: None, payload_commands }
+    }
+
+    fn parse_message(&mut self, message: &[u8]) -> Result<Vec<RawCommand>, CommandError> {
         let mut out: Vec<RawCommand> = Vec::new();
 
         let mut bytes_to_handle = message;
@@ -42,7 +81,7 @@ impl RawCommandParser {
             } else {
                 //still not complete
                 info!("still chunked!");
-            
+
                 incomplete.payload.extend_from_slice(&message[..message.len()]);
                 self.incomplete_command = Some(incomplete);
                 return Ok(out);
@@ -74,12 +113,12 @@ impl RawCommandParser {
                 if terminators_index.is_none() {
                     break;
                 }
-    
+
                 let terminators_index = terminators_index.expect("to never fail");
 
                 let command = from_utf8(&bytes_to_handle[0..=terminators_index-2])?;
 
-                let mut raw_command = RawCommand::from_str(command)?;
+                let mut raw_command = RawCommand::from_command_line(command, self.payload_commands)?;
 
                 let payload_size = raw_command.get_expected_payload_size();
 
@@ -119,11 +158,18 @@ impl RawCommandParser {
         return Ok(out);
 
     }
-    
+
 }
 
- fn extract_expected_payload_size(split: &[&str]) -> Result<usize, CommandError> {
-        if !is_payload_command(split[0]) {
+pub struct RawCommand {
+    pub(crate) command: String,
+    pub(crate) command_split: VecDeque<String>,
+    pub(crate) expected_payload_size: usize,
+    pub(crate) payload: Vec<u8>,
+}
+
+ fn extract_expected_payload_size(split: &[&str], payload_commands: &[&str]) -> Result<usize, CommandError> {
+        if !payload_commands.contains(&split[0]) {
             return Ok(0);
         }
 
@@ -139,16 +185,18 @@ impl RawCommandParser {
         Ok(expected_payload_size)
     }
 
-fn is_payload_command(operand: &str) -> bool {
-    matches!(operand, "ADL" | "RML" | "UUX" | "UUN" | "UUM" | "UBM" | "MSG" | "NOT" | "QRY" | "FQY" | "PUT" | "DEL" | "VAS" | "SDC" | "SDG")
-}
-
 impl FromStr for RawCommand {
     type Err = CommandError;
 
     fn from_str(command: &str) -> Result<Self, Self::Err> {
+        RawCommand::from_command_line(command, CLIENT_PAYLOAD_COMMANDS)
+    }
+}
+
+impl RawCommand {
+    fn from_command_line(command: &str, payload_commands: &[&str]) -> Result<Self, CommandError> {
         let command_split = split_raw_command_no_arg(command);
-        let payload_size: usize = extract_expected_payload_size(command_split.as_slice())?;
+        let payload_size: usize = extract_expected_payload_size(command_split.as_slice(), payload_commands)?;
 
         Ok(RawCommand {
             command: command.to_string(),
@@ -157,13 +205,6 @@ impl FromStr for RawCommand {
             expected_payload_size: payload_size,
         })
     }
-}
-
-pub struct RawCommand {
-    pub(crate) command: String,
-    pub(crate) command_split: VecDeque<String>,
-    pub(crate) expected_payload_size: usize,
-    pub(crate) payload: Vec<u8>
 }
 
 impl RawCommand {
@@ -259,6 +300,7 @@ impl IntoBytes for RawCommand {
         cmd.append(&mut self.payload);
         cmd
     }
+
 }
 
 
@@ -266,7 +308,7 @@ impl IntoBytes for RawCommand {
 mod tests {
     use std::str::from_utf8;
 
-    use crate::msnp::raw_command_parser::RawCommandParser;
+    use crate::msnp::raw_command_parser::{RawCommandParser, ServerCommandParser};
 
     #[test]
     fn test_one_simple_command_old() {
@@ -322,7 +364,7 @@ mod tests {
 
         //Act
         let parsed = parser.parse_message(command.as_bytes());
-        
+
         assert!(parsed.is_err());
     }
 
@@ -393,7 +435,7 @@ mod tests {
         let mut parser = RawCommandParser::new();
 
         let command = String::from("ANS 9 aeontest4@shlasouf.local;{F52973B6-C926-4BAD-9BA8-7C1E840E4AB0} IWlIc1N6VHNzZXh6ZWVWV1pjVDpzaGxhc291Zi5sb2NhbDtzeXRfWVdWdmJuUmxjM1EwX09xUklRQktRd0ZFRU1aSE5KY2JiXzBCQjJzcjtAYWVvbnRlc3QzOnNobGFzb3VmLmxvY2Fs 15800445832891040610\r\n");
-   
+
         let parsed = parser.parse_message(command.as_bytes()).unwrap();
 
         assert_eq!(1, parsed.len());
@@ -436,5 +478,35 @@ mod tests {
 
           println!("size in message: {}, size with len(): {}", payload_command.get_expected_payload_size(), payload_command.payload.len());
           assert!(payload_command.is_complete() == true);
+    }
+
+    #[test]
+    fn server_parser_frames_server_payload_commands() {
+        let mut parser = ServerCommandParser::new();
+        let command = String::from("VER 1 MSNP18\r\nGCF 0 10\r\n<shields/>USR 3 OK a@b.c 1 0\r\n");
+
+        let parsed = parser.parse_message(command.as_bytes()).unwrap();
+
+        assert_eq!(parsed.len(), 3);
+        assert_eq!(parsed[0].get_operand(), "VER");
+        assert_eq!(parsed[1].get_operand(), "GCF");
+        assert_eq!(from_utf8(&parsed[1].payload).unwrap(), "<shields/>");
+        assert_eq!(parsed[2].get_operand(), "USR");
+    }
+
+    #[test]
+    fn server_parser_frames_chunked_ubx() {
+        let mut parser = ServerCommandParser::new();
+        let command = String::from("UBX 1:a@b.c 13\r\n");
+        let payload = String::from("<Data></Data>");
+
+        let parsed = parser.parse_message(command.as_bytes()).unwrap();
+        assert!(parsed.is_empty());
+
+        let mut parsed = parser.parse_message(payload.as_bytes()).unwrap();
+        let command = parsed.pop().unwrap();
+
+        assert!(command.is_complete());
+        assert_eq!(from_utf8(&command.payload).unwrap(), "<Data></Data>");
     }
 }

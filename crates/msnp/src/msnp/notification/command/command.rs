@@ -1,8 +1,11 @@
+use std::str::FromStr;
+
 use strum_macros::Display;
 
 use crate::msnp::notification::command::blp::BlpServer;
 use crate::msnp::notification::command::chg::ChgServer;
 use crate::msnp::notification::command::cvr::CvrServer;
+use crate::msnp::notification::command::gcf::GcfServer;
 use crate::msnp::notification::command::iln::IlnServer;
 use crate::msnp::notification::command::msg::MsgServer;
 use crate::msnp::notification::command::nfy::NfyServer;
@@ -11,6 +14,7 @@ use crate::msnp::notification::command::not::NotServer;
 use crate::msnp::notification::command::prp::PrpServer;
 use crate::msnp::notification::command::put::{PutClient, PutServer};
 use crate::msnp::notification::command::rng::RngServer;
+use crate::msnp::notification::command::sbs::SbsServer;
 use crate::msnp::notification::command::sdg::{SdgClient, SdgServer};
 use crate::msnp::notification::command::ubx::UbxServer;
 use crate::msnp::notification::command::usr::UsrServer;
@@ -85,6 +89,32 @@ impl TryFromRawCommand for NotificationClientCommand {
 
 }
 
+impl IntoBytes for NotificationClientCommand {
+    fn into_bytes(self) -> Vec<u8> {
+        match self {
+            NotificationClientCommand::VER(command) => command.into_bytes(),
+            NotificationClientCommand::CVR(command) => command.into_bytes(),
+            NotificationClientCommand::USR(command) => command.into_bytes(),
+            NotificationClientCommand::PNG => b"PNG\r\n".to_vec(),
+            NotificationClientCommand::ADL(command) => command.into_bytes(),
+            NotificationClientCommand::RML(command) => command.into_bytes_with_operand("RML"),
+            NotificationClientCommand::FQY(command) => command.into_bytes(),
+            NotificationClientCommand::UUX(command) => command.into_bytes(),
+            NotificationClientCommand::BLP(command) => command.into_bytes(),
+            NotificationClientCommand::CHG(command) => command.into_bytes(),
+            NotificationClientCommand::PRP(command) => command.into_bytes(),
+            NotificationClientCommand::UUN(command) => command.into_bytes(),
+            NotificationClientCommand::UUM(command) => command.into_bytes(),
+            NotificationClientCommand::SDG(command) => command.into_bytes(),
+            NotificationClientCommand::PUT(command) => command.into_bytes(),
+            NotificationClientCommand::XFR(command) => command.into_bytes(),
+            NotificationClientCommand::URL(command) => command.into_bytes(),
+            NotificationClientCommand::OUT => b"OUT\r\n".to_vec(),
+            NotificationClientCommand::RAW(command) => command.into_bytes(),
+        }
+    }
+}
+
 
 
 #[derive(Display)]
@@ -114,6 +144,8 @@ pub enum NotificationServerCommand {
     PRP(PrpServer),
     URL(UrlServer),
     UBN(UbnServer),
+    GCF(GcfServer),
+    SBS(SbsServer),
     ERR(ErrCommand),
     OUT,
     RAW(RawCommand)
@@ -122,8 +154,36 @@ pub enum NotificationServerCommand {
 impl TryFromRawCommand for NotificationServerCommand {
     type Err = CommandError;
 
-    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
-        todo!()
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        let out = match raw.get_operand() {
+            "VER" => NotificationServerCommand::VER(VerServer::try_from_raw(raw)?),
+            "CVR" => NotificationServerCommand::CVR(CvrServer::try_from_raw(raw)?),
+            "USR" => NotificationServerCommand::USR(UsrServer::try_from_raw(raw)?),
+            "MSG" => NotificationServerCommand::MSG(MsgServer::try_from_raw(raw)?),
+            "NOT" => NotificationServerCommand::NOT(NotServer::try_from_raw(raw)?),
+            "UBX" => NotificationServerCommand::UBX(UbxServer::try_from_raw(raw)?),
+            "GCF" => NotificationServerCommand::GCF(GcfServer::try_from_raw(raw)?),
+            "SBS" => NotificationServerCommand::SBS(SbsServer::try_from_raw(raw)?),
+            "OK" => NotificationServerCommand::OK(OkCommand::try_from_raw(raw)?),
+            "CHG" => NotificationServerCommand::CHG(ChgServer::try_from_raw(raw)?),
+            "BLP" => NotificationServerCommand::BLP(BlpServer::try_from_raw(raw)?),
+            "PRP" => NotificationServerCommand::PRP(PrpServer::try_from_raw(raw)?),
+            "QNG" => {
+                let mut split = raw.command_split;
+                let _operand = split.pop_front();
+                let raw_timeout = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "timeout".into(), 1))?;
+                NotificationServerCommand::QNG(u32::from_str(&raw_timeout)?)
+            }
+            // The acknowledgement shape `<operand> <tr_id> OK` (ADL 7 OK, UUN 9 OK, …).
+            _ if raw.command_split.len() == 3
+                && raw.command_split.back().map(String::as_str) == Some("OK") =>
+            {
+                NotificationServerCommand::OK(OkCommand::try_from_raw(raw)?)
+            }
+            _ => NotificationServerCommand::RAW(raw)
+        };
+
+        Ok(out)
     }
 
 
@@ -159,6 +219,78 @@ impl IntoBytes for NotificationServerCommand {
             NotificationServerCommand::URL(content) => { content.into_bytes() }
             NotificationServerCommand::ERR(content) => { content.into_bytes() }
             NotificationServerCommand::UBN(content) => { content.into_bytes() }
+            NotificationServerCommand::GCF(content) => { content.into_bytes() }
+            NotificationServerCommand::SBS(content) => { content.into_bytes() }
+        }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use crate::msnp::raw_command_parser::{RawCommand, RawCommandParser, ServerCommandParser};
+    use crate::shared::traits::{IntoBytes, TryFromRawCommand};
+
+    use super::{NotificationClientCommand, NotificationServerCommand};
+
+    #[test]
+    fn client_png_serializes() {
+        assert_eq!(NotificationClientCommand::PNG.into_bytes(), b"PNG\r\n");
+    }
+
+    #[test]
+    fn client_out_serializes() {
+        assert_eq!(NotificationClientCommand::OUT.into_bytes(), b"OUT\r\n");
+    }
+
+    #[test]
+    fn server_enum_parses_qng() {
+        let mut parser = ServerCommandParser::new();
+        let raw = parser.parse_message(b"QNG 120\r\n").unwrap().pop().unwrap();
+
+        match NotificationServerCommand::try_from_raw(raw).unwrap() {
+            NotificationServerCommand::QNG(timeout) => assert_eq!(timeout, 120),
+            other => panic!("expected QNG, got {other}"),
+        }
+    }
+
+    #[test]
+    fn server_enum_parses_the_operand_ok_acknowledgement() {
+        let mut parser = ServerCommandParser::new();
+        let raw = parser.parse_message(b"ADL 7 OK\r\n").unwrap().pop().unwrap();
+
+        match NotificationServerCommand::try_from_raw(raw).unwrap() {
+            NotificationServerCommand::OK(ok) => {
+                assert_eq!(ok.operand, "ADL");
+                assert_eq!(ok.tr_id, 7);
+            }
+            other => panic!("expected OK, got {other}"),
+        }
+    }
+
+    #[test]
+    fn client_enum_round_trips_adl() {
+        let payload = crate::msnp::notification::models::adl_payload::ADLPayload::from_str("<ml l=\"1\"></ml>").unwrap();
+        let adl = NotificationClientCommand::ADL(crate::msnp::notification::command::adl::AdlClient { tr_id: 7, payload });
+
+        let mut parser = RawCommandParser::new();
+        let bytes = adl.into_bytes();
+        let raw = parser.parse_message(&bytes).unwrap().pop().unwrap();
+
+        match NotificationClientCommand::try_from_raw(raw).unwrap() {
+            NotificationClientCommand::ADL(parsed) => assert_eq!(parsed.tr_id, 7),
+            other => panic!("expected ADL, got {other}"),
+        }
+    }
+
+    #[test]
+    fn unknown_server_operands_fall_back_to_raw() {
+        let mut parser = ServerCommandParser::new();
+        let raw = parser.parse_message(b"RNG 1 127.0.0.1:11864 CKI 1234.5678\r\n").unwrap().pop().unwrap();
+
+        match NotificationServerCommand::try_from_raw(raw).unwrap() {
+            NotificationServerCommand::RAW(raw) => assert_eq!(raw.get_operand(), "RNG"),
+            other => panic!("expected RAW, got {other}"),
         }
     }
 }

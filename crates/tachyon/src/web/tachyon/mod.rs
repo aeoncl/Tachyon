@@ -1,7 +1,7 @@
 mod middleware;
 mod layout;
-mod matrix_auth;
 mod login;
+pub(crate) mod oauth_callback;
 mod confirm_device;
 mod verification;
 
@@ -19,7 +19,6 @@ use maud::html;
 use std::str::FromStr;
 use sha1::{Digest, Sha1};
 use crate::tachyon::repository::RepositoryStr;
-use crate::web::tachyon::confirm_device::{reset_identity, recover, other_device};
 
 lazy_static_include_bytes! {
     INDEX => "./assets/web/tachyon/index.html",
@@ -113,24 +112,24 @@ pub fn tachyon_router(state: GlobalState) -> Router<GlobalState> {
         //Secured v
         .route("/test", get(serve_index))
         .route("/confirm_device", get(confirm_device::get_confirm))
-        .route("/confirm_device/reset_identity", post(reset_identity::post_reset_identity))
-        .route("/confirm_device/reset_identity", get(reset_identity::get_reset_identity))
-        .route("/confirm_device/recover", get(recover::get_recover))
-        .route("/confirm_device/recover", post(recover::post_recover))
-        .route("/confirm_device/other_device", get(other_device::get_other_device))
-        .route("/confirm_device/other_device", post(other_device::post_other_device))
+        .route("/confirm_device/reset_identity", post(confirm_device::reset_identity::post_reset_identity))
+        .route("/confirm_device/reset_identity", get(confirm_device::reset_identity::get_reset_identity))
+        .route("/confirm_device/recover", get(confirm_device::recover::get_recover))
+        .route("/confirm_device/recover", post(confirm_device::recover::post_recover))
+        .route("/confirm_device/other_device", get(confirm_device::other_device::get_other_device))
+        .route("/confirm_device/other_device", post(confirm_device::other_device::post_other_device))
+        .route("/confirm_device/enable", get(confirm_device::enable::get_enable))
+        .route("/confirm_device/enable", post(confirm_device::enable::post_enable))
+        .route("/confirm_device/recovery_key/saved", post(confirm_device::recovery_key::post_saved))
         .route("/verification", get(verification::get_verification_poll))
         .route("/verification/sas_v1/{action}", post(verification::sas_v1_actions::post_sas_v1_action))
-        .route("/login/nfy", get(login::get_login_nfy))
         .layer(from_fn_with_state(state.clone(), middleware::is_authenticated))
         .layer(from_fn(middleware::intercooler_layout_wrapper))
         //Unsecured v
         .route("/", get(serve_index))
         .route("/login", get(login::get_login_page))
-        .route("/login/request", get(login::get_login_request))
-        .route("/login/request", post(login::post_login_request))
-        .route("/auth", get(matrix_auth::get_auth))
-        .route("/auth", post(matrix_auth::post_auth))
+        .route("/login", post(login::post_login))
+        .route("/login/check", get(login::get_login_check))
         .route("/img/sas_v1/{file}", get(serve_static))
         .route("/img/sas_v1/{file}", head(serve_static))
         .route("/img/{file}", get(serve_static))

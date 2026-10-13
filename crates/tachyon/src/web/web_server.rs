@@ -40,6 +40,8 @@ impl WebServer {
             .route("/Config/MsgrConfig.asmx", get(get_msgr_config))
             .nest("/tachyon", tachyon_router(state.clone()))
             .nest("/ads", ads_router(state.clone()))
+            .route("/oauth/callback", get(crate::web::tachyon::oauth_callback::oauth_callback))
+            .route("/oauth/callback", post(crate::web::tachyon::oauth_callback::oauth_callback))
             .route("/ppsecure/sha1auth.srf", post(sha1auth))
             .route("/ppcrlconfig.srf", get(ppcrlconfigsrf))
             .route("/ppcrlconfig.bin", get(ppcrlconfigsrf))

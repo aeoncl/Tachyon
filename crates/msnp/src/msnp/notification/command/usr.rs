@@ -17,6 +17,15 @@ pub struct UsrClient {
     pub auth_type: AuthOperationTypeClient,
 }
 
+impl IntoBytes for UsrClient {
+    fn into_bytes(self) -> Vec<u8> {
+        match self.auth_type {
+            AuthOperationTypeClient::Sso(phase) => format!("USR {} SSO {}\r\n", self.tr_id, phase).into_bytes(),
+            AuthOperationTypeClient::Sha(phase) => format!("USR {} SHA {}\r\n", self.tr_id, phase).into_bytes(),
+        }
+    }
+}
+
 
 impl TryFromRawCommand for UsrClient {
     type Err = CommandError;
@@ -68,6 +77,14 @@ pub enum ShaPhaseClient {
     }
 }
 
+impl core::fmt::Display for ShaPhaseClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ShaPhaseClient::A { circle_ticket } => write!(f, "A {circle_ticket}"),
+        }
+    }
+}
+
 impl TryFromSplit for ShaPhaseClient{
     type Err = CommandError;
 
@@ -97,6 +114,17 @@ pub enum SsoPhaseClient {
         challenge: String,
         endpoint_guid: EndpointGuid,
     },
+}
+
+impl core::fmt::Display for SsoPhaseClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SsoPhaseClient::I { email_addr } => write!(f, "I {email_addr}"),
+            SsoPhaseClient::S { ticket_token, challenge, endpoint_guid } => {
+                write!(f, "S {ticket_token} {challenge} {endpoint_guid}")
+            }
+        }
+    }
 }
 
 
@@ -203,8 +231,63 @@ impl core::fmt::Display for UsrServer {
 impl TryFromRawCommand for UsrServer {
     type Err = CommandError;
 
-    fn try_from_raw(_raw: RawCommand) -> Result<Self, Self::Err> {
-        todo!()
+    fn try_from_raw(raw: RawCommand) -> Result<Self, Self::Err> {
+        let mut split = raw.command_split;
+        let _operand = split.pop_front();
+
+        let raw_tr_id = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "tr_id".into(), 1))?;
+        let tr_id = u128::from_str(&raw_tr_id)?;
+
+        let raw_operation_type = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "operation_type".into(), 2))?;
+        let auth_type = match raw_operation_type.as_str() {
+            "SSO" => {
+                let raw_phase = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "sso_phase".into(), 3))?;
+                match raw_phase.as_str() {
+                    "S" => {
+                        let raw_policy = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "auth_policy".into(), 4))?;
+                        let policy = AuthPolicy::from_str(&raw_policy).map_err(|e| CommandError::ArgumentParseError {
+                            argument: raw_policy.clone(),
+                            command: raw.command.clone(),
+                            source: anyhow!("Unknown auth policy: {e}"),
+                        })?;
+                        let nonce = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "nonce".into(), 5))?;
+                        OperationTypeServer::Sso(SsoPhaseServer::S { policy, nonce })
+                    }
+                    _ => {
+                        return Err(CommandError::ArgumentParseError {
+                            argument: raw_phase,
+                            command: raw.command,
+                            source: anyhow!("Unknown sso phase"),
+                        })
+                    }
+                }
+            }
+            "OK" => {
+                let raw_email = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "email_addr".into(), 3))?;
+                let email_addr = EmailAddress::from_str(&raw_email)?;
+
+                let raw_verified = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "verified".into(), 4))?;
+                let verified = i32::from_str(&raw_verified)?;
+
+                let raw_unknown_arg = split.pop_front().ok_or(CommandError::MissingArgument(raw.command.clone(), "unknown_arg".into(), 5))?;
+                let unknown_arg = i32::from_str(&raw_unknown_arg)?;
+
+                OperationTypeServer::Ok {
+                    email_addr,
+                    verified: verified != 0,
+                    unknown_arg: unknown_arg != 0,
+                }
+            }
+            _ => {
+                return Err(CommandError::ArgumentParseError {
+                    argument: raw_operation_type,
+                    command: raw.command,
+                    source: anyhow!("Unknown operation type"),
+                })
+            }
+        };
+
+        Ok(Self { tr_id, auth_type })
     }
 
 }
@@ -220,10 +303,12 @@ impl IntoBytes for UsrServer {
 mod tests {
     use std::str::FromStr;
 
+    use crate::msnp::notification::models::endpoint_guid::EndpointGuid;
     use crate::msnp::raw_command_parser::RawCommand;
     use crate::msnp::{error::CommandError, notification::command::usr::{AuthOperationTypeClient, SsoPhaseClient}};
     use crate::shared::models::email_address::EmailAddress;
-    use crate::shared::traits::TryFromRawCommand;
+    use crate::shared::models::ticket_token::TicketToken;
+    use crate::shared::traits::{IntoBytes, TryFromRawCommand};
 
     use super::{AuthPolicy, OperationTypeServer, SsoPhaseServer, UsrClient, UsrServer};
 
@@ -320,6 +405,81 @@ mod tests {
         assert_eq!("USR 2 OK Xx-taytay-xX@hotmail.com 1 0\r\n", ser);
     }
 
+    #[test]
+    fn server_sso_challenge_des() {
+        let mut parser = crate::msnp::raw_command_parser::ServerCommandParser::new();
+        let raw = parser
+            .parse_message(b"USR 3 SSO S MBI_KEY_OLD LAhAAUzdC+JvuB33nooLSa6Oh0oDFCbKrN57EVTY0Dmca8Reb3C1S1czlP12N8VU\r\n")
+            .unwrap()
+            .pop()
+            .unwrap();
 
+        let usr = UsrServer::try_from_raw(raw).unwrap();
+
+        assert_eq!(usr.tr_id, 3);
+        let OperationTypeServer::Sso(SsoPhaseServer::S { policy, nonce }) = usr.auth_type else {
+            panic!("expected the SSO challenge, got {usr}");
+        };
+        assert!(matches!(policy, AuthPolicy::MbiKeyOld));
+        assert_eq!(nonce, "LAhAAUzdC+JvuB33nooLSa6Oh0oDFCbKrN57EVTY0Dmca8Reb3C1S1czlP12N8VU");
+    }
+
+    #[test]
+    fn server_ok_des() {
+        let mut parser = crate::msnp::raw_command_parser::ServerCommandParser::new();
+        let raw = parser
+            .parse_message(b"USR 4 OK Xx-taytay-xX@hotmail.com 1 0\r\n")
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        let usr = UsrServer::try_from_raw(raw).unwrap();
+
+        assert_eq!(usr.tr_id, 4);
+        let OperationTypeServer::Ok { email_addr, verified, unknown_arg } = usr.auth_type else {
+            panic!("expected the OK reply, got {usr}");
+        };
+        assert_eq!(email_addr.as_str(), "Xx-taytay-xX@hotmail.com");
+        assert!(verified);
+        assert!(!unknown_arg);
+    }
+
+    #[test]
+    fn client_sso_i_ser() {
+        let usr = UsrClient {
+            tr_id: 3,
+            auth_type: AuthOperationTypeClient::Sso(SsoPhaseClient::I {
+                email_addr: EmailAddress::from_str("login@test.com").unwrap(),
+            }),
+        };
+
+        assert_eq!(usr.into_bytes(), b"USR 3 SSO I login@test.com\r\n");
+    }
+
+    #[test]
+    fn client_sso_s_ser_round_trips() {
+        let usr = UsrClient {
+            tr_id: 4,
+            auth_type: AuthOperationTypeClient::Sso(SsoPhaseClient::S {
+                ticket_token: TicketToken::from_str("t=ssotoken").unwrap(),
+                challenge: "challenge".to_string(),
+                endpoint_guid: EndpointGuid::from_str("{C8D73CAE-A6F5-491B-A74B-A85E657CFC2C}").unwrap(),
+            }),
+        };
+
+        let bytes = usr.into_bytes();
+        assert_eq!(
+            String::from_utf8(bytes.clone()).unwrap(),
+            "USR 4 SSO S t=ssotoken challenge {C8D73CAE-A6F5-491B-A74B-A85E657CFC2C}\r\n"
+        );
+
+        let mut parser = crate::msnp::raw_command_parser::RawCommandParser::new();
+        let raw = parser.parse_message(&bytes).unwrap().pop().unwrap();
+        let parsed = UsrClient::try_from_raw(raw).unwrap();
+        let AuthOperationTypeClient::Sso(SsoPhaseClient::S { ticket_token, .. }) = parsed.auth_type else {
+            panic!("expected the S phase");
+        };
+        assert_eq!(ticket_token.as_str(), "ssotoken");
+    }
 
 }
