@@ -53,13 +53,14 @@ impl TachyonClient {
         notification_sender: mpsc::Sender<NotificationServerCommand>,
         client_shutdown_snd: broadcast::Sender<()>,
         client_shutdown_recv: broadcast::Receiver<()>,
+        contact_list: ContactList,
     ) -> TachyonClient {
         TachyonClient {
             inner: Arc::new(TachyonClientInner {
                 matrix_client,
                 own_user: RwLock::new(user),
                 ticket_token: token,
-                contact_list: Default::default(),
+                contact_list: Mutex::new(contact_list),
                 soap_holder: Default::default(),
                 switchboards: Default::default(),
                 alerts: Default::default(),

@@ -1,9 +1,10 @@
+use std::sync::Arc;
 use crate::notification::handlers::ready::handle_ready;
 use crate::notification::handlers::{auth, negotiation};
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::config::tachyon_config::TachyonConfig;
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global_state::{GlobalState, PendingLogin};
 use anyhow::anyhow;
 use log::warn;
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
@@ -25,7 +26,8 @@ pub(crate) async fn handle_command(command: NotificationClientCommand, command_s
                 local_client_data.phase = ConnectionPhase::Ready;
                 handle_ready(command, command_sender, tachyon_client, local_client_data.matrix_client.clone().expect("just stored"), local_client_data, config).await
             } else {
-                handle_awaiting_login(command, command_sender).await
+                let pending_login = global_state.pending_login(local_client_data.token.as_str()).expect("Pending login to be here");
+                handle_awaiting_login(command, command_sender, pending_login).await
             }
         },
         ConnectionPhase::Ready => {
@@ -40,14 +42,22 @@ pub(crate) async fn handle_command(command: NotificationClientCommand, command_s
 }
 
 // the backend is still logging in: keep the client alive with pings and list acknowledgements
-async fn handle_awaiting_login(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error> {
+async fn handle_awaiting_login(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, pending_login: Arc<PendingLogin>) -> Result<(), anyhow::Error> {
     match command {
         NotificationClientCommand::PNG => {
             command_sender.send(NotificationServerCommand::QNG(120)).await?;
             Ok(())
         }
         NotificationClientCommand::ADL(command) => {
-            command_sender.send(NotificationServerCommand::OK(msnp::shared::command::ok::OkCommand { operand: "ADL".to_string(), tr_id: command.tr_id })).await?;
+
+            let contacts = command.payload.get_contacts()?;
+
+            {
+                let mut contact_list = pending_login.contact_list.lock().unwrap();
+                contact_list.add_contacts(contacts.clone(), command.payload.is_initial());
+            }
+
+            command_sender.send(NotificationServerCommand::OK(command.get_ok_response("ADL"))).await?;
             Ok(())
         }
         NotificationClientCommand::RML(_) | NotificationClientCommand::UUX(_) | NotificationClientCommand::PRP(_) | NotificationClientCommand::OUT | NotificationClientCommand::VER(_) | NotificationClientCommand::CVR(_) => Ok(()),

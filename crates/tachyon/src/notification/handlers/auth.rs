@@ -59,6 +59,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                                 client_shutdown_recv: local_store.client_shutdown_recv.resubscribe(),
                                 pending_oauth: Mutex::new(None),
                                 guard: Mutex::new(None),
+                                contact_list: Mutex::new(Default::default()),
                             };
                             tachyon_state.register_pending_login(token.clone(), pending);
                             local_store.phase = ConnectionPhase::AwaitingLogin;

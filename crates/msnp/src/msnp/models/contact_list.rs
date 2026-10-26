@@ -7,6 +7,7 @@ use crate::shared::models::email_address::EmailAddress;
 use crate::shared::models::role_list::RoleList;
 use crate::shared::models::uuid::Uuid;
 
+#[derive(Debug, Clone)]
 pub struct ContactList {
     pub contact_list: HashMap<EmailAddress, Contact>,
 }

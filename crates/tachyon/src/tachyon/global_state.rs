@@ -1,3 +1,4 @@
+use std::mem;
 use crate::matrix::services::homeserver::HomeserverResolver;
 use crate::matrix::services::login::MatrixLoginService;
 use crate::matrix::verification_request_repository::VerificationRequestRepository;
@@ -20,6 +21,7 @@ use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::{Arc, Mutex};
 use tachyon_sqlite_store::SqliteCredentialsStore;
 use tokio::sync::{broadcast, mpsc};
+use msnp::msnp::models::contact_list::ContactList;
 
 pub struct PendingOAuth {
     pub state: String,
@@ -34,6 +36,7 @@ pub struct PendingLogin {
     pub client_shutdown_recv: broadcast::Receiver<()>,
     pub pending_oauth: Mutex<Option<PendingOAuth>>,
     pub guard: Mutex<Option<ClientDropGuard>>,
+    pub contact_list: Mutex<ContactList>,
 }
 
 pub struct GlobalStateInner {
@@ -160,8 +163,8 @@ impl GlobalState {
         self.inner.pending_logins.get(token).map(|entry| entry.value().clone())
     }
 
-    pub fn remove_pending_login(&self, token: &str) {
-        self.inner.pending_logins.remove(token);
+    pub fn remove_pending_login(&self, token: &str) -> Option<Arc<PendingLogin>> {
+        self.inner.pending_logins.remove(token).map(|(_, recv)| recv)
     }
 
     pub fn find_pending_login_by_oauth_state(&self, state: &str) -> Option<(String, Arc<PendingLogin>)> {
@@ -200,6 +203,8 @@ impl GlobalState {
         let msn_user = MsnUser::new(endpoint_id);
         let ticket_token = TicketToken(token.to_string());
 
+        let contact_list = pending.contact_list.lock().expect("to be here").clone();
+
         let tachyon_client = TachyonClient::new(
             matrix_client.clone(),
             self.get_config().clone(),
@@ -208,6 +213,7 @@ impl GlobalState {
             pending.notification_sender.clone(),
             pending.client_shutdown_snd.clone(),
             pending.client_shutdown_recv.resubscribe(),
+            contact_list
         );
         let drop_guard = self.insert_clients(token.to_owned(), tachyon_client.clone());
 
