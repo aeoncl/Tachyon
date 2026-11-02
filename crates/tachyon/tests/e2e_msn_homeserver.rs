@@ -122,6 +122,140 @@ async fn msn_client_reconnects_to_a_persisted_session() {
     stack.shutdown().await;
 }
 
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a reachable Docker daemon (DOCKER_HOST); run with: cargo test -p tachyon --test e2e_msn_homeserver -- --ignored"]
+async fn abch_pulls_while_login_is_in_flight_answer_empty() {
+    let _e2e = E2E_LOCK.lock().await;
+    init_logging();
+
+    let run = Run::fresh();
+    let stack = Stack::start(&run).await;
+
+    let ticket = mint_ticket(stack.http_port, run.email.as_str()).await;
+
+    let mut msn = MsnClient::connect(stack.notification_port).await;
+    handshake(&mut msn, &run.email, &ticket).await;
+
+    // USR OK has just been sent: the matrix login is still in flight, and the Messenger client
+    // fires these two ABCH pulls right after it, so they must not fault.
+    let contacts = soap_pull(
+        &stack,
+        "/abservice/abservice.asmx",
+        "http://www.msn.com/webservices/AddressBook/ABFindContactsPaged",
+        &find_contacts_paged_request(&ticket),
+    )
+    .await;
+    assert_eq!(contacts.status, 200, "the contact pull must not error before login completes: {}", contacts.body);
+    assert!(!contacts.body.contains("<soap:Fault"), "no SOAP fault before login completes: {}", contacts.body);
+    assert!(contacts.body.contains("ABFindContactsPagedResult"), "the pull must carry the AB result: {}", contacts.body);
+    assert!(contacts.body.contains("12r1:e2e-cache-key"), "the cache key must be echoed back: {}", contacts.body);
+    assert_eq!(contacts.body.matches("<passportName>").count(), 1, "only the own contact is expected before login completes: {}", contacts.body);
+
+    let memberships = soap_pull(
+        &stack,
+        "/abservice/SharingService.asmx",
+        "http://www.msn.com/webservices/AddressBook/FindMembership",
+        &find_membership_request(&ticket),
+    )
+    .await;
+    assert_eq!(memberships.status, 200, "the membership pull must not error before login completes: {}", memberships.body);
+    assert!(!memberships.body.contains("<soap:Fault"), "no SOAP fault before login completes: {}", memberships.body);
+    assert!(memberships.body.contains("FindMembershipResult"), "the pull must carry the membership result: {}", memberships.body);
+    assert!(memberships.body.contains("12r1:e2e-cache-key"), "the cache key must be echoed back: {}", memberships.body);
+    assert_eq!(memberships.body.matches("PassportMember").count(), 0, "no members are expected before login completes: {}", memberships.body);
+
+    stack.shutdown().await;
+}
+
+struct SoapResponse {
+    status: u16,
+    body: String,
+}
+
+async fn soap_pull(stack: &Stack, path: &str, soap_action: &str, body: &str) -> SoapResponse {
+    let client = reqwest::Client::new();
+    let response = client
+        .post(format!("http://127.0.0.1:{}{}", stack.http_port, path))
+        .header("SOAPAction", format!("\"{soap_action}\""))
+        .header("User-Agent", CLIENT_USER_AGENT)
+        .header("content-type", "application/soap+xml")
+        .body(body.to_string())
+        .send()
+        .await
+        .expect("soap request");
+    let status = response.status().as_u16();
+    let text = response.text().await.unwrap_or_default();
+    SoapResponse { status, body: text }
+}
+
+fn find_contacts_paged_request(ticket: &BridgeLinkToken) -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+        <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+            <soap:Header>
+                <ABApplicationHeader xmlns="http://www.msn.com/webservices/AddressBook">
+                    <ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId>
+                    <IsMigration>false</IsMigration>
+                    <PartnerScenario>Initial</PartnerScenario>
+                    <CacheKey>12r1:e2e-cache-key</CacheKey>
+                </ABApplicationHeader>
+                <ABAuthHeader xmlns="http://www.msn.com/webservices/AddressBook">
+                    <ManagedGroupRequest>false</ManagedGroupRequest>
+                    <TicketToken>t={ticket}</TicketToken>
+                </ABAuthHeader>
+            </soap:Header>
+            <soap:Body>
+                <ABFindContactsPaged xmlns="http://www.msn.com/webservices/AddressBook">
+                    <filterOptions>
+                        <DeltasOnly>true</DeltasOnly>
+                        <LastChanged>2022-04-21T19:49:28Z</LastChanged>
+                        <ContactFilter>
+                            <IncludeHiddenContacts>true</IncludeHiddenContacts>
+                        </ContactFilter>
+                    </filterOptions>
+                    <abView>MessengerClient8</abView>
+                    <extendedContent>AB AllGroups CircleResult</extendedContent>
+                </ABFindContactsPaged>
+            </soap:Body>
+        </soap:Envelope>"#
+    )
+}
+
+fn find_membership_request(ticket: &BridgeLinkToken) -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+        <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+            <soap:Header>
+                <ABApplicationHeader xmlns="http://www.msn.com/webservices/AddressBook">
+                    <ApplicationId>AAD9B99B-58E6-4F23-B975-D9EC1F9EC24A</ApplicationId>
+                    <IsMigration>false</IsMigration>
+                    <PartnerScenario>Initial</PartnerScenario>
+                    <CacheKey>12r1:e2e-cache-key</CacheKey>
+                </ABApplicationHeader>
+                <ABAuthHeader xmlns="http://www.msn.com/webservices/AddressBook">
+                    <ManagedGroupRequest>false</ManagedGroupRequest>
+                    <TicketToken>t={ticket}</TicketToken>
+                </ABAuthHeader>
+            </soap:Header>
+            <soap:Body>
+                <FindMembership xmlns="http://www.msn.com/webservices/AddressBook">
+                    <serviceFilter>
+                        <Types>
+                            <ServiceType>Messenger</ServiceType>
+                            <ServiceType>SocialNetwork</ServiceType>
+                            <ServiceType>Space</ServiceType>
+                            <ServiceType>Profile</ServiceType>
+                        </Types>
+                    </serviceFilter>
+                    <View>Full</View>
+                    <deltasOnly>true</deltasOnly>
+                    <lastChange>2022-04-20T13:03:28Z</lastChange>
+                </FindMembership>
+            </soap:Body>
+        </soap:Envelope>"#
+    )
+}
+
 fn any_store_file(dir: &std::path::Path) -> bool {
     fn walk(dir: &std::path::Path) -> bool {
         let Ok(entries) = std::fs::read_dir(dir) else {
