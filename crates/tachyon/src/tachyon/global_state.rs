@@ -39,6 +39,12 @@ pub struct PendingLogin {
     pub contact_list: Mutex<ContactList>,
 }
 
+impl PendingLogin {
+    pub fn msn_user(&self) -> MsnUser {
+        MsnUser::new(EndpointId::new(self.email.clone(), Some(self.endpoint_guid.clone())))
+    }
+}
+
 pub struct GlobalStateInner {
     config: TachyonConfig,
     tachyon_clients: TachyonClientRepository,
@@ -199,8 +205,7 @@ impl GlobalState {
             return;
         };
 
-        let endpoint_id = EndpointId::new(pending.email.clone(), Some(pending.endpoint_guid.clone()));
-        let msn_user = MsnUser::new(endpoint_id);
+        let msn_user = pending.msn_user();
         let ticket_token = TicketToken(token.to_string());
 
         let contact_list = pending.contact_list.lock().expect("to be here").clone();

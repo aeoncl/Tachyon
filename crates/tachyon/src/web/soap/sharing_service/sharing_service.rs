@@ -1,11 +1,12 @@
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global_state::{GlobalState, PendingLogin};
 use crate::web::soap::error::ABError;
 use crate::web::soap::sharing_service::add_member::add_member;
 use crate::web::soap::sharing_service::delete_member::delete_member;
 use crate::web::soap::sharing_service::find_membership::find_membership;
+use crate::web::soap::shared;
 use anyhow::anyhow;
 use axum::extract::State;
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use log::error;
 use msnp::shared::models::ticket_token::TicketToken;
@@ -13,7 +14,8 @@ use msnp::soap::abch::request_header::AuthHeaderSoapEnvelope;
 use msnp::soap::abch::sharing_service::add_member::request::AddMemberMessageSoapEnvelope;
 use msnp::soap::abch::sharing_service::delete_member::request::DeleteMemberMessageSoapEnvelope;
 use msnp::soap::abch::sharing_service::find_membership::request::FindMembershipRequestSoapEnvelope;
-use msnp::soap::traits::xml::TryFromXml;
+use msnp::soap::abch::sharing_service::find_membership::response::factory::FindMembershipResponseFactory;
+use msnp::soap::traits::xml::{ToXml, TryFromXml};
 use std::str::FromStr;
 use crate::tachyon::repository::RepositoryStr;
 
@@ -25,7 +27,16 @@ pub async fn sharing_service(headers: HeaderMap, State(state): State<GlobalState
     let token = TicketToken::from_str(&header_env.header.ab_auth_header.ticket_token).unwrap();
 
 
-    let tachyon_client = state.tachyon_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")})?;
+    let Some(tachyon_client) = state.tachyon_clients().get(token.as_str()) else {
+        // The Messenger client fires its first ABCH pulls right after USR OK, while the matrix login is still in flight.
+        // Answer the membership pull with an empty book so the client does not see an error.
+        if let Some(pending) = state.pending_login(token.as_str()) {
+            if soap_action == "http://www.msn.com/webservices/AddressBook/FindMembership" {
+                return pending_membership_book(&pending, &body);
+            }
+        }
+        return Err(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")});
+    };
     let client = tachyon_client.matrix_client();
 
     match soap_action {
@@ -43,4 +54,12 @@ pub async fn sharing_service(headers: HeaderMap, State(state): State<GlobalState
             Err(ABError::UnsupportedSoapAction(soap_action.to_string()))
         }
     }
+}
+
+fn pending_membership_book(pending: &PendingLogin, body: &str) -> Result<Response, ABError> {
+    let request = FindMembershipRequestSoapEnvelope::try_from_xml(body)?;
+    let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or_default();
+    let me = pending.msn_user();
+    let soap_body = FindMembershipResponseFactory::get_empty_response(&me, &cache_key, false);
+    Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
 }

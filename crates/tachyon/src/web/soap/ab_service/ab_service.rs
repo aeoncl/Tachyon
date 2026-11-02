@@ -1,13 +1,14 @@
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global_state::{GlobalState, PendingLogin};
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::soap::ab_service::ab_contact_add::ab_contact_add;
 use crate::web::soap::ab_service::ab_contact_delete::ab_contact_delete;
 use crate::web::soap::ab_service::ab_contact_update::ab_contact_update;
 use crate::web::soap::ab_service::ab_find_contacts_paged::ab_find_contacts_paged;
 use crate::web::soap::error::ABError;
+use crate::web::soap::shared;
 use anyhow::anyhow;
 use axum::extract::State;
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use axum_macros::debug_handler;
 use log::error;
@@ -16,9 +17,10 @@ use msnp::soap::abch::ab_service::ab_contact_add::request::AbcontactAddMessageSo
 use msnp::soap::abch::ab_service::ab_contact_delete::request::AbcontactDeleteMessageSoapEnvelope;
 use msnp::soap::abch::ab_service::ab_contact_update::request::AbcontactUpdateMessageSoapEnvelope;
 use msnp::soap::abch::ab_service::ab_find_contacts_paged::request::AbfindContactsPagedMessageSoapEnvelope;
+use msnp::soap::abch::ab_service::ab_find_contacts_paged::response::AbfindContactsPagedResponseMessageSoapEnvelope;
 use msnp::soap::abch::ab_service::ab_group_add::request::AbgroupAddMessageSoapEnvelope;
 use msnp::soap::abch::request_header::AuthHeaderSoapEnvelope;
-use msnp::soap::traits::xml::TryFromXml;
+use msnp::soap::traits::xml::{ToXml, TryFromXml};
 use std::str::FromStr;
 #[debug_handler]
 pub async fn address_book_service(headers: HeaderMap, State(state): State<GlobalState>, body: String) -> Result<Response, ABError> {
@@ -28,7 +30,16 @@ pub async fn address_book_service(headers: HeaderMap, State(state): State<Global
     let header_env = AuthHeaderSoapEnvelope::try_from_xml(&body)?;
     let token = TicketToken::from_str(&header_env.header.ab_auth_header.ticket_token).unwrap();
 
-    let tachyon_client = state.tachyon_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")})?;
+    let Some(tachyon_client) = state.tachyon_clients().get(token.as_str()) else {
+        // The Messenger client fires its first ABCH pulls right after USR OK, while the matrix login is still in flight.
+        // Answer the contact pull with an empty book so the client does not see an error.
+        if let Some(pending) = state.pending_login(token.as_str()) {
+            if soap_action == "http://www.msn.com/webservices/AddressBook/ABFindContactsPaged" {
+                return pending_contact_book(&pending, &body);
+            }
+        }
+        return Err(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")});
+    };
     let client = tachyon_client.matrix_client();
 
     match soap_action {
@@ -58,4 +69,12 @@ pub async fn address_book_service(headers: HeaderMap, State(state): State<Global
 
 async fn ab_group_add(_request : AbgroupAddMessageSoapEnvelope, _token: TicketToken) -> Result<Response, ABError> {
     todo!()
+}
+
+fn pending_contact_book(pending: &PendingLogin, body: &str) -> Result<Response, ABError> {
+    let request = AbfindContactsPagedMessageSoapEnvelope::try_from_xml(body)?;
+    let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or_default();
+    let me = pending.msn_user();
+    let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(&me, &cache_key, Vec::new(), Vec::new(), false);
+    Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
 }
