@@ -1,4 +1,5 @@
-use crate::tachyon::global_state::{GlobalState, PendingLogin};
+use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::global_state::{GlobalState};
 use crate::web::soap::error::ABError;
 use crate::web::soap::sharing_service::add_member::add_member;
 use crate::web::soap::sharing_service::delete_member::delete_member;
@@ -28,16 +29,16 @@ pub async fn sharing_service(headers: HeaderMap, State(state): State<GlobalState
 
 
     let Some(tachyon_client) = state.tachyon_clients().get(token.as_str()) else {
+        return Err(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")});
+    };
+    let Some(client) = tachyon_client.matrix_client() else {
         // The Messenger client fires its first ABCH pulls right after USR OK, while the matrix login is still in flight.
         // Answer the membership pull with an empty book so the client does not see an error.
-        if let Some(pending) = state.pending_login(token.as_str()) {
-            if soap_action == "http://www.msn.com/webservices/AddressBook/FindMembership" {
-                return pending_membership_book(&pending, &body);
-            }
+        if soap_action == "http://www.msn.com/webservices/AddressBook/FindMembership" {
+            return pending_membership_book(&tachyon_client, &body);
         }
         return Err(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")});
     };
-    let client = tachyon_client.matrix_client();
 
     match soap_action {
         "http://www.msn.com/webservices/AddressBook/FindMembership" => {
@@ -56,10 +57,10 @@ pub async fn sharing_service(headers: HeaderMap, State(state): State<GlobalState
     }
 }
 
-fn pending_membership_book(pending: &PendingLogin, body: &str) -> Result<Response, ABError> {
+fn pending_membership_book(tachyon_client: &TachyonClient, body: &str) -> Result<Response, ABError> {
     let request = FindMembershipRequestSoapEnvelope::try_from_xml(body)?;
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or_default();
-    let me = pending.msn_user();
+    let me = tachyon_client.own_user();
     let soap_body = FindMembershipResponseFactory::get_empty_response(&me, &cache_key, false);
     Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
 }

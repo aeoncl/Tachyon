@@ -70,7 +70,7 @@ impl TachyonClient {
         let duration = siren_wav_duration(voice_clip.len());
         let opus = audio::from_siren_wav_to_opus_ogg(voice_clip).await?;
 
-        let room = self.matrix_client().get_room(room_id).ok_or(anyhow!("Could not find room to send voice clip to. RoomId: {} SessionId: {}", room_id, session_id))?;
+        let room = self.matrix_client_ready().get_room(room_id).ok_or(anyhow!("Could not find room to send voice clip to. RoomId: {} SessionId: {}", room_id, session_id))?;
 
         let info = AttachmentInfo::Voice(BaseAudioInfo {
             duration: Some(duration),

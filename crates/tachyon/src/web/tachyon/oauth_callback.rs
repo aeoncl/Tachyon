@@ -20,10 +20,10 @@ pub(crate) async fn oauth_callback(State(state): State<GlobalState>, req: Reques
         return oauth_error("The OAuth callback is missing its state parameter.");
     };
 
-    let Some((token, _pending)) = state.find_pending_login_by_oauth_state(state_param) else {
+    let Some((token, client)) = state.tachyon_clients().find_by_oauth_state(state_param) else {
         return oauth_error("This login link has expired or was already used. Reopen Tachyon from the Messenger alert and try again.");
     };
-    let Some(oauth) = state.take_pending_oauth(&token) else {
+    let Some(oauth) = client.take_pending_oauth() else {
         return oauth_error("This login was already completed. Reopen Tachyon from the Messenger alert.");
     };
 
@@ -38,7 +38,7 @@ pub(crate) async fn oauth_callback(State(state): State<GlobalState>, req: Reques
     }
 
     persist_session(&oauth.client, &token, state.credentials());
-    state.finish_login(&token, oauth.client).await;
+    client.attach_backend(oauth.client, state.credentials_handle());
     redirect_to_next_step(&state, &token, req.headers()).await
 }
 

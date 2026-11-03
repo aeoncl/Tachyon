@@ -23,6 +23,12 @@ impl TachyonClientRepository {
 
         self.clients.iter().next().map(|x| x.value().clone())
     }
+
+    pub fn find_by_oauth_state(&self, state: &str) -> Option<(String, TachyonClient)> {
+        self.clients.iter()
+            .find(|entry| entry.value().pending_oauth_state().as_deref() == Some(state))
+            .map(|entry| (entry.key().clone(), entry.value().clone()))
+    }
 }
 
 

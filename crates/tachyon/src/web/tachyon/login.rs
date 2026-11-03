@@ -8,9 +8,10 @@ use tachyon_sqlite_store::HomeserverUrl;
 
 use crate::matrix::cross_signing::check_device_is_crossed_signed;
 use crate::matrix::services::homeserver::{ResolutionError, ResolvedHomeserver};
-use crate::matrix::services::login::{get_matrix_client_builder, persist_session, spawn_session_watcher};
+use crate::matrix::services::login::{get_matrix_client_builder, persist_session};
+use crate::tachyon::client::tachyon_client::PendingOAuth;
 use crate::tachyon::config::paths::get_store_path;
-use crate::tachyon::global_state::{GlobalState, PendingOAuth};
+use crate::tachyon::global_state::{GlobalState};
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::web::tachyon::layout;
 use crate::web::tachyon::Params;
@@ -22,7 +23,7 @@ pub async fn get_login_page(
     Extension(token): Extension<String>,
     axum::extract::Query(query): axum::extract::Query<Params>,
 ) -> Response {
-    if state.get_clients(&token).is_some() {
+    if state.get_clients(&token).map_or(false, |client| client.is_backend_ready()) {
         return redirect(&format!("/tachyon?t={}", token), &HeaderMap::new());
     }
 
@@ -66,12 +67,12 @@ pub async fn post_login(
     headers: HeaderMap,
     Form(form): Form<Params>,
 ) -> Response {
-    let Some(pending) = state.pending_login(&token) else {
-        if state.get_clients(&token).is_some() {
-            return redirect_to_next_step(&state, &token, &headers).await;
-        }
+    let Some(client) = state.get_clients(&token) else {
         return error_page("Unknown or expired session — reopen Tachyon from the Messenger alert.");
     };
+    if client.is_backend_ready() {
+        return redirect_to_next_step(&state, &token, &headers).await;
+    }
 
     let username = form.get("username").cloned().unwrap_or_default();
     let homeserver = form.get("homeserver_url").cloned().unwrap_or_default();
@@ -82,7 +83,7 @@ pub async fn post_login(
         Err(error) => return login_error_page(&token, &username, &homeserver, &error),
     };
 
-    let matrix_id = pending.email.to_owned_user_id();
+    let matrix_id = client.own_user().get_email_address().to_owned_user_id();
 
     if sso {
         if !resolved.supports_oauth {
@@ -106,8 +107,7 @@ pub async fn post_login(
     match login {
         Ok(matrix_client) => {
             persist_session(&matrix_client, &token, state.credentials());
-            spawn_session_watcher(matrix_client.clone(), token.clone(), state.credentials_handle(), pending.client_shutdown_recv.resubscribe());
-            state.finish_login(&token, matrix_client).await;
+            client.attach_backend(matrix_client, state.credentials_handle());
             redirect_to_next_step(&state, &token, &headers).await
         }
         Err(_) => login_error_message(&token, &username, &homeserver, "Login failed. Please try again."),
@@ -135,7 +135,10 @@ async fn begin_sso_login(state: &GlobalState, token: &str, matrix_id: &matrix_sd
         .await?;
 
     let url = authorization.url.to_string();
-    state.hold_pending_oauth(token, PendingOAuth {
+    let Some(tachyon_client) = state.get_clients(token) else {
+        return Err(anyhow::anyhow!("no client for this session token"));
+    };
+    tachyon_client.set_pending_oauth(PendingOAuth {
         state: authorization.state.secret().to_owned(),
         client,
     });
@@ -167,8 +170,8 @@ fn oauth_registration_metadata(http_port: u32) -> Result<(matrix_sdk::ruma::serd
 }
 
 fn prefill(state: &GlobalState, token: &str, query: &Params) -> (String, String) {
-    if let Some(pending) = state.pending_login(token) {
-        if let Some((username, homeserver)) = pending.email.as_str().split_once('@') {
+    if let Some(client) = state.get_clients(token) {
+        if let Some((username, homeserver)) = client.own_user().get_email_address().as_str().split_once('@') {
             return (username.to_string(), homeserver.to_string());
         }
     }
@@ -310,7 +313,7 @@ pub(crate) async fn redirect_to_next_step(state: &GlobalState, token: &str, head
         return error_page("Session lost — reopen Tachyon from the Messenger alert.");
     };
 
-    let cross_signed = check_device_is_crossed_signed(&tachyon_client.matrix_client()).await.unwrap_or(false);
+    let cross_signed = check_device_is_crossed_signed(&tachyon_client.matrix_client_ready()).await.unwrap_or(false);
     if cross_signed {
         redirect(&format!("/tachyon?t={}", token), headers)
     } else {

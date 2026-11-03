@@ -84,10 +84,11 @@ pub async fn get_profile_pic(Path((image_mxid, _image_type)): Path<(String, Stri
     let image_mxid = String::from_utf8(general_purpose::STANDARD.decode(image_mxid.as_bytes()).unwrap()).unwrap();
     let parsed_mxc = OwnedMxcUri::from(image_mxid);
 
-    let client_data = state.get_single_client().unwrap();
-
-    let client= state.tachyon_clients().get(client_data.ticket_token().as_str()).unwrap().matrix_client();
-
+    let client_data = match state.get_single_client() {
+        Some(client_data) if client_data.matrix_client().is_some() => client_data,
+        _ => return Response::builder().status(StatusCode::SERVICE_UNAVAILABLE).body(Body::empty()).expect("response to build"),
+    };
+    let client = client_data.matrix_client().unwrap();
 
     let thumbnail_settings = MediaThumbnailSettings::new(UInt::new(200).unwrap(), UInt::new(200).unwrap() );
 

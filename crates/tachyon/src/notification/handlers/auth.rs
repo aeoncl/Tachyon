@@ -1,15 +1,13 @@
-use std::sync::Mutex;
 use std::time::Duration;
 use crate::matrix::cross_signing::{self, check_device_is_crossed_signed};
-use crate::matrix::services::login::{domain_user_id_to_owned, persist_session, spawn_session_watcher, store_hydration_warning};
+use crate::matrix::services::login::{domain_user_id_to_owned, persist_session, store_hydration_warning};
 use crate::matrix::sync::sync;
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
 use crate::tachyon::alert::{Alert};
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::config::paths::get_store_path;
-use crate::tachyon::global_state::{GlobalState, PendingLogin};
-use anyhow::Error;
+use crate::tachyon::global_state::{GlobalState};
 use log::{debug, info, warn};
 use matrix_sdk::Client;
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
@@ -21,10 +19,8 @@ use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
-use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use tachyon_sqlite_store::HomeserverUrl;
-use tokio::sync::broadcast::{self, Receiver};
 use tokio::sync::mpsc::Sender;
 use tokio::{select, task};
 use crate::tachyon::config::tachyon_config::TachyonConfig;
@@ -50,19 +46,22 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             let token = ticket_token.as_str().to_string();
                             local_store.token = ticket_token.clone();
 
-                            // registered before the OK: the client fires its first ABCH SOAP right after, and the lookup must resolve
-                            let pending = PendingLogin {
-                                email: local_store.email_addr.clone(),
-                                endpoint_guid: endpoint_guid.clone(),
-                                notification_sender: notif_sender.clone(),
-                                client_shutdown_snd: local_store.client_shutdown_snd.clone(),
-                                client_shutdown_recv: local_store.client_shutdown_recv.resubscribe(),
-                                pending_oauth: Mutex::new(None),
-                                guard: Mutex::new(None),
-                                contact_list: Mutex::new(Default::default()),
-                            };
-                            tachyon_state.register_pending_login(token.clone(), pending);
-                            local_store.phase = ConnectionPhase::AwaitingLogin;
+                            let msn_user = MsnUser::new(EndpointId::new(local_store.email_addr.clone(), Some(endpoint_guid.clone())));
+
+                            // registered before the OK: the client fires its first ABCH SOAP right after, and the lookup must resolve.
+                            // The backend stays pending until the matrix login lands.
+                            let client = TachyonClient::new(
+                                config.clone(),
+                                msn_user.clone(),
+                                ticket_token.clone(),
+                                notif_sender.clone(),
+                                local_store.client_shutdown_snd.clone(),
+                                local_store.client_shutdown_recv.resubscribe(),
+                                Default::default(),
+                            );
+                            local_store.client_drop_guard = Some(tachyon_state.insert_clients(token.clone(), client.clone()));
+                            local_store.tachyon_client = Some(client.clone());
+                            local_store.phase = ConnectionPhase::Ready;
 
                             let usr_response = UsrServer::new(command.tr_id, OperationTypeServer::Ok {
                                 email_addr: local_store.email_addr.clone(),
@@ -72,7 +71,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
 
                             // off the read loop: its SDK round trips can park for seconds while PNG/ADL must keep flowing
-                            spawn_restore_or_toast(tachyon_state.clone(), token.clone(), config.clone());
+                            spawn_restore_or_toast(tachyon_state.clone(), token.clone(), client, config.clone());
                         }
                     }
                 },
@@ -92,17 +91,17 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
     }
 }
 
-fn spawn_restore_or_toast(state: GlobalState, token: String, config: TachyonConfig) {
+fn spawn_restore_or_toast(state: GlobalState, token: String, client: TachyonClient, config: TachyonConfig) {
     task::spawn(async move {
         let credentials = match state.credentials().load(&token) {
             Ok(Some(credentials)) => credentials,
             Ok(None) => {
-                send_login_toast(&state, &token).await;
+                send_login_toast(&client).await;
                 return;
             }
             Err(error) => {
                 warn!("credentials unreadable for {}, asking for sign-in: {}", token, error);
-                send_login_toast(&state, &token).await;
+                send_login_toast(&client).await;
                 return;
             }
         };
@@ -115,42 +114,35 @@ fn spawn_restore_or_toast(state: GlobalState, token: String, config: TachyonConf
         }
 
         let config_homeserver = config.homeserver_url.as_deref().and_then(|url| HomeserverUrl::parse(url).ok());
-        let restored = state.matrix_login_service().restore_saved_session(&credentials, config_homeserver.as_ref(), !config.strict_ssl).await;
-        match restored {
+        match state.matrix_login_service().restore_saved_session(&credentials, config_homeserver.as_ref(), !config.strict_ssl).await {
             Ok(matrix_client) => {
                 info!("restored the saved session for {}", token);
                 persist_session(&matrix_client, &token, state.credentials());
-                let session_shutdown = state.pending_login(&token)
-                    .map(|pending| pending.client_shutdown_recv.resubscribe())
-                    .unwrap_or_else(|| broadcast::channel::<()>(1).1);
-                spawn_session_watcher(matrix_client.clone(), token.clone(), state.credentials_handle(), session_shutdown);
-                state.finish_login(&token, matrix_client).await;
+                client.attach_backend(matrix_client, state.credentials_handle());
             }
             outcome => {
                 info!("saved session for {} not restored ({:?}); asking for sign-in", token, outcome);
-                send_login_toast(&state, &token).await;
+                send_login_toast(&client).await;
             }
         }
     });
 }
 
 // The one startup alert, pointing at the section that is missing
-pub(crate) async fn send_login_toast(state: &GlobalState, token: &str) {
-    let Some(pending) = state.pending_login(token) else {
-        return;
-    };
-    let email = pending.email.as_str();
-    let (username, homeserver) = email.split_once('@').map(|(username, homeserver)| (username.to_string(), homeserver.to_string())).unwrap_or_default();
+pub(crate) async fn send_login_toast(client: &TachyonClient) {
+    let msn_user = client.own_user();
+    let email = msn_user.get_email_address();
+    let (username, homeserver) = email.as_str().split_once('@').map(|(username, homeserver)| (username.to_string(), homeserver.to_string())).unwrap_or_default();
     let login_url = format!(
         "http://127.0.0.1:{}/tachyon/login?username={}&homeserver={}&t={}",
-        state.get_config().http_port, username, homeserver, token
+        client.config().http_port, username, homeserver, client.ticket_token().as_str()
     );
     let notification_id: i32 = rand::random();
 
     let secret_not = NotificationServerCommand::NOT(NotServer {
         payload: NotificationPayloadType::Normal(NotificationFactory::alert(
-            &MsnUser::new(EndpointId::new(pending.email.clone(), None)).uuid,
-            &pending.email,
+            &MsnUser::new(EndpointId::new(email.clone(), None)).uuid,
+            &email,
             "Sign in required - click here to continue",
             login_url.as_str(),
             "",
@@ -159,17 +151,17 @@ pub(crate) async fn send_login_toast(state: &GlobalState, token: &str) {
             notification_id,
         )),
     });
-    let _ = pending.notification_sender.send(secret_not).await;
+    let _ = client.notification_handle().send(secret_not).await;
 }
 
-pub(crate) async fn sync_with_server_task(notif_sender: &Sender<NotificationServerCommand>, client_shutdown_snd: &broadcast::Sender<()>, client_shutdown_recv: &Receiver<()>, ticket_token: &TicketToken, matrix_client: &Client, msn_user: &MsnUser, tachyon_client: TachyonClient, config: &TachyonConfig) -> Result<(), Error> {
-    let msn_user_clone = msn_user.clone();
+pub(crate) fn sync_with_server_task(tachyon_client: TachyonClient, matrix_client: &Client) {
+    let msn_user_clone = tachyon_client.own_user();
     let matrix_client_clone = matrix_client.clone();
-    let notif_sender_clone = notif_sender.clone();
-    let ticket_token_clone = ticket_token.clone();
-    let config_clone = config.clone();
-    let client_shutdown_snd = client_shutdown_snd.clone();
-    let mut client_shutdown_recv = client_shutdown_recv.resubscribe();
+    let notif_sender_clone = tachyon_client.notification_handle();
+    let ticket_token_clone = tachyon_client.ticket_token();
+    let config_clone = tachyon_client.config();
+    let client_shutdown_snd = tachyon_client.shutdown_sender();
+    let mut client_shutdown_recv = tachyon_client.shutdown_receiver();
 
 
     task::spawn(async move {
@@ -270,5 +262,4 @@ pub(crate) async fn sync_with_server_task(notif_sender: &Sender<NotificationServ
 
         notif_sender_clone.send(initial_mail_data).await;
     });
-    Ok(())
 }

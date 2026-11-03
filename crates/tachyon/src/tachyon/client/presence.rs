@@ -16,7 +16,7 @@ impl TachyonClient {
         &self,
         room_id: &RoomId,
     ) -> Result<Option<MsnObject>, anyhow::Error> {
-        let matrix_client = self.matrix_client();
+        let matrix_client = self.matrix_client_ready();
         let out = match matrix_client.get_room(room_id) {
             None => None,
             Some(room) => match room.get_single_direct_target() {
@@ -33,7 +33,7 @@ impl TachyonClient {
         user_id: &UserId,
         room_id: &RoomId,
     ) -> Result<Option<MsnObject>, anyhow::Error> {
-        let matrix_client = self.matrix_client();
+        let matrix_client = self.matrix_client_ready();
 
         let out = match matrix_client.get_room(room_id) {
             None => None,
@@ -64,7 +64,7 @@ impl TachyonClient {
         &self,
         room_id: &RoomId,
     ) -> Result<Option<MsnObject>, anyhow::Error> {
-        let matrix_client = self.matrix_client();
+        let matrix_client = self.matrix_client_ready();
         let out = match matrix_client.get_room(room_id) {
             None => None,
             Some(room) => {
@@ -99,7 +99,7 @@ impl TachyonClient {
         &self,
         room: &Room,
     ) -> Result<Option<(OwnedMxcUri, Vec<u8>)>, anyhow::Error> {
-        let matrix_client = self.matrix_client();
+        let matrix_client = self.matrix_client_ready();
 
         let avatar_url = room.avatar_url();
         let out = match avatar_url {
@@ -132,7 +132,7 @@ impl TachyonClient {
         user_id: &UserId,
         room: &Room,
     ) -> Result<Option<(OwnedMxcUri, Vec<u8>)>, anyhow::Error> {
-        let matrix_client = self.matrix_client();
+        let matrix_client = self.matrix_client_ready();
 
         let member = room.get_member(user_id).await?;
         let out = match member {

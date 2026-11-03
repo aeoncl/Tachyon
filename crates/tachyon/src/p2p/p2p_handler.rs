@@ -62,7 +62,7 @@ pub async fn handle_p2p_packet(room_id: &RoomId, transport: Transport, p2p_packe
                     let session = tachyon_client.get_session(session_id).unwrap();
                     session.accept().unwrap();
 
-                    let matrix_client = tachyon_client.matrix_client();
+                    let matrix_client = tachyon_client.matrix_client_ready();
                     tokio::spawn(async move {
 
                         let session_type = session.session_type();
@@ -124,7 +124,7 @@ pub async fn handle_p2p_packet(room_id: &RoomId, transport: Transport, p2p_packe
 
                                     let client = tachyon_client.clone();
                                     let proxy_room_email =  EmailAddress::from_str(&obj.creator).unwrap();
-                                    let room = client.matrix_client().find_room_from_email(&proxy_room_email).unwrap().unwrap();
+                                    let room = client.matrix_client_ready().find_room_from_email(&proxy_room_email).unwrap().unwrap();
                                     tokio::spawn(async move {
                                         let (_, bytes) = client.get_avatar_thumbnail(&room).await.unwrap().unwrap();
 

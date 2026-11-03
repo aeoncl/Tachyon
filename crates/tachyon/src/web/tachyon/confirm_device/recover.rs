@@ -141,7 +141,7 @@ pub async fn post_recover(
 
     let tachyon_client = state.tachyon_clients().get(&token).unwrap();
     let (_id, mut alert) = tachyon_client.alerts().remove(&notification_id).unwrap();
-    let matrix_client = tachyon_client.matrix_client();
+    let matrix_client = tachyon_client.matrix_client_ready();
 
     let result = restore_from_recovery_key(&matrix_client, recovery_key).await;
 

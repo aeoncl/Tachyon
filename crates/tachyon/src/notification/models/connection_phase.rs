@@ -3,7 +3,6 @@
 pub(crate) enum ConnectionPhase {
     Negotiating,
     Authenticating,
-    AwaitingLogin,
     Ready
 }
 

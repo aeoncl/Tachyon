@@ -37,7 +37,10 @@ pub async fn storage_service(headers: HeaderMap, State(state): State<GlobalState
     let token = TicketToken::from_str(&header_env.header.storage_user.unwrap().ticket_token).unwrap();
 
     let tachyon_client = state.tachyon_clients().get(token.as_str()).ok_or(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")})?;
-    let client = tachyon_client.matrix_client();
+    let client = match tachyon_client.matrix_client() {
+        Some(client) => client,
+        None => return Err(ABError::AuthenticationFailed {source: anyhow!("the matrix backend is still logging in")}),
+    };
 
     match soap_action {
         "http://www.msn.com/webservices/storage/2008/GetProfile" => {

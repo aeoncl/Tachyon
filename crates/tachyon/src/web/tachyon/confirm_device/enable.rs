@@ -24,7 +24,9 @@ pub async fn post_enable(
     let Some(tachyon_client) = state.get_clients(&token) else {
         return error_page("No session for this token.");
     };
-    let matrix_client = tachyon_client.matrix_client();
+    let Some(matrix_client) = tachyon_client.matrix_client() else {
+        return error_page("The Messenger login is still in progress, please wait a moment.");
+    };
 
     match enable_secret_storage(&matrix_client).await {
         Ok(recovery_key) => Html(recovery_key_content(&recovery_key).into_string()).into_response(),

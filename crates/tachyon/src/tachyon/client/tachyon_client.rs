@@ -1,8 +1,13 @@
+use crate::matrix::services::login::spawn_session_watcher;
 use crate::notification::circle_store::CircleStore;
+use crate::notification::handlers::auth::sync_with_server_task;
 use crate::notification::models::notification_handle::NotificationHandle;
 use crate::notification::models::soap_holder::SoapHolder;
+use crate::p2p::client::session::{P2PSession, SessionId};
+use crate::p2p::client::transport::Transport;
 use crate::switchboard::models::switchboard_handle::SwitchboardHandle;
 use crate::tachyon::alert::Alert;
+use crate::tachyon::client::voice_clip::VoiceClipStore;
 use crate::tachyon::config::tachyon_config::TachyonConfig;
 use crate::tachyon::switchboard_service::SwitchboardService;
 use dashmap::DashMap;
@@ -10,17 +15,31 @@ use matrix_sdk::locks::RwLock;
 use matrix_sdk::ruma::OwnedRoomId;
 use msnp::msnp::models::contact_list::ContactList;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
+use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
 use std::sync::{Arc, Mutex, RwLockWriteGuard};
+use tachyon_sqlite_store::SqliteCredentialsStore;
 use tokio::sync::{broadcast, mpsc};
-use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
-use crate::p2p::client::session::{P2PSession, SessionId};
-use crate::p2p::client::transport::Transport;
-use crate::tachyon::client::voice_clip::VoiceClipStore;
+
+/// The matrix backend of the client. It is attached once the matrix login
+/// completes and stays attached for the lifetime of the client.
+pub enum Backend {
+    /// The MSNP session is connected but the matrix login has not completed yet.
+    Pending,
+    Ready(matrix_sdk::Client),
+}
+
+/// An in-flight OAuth login. The SDK client is held here until the homeserver
+/// redirects back with the auth code.
+pub struct PendingOAuth {
+    pub state: String,
+    pub client: matrix_sdk::Client,
+}
 
 pub struct TachyonClientInner {
-    matrix_client: matrix_sdk::Client,
+    pub backend: RwLock<Backend>,
+    pub pending_oauth: Mutex<Option<PendingOAuth>>,
     pub own_user: RwLock<MsnUser>,
     pub ticket_token: TicketToken,
     pub contact_list: Mutex<ContactList>,
@@ -46,7 +65,6 @@ pub struct TachyonClient {
 
 impl TachyonClient {
     pub fn new(
-        matrix_client: matrix_sdk::Client,
         config: TachyonConfig,
         user: MsnUser,
         token: TicketToken,
@@ -57,7 +75,8 @@ impl TachyonClient {
     ) -> TachyonClient {
         TachyonClient {
             inner: Arc::new(TachyonClientInner {
-                matrix_client,
+                backend: RwLock::new(Backend::Pending),
+                pending_oauth: Mutex::new(None),
                 own_user: RwLock::new(user),
                 ticket_token: token,
                 contact_list: Mutex::new(contact_list),
@@ -75,6 +94,56 @@ impl TachyonClient {
                 voice_clips: Default::default(),
             })
         }
+    }
+
+    /// The matrix backend, if the login has completed.
+    pub fn matrix_client(&self) -> Option<matrix_sdk::Client> {
+        match &*self.inner.backend.read() {
+            Backend::Ready(client) => Some(client.clone()),
+            Backend::Pending => None,
+        }
+    }
+
+    pub fn is_backend_ready(&self) -> bool {
+        self.matrix_client().is_some()
+    }
+
+    pub fn matrix_client_ready(&self) -> matrix_sdk::Client {
+        self.matrix_client().expect("backend is attached in every flow that needs it")
+    }
+
+    pub fn set_pending_oauth(&self, oauth: PendingOAuth) {
+        if let Ok(mut slot) = self.inner.pending_oauth.lock() {
+            *slot = Some(oauth);
+        }
+    }
+
+    pub fn take_pending_oauth(&self) -> Option<PendingOAuth> {
+        self.inner.pending_oauth.lock().ok()?.take()
+    }
+
+    pub fn pending_oauth_state(&self) -> Option<String> {
+        self.inner.pending_oauth.lock().ok()?.as_ref().map(|oauth| oauth.state.clone())
+    }
+
+    /// Attach the matrix backend. The first caller wins: the concurrent login
+    /// paths (session restore, login page, OAuth callback) observe the winner
+    /// instead of double-attaching.
+    pub fn attach_backend(&self, matrix_client: matrix_sdk::Client, credentials: Arc<SqliteCredentialsStore>) {
+        {
+            let mut backend = self.inner.backend.write();
+            if matches!(*backend, Backend::Ready(_)) {
+                return;
+            }
+            *backend = Backend::Ready(matrix_client.clone());
+        }
+        log::info!("matrix backend attached for {}", self.inner.ticket_token.as_str());
+        spawn_session_watcher(matrix_client.clone(), self.inner.ticket_token.as_str().to_owned(), credentials, self.shutdown_receiver());
+        sync_with_server_task(self.clone(), &matrix_client);
+    }
+
+    pub fn config(&self) -> TachyonConfig {
+        self.inner.config.clone()
     }
 
     pub fn switchboards(&self) -> SwitchboardService {
@@ -119,9 +188,5 @@ impl TachyonClient {
 
     pub fn notification_handle(&self) -> NotificationHandle {
         self.inner.notification_handle.clone()
-    }
-
-    pub fn matrix_client(&self) -> matrix_sdk::Client {
-        self.inner.matrix_client.clone()
     }
 }

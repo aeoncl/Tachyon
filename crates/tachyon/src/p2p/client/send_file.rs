@@ -35,7 +35,7 @@ impl TachyonClient {
             warn!("File transfer session {} received {} bytes but the invite announced {}", session_id, reformed_bytes.len(), file_size);
         }
 
-        let room = self.matrix_client().get_room(room_id).ok_or(anyhow!("Could not find room to send file to. RoomId: {} SessionId: {}", room_id, session_id))?;
+        let room = self.matrix_client_ready().get_room(room_id).ok_or(anyhow!("Could not find room to send file to. RoomId: {} SessionId: {}", room_id, session_id))?;
 
         let mime = mime_guess::from_path(file_name).first().unwrap_or(mime::APPLICATION_OCTET_STREAM);
         let config = AttachmentConfig::new().info(attachment_info(&mime, reformed_bytes.len()));

@@ -29,12 +29,13 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
         SwitchboardClientCommand::ANS(ans_command) => {
             let token = SwitchboardToken::try_from(ans_command.token.clone())?;
 
-            match tachyon_state.tachyon_clients().get(&token.matrix_token) {
-                None => {}
-                Some(tachyon_client) => {
-
-                    let matrix_client = tachyon_state.tachyon_clients().get(&token.matrix_token).unwrap().matrix_client();
-                    match matrix_client.get_room(token.room_id.as_ref()) {
+            let Some(tachyon_client) = tachyon_state.tachyon_clients().get(&token.matrix_token) else {
+                return Ok(());
+            };
+            let Some(matrix_client) = tachyon_client.matrix_client() else {
+                return Ok(());
+            };
+            match matrix_client.get_room(token.room_id.as_ref()) {
                         None => {}
                         Some(room) => {
                             let room_msn_user = room.to_msn_user_lazy().await?;
@@ -82,11 +83,6 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
                     };
 
 
-
-                }
-            }
-
-
             //TODO send errors
 
         }
@@ -94,25 +90,23 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
 
             let token = TicketToken::from_str(&usr_command.token).unwrap();
 
-            match tachyon_state.tachyon_clients().get(token.as_str()) {
-                None => {
-                    //TODO AUTH error
-                }
-                Some(client_data) => {
-                    let matrix_client = tachyon_state.tachyon_clients().get(token.as_str()).unwrap().matrix_client();
+            let Some(client_data) = tachyon_state.tachyon_clients().get(token.as_str()) else {
+                //TODO AUTH error
+                return Ok(());
+            };
+            let Some(matrix_client) = client_data.matrix_client() else {
+                return Ok(());
+            };
 
-                    local_switchboard_data.email_addr = usr_command.endpoint_id.email_addr.clone();
-                    local_switchboard_data.endpoint_guid = usr_command.endpoint_id.endpoint_guid.clone();
-                    local_switchboard_data.token = token;
-                    local_switchboard_data.tachyon_client = Some(client_data);
-                    local_switchboard_data.matrix_client = Some(matrix_client);
-                    local_switchboard_data.session_id = SessionId::random();
-                    local_switchboard_data.phase = ConnectionPhase::Initializing;
-                    let email = &local_switchboard_data.email_addr;
-                    let _ = command_sender.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::USR(usr_command.get_ok_response_for(email.to_string())))).await;
-                }
-            }
-
+            local_switchboard_data.email_addr = usr_command.endpoint_id.email_addr.clone();
+            local_switchboard_data.endpoint_guid = usr_command.endpoint_id.endpoint_guid.clone();
+            local_switchboard_data.token = token;
+            local_switchboard_data.tachyon_client = Some(client_data);
+            local_switchboard_data.matrix_client = Some(matrix_client);
+            local_switchboard_data.session_id = SessionId::random();
+            local_switchboard_data.phase = ConnectionPhase::Initializing;
+            let email = &local_switchboard_data.email_addr;
+            let _ = command_sender.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::USR(usr_command.get_ok_response_for(email.to_string())))).await;
         }
         _ => {
             //TODO: send error when receiving another command

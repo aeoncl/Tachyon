@@ -1,4 +1,5 @@
-use crate::tachyon::global_state::{GlobalState, PendingLogin};
+use crate::tachyon::client::tachyon_client::TachyonClient;
+use crate::tachyon::global_state::{GlobalState};
 use crate::tachyon::repository::RepositoryStr;
 use crate::web::soap::ab_service::ab_contact_add::ab_contact_add;
 use crate::web::soap::ab_service::ab_contact_delete::ab_contact_delete;
@@ -31,16 +32,16 @@ pub async fn address_book_service(headers: HeaderMap, State(state): State<Global
     let token = TicketToken::from_str(&header_env.header.ab_auth_header.ticket_token).unwrap();
 
     let Some(tachyon_client) = state.tachyon_clients().get(token.as_str()) else {
+        return Err(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")});
+    };
+    let Some(client) = tachyon_client.matrix_client() else {
         // The Messenger client fires its first ABCH pulls right after USR OK, while the matrix login is still in flight.
         // Answer the contact pull with an empty book so the client does not see an error.
-        if let Some(pending) = state.pending_login(token.as_str()) {
-            if soap_action == "http://www.msn.com/webservices/AddressBook/ABFindContactsPaged" {
-                return pending_contact_book(&pending, &body);
-            }
+        if soap_action == "http://www.msn.com/webservices/AddressBook/ABFindContactsPaged" {
+            return pending_contact_book(&tachyon_client, &body);
         }
         return Err(ABError::AuthenticationFailed {source: anyhow!("Expected Tachyon Client to be present in client Store")});
     };
-    let client = tachyon_client.matrix_client();
 
     match soap_action {
         "http://www.msn.com/webservices/AddressBook/ABFindContactsPaged" => {
@@ -71,10 +72,10 @@ async fn ab_group_add(_request : AbgroupAddMessageSoapEnvelope, _token: TicketTo
     todo!()
 }
 
-fn pending_contact_book(pending: &PendingLogin, body: &str) -> Result<Response, ABError> {
+fn pending_contact_book(tachyon_client: &TachyonClient, body: &str) -> Result<Response, ABError> {
     let request = AbfindContactsPagedMessageSoapEnvelope::try_from_xml(body)?;
     let cache_key = request.header.expect("to be here").application_header.cache_key.unwrap_or_default();
-    let me = pending.msn_user();
+    let me = tachyon_client.own_user();
     let soap_body = AbfindContactsPagedResponseMessageSoapEnvelope::new_individual(&me, &cache_key, Vec::new(), Vec::new(), false);
     Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
 }

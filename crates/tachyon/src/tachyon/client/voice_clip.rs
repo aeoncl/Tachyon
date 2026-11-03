@@ -58,7 +58,7 @@ impl TachyonClient {
         }
 
         let media = self
-            .matrix_client()
+            .matrix_client_ready()
             .media()
             .get_media_content(
                 &MediaRequestParameters { source: content.source.clone(), format: MediaFormat::File },

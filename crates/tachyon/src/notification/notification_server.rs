@@ -103,7 +103,6 @@ async fn handle_client(socket: TcpStream, mut global_shutdown_recv: broadcast::R
     }
 
     info!("Client gracefully shutdown...");
-    global_state.remove_pending_login(local_client_data.token.as_str());
     Ok(())
 
 }

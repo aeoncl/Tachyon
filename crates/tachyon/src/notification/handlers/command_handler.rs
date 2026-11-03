@@ -3,8 +3,9 @@ use crate::notification::handlers::ready::handle_ready;
 use crate::notification::handlers::{auth, negotiation};
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::local_client_data::LocalClientData;
+use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::config::tachyon_config::TachyonConfig;
-use crate::tachyon::global_state::{GlobalState, PendingLogin};
+use crate::tachyon::global_state::{GlobalState};
 use anyhow::anyhow;
 use log::warn;
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
@@ -19,23 +20,18 @@ pub(crate) async fn handle_command(command: NotificationClientCommand, command_s
         ConnectionPhase::Authenticating  => {
             auth::handle_auth(command, command_sender, &global_state, local_client_data, config).await
         },
-        ConnectionPhase::AwaitingLogin => {
-            if let Some(tachyon_client) = global_state.get_clients(local_client_data.token.as_str()) {
-                //Todo move this away from here.
-                //The client is registered to early in finish login.
-                local_client_data.matrix_client = Some(tachyon_client.matrix_client());
-                local_client_data.tachyon_client = Some(tachyon_client.clone());
-                local_client_data.phase = ConnectionPhase::Ready;
-                handle_ready(command, command_sender, tachyon_client, local_client_data.matrix_client.clone().expect("just stored"), local_client_data, config).await
-            } else {
-                let pending_login = global_state.pending_login(local_client_data.token.as_str()).expect("Pending login to be here");
-                handle_awaiting_login(command, command_sender, pending_login).await
-            }
-        },
         ConnectionPhase::Ready => {
-            let matrix_client = local_client_data.matrix_client.as_ref().ok_or(anyhow!("Matrix Client should be here by now"))?.clone();
             let tachyon_client = local_client_data.tachyon_client.as_ref().ok_or(anyhow!("Tachyon Client should be here by now"))?.clone();
-            handle_ready(command, command_sender, tachyon_client, matrix_client, local_client_data, config).await
+            match tachyon_client.matrix_client() {
+                Some(matrix_client) => {
+                    local_client_data.matrix_client = Some(matrix_client.clone());
+                    handle_ready(command, command_sender, tachyon_client, matrix_client, local_client_data, config).await
+                }
+                None => {
+                    // the backend is still logging in: keep the client alive with pings and list acknowledgements
+                    handle_awaiting_login(command, command_sender, &tachyon_client).await
+                }
+            }
         }
     };
 
@@ -43,8 +39,7 @@ pub(crate) async fn handle_command(command: NotificationClientCommand, command_s
 
 }
 
-// the backend is still logging in: keep the client alive with pings and list acknowledgements
-async fn handle_awaiting_login(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, pending_login: Arc<PendingLogin>) -> Result<(), anyhow::Error> {
+async fn handle_awaiting_login(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, client: &TachyonClient) -> Result<(), anyhow::Error> {
     match command {
         NotificationClientCommand::PNG => {
             command_sender.send(NotificationServerCommand::QNG(120)).await?;
@@ -55,7 +50,7 @@ async fn handle_awaiting_login(command: NotificationClientCommand, command_sende
             let contacts = command.payload.get_contacts()?;
 
             {
-                let mut contact_list = pending_login.contact_list.lock().unwrap();
+                let mut contact_list = client.get_contact_list().lock().unwrap();
                 contact_list.add_contacts(contacts.clone(), command.payload.is_initial());
             }
 

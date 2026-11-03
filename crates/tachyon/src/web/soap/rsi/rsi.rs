@@ -27,7 +27,10 @@ pub async fn rsi(headers: HeaderMap, State(state): State<GlobalState>, body: Str
     let token = TicketToken(header_env.header.ok_or(RSIError::AuthenticationFailed {source: anyhow!("Missing Soap Header", ), service_url: "https://rsi.hotmail.com/rsi/rsi.asmx".to_string() })?.passport_cookie.t);
 
     let mut tachyon_client = state.tachyon_clients().get(token.as_str()).ok_or(RSIError::AuthenticationFailed {source: anyhow!("Missing Tachyon Client"), service_url: "https://rsi.hotmail.com/rsi/rsi.asmx".to_string() })?;
-    let client = tachyon_client.matrix_client();
+    let client = match tachyon_client.matrix_client() {
+        Some(client) => client,
+        None => return Err(RSIError::AuthenticationFailed {source: anyhow!("the matrix backend is still logging in"), service_url: "https://rsi.hotmail.com/rsi/rsi.asmx".to_string() }),
+    };
 
     match soap_action {
 
