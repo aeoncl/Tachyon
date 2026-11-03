@@ -1,5 +1,4 @@
 use dashmap::DashMap;
-use msnp::shared::models::email_address::EmailAddress;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::repository::RepositoryStr;
 
@@ -23,10 +22,6 @@ impl TachyonClientRepository {
         }
 
         self.clients.iter().next().map(|x| x.value().clone())
-    }
-
-    pub fn find_by_email(&self, email: &EmailAddress) -> Option<TachyonClient> {
-        self.clients.iter().find(|entry| entry.value().own_user().get_email_address() == email).map(|client| client.value().clone())
     }
 }
 

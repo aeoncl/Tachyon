@@ -6,7 +6,6 @@ use crate::notification::handlers::auth::sync_with_server_task;
 use crate::tachyon::alert::AlertReceiver;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::client::tachyon_client_repository::TachyonClientRepository;
-use crate::tachyon::config::secret_encryptor::SecretEncryptor;
 use crate::tachyon::config::tachyon_config::TachyonConfig;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::repository::RepositoryStr;
@@ -48,7 +47,6 @@ impl PendingLogin {
 pub struct GlobalStateInner {
     config: TachyonConfig,
     tachyon_clients: TachyonClientRepository,
-    token_validator: SecretEncryptor,
     pending_alerts: DashMap<i32, AlertReceiver>,
     pending_verification_requests: VerificationRequestRepository,
     matrix_login_service: Box<dyn MatrixLoginService>,
@@ -84,19 +82,18 @@ impl Drop for ClientDropGuard {
             self.global_state.pending_verification_requests().remove_for(&own_user_id);
         }
 
-        println!("Client Drop Guard dropped");
+        log::debug!("Client Drop Guard dropped");
     }
 }
 
 impl GlobalState {
 
-    pub fn new(config: TachyonConfig, token_validator: SecretEncryptor, matrix_login_service: Box<dyn MatrixLoginService>, credentials: Arc<SqliteCredentialsStore>) -> Self {
+    pub fn new(config: TachyonConfig, matrix_login_service: Box<dyn MatrixLoginService>, credentials: Arc<SqliteCredentialsStore>) -> Self {
         let homeserver_resolver = HomeserverResolver::new(!config.strict_ssl);
         Self {
             inner: Arc::new(GlobalStateInner {
                 config,
                 tachyon_clients: Default::default(),
-                token_validator,
                 pending_alerts: Default::default(),
                 pending_verification_requests: Default::default(),
                 matrix_login_service,
@@ -155,10 +152,6 @@ impl GlobalState {
 
     pub fn credentials_handle(&self) -> Arc<SqliteCredentialsStore> {
         self.inner.credentials.clone()
-    }
-
-    pub fn secret_encryptor(&self) -> &SecretEncryptor {
-        &self.inner.token_validator
     }
 
     pub fn register_pending_login(&self, token: String, pending: PendingLogin) {

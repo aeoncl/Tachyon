@@ -75,7 +75,7 @@ mod tests {
     use crate::notification::handlers::command_handler::handle_command;
     use crate::notification::models::connection_phase::ConnectionPhase;
     use crate::notification::models::local_client_data::LocalClientData;
-    use crate::tachyon::config::secret_encryptor::SecretEncryptor;
+
     use crate::tachyon::global_state::GlobalState;
     use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
     use msnp::msnp::notification::command::cvr::CvrClient;
@@ -94,7 +94,6 @@ mod tests {
     use crate::tachyon::error::TachyonError;
     use tachyon_sqlite_store::SqliteCredentialsStore;
 
-    const TEST_SECRET: [u8; 32] = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
 
     fn test_credentials_store() -> Arc<SqliteCredentialsStore> {
         let dir = std::env::temp_dir().join(format!("tachyon-cmdh-test-{}", std::process::id()));
@@ -129,7 +128,7 @@ mod tests {
 
         let (snd, mut rcv) = tokio::sync::mpsc::channel::<NotificationServerCommand>(10);
 
-        let state = GlobalState::new(Default::default(), SecretEncryptor::new(&TEST_SECRET).unwrap(), Box::new(MatrixLoginServiceImpl::new()), test_credentials_store());
+        let state = GlobalState::new(Default::default(), Box::new(MatrixLoginServiceImpl::new()), test_credentials_store());
 
         let (kill_snd, kill_recv) = tokio::sync::broadcast::channel::<()>(1);
         let mut local_client_data = LocalClientData::new(kill_snd.clone(), kill_recv.resubscribe());
@@ -171,7 +170,7 @@ mod tests {
 
         let (snd, mut rcv) = tokio::sync::mpsc::channel::<NotificationServerCommand>(10);
 
-        let state = GlobalState::new(Default::default(), SecretEncryptor::new(&TEST_SECRET).unwrap(), Box::new(matrix_login_service), test_credentials_store());
+        let state = GlobalState::new(Default::default(), Box::new(matrix_login_service), test_credentials_store());
 
         let (kill_snd, kill_recv) = tokio::sync::broadcast::channel::<()>(1);
         let mut local_client_data = LocalClientData::new(kill_snd.clone(), kill_recv.resubscribe());

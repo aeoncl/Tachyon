@@ -132,7 +132,7 @@ async fn handle_commands(commands: Vec<RawCommand>, command_sender: &Sender<Noti
 }
 
 fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> Sender<NotificationServerCommand> {
-    println!("Socket write task started...");
+    info!("Socket write task started...");
     let (sender, mut receiver) = mpsc::channel::<NotificationServerCommand>(300);
 
     let _result = tokio::spawn(async move {
@@ -155,7 +155,7 @@ fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> S
                 }
             }
         }
-        println!("Socket write task gracefully shutdown...");
+        info!("Socket write task gracefully shutdown...");
     } );
     sender
 }
