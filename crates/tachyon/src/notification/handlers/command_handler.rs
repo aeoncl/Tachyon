@@ -21,6 +21,8 @@ pub(crate) async fn handle_command(command: NotificationClientCommand, command_s
         },
         ConnectionPhase::AwaitingLogin => {
             if let Some(tachyon_client) = global_state.get_clients(local_client_data.token.as_str()) {
+                //Todo move this away from here.
+                //The client is registered to early in finish login.
                 local_client_data.matrix_client = Some(tachyon_client.matrix_client());
                 local_client_data.tachyon_client = Some(tachyon_client.clone());
                 local_client_data.phase = ConnectionPhase::Ready;

@@ -95,17 +95,16 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
 fn spawn_restore_or_toast(state: GlobalState, token: String, config: TachyonConfig) {
     task::spawn(async move {
         let credentials = match state.credentials().load(&token) {
-            Ok(credentials) => credentials,
+            Ok(Some(credentials)) => credentials,
+            Ok(None) => {
+                send_login_toast(&state, &token).await;
+                return;
+            }
             Err(error) => {
                 warn!("credentials unreadable for {}, asking for sign-in: {}", token, error);
                 send_login_toast(&state, &token).await;
                 return;
             }
-        };
-
-        let Some(credentials) = credentials else {
-            send_login_toast(&state, &token).await;
-            return;
         };
 
         if let Ok(user_id) = domain_user_id_to_owned(credentials.user_id()) {
