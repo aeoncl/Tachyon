@@ -7,7 +7,7 @@ use chg_handler::handle_chg;
 use fqy_handler::handle_fqy;
 use png_handler::decide_png;
 use prp_handler::handle_prp;
-use put_handler::handle_put;
+use put_handler::decide_put;
 use rml_handler::handle_rml;
 use url_handler::handle_url;
 use usr_handler::handle_usr;
@@ -54,7 +54,7 @@ pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command
             warn!("Received RAW command: {:?}", command);
             Ok(())
         }
-        NotificationClientCommand::PUT(command) => handle_put(command, local_store, tachyon_client, command_sender).await,
+        NotificationClientCommand::PUT(command) => send_client_outs(decide_put(command), &command_sender).await,
         NotificationClientCommand::OUT => {Ok(())}
         NotificationClientCommand::VER(_) => {Ok(())}
         NotificationClientCommand::CVR(_) => {Ok(())}
