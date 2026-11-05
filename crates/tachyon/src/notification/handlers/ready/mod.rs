@@ -14,7 +14,7 @@ use usr_handler::handle_usr;
 use uum_handler::handle_uum;
 use uux_handler::handle_uux;
 use xfr_handler::handle_xfr;
-use crate::notification::handlers::ready::uun_handler::handle_uun;
+use crate::notification::handlers::ready::uun_handler::decide_uun;
 use crate::notification::models::client_out::ClientOut;
 use crate::notification::models::session_state::SessionState;
 use crate::tachyon::client::tachyon_client::TachyonClient;
@@ -49,7 +49,7 @@ pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command
         }
         NotificationClientCommand::CHG(command) => handle_chg(command, local_store, tachyon_client, matrix_client, command_sender).await,
         NotificationClientCommand::PRP(command) => send_client_outs([handle_prp(command, tachyon_client)], &command_sender).await,
-        NotificationClientCommand::UUN(command) => handle_uun(command, tachyon_client, matrix_client, command_sender).await,
+        NotificationClientCommand::UUN(command) => send_client_outs(decide_uun(command), &command_sender).await,
         NotificationClientCommand::RAW(command) => {
             warn!("Received RAW command: {:?}", command);
             Ok(())
