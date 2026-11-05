@@ -1,4 +1,4 @@
-use std::str::from_utf8_unchecked;
+use std::str::from_utf8;
 
 use anyhow::anyhow;
 use log::{debug, error, info, warn};
@@ -161,8 +161,12 @@ fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> S
 
                         let bytes = command.into_bytes();
 
-                        unsafe {
-                            debug!("NS >> | {}", from_utf8_unchecked(&bytes));
+                        // Checked UTF-8 with a <binary> fallback (H1): rendered
+                        // commands can legitimately carry binary payloads (UBX,
+                        // RAW, P2P MSG blobs). Log-only; wire bytes untouched.
+                        match from_utf8(&bytes) {
+                            Ok(text) => debug!("NS >> | {}", text),
+                            Err(_) => debug!("NS >> | <binary {} bytes>", bytes.len()),
                         }
 
                         let _result = write.write_all(&bytes).await;

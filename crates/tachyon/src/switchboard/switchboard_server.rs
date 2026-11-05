@@ -11,7 +11,7 @@ use msnp::msnp::switchboard::command::command::{
     SwitchboardClientCommand, SwitchboardServerCommand,
 };
 use msnp::shared::traits::{IntoBytes, TryFromRawCommand};
-use std::str::{from_utf8, from_utf8_unchecked};
+use std::str::from_utf8;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::tcp::OwnedWriteHalf;
 use tokio::net::{TcpListener, TcpStream};
@@ -99,8 +99,12 @@ async fn handle_client(
                             Ok(commands) => {
 
                                 for command in commands {
-                                    unsafe {
-                                        debug!("SB << | {}{}", command.get_command(), from_utf8_unchecked(command.get_payload()));
+                                    // Checked UTF-8 with a <binary> fallback (H1): MSG
+                                    // payloads legitimately carry binary P2P blobs.
+                                    // Log-only; wire bytes untouched.
+                                    match from_utf8(command.get_payload()) {
+                                        Ok(payload) => debug!("SB << | {}{}", command.get_command(), payload),
+                                        Err(_) => debug!("SB << | {}<binary {} bytes>", command.get_command(), command.get_payload().len()),
                                     }
 
                                     let notification_command = SwitchboardClientCommand::try_from_raw(command);

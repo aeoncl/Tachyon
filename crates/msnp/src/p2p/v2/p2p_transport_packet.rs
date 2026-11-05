@@ -1,6 +1,6 @@
 use core::fmt;
 use std::fmt::{Debug, Display, Formatter};
-use std::str::{from_utf8_unchecked, FromStr};
+use std::str::FromStr;
 
 use crate::{msnp::error::PayloadError, shared::traits::IntoBytes};
 use anyhow::anyhow;
