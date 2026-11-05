@@ -2,7 +2,8 @@ use std::sync::Arc;
 use crate::notification::handlers::ready::handle_ready;
 use crate::notification::handlers::{auth, negotiation};
 use crate::notification::models::connection_phase::ConnectionPhase;
-use crate::notification::models::local_client_data::LocalClientData;
+use crate::notification::models::session_state::SessionState;
+use crate::notification::notification_server::ConnectionShell;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::config::tachyon_config::TachyonConfig;
 use crate::tachyon::global_state::{GlobalState};
@@ -11,21 +12,21 @@ use log::warn;
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
 use tokio::sync::mpsc::Sender;
 
-pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, global_state: &GlobalState, local_client_data: &mut LocalClientData, config: &TachyonConfig) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_command(command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, global_state: &GlobalState, session_state: &mut SessionState, shell: &mut ConnectionShell, config: &TachyonConfig) -> Result<(), anyhow::Error> {
 
-    let _command_result = match &local_client_data.phase {
+    let _command_result = match &session_state.phase {
         ConnectionPhase::Negotiating => {
-            negotiation::handle_negotiation(command, command_sender, local_client_data).await
+            negotiation::handle_negotiation(command, command_sender, session_state).await
         },
         ConnectionPhase::Authenticating  => {
-            auth::handle_auth(command, command_sender, &global_state, local_client_data, config).await
+            auth::handle_auth(command, command_sender, &global_state, session_state, shell, config).await
         },
         ConnectionPhase::Ready => {
-            let tachyon_client = local_client_data.tachyon_client.as_ref().ok_or(anyhow!("Tachyon Client should be here by now"))?.clone();
+            let tachyon_client = session_state.tachyon_client.as_ref().ok_or(anyhow!("Tachyon Client should be here by now"))?.clone();
             match tachyon_client.matrix_client() {
                 Some(matrix_client) => {
-                    local_client_data.matrix_client = Some(matrix_client.clone());
-                    handle_ready(command, command_sender, tachyon_client, matrix_client, local_client_data, config).await
+                    session_state.matrix_client = Some(matrix_client.clone());
+                    handle_ready(command, command_sender, tachyon_client, matrix_client, session_state, config).await
                 }
                 None => {
                     // the backend is still logging in: keep the client alive with pings and list acknowledgements
@@ -69,7 +70,8 @@ async fn handle_awaiting_login(command: NotificationClientCommand, command_sende
 mod tests {
     use crate::notification::handlers::command_handler::handle_command;
     use crate::notification::models::connection_phase::ConnectionPhase;
-    use crate::notification::models::local_client_data::LocalClientData;
+    use crate::notification::models::session_state::SessionState;
+    use crate::notification::notification_server::ConnectionShell;
 
     use crate::tachyon::global_state::GlobalState;
     use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
@@ -126,13 +128,14 @@ mod tests {
         let state = GlobalState::new(Default::default(), Box::new(MatrixLoginServiceImpl::new()), test_credentials_store());
 
         let (kill_snd, kill_recv) = tokio::sync::broadcast::channel::<()>(1);
-        let mut local_client_data = LocalClientData::new(kill_snd.clone(), kill_recv.resubscribe());
+        let mut shell = ConnectionShell::new(kill_snd, kill_recv);
+        let mut session_state = SessionState::new();
 
         let ver = NotificationClientCommand::VER(VerClient::new(1, MSNP18, MSNP17));
-        handle_command(ver, snd.clone(), &state, &mut local_client_data, state.get_config()).await.unwrap();
+        handle_command(ver, snd.clone(), &state, &mut session_state, &mut shell, state.get_config()).await.unwrap();
 
         let cvr = NotificationClientCommand::CVR(CvrClient::try_from_raw(RawCommand::from_str("CVR 2 0x0409 winnt 6.2.0 i386 MSNMSGR 14.0.8117.0416 msmsgs aeontest3@shlasouf.local").unwrap()).unwrap());
-        handle_command(cvr, snd, &state, &mut local_client_data, state.get_config()).await.unwrap();
+        handle_command(cvr, snd, &state, &mut session_state, &mut shell, state.get_config()).await.unwrap();
 
         let ver_respo = rcv.recv().await.unwrap();
 
@@ -150,7 +153,7 @@ mod tests {
             panic!("Expected CVR response, got {}", &cvr_respo);
         };
 
-        assert_eq!(local_client_data.phase, ConnectionPhase::Authenticating);
+        assert_eq!(session_state.phase, ConnectionPhase::Authenticating);
     }
 
 
@@ -168,15 +171,16 @@ mod tests {
         let state = GlobalState::new(Default::default(), Box::new(matrix_login_service), test_credentials_store());
 
         let (kill_snd, kill_recv) = tokio::sync::broadcast::channel::<()>(1);
-        let mut local_client_data = LocalClientData::new(kill_snd.clone(), kill_recv.resubscribe());
-        local_client_data.phase = ConnectionPhase::Authenticating;
+        let mut shell = ConnectionShell::new(kill_snd, kill_recv);
+        let mut session_state = SessionState::new();
+        session_state.phase = ConnectionPhase::Authenticating;
 
         let usr_i = NotificationClientCommand::USR(UsrClient {
             tr_id: 1,
             auth_type: AuthOperationTypeClient::Sso(SsoPhaseClient::I { email_addr: EmailAddress::from_str("aeon@test.com").unwrap() }),
         });
 
-        handle_command(usr_i, snd, &state, &mut local_client_data, state.get_config()).await.unwrap();
+        handle_command(usr_i, snd, &state, &mut session_state, &mut shell, state.get_config()).await.unwrap();
 
         let usr_respo = rcv.recv().await.unwrap();
         assert!(matches!(usr_respo, NotificationServerCommand::USR(_)));

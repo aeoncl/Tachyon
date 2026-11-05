@@ -8,11 +8,30 @@ use msnp::shared::traits::{IntoBytes, TryFromRawCommand};
 use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::OwnedWriteHalf, TcpListener, TcpStream}, sync::{broadcast::{self, Receiver}, mpsc::{self, Sender}}};
 use msnp::msnp::raw_command_parser::RawCommand;
 use crate::notification::handlers::command_handler::handle_command;
-use crate::notification::models::local_client_data::LocalClientData;
+use crate::notification::models::session_state::SessionState;
 use crate::tachyon::client::tachyon_client::TachyonClient;
-use crate::tachyon::global_state::GlobalState;
+use crate::tachyon::global_state::{ClientDropGuard, GlobalState};
 
 pub struct NotificationServer;
+
+/// Shell-owned state of one notification connection: the shutdown channel that
+/// kills the connection's write task and the drop guard that unregisters the
+/// client from the global state. Decision inputs live in `SessionState`.
+pub(crate) struct ConnectionShell {
+    pub(crate) client_shutdown_snd: broadcast::Sender<()>,
+    pub(crate) client_shutdown_recv: Receiver<()>,
+    pub(crate) client_drop_guard: Option<ClientDropGuard>,
+}
+
+impl ConnectionShell {
+    pub(crate) fn new(client_shutdown_snd: broadcast::Sender<()>, client_shutdown_recv: Receiver<()>) -> Self {
+        Self {
+            client_shutdown_snd,
+            client_shutdown_recv,
+            client_drop_guard: None,
+        }
+    }
+}
 
 
 impl NotificationServer {
@@ -58,7 +77,8 @@ async fn handle_client(socket: TcpStream, mut global_shutdown_recv: broadcast::R
     let (client_shutdown_snd, client_shutdown_recv) = broadcast::channel::<()>(1);
     let command_sender = start_write_task(write, client_shutdown_recv.resubscribe());
 
-    let mut local_client_data = LocalClientData::new(client_shutdown_snd.clone(), client_shutdown_recv);
+    let mut shell = ConnectionShell::new(client_shutdown_snd, client_shutdown_recv);
+    let mut session_state = SessionState::new();
 
     let mut parser = RawCommandParser::new();
     let mut reader = BufReader::new(read);
@@ -85,7 +105,7 @@ async fn handle_client(socket: TcpStream, mut global_shutdown_recv: broadcast::R
                         match commands {
                             Err(e) => error!("MSNP|NOT: Unable to parse message into commands: {}", e),
                             Ok(commands) => {
-                                handle_commands(commands, &command_sender, &global_state, &mut local_client_data).await;
+                                handle_commands(commands, &command_sender, &global_state, &mut session_state, &mut shell).await;
                             }
                         }
 
@@ -106,7 +126,7 @@ async fn handle_client(socket: TcpStream, mut global_shutdown_recv: broadcast::R
 
 }
 
-async fn handle_commands(commands: Vec<RawCommand>, command_sender: &Sender<NotificationServerCommand>, global_state: &GlobalState, local_client_data: &mut LocalClientData) {
+async fn handle_commands(commands: Vec<RawCommand>, command_sender: &Sender<NotificationServerCommand>, global_state: &GlobalState, session_state: &mut SessionState, shell: &mut ConnectionShell) {
     for command in commands {
         debug!("NS << | {}", command.get_command());
 
@@ -117,7 +137,7 @@ async fn handle_commands(commands: Vec<RawCommand>, command_sender: &Sender<Noti
                 debug!("{:?}", e);
             },
             Ok(notification_command) => {
-                let command_result = handle_command(notification_command, command_sender.clone(), &global_state, local_client_data, &global_state.get_config()).await;
+                let command_result = handle_command(notification_command, command_sender.clone(), &global_state, session_state, shell, &global_state.get_config()).await;
 
                 if let Err(error) = command_result {
                     error!("MSNP|NS: An error has occured handling a notification command: {}", &error);

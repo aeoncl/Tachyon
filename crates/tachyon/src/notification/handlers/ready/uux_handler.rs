@@ -1,9 +1,9 @@
 use tokio::sync::mpsc::Sender;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::uux::{UuxClient, UuxPayload};
-use crate::notification::models::local_client_data::LocalClientData;
+use crate::notification::models::session_state::SessionState;
 
-pub async fn handle_uux(command: UuxClient, local_store: &mut LocalClientData, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
+pub async fn handle_uux(command: UuxClient, local_store: &mut SessionState, command_sender: Sender<NotificationServerCommand>) -> Result<(), anyhow::Error>  {
     let ok_resp = command.get_ok_response();
 
     match command.payload {

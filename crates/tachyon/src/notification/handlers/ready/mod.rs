@@ -15,7 +15,7 @@ use uum_handler::handle_uum;
 use uux_handler::handle_uux;
 use xfr_handler::handle_xfr;
 use crate::notification::handlers::ready::uun_handler::handle_uun;
-use crate::notification::models::local_client_data::LocalClientData;
+use crate::notification::models::session_state::SessionState;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::config::tachyon_config::TachyonConfig;
 
@@ -33,7 +33,7 @@ mod fqy_handler;
 mod url_handler;
 mod uun_handler;
 
-pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, tachyon_client: TachyonClient, matrix_client: Client, local_store: &mut LocalClientData, config: &TachyonConfig) -> Result<(), anyhow::Error> {
+pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, tachyon_client: TachyonClient, matrix_client: Client, local_store: &mut SessionState, config: &TachyonConfig) -> Result<(), anyhow::Error> {
     match raw_command {
         NotificationClientCommand::USR(command) => handle_usr(command, local_store.email_addr.clone(), command_sender).await,
         NotificationClientCommand::PNG => handle_png(command_sender).await,

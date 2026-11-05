@@ -4,9 +4,9 @@ use anyhow::anyhow;
 use msnp::msnp::notification::command::cvr::CvrServer;
 use msnp::msnp::notification::models::msnp_version::MsnpVersion::MSNP18;
 use crate::notification::models::connection_phase::ConnectionPhase;
-use crate::notification::models::local_client_data::LocalClientData;
+use crate::notification::models::session_state::SessionState;
 
-pub(crate) async fn handle_negotiation(raw_command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, local_client_data: &mut LocalClientData) -> Result<(), anyhow::Error> {
+pub(crate) async fn handle_negotiation(raw_command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, session_state: &mut SessionState) -> Result<(), anyhow::Error> {
     match raw_command {
         NotificationClientCommand::VER(command) => {
             if command.first_candidate != MSNP18 && command.second_candidate != MSNP18 {
@@ -20,7 +20,7 @@ pub(crate) async fn handle_negotiation(raw_command: NotificationClientCommand, n
             Ok(())
         },
         NotificationClientCommand::CVR(command) => {
-            local_client_data.phase = ConnectionPhase::Authenticating;
+            session_state.phase = ConnectionPhase::Authenticating;
             notif_sender.send(NotificationServerCommand::CVR(CvrServer::new(command.tr_id, "14.0.8117.0416".to_string(), "14.0.8117.0416".to_string(), "14.0.8117.0416".to_string(), "localhost".to_string(), "localhost".to_string() ))).await?;
             Ok(())
         },
@@ -42,12 +42,11 @@ mod tests {
 
     use super::handle_negotiation;
     use crate::notification::models::connection_phase::ConnectionPhase;
-    use crate::notification::models::local_client_data::LocalClientData;
+    use crate::notification::models::session_state::SessionState;
 
-    fn setup() -> (Sender<NotificationServerCommand>, Receiver<NotificationServerCommand>, LocalClientData) {
+    fn setup() -> (Sender<NotificationServerCommand>, Receiver<NotificationServerCommand>, SessionState) {
         let (snd, rcv) = tokio::sync::mpsc::channel::<NotificationServerCommand>(10);
-        let (kill_snd, kill_recv) = tokio::sync::broadcast::channel::<()>(1);
-        (snd, rcv, LocalClientData::new(kill_snd, kill_recv.resubscribe()))
+        (snd, rcv, SessionState::new())
     }
 
     #[tokio::test]
