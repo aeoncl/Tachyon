@@ -75,8 +75,18 @@ pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, matri
                 None
             };
 
+            // A failed avatar lookup must not kill the fan-out — it used to
+            // `.unwrap()` here and silently abort the whole spawned task
+            // (§1.2, chg's identical unwrap retired in D1). Log it, announce
+            // the contact without avatar, carry on with the remaining ones.
             let avatar = if let Ok(Some(room)) = &found_room {
-                tachyon_client.get_avatar_as_msn_object(room.room_id()).await.unwrap()
+                match tachyon_client.get_avatar_as_msn_object(room.room_id()).await {
+                    Ok(avatar) => avatar,
+                    Err(error) => {
+                        warn!("MSNP|NS: unable to build the avatar msnobj for {}: {}", contact.email_address.as_str(), error);
+                        None
+                    },
+                }
             } else { None };
 
 
@@ -245,6 +255,28 @@ mod tests {
             assert_eq!(nln.display_name, DisplayName::default());
             assert_eq!(nln.target_user.email, EmailAddress::from_str(email).unwrap());
         }
+    }
+
+    #[test]
+    fn an_avatar_lookup_failure_still_announces_the_contact_with_the_full_pair() {
+        // §1.2: the gather now warns and carries None instead of unwrapping a
+        // failed avatar lookup; decide must still emit the whole NLN+UBX pair,
+        // so one bad lookup never strands this contact or the ones after it.
+        let outs = decide_adl(gathered("aeon@test.com", Some("Aeon Test")));
+        assert_eq!(outs.len(), 2);
+
+        let ClientOut::Command(nln) = &outs[0] else {
+            panic!("adl decides bare wire commands");
+        };
+        let NotificationServerCommand::NLN(nln) = nln else {
+            panic!("expected the NLN first");
+        };
+        assert!(nln.avatar.is_none());
+
+        let ClientOut::Command(ubx) = &outs[1] else {
+            panic!("adl decides bare wire commands");
+        };
+        assert!(matches!(ubx, NotificationServerCommand::UBX(_)));
     }
 
     #[tokio::test]
