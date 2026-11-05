@@ -247,7 +247,7 @@ pub mod response {
 
 
     impl GetProfileResponseMessageSoapEnvelope {
-        pub fn new(uuid: Uuid, cache_key: String, display_name: String, psm: String, image_name: Option<String>) -> GetProfileResponseMessageSoapEnvelope {
+        pub fn new(uuid: Uuid, cache_key: String, display_name: String, psm: String, image_name: Option<String>, client_key: &str, public_url_base: &str) -> GetProfileResponseMessageSoapEnvelope {
 
 
             let now = Local::now();
@@ -260,13 +260,20 @@ pub mod response {
 
             let mut static_user_tile_public_url = String::new();
             if let Some(found_image_id) = image_name {
-                let user_tile_static = DocumentStream{ document_stream_name: Some(String::from("UserTileStatic")), mime_type: Some(String::from("image/jpeg")), data: None, data_size: 0, pre_auth_url: Some(format!("http://127.0.0.1/storage/usertile/{}/static", &found_image_id)), pre_auth_url_partner: None, document_stream_type: String::from("UserTileStatic"), write_mode: Some(String::from("Overwrite")), stream_version: Some(0), sha1_hash: None, genie: Some(false), stream_data_status: Some(String::from("None")), stream_status: Some(String::from("None")), is_alias_for_default:Some(false), expiration_date_time: Some(String::from("0001-01-01T00:00:00")) };
+                // The usertile URL is keyed by client (H8): `client_key`
+                // tells the serving route WHICH signed-in account's tile to
+                // fetch, and `public_url_base` carries the real host:port —
+                // pre-D3 the URL was keyed by image id only against a
+                // hardcoded portless host, so the route could only guess the
+                // account (get_single_client) and profile pics broke at ≥2
+                // signed-in accounts.
+                let user_tile_static = DocumentStream{ document_stream_name: Some(String::from("UserTileStatic")), mime_type: Some(String::from("image/jpeg")), data: None, data_size: 0, pre_auth_url: Some(format!("{}/storage/usertile/{}/{}/static", public_url_base, client_key, &found_image_id)), pre_auth_url_partner: None, document_stream_type: String::from("UserTileStatic"), write_mode: Some(String::from("Overwrite")), stream_version: Some(0), sha1_hash: None, genie: Some(false), stream_data_status: Some(String::from("None")), stream_status: Some(String::from("None")), is_alias_for_default:Some(false), expiration_date_time: Some(String::from("0001-01-01T00:00:00")) };
                 document_stream_array.push(user_tile_static);
 
-                let user_tile_small = DocumentStream{ document_stream_name: Some(String::from("UserTileSmall")), mime_type: None, data: None, data_size: 0, pre_auth_url: Some(format!("http://127.0.0.1/storage/usertile/{}/small", &found_image_id)), pre_auth_url_partner: None, document_stream_type: String::from("Named"), write_mode: Some(String::from("Overwrite")), stream_version: Some(0), sha1_hash: None, genie: Some(false), stream_data_status: Some(String::from("None")), stream_status: Some(String::from("None")), is_alias_for_default:Some(false), expiration_date_time: Some(String::from("0001-01-01T00:00:00")) };
+                let user_tile_small = DocumentStream{ document_stream_name: Some(String::from("UserTileSmall")), mime_type: None, data: None, data_size: 0, pre_auth_url: Some(format!("{}/storage/usertile/{}/{}/small", public_url_base, client_key, &found_image_id)), pre_auth_url_partner: None, document_stream_type: String::from("Named"), write_mode: Some(String::from("Overwrite")), stream_version: Some(0), sha1_hash: None, genie: Some(false), stream_data_status: Some(String::from("None")), stream_status: Some(String::from("None")), is_alias_for_default:Some(false), expiration_date_time: Some(String::from("0001-01-01T00:00:00")) };
                 document_stream_array.push(user_tile_small);
 
-                static_user_tile_public_url = format!("http://127.0.0.1/storage/usertile/{}/static", &found_image_id);
+                static_user_tile_public_url = format!("{}/storage/usertile/{}/{}/static", public_url_base, client_key, &found_image_id);
             }
 
 
@@ -287,6 +294,48 @@ pub mod response {
         }
 
 
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use std::str::FromStr;
+
+        use crate::shared::models::email_address::EmailAddress;
+        use crate::shared::models::uuid::Uuid;
+        use crate::soap::storage_service::get_profile::response::GetProfileResponseMessageSoapEnvelope;
+        use crate::soap::traits::xml::ToXml;
+
+        /// Deliberate H8 fixture (§2 byte-exact rule): the usertile URLs are
+        /// keyed by client and carry the public base — both document streams
+        /// and StaticUserTilePublicURL render as
+        /// `{base}/storage/usertile/{client_key}/{image}/{type}`, replacing
+        /// the pre-D3 portless host + image-id-only shape.
+        #[test]
+        fn the_user_tile_urls_carry_the_client_key_and_the_public_base() {
+            let uuid = Uuid::from(&EmailAddress::from_str("aeon@test.com").unwrap());
+
+            let envelope = GetProfileResponseMessageSoapEnvelope::new(
+                uuid,
+                "cachekey".to_string(),
+                "Aeon".to_string(),
+                String::new(),
+                Some("bXhjOi8vaW1hZ2U".to_string()),
+                "clientkey123",
+                "http://127.0.0.1:11866",
+            );
+
+            let profile = &envelope.body.body.get_profile_result.expression_profile;
+            assert_eq!(profile.static_user_tile_public_url, "http://127.0.0.1:11866/storage/usertile/clientkey123/bXhjOi8vaW1hZ2U/static");
+
+            let streams = &profile.photo.document_streams.document_stream;
+            assert_eq!(streams.len(), 2);
+            assert_eq!(streams[0].pre_auth_url.as_deref(), Some("http://127.0.0.1:11866/storage/usertile/clientkey123/bXhjOi8vaW1hZ2U/static"));
+            assert_eq!(streams[1].pre_auth_url.as_deref(), Some("http://127.0.0.1:11866/storage/usertile/clientkey123/bXhjOi8vaW1hZ2U/small"));
+
+            // the serialized envelope carries the same keyed URL
+            let xml = envelope.to_xml().unwrap();
+            assert!(xml.contains("http://127.0.0.1:11866/storage/usertile/clientkey123/bXhjOi8vaW1hZ2U/static"));
+        }
     }
 
 

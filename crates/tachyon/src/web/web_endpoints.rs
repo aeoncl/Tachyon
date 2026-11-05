@@ -77,13 +77,18 @@ pub async fn ppcrlcheck() -> Response<Body> {
 
 }
 
-pub async fn get_profile_pic(Path((image_mxid, _image_type)): Path<(String, String)>, State(state): State<GlobalState>) -> Response<Body> {
+pub async fn get_profile_pic(Path((client_key, image_mxid, _image_type)): Path<(String, String, String)>, State(state): State<GlobalState>) -> Response<Body> {
 
     //Todo handle errors
     let image_mxid = String::from_utf8(general_purpose::STANDARD.decode(image_mxid.as_bytes()).unwrap()).unwrap();
     let parsed_mxc = OwnedMxcUri::from(image_mxid);
 
-    let client_data = match state.get_single_client() {
+    // H8: the URL carries the account's repository key (its ticket token),
+    // so the tile is served from the RIGHT signed-in client — pre-D3 this
+    // was the single-client lookup, which returned None at ≥2 accounts and
+    // broke every profile pic. Unknown key or pending backend keeps the
+    // pre-D3 503 policy.
+    let client_data = match state.tachyon_clients().get(&client_key) {
         Some(client_data) if client_data.matrix_client().is_some() => client_data,
         _ => return Response::builder().status(StatusCode::SERVICE_UNAVAILABLE).body(Body::empty()).expect("response to build"),
     };

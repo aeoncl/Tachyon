@@ -49,7 +49,7 @@ impl WebServer {
             .route("/wlidsvcconfig.xml", get(wlidsvcconfig))
             .route("/pcrlcheck.srf", get(ppcrlcheck))
             .route("/RST2.srf", post(rst2_handler))
-            .route("/storage/usertile/{image_mxid}/{image_type}", get(get_profile_pic))
+            .route("/storage/usertile/{client_key}/{image_mxid}/{image_type}", get(get_profile_pic))
             //SOAP
             .route("/abservice/abservice.asmx", post(address_book_service))
             .route("/abservice/SharingService.asmx", post(sharing_service))

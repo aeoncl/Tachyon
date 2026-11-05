@@ -43,7 +43,11 @@ pub async fn storage_service(headers: HeaderMap, State(state): State<GlobalState
 
     match soap_action {
         "http://www.msn.com/webservices/storage/2008/GetProfile" => {
-            get_profile(GetProfileMessageSoapEnvelope::try_from_xml(&body)?, token, client).await
+            // H8: the usertile URL is keyed by client — the ticket token is
+            // the repository key the serving route resolves, and the base
+            // carries the real http port (the auth.rs URL precedent).
+            let public_url_base = format!("http://127.0.0.1:{}", state.get_config().http_port);
+            get_profile(GetProfileMessageSoapEnvelope::try_from_xml(&body)?, token, client, &public_url_base).await
         },
         "http://www.msn.com/webservices/storage/2008/UpdateProfile" => {
             update_profile(UpdateProfileMessageSoapEnvelope::try_from_xml(&body)?, token, client).await
@@ -130,7 +134,7 @@ fn get_mime_type(data_vector: &Vec<u8>) -> Mime {
 }
 
 
-async fn get_profile(_request: GetProfileMessageSoapEnvelope, _token: TicketToken, matrix_client: Client) -> Result<Response, ABError> {
+async fn get_profile(_request: GetProfileMessageSoapEnvelope, token: TicketToken, matrix_client: Client, public_url_base: &str) -> Result<Response, ABError> {
     let user_id = matrix_client.user_id().ok_or(anyhow!("Expected to have user_id in matrix client"))?;
     let msn_addr = EmailAddress::from_user_id(user_id);
     let uuid = msn_addr.to_uuid();
@@ -139,7 +143,11 @@ async fn get_profile(_request: GetProfileMessageSoapEnvelope, _token: TicketToke
 
     let avatar_mxid = matrix_client.account().get_avatar_url().await?.map(|a| general_purpose::STANDARD.encode(a.as_str()));
 
-    let soap_body = GetProfileResponseMessageSoapEnvelope::new(uuid, DEFAULT_CACHE_KEY.to_string(), display_name, String::new(), avatar_mxid);
+    // H8: the token is this account's key in the client repository — the
+    // usertile route uses it to serve the RIGHT signed-in account's tile
+    // (pre-D3: keyed by image id only + a single-client lookup that broke
+    // at ≥2 accounts).
+    let soap_body = GetProfileResponseMessageSoapEnvelope::new(uuid, DEFAULT_CACHE_KEY.to_string(), display_name, String::new(), avatar_mxid, token.as_str(), public_url_base);
     Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))
 
 }

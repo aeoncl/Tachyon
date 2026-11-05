@@ -68,11 +68,6 @@ impl GlobalState {
         &self.inner.config
     }
 
-    //FIXME: remove this and fix everywhere it's called to get the client using the key.
-    pub fn get_single_client(&self) -> Option<TachyonClient> {
-        self.tachyon_clients().single()
-    }
-
     pub fn tachyon_clients(&self) -> &TachyonClientRepository {
         &self.inner.tachyon_clients
     }

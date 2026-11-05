@@ -14,15 +14,6 @@ impl TachyonClientRepository {
         }
     }
 
-    pub(crate) fn single(&self) -> Option<TachyonClient> {
-
-        if self.clients.len() > 1 {
-            return None;
-        }
-
-        self.clients.iter().next().map(|x| x.value().clone())
-    }
-
     pub fn find_by_oauth_state(&self, state: &str) -> Option<(String, TachyonClient)> {
         self.clients.iter()
             .find(|entry| entry.value().pending_oauth_state().as_deref() == Some(state))
