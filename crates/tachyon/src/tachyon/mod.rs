@@ -1,5 +1,4 @@
 pub mod error;
-pub mod repository;
 pub mod identifiers;
 pub(crate) mod global_state;
 pub mod alert;

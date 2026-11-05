@@ -15,7 +15,6 @@ use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() {
-    //console_subscriber::init();
 
     let tachyon_path = paths::get_tachyon_path();
     create_dirs(&tachyon_path);

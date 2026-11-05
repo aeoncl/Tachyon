@@ -12,7 +12,6 @@ use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::{OwnedMxcUri, UInt};
 use regex::Regex;
 use crate::tachyon::global_state::GlobalState;
-use crate::tachyon::repository::RepositoryStr;
 use crate::web::soap::shared::build_soap_response;
 
 lazy_static! {

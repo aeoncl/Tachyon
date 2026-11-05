@@ -18,7 +18,6 @@ use lazy_static_include::lazy_static_include_bytes;
 use maud::html;
 use std::str::FromStr;
 use sha1::{Digest, Sha1};
-use crate::tachyon::repository::RepositoryStr;
 
 lazy_static_include_bytes! {
     INDEX => "./assets/web/tachyon/index.html",

@@ -1,20 +1,16 @@
 use crate::matrix::services::homeserver::HomeserverResolver;
 use crate::matrix::services::login::MatrixLoginService;
 use crate::matrix::verification_request_repository::VerificationRequestRepository;
-use crate::tachyon::alert::AlertReceiver;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::client::tachyon_client_repository::TachyonClientRepository;
 use crate::tachyon::config::tachyon_config::TachyonConfig;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
-use crate::tachyon::repository::RepositoryStr;
-use dashmap::DashMap;
 use std::sync::Arc;
 use tachyon_sqlite_store::SqliteCredentialsStore;
 
 pub struct GlobalStateInner {
     config: TachyonConfig,
     tachyon_clients: TachyonClientRepository,
-    pending_alerts: DashMap<i32, AlertReceiver>,
     pending_verification_requests: VerificationRequestRepository,
     matrix_login_service: Box<dyn MatrixLoginService>,
     credentials: Arc<SqliteCredentialsStore>,
@@ -60,7 +56,6 @@ impl GlobalState {
             inner: Arc::new(GlobalStateInner {
                 config,
                 tachyon_clients: Default::default(),
-                pending_alerts: Default::default(),
                 pending_verification_requests: Default::default(),
                 matrix_login_service,
                 credentials,
@@ -89,14 +84,6 @@ impl GlobalState {
 
     pub fn get_clients(&self, key: &str) -> Option<TachyonClient> {
         self.inner.tachyon_clients.get(key)
-    }
-
-    pub fn store_pending_alert(&self, key: i32, receiver: AlertReceiver) {
-        self.inner.pending_alerts.insert(key, receiver);
-    }
-
-    pub fn take_pending_alert(&self, key: &i32) -> Option<AlertReceiver> {
-        self.inner.pending_alerts.remove(key).map(|(_, recv)| recv)
     }
 
     pub fn pending_verification_requests(&self) -> &VerificationRequestRepository {

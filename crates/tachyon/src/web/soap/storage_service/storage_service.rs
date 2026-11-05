@@ -2,7 +2,6 @@ use crate::tachyon::global_state::GlobalState;
 use crate::tachyon::mappers::user_id;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use crate::tachyon::mappers::uuid::ToUuid;
-use crate::tachyon::repository::RepositoryStr;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
 use crate::web::web_endpoints::DEFAULT_CACHE_KEY;

@@ -1,6 +1,5 @@
 use dashmap::DashMap;
 use crate::tachyon::client::tachyon_client::TachyonClient;
-use crate::tachyon::repository::RepositoryStr;
 
 #[derive(Default)]
 pub struct TachyonClientRepository {
@@ -32,16 +31,16 @@ impl TachyonClientRepository {
 }
 
 
-impl RepositoryStr<TachyonClient> for TachyonClientRepository {
-    fn get(&self, key: &str) -> Option<TachyonClient> {
+impl TachyonClientRepository {
+    pub fn get(&self, key: &str) -> Option<TachyonClient> {
         self.clients.get(key).map(|x| x.value().clone())
     }
 
-    fn insert(&self, key: String, value: TachyonClient) {
+    pub fn insert(&self, key: String, value: TachyonClient) {
         self.clients.insert(key, value);
     }
 
-    fn remove(&self, key: &str) -> Option<TachyonClient> {
+    pub fn remove(&self, key: &str) -> Option<TachyonClient> {
         self.clients.remove(key).map(|(_, client)| client)
     }
 }

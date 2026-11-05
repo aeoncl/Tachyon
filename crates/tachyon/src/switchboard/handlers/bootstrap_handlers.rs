@@ -7,7 +7,6 @@ use crate::switchboard::models::switchboard_token::SwitchboardToken;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::global_state::GlobalState;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
-use crate::tachyon::repository::RepositoryStr;
 use matrix_sdk::{Client, Room, RoomMemberships};
 use msnp::msnp::switchboard::command::cal::{CalServer, CalServerFunction};
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand, SwitchboardServerCommand};

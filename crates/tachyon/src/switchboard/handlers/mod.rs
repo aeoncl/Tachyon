@@ -7,7 +7,6 @@ use anyhow::anyhow;
 use msnp::msnp::switchboard::command::command::{SwitchboardClientCommand};
 use tokio::sync::mpsc::Sender;
 use crate::switchboard::switchboard_server::SwitchboardSenderMsg;
-use crate::tachyon::repository::RepositoryStr;
 
 mod bootstrap_handlers;
 mod ready;

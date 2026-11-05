@@ -3,8 +3,6 @@ use msnp::shared::models::ticket_token::TicketToken;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::TryRecvError;
 
-pub mod alert_repository;
-
 pub type AlertError = anyhow::Error;
 
 pub enum AlertSuccess {

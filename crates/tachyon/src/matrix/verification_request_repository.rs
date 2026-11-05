@@ -2,7 +2,6 @@ use dashmap::DashMap;
 use dashmap::mapref::one::Ref;
 use matrix_sdk::encryption::verification::VerificationRequest;
 use matrix_sdk::ruma::UserId;
-use crate::tachyon::repository::RepositoryStr;
 
 pub struct VerificationRequestRepository {
 

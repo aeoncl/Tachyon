@@ -152,4 +152,12 @@ mod tests {
         assert_eq!(response.to_string().as_str(), "VER 1 MSNP18\r\n");
     }
 
+    #[test]
+    fn response_for_keeps_tr_id_and_pins_the_agreed_version() {
+        let request = VerClient::new(1, MsnpVersion::MSNP18, MsnpVersion::MSNP17);
+        let response = request.get_response_for(MsnpVersion::MSNP18);
+        assert_eq!(response.tr_id, 1);
+        assert_eq!(response.to_string().as_str(), "VER 1 MSNP18\r\n");
+    }
+
 }

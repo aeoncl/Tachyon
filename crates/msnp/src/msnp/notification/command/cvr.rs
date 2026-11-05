@@ -263,4 +263,23 @@ mod tests {
         assert_eq!(parsed.client_dl_url, "localhost");
         assert_eq!(parsed.client_info_url, "localhost");
     }
+
+    #[test]
+    fn server_serializes_the_recommendation_reply_byte_exact() {
+        let cvr = CvrServer::new(
+            2,
+            "14.0.8117.0416".to_string(),
+            "14.0.8117.0416".to_string(),
+            "14.0.8117.0416".to_string(),
+            "localhost".to_string(),
+            "localhost".to_string(),
+        );
+
+        let bytes = cvr.into_bytes();
+
+        assert_eq!(
+            String::from_utf8(bytes).unwrap(),
+            "CVR 2 14.0.8117.0416 14.0.8117.0416 14.0.8117.0416 localhost localhost\r\n"
+        );
+    }
 }

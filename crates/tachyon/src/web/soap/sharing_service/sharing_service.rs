@@ -18,7 +18,6 @@ use msnp::soap::abch::sharing_service::find_membership::request::FindMembershipR
 use msnp::soap::abch::sharing_service::find_membership::response::factory::FindMembershipResponseFactory;
 use msnp::soap::traits::xml::{ToXml, TryFromXml};
 use std::str::FromStr;
-use crate::tachyon::repository::RepositoryStr;
 
 pub async fn sharing_service(headers: HeaderMap, State(state): State<GlobalState>, body: String) -> Result<Response, ABError> {
 

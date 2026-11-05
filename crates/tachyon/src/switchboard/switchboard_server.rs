@@ -11,8 +11,6 @@ use msnp::msnp::switchboard::command::command::{
     SwitchboardClientCommand, SwitchboardServerCommand,
 };
 use msnp::shared::traits::{IntoBytes, TryFromRawCommand};
-use rayon::iter::ParallelIterator;
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator};
 use std::str::{from_utf8, from_utf8_unchecked};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::tcp::OwnedWriteHalf;

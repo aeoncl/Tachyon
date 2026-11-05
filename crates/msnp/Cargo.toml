@@ -52,4 +52,3 @@ path = "src/lib.rs"
 [features]
 default = ["soap"]
 soap = []
-msnp18 = []
