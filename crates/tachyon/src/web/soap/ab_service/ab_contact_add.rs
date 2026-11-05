@@ -24,8 +24,8 @@ use msnp::soap::abch::msnab_datatypes::RoleId::Email;
 use msnp::soap::abch::msnab_faults::SoapFaultResponseEnvelope;
 use msnp::soap::traits::xml::ToXml;
 use crate::matrix::extensions::direct::DirectRoom;
-use crate::matrix::extensions::message_dedup::SendWithDedup;
-use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToEmailAddress, ToMsnUser};
+use crate::matrix::extensions::message_dedup::{apply_room_op, RoomOp};
+use crate::matrix::extensions::msn_user_resolver::{find_room_from_email, room_email_address, RoomHashCache};
 use crate::notification::models::soap_holder::AddressBookContact;
 use crate::tachyon::mappers::uuid::ToUuid;
 use crate::tachyon::client::tachyon_client::TachyonClient;
@@ -51,7 +51,7 @@ pub(super) async fn ab_contact_add(request : AbcontactAddMessageSoapEnvelope, _t
                  if let Some(Ok(contact_email)) = contact_info.passport_name.map(|p| EmailAddress::from_str(&p)) {
 
                      //We were sent a room sha1d email
-                     if let Ok(Some(room)) = client.find_room_from_email(&contact_email) {
+                     if let Ok(Some(room)) = find_room_from_email(&client, tachyon_client.room_hashes(), &contact_email) {
                         if let Ok(invite) = room.invite_details().await {
                             room.join().await?;
                             return Ok(contact_create(&contact_email, &cache_key, soap_action, tachyon_client).await?);
@@ -65,7 +65,10 @@ pub(super) async fn ab_contact_add(request : AbcontactAddMessageSoapEnvelope, _t
                              let dm = client.create_dm(&contact_user_id).await?;
                              if let Some(invite_msg) = invite_msg {
                                  let message = RoomMessageEventContent::text_plain(invite_msg);
-                                 let _ = dm.send_with_dedup(message).await;
+                                 // §1.1 site 3 rides the single RoomOp::SendText
+                                 // executor; the pre-D3 `let _ =`
+                                 // fire-and-forget policy is preserved.
+                                 let _ = apply_room_op(&tachyon_client, RoomOp::SendText { room: dm, content: message }).await;
                              }
                              return Ok(contact_create(&contact_email, &cache_key, soap_action, tachyon_client).await?);
                          }
@@ -74,7 +77,9 @@ pub(super) async fn ab_contact_add(request : AbcontactAddMessageSoapEnvelope, _t
                                     let dm = client.create_dm(&contact_user_id).await?;
                                     if let Some(invite_msg) = invite_msg {
                                         let message = RoomMessageEventContent::text_plain(invite_msg);
-                                        let _ = dm.send_with_dedup(message).await;
+                                        // §1.1 site 3 (second copy) — same
+                                        // single executor, same policy.
+                                        let _ = apply_room_op(&tachyon_client, RoomOp::SendText { room: dm, content: message }).await;
                                     }
                                     return Ok(contact_create(&contact_email, &cache_key, soap_action, tachyon_client).await?);
                                 } else {
@@ -88,7 +93,7 @@ pub(super) async fn ab_contact_add(request : AbcontactAddMessageSoapEnvelope, _t
                                                 dm.invite_user_by_id(&contact_user_id).await?;
                                             }
                                         }
-                                        return Ok(contact_already_exists(&dm, &soap_action)?);
+                                        return Ok(contact_already_exists(&dm, &soap_action, tachyon_client.room_hashes())?);
                                     }
 
                                     //FIXME: Doesnt work, we cannot rejoined invited room
@@ -166,8 +171,8 @@ async fn contact_create(contact_email_addr: &EmailAddress, soap_action: &str,  c
 
 }
 
-fn contact_already_exists(room: &Room, soap_action: &str) -> Result<Response, anyhow::Error> {
-    let uuid = room.to_email_address()?.to_uuid();
+fn contact_already_exists(room: &Room, soap_action: &str, hashes: &RoomHashCache) -> Result<Response, anyhow::Error> {
+    let uuid = room_email_address(room, hashes)?.to_uuid();
     Ok(shared::build_soap_response(SoapFaultResponseEnvelope::new_contact_already_exists(soap_action, &uuid).to_xml()?, StatusCode::OK))
 
 }

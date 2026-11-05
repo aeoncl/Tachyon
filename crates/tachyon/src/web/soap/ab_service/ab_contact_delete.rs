@@ -1,4 +1,4 @@
-use crate::matrix::extensions::msn_user_resolver::FindRoomFromEmail;
+use crate::matrix::extensions::msn_user_resolver::find_room_from_email;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::web::soap::error::ABError;
 use crate::web::soap::shared;
@@ -43,7 +43,7 @@ pub(super) async fn ab_contact_delete(request : AbcontactDeleteMessageSoapEnvelo
         }
     };
 
-    match client.find_room_from_email(&contact.email_address)? {
+    match find_room_from_email(&client, tachyon_client.room_hashes(), &contact.email_address)? {
         Some(room) => {
             room.leave().await?;
 

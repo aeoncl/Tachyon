@@ -4,8 +4,7 @@
 //! facts; decide is the pure msgtype → MSN-payload decision table; apply owns
 //! every effect call, with each pre-D3 warn policy preserved verbatim.
 use crate::matrix::extensions::direct::DirectRoom;
-use crate::matrix::extensions::message_dedup::SendWithDedup;
-use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
+use crate::matrix::extensions::msn_user_resolver::{member_to_msn_user, room_to_msn_user_lazy};
 use crate::switchboard::extensions::CustomStyles;
 use crate::switchboard::models::switchboard_handle::SwitchboardHandle;
 use crate::tachyon::client::tachyon_client::TachyonClient;
@@ -85,14 +84,17 @@ pub async fn handle_message(
     client: Client,
 ) {
 
-    if room.is_event_deduped(event.event_id.as_ref()).await {
+    // The single dedup path (§3.5): the inbound echo check reads the
+    // account's OWNED state — single-use remove semantics, exactly as the
+    // pre-D3 global had, minus the cross-account suppression (H7).
+    if tachyon_client.dedup().is_event_deduped(room.room_id(), event.event_id.as_ref()).await {
         return;
     }
 
     // §1.4 (D1/D2c precedent): pre-D3 this was `.unwrap()` — a room the
     // resolver rejects panicked the Matrix handler task. Now: warn + skip
     // the event; a failure-path-only delta, the success path is unchanged.
-    let room_user = match room.to_msn_user_lazy().await {
+    let room_user = match room_to_msn_user_lazy(&room, tachyon_client.room_hashes()).await {
         Ok(room_user) => room_user,
         Err(error) => {
             warn!("Matrix: could not resolve room {} to an MSN user: {} — skipping message event", room.room_id(), error);
@@ -137,13 +139,9 @@ async fn gather_message(
                         return None;
                     }
                 };
-                match member.to_msn_user_lazy().await {
-                    Ok(member_user) => member_user,
-                    Err(error) => {
-                        warn!("Matrix: could not resolve message sender {} to an MSN user: {} — skipping event", event.sender, error);
-                        return None;
-                    }
-                }
+                // member → MsnUser is infallible (display name only) — the
+                // pre-D3 trait Result on RoomMember could never fail.
+                member_to_msn_user(&member)
             }
             Some(_direct_target) => {
                 room_user.clone()
@@ -373,15 +371,13 @@ async fn gather_typing(event: &SyncTypingEvent, room: &Room) -> GatheredTyping {
 
     for user_id in event.content.user_ids.iter() {
         if user_id != room.own_user_id() {
+            // Pre-D3 graceful fallback preserved: a member the SDK cannot
+            // look up degrades to the bare user-id mapping instead of
+            // failing the event.
             let member = room.get_member_no_sync(&user_id).await;
-            let sender = if let Ok(Some(member)) = member {
-                if let Ok(member) = member.to_msn_user_lazy().await {
-                    member
-                } else {
-                    MsnUser::from_user_id(&user_id)
-                }
-            } else {
-                MsnUser::from_user_id(&user_id)
+            let sender = match member {
+                Ok(Some(member)) => member_to_msn_user(&member),
+                _ => MsnUser::from_user_id(&user_id),
             };
             senders.push(sender);
         }

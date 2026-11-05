@@ -63,7 +63,7 @@ async fn handle_user_contact_list(request : AbfindContactsPagedMessageSoapEnvelo
         let (contacts, circles) = {
             let mut contacts = Vec::new();
             let mut circles = Vec::new();
-            for current in compute_all_contacts(client).await.drain(..) {
+            for current in compute_all_contacts(client, client_data.room_hashes()).await.drain(..) {
                 match current {
                     AddressBookContact::Contact(contact) => {
                         contacts.push(contact);

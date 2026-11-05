@@ -1,5 +1,5 @@
 use crate::matrix::extensions::direct::DirectRoom;
-use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
+use crate::matrix::extensions::msn_user_resolver::{find_room_from_email, member_to_msn_user, room_to_msn_user_lazy};
 use crate::switchboard::models::connection_phase::ConnectionPhase;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::switchboard::models::switchboard_handle::{SwitchboardHandle, SwitchboardState};
@@ -37,7 +37,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
             match matrix_client.get_room(token.room_id.as_ref()) {
                         None => {}
                         Some(room) => {
-                            let room_msn_user = room.to_msn_user_lazy().await?;
+                            let room_msn_user = room_to_msn_user_lazy(&room, tachyon_client.room_hashes()).await?;
                             local_switchboard_data.token = TicketToken(token.matrix_token);
                             local_switchboard_data.session_id = SessionId::random();
                             local_switchboard_data.email_addr = room_msn_user.get_email_address().clone();
@@ -138,9 +138,9 @@ pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sende
                 let me = tachyon_client.own_user();
                 send_initial_joined_member(me, &command_sender).await?;
             } else {
-                let maybe_found = matrix_client.find_room_from_email(&email).unwrap();
+                let maybe_found = find_room_from_email(&matrix_client, tachyon_client.room_hashes(), &email).unwrap();
                 if let Some(room) = maybe_found {
-                    let target_room_user = room.to_msn_user_lazy().await?;
+                    let target_room_user = room_to_msn_user_lazy(&room, tachyon_client.room_hashes()).await?;
 
                     local_switchboard_data.room_id = Some(room.room_id().to_owned());
                     local_switchboard_data.room = Some(room.clone());
@@ -179,7 +179,7 @@ async fn get_initial_roster(room: &Room) -> Result<Vec<MsnUser>, anyhow::Error> 
             }
         }
 
-        out.push(member.to_msn_user_lazy().await?);
+        out.push(member_to_msn_user(&member));
     }
 
     Ok(out)

@@ -4,7 +4,7 @@
 //! plain facts; decide is the pure membership/room-state → ABCH BaseMember
 //! table; apply owns the single sink — the account's `SoapHolder` membership
 //! list. The space filter stays shell policy, exactly where it was pre-D3.
-use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
+use crate::matrix::extensions::msn_user_resolver::{room_to_msn_user, RoomHashCache};
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use log::warn;
 use matrix_sdk::deserialized_responses::RawSyncOrStrippedState;
@@ -43,7 +43,7 @@ pub(super) async fn handle_memberships(
         return;
     }
 
-    let Some(gathered) = gather_membership_event(&event, &room).await else {
+    let Some(gathered) = gather_membership_event(&event, &room, tachyon_client.room_hashes()).await else {
         return;
     };
 
@@ -55,13 +55,13 @@ pub(super) async fn handle_memberships(
 /// a `Result` that the handler `.unwrap()`ed — a room with an unresolvable id
 /// panicked the Matrix handler task; now it warns and skips the event
 /// (failure-path-only delta, D1/D2c precedent).
-async fn gather_membership_event(event: &SyncRoomMemberEvent, room: &Room) -> Option<GatheredMembershipEvent> {
+async fn gather_membership_event(event: &SyncRoomMemberEvent, room: &Room, hashes: &RoomHashCache) -> Option<GatheredMembershipEvent> {
     let event_is_about_me = event.state_key() == room.own_user_id();
     if !event_is_about_me {
         return None;
     }
 
-    match room.to_msn_user().await {
+    match room_to_msn_user(room, hashes).await {
         Ok(room_user) => Some(GatheredMembershipEvent { membership: event.membership().clone(), room_user }),
         Err(error) => {
             warn!("Matrix: could not resolve room {} to an MSN user: {} — skipping membership event", room.room_id(), error);
@@ -114,20 +114,20 @@ pub(super) async fn handle_memberships_stripped(
         return;
     }
 
-    let Some(gathered) = gather_stripped_membership_event(&event, &room).await else {
+    let Some(gathered) = gather_stripped_membership_event(&event, &room, tachyon_client.room_hashes()).await else {
         return;
     };
 
     apply_memberships(decide_memberships_stripped(gathered), &tachyon_client);
 }
 
-async fn gather_stripped_membership_event(event: &StrippedRoomMemberEvent, room: &Room) -> Option<GatheredStrippedMembershipEvent> {
+async fn gather_stripped_membership_event(event: &StrippedRoomMemberEvent, room: &Room, hashes: &RoomHashCache) -> Option<GatheredStrippedMembershipEvent> {
     let event_is_about_me = event.state_key == room.own_user_id();
     if !event_is_about_me {
         return None;
     }
 
-    match room.to_msn_user().await {
+    match room_to_msn_user(room, hashes).await {
         Ok(room_user) => Some(GatheredStrippedMembershipEvent {
             state: room.state(),
             reason: event.content.reason.clone(),
@@ -166,21 +166,22 @@ pub(crate) fn decide_memberships_stripped(gathered: GatheredStrippedMembershipEv
 }
 
 /// The full-list rebuild for the Sharing SOAP path — gather + decide over
-/// every room's own-member state event, same table as the live handlers.
-pub async fn compute_all_memberships(client: Client) -> Vec<BaseMember> {
+/// every room's own-member state event, same table as the live handlers. The
+/// hash cache rides along from the calling account's owned state (§3.5).
+pub async fn compute_all_memberships(client: Client, hashes: &RoomHashCache) -> Vec<BaseMember> {
     let mut out = Vec::new();
     for room in client.rooms() {
         if let Ok(Some(event)) = room.get_state_event_static_for_key::<RoomMemberEventContent, _>(room.own_user_id()).await {
             match event {
                 RawSyncOrStrippedState::Sync(sync) => {
                     let deserialized = sync.deserialize().unwrap();
-                    if let Some(gathered) = gather_membership_event(&deserialized, &room).await {
+                    if let Some(gathered) = gather_membership_event(&deserialized, &room, hashes).await {
                         out.append(&mut decide_memberships(gathered));
                     }
                 }
                 RawSyncOrStrippedState::Stripped(stripped) => {
                     let deserialized = stripped.deserialize().unwrap();
-                    if let Some(gathered) = gather_stripped_membership_event(&deserialized, &room).await {
+                    if let Some(gathered) = gather_stripped_membership_event(&deserialized, &room, hashes).await {
                         out.append(&mut decide_memberships_stripped(gathered));
                     }
                 }
@@ -199,7 +200,7 @@ pub(super) async fn handle_tombstone(event: OriginalSyncRoomTombstoneEvent,
     // §1.4: pre-D3 this was `room.to_msn_user().await.unwrap()` — an
     // unresolvable room panicked the Matrix handler task. Now: warn + skip
     // the event (failure-path-only delta).
-    let room_user = match room.to_msn_user().await {
+    let room_user = match room_to_msn_user(&room, tachyon_client.room_hashes()).await {
         Ok(room_user) => room_user,
         Err(error) => {
             warn!("Matrix: could not resolve room {} to an MSN user: {} — skipping tombstone", room.room_id(), error);

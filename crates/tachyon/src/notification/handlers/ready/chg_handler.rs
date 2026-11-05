@@ -1,4 +1,4 @@
-use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
+use crate::matrix::extensions::msn_user_resolver::{find_room_from_email, room_to_msn_user_lazy};
 use crate::notification::models::client_out::ClientOut;
 use crate::notification::models::session_state::SessionState;
 use crate::tachyon::client::tachyon_client::TachyonClient;
@@ -56,10 +56,10 @@ pub async fn handle_chg(command: ChgClient, local_store: &mut SessionState, clie
                     continue;
                 }
 
-               let found_room =  matrix_client.find_room_from_email(&contact.email_address);
+               let found_room =  find_room_from_email(&matrix_client, tachyon_client.room_hashes(), &contact.email_address);
 
                let display_name = if let Ok(Some(room)) = &found_room {
-                   if let Ok(msn_user) = room.to_msn_user_lazy().await {
+                   if let Ok(msn_user) = room_to_msn_user_lazy(room, tachyon_client.room_hashes()).await {
                        msn_user.display_name
                    } else {
                        None

@@ -1,4 +1,4 @@
-use crate::matrix::extensions::msn_user_resolver::FindRoomFromEmail;
+use crate::matrix::extensions::msn_user_resolver::find_room_from_email;
 use crate::p2p::client::session::{ReceiveMsnObject, SendFileContent, SessionType};
 use crate::p2p::client::transport::{Transport, UnwrappedP2PPacket};
 use crate::tachyon::client::tachyon_client::TachyonClient;
@@ -124,7 +124,7 @@ pub async fn handle_p2p_packet(room_id: &RoomId, transport: Transport, p2p_packe
 
                                     let client = tachyon_client.clone();
                                     let proxy_room_email =  EmailAddress::from_str(&obj.creator).unwrap();
-                                    let room = client.matrix_client_ready().find_room_from_email(&proxy_room_email).unwrap().unwrap();
+                                    let room = find_room_from_email(&client.matrix_client_ready(), client.room_hashes(), &proxy_room_email).unwrap().unwrap();
                                     tokio::spawn(async move {
                                         let (_, bytes) = client.get_avatar_thumbnail(&room).await.unwrap().unwrap();
 

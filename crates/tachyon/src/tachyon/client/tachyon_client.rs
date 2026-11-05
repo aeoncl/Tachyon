@@ -1,3 +1,5 @@
+use crate::matrix::extensions::message_dedup::DedupState;
+use crate::matrix::extensions::msn_user_resolver::RoomHashCache;
 use crate::matrix::services::login::spawn_session_watcher;
 use crate::notification::circle_store::CircleStore;
 use crate::notification::handlers::auth::sync_with_server_task;
@@ -55,6 +57,13 @@ pub struct TachyonClientInner {
     pub sessions: DashMap<SessionId, P2PSession>,
     pub chunked_uploads: DashMap<SessionId, Vec<RawP2PPayload>>,
     pub voice_clips: VoiceClipStore,
+    /// Owned dedup state (§3.5, H7): the account's send-lock + sent-event-id
+    /// tables. Lifetime = the signed-in account's lifetime — a second account
+    /// in the same room can no longer have its sends suppressed or its echoes
+    /// misattributed, fixed by ownership rather than a compound key.
+    pub dedup: DedupState,
+    /// Owned room-id hash cache (§3.5, H7) — the same lifetime story.
+    pub room_hashes: RoomHashCache,
 }
 
 #[derive(Clone)]
@@ -92,6 +101,8 @@ impl TachyonClient {
                 sessions: Default::default(),
                 chunked_uploads: Default::default(),
                 voice_clips: Default::default(),
+                dedup: Default::default(),
+                room_hashes: Default::default(),
             })
         }
     }
@@ -188,5 +199,15 @@ impl TachyonClient {
 
     pub fn notification_handle(&self) -> NotificationHandle {
         self.inner.notification_handle.clone()
+    }
+
+    /// The account's owned dedup state — the single dedup path (§3.5).
+    pub fn dedup(&self) -> &DedupState {
+        &self.inner.dedup
+    }
+
+    /// The account's owned room-id hash cache (§3.5).
+    pub fn room_hashes(&self) -> &RoomHashCache {
+        &self.inner.room_hashes
     }
 }

@@ -35,7 +35,7 @@ pub async fn find_membership(request : FindMembershipRequestSoapEnvelope, _token
 
 
     } else {
-        let members = compute_all_memberships(client).await;
+        let members = compute_all_memberships(client, client_data.room_hashes()).await;
         let msg_service = FindMembershipResponseFactory::get_messenger_service(members, true);
         let soap_body = FindMembershipResponseFactory::get_response(&own_user, &cache_key, msg_service);
         Ok(shared::build_soap_response(soap_body.to_xml()?, StatusCode::OK))

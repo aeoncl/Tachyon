@@ -1,5 +1,5 @@
 use crate::matrix::extensions::direct::DirectRoom;
-use crate::matrix::extensions::msn_user_resolver::ToEmailAddress;
+use crate::matrix::extensions::msn_user_resolver::room_email_address;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use base64::engine::general_purpose;
 use base64::Engine;
@@ -39,7 +39,7 @@ impl TachyonClient {
             None => None,
             Some(room) => {
                 let avatar_bytes = self.get_user_avatar_thumbnail(user_id, &room).await?;
-                let room_email_address = room.to_email_address()?;
+                let room_email_address = room_email_address(&room, self.room_hashes())?;
                  match avatar_bytes {
                     None => None,
                     Some((uri, avatar_bytes)) => {
@@ -68,7 +68,7 @@ impl TachyonClient {
         let out = match matrix_client.get_room(room_id) {
             None => None,
             Some(room) => {
-                let room_email_address = room.to_email_address()?;
+                let room_email_address = room_email_address(&room, self.room_hashes())?;
                 match self.get_room_avatar_thumbnail(&room).await? {
                     None => None,
                     Some((uri, avatar_bytes)) => {

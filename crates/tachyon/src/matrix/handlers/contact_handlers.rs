@@ -5,7 +5,7 @@
 //! table; apply owns the single sink — the account's `SoapHolder` contact
 //! list. The space filter and the room println stay shell policy, exactly
 //! where they were pre-D3.
-use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
+use crate::matrix::extensions::msn_user_resolver::{room_to_msn_user, RoomHashCache};
 use crate::notification::models::soap_holder::AddressBookContact;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use log::warn;
@@ -44,7 +44,7 @@ pub(super) async fn handle_contacts(
 
     println!("Handling contact event for room: {}", room.room_id().to_string());
 
-    let Some(gathered) = gather_contact_event(&event, &room).await else {
+    let Some(gathered) = gather_contact_event(&event, &room, tachyon_client.room_hashes()).await else {
         return;
     };
 
@@ -56,13 +56,13 @@ pub(super) async fn handle_contacts(
 /// a `Result` that the handler `.unwrap()`ed — a room with an unresolvable id
 /// panicked the Matrix handler task; now it warns and skips the event
 /// (failure-path-only delta, D1/D2c precedent).
-async fn gather_contact_event(event: &SyncRoomMemberEvent, room: &Room) -> Option<GatheredContactEvent> {
+async fn gather_contact_event(event: &SyncRoomMemberEvent, room: &Room, hashes: &RoomHashCache) -> Option<GatheredContactEvent> {
     let event_is_about_me = event.state_key() == room.own_user_id();
     if !event_is_about_me {
         return None;
     }
 
-    match room.to_msn_user().await {
+    match room_to_msn_user(room, hashes).await {
         Ok(room_user) => Some(GatheredContactEvent { membership: event.membership().clone(), room_user }),
         Err(error) => {
             warn!("Matrix: could not resolve room {} to an MSN user: {} — skipping contact event", room.room_id(), error);
@@ -105,20 +105,20 @@ pub(super) async fn handle_contacts_stripped(
         return;
     }
 
-    let Some(gathered) = gather_stripped_contact_event(&event, &room).await else {
+    let Some(gathered) = gather_stripped_contact_event(&event, &room, tachyon_client.room_hashes()).await else {
         return;
     };
 
     apply_contacts(decide_contacts_stripped(gathered), &tachyon_client);
 }
 
-async fn gather_stripped_contact_event(event: &StrippedRoomMemberEvent, room: &Room) -> Option<GatheredStrippedContactEvent> {
+async fn gather_stripped_contact_event(event: &StrippedRoomMemberEvent, room: &Room, hashes: &RoomHashCache) -> Option<GatheredStrippedContactEvent> {
     let event_is_about_me = event.state_key == room.own_user_id();
     if !event_is_about_me {
         return None;
     }
 
-    match room.to_msn_user().await {
+    match room_to_msn_user(room, hashes).await {
         Ok(room_user) => Some(GatheredStrippedContactEvent { state: room.state(), room_user }),
         Err(error) => {
             warn!("Matrix: could not resolve room {} to an MSN user: {} — skipping stripped contact event", room.room_id(), error);
@@ -147,21 +147,22 @@ pub(crate) fn decide_contacts_stripped(gathered: GatheredStrippedContactEvent) -
 }
 
 /// The full-list rebuild for the ABCH SOAP path — gather + decide over every
-/// room's own-member state event, same table as the live handlers.
-pub async fn compute_all_contacts(client: Client) -> Vec<AddressBookContact> {
+/// room's own-member state event, same table as the live handlers. The hash
+/// cache rides along from the calling account's owned state (§3.5).
+pub async fn compute_all_contacts(client: Client, hashes: &RoomHashCache) -> Vec<AddressBookContact> {
     let mut out = Vec::new();
     for room in client.rooms() {
         if let Ok(Some(event)) = room.get_state_event_static_for_key::<RoomMemberEventContent, _>(room.own_user_id()).await {
             match event {
                 RawSyncOrStrippedState::Sync(sync) => {
                     let deserialized = sync.deserialize().unwrap();
-                    if let Some(gathered) = gather_contact_event(&deserialized, &room).await {
+                    if let Some(gathered) = gather_contact_event(&deserialized, &room, hashes).await {
                         out.append(&mut decide_contacts(gathered));
                     }
                 }
                 RawSyncOrStrippedState::Stripped(stripped) => {
                     let deserialized = stripped.deserialize().unwrap();
-                    if let Some(gathered) = gather_stripped_contact_event(&deserialized, &room).await {
+                    if let Some(gathered) = gather_stripped_contact_event(&deserialized, &room, hashes).await {
                         out.append(&mut decide_contacts_stripped(gathered));
                     }
                 }
@@ -180,7 +181,7 @@ pub(super) async fn handle_tombstone(    event: OriginalSyncRoomTombstoneEvent,
     // §1.4: pre-D3 this was `room.to_msn_user().await.unwrap()` — an
     // unresolvable room panicked the Matrix handler task. Now: warn + skip
     // the event (failure-path-only delta).
-    let room_user = match room.to_msn_user().await {
+    let room_user = match room_to_msn_user(&room, tachyon_client.room_hashes()).await {
         Ok(room_user) => room_user,
         Err(error) => {
             warn!("Matrix: could not resolve room {} to an MSN user: {} — skipping tombstone", room.room_id(), error);

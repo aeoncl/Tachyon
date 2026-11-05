@@ -1,5 +1,5 @@
 use crate::audio::{self, siren_wav_duration};
-use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
+use crate::matrix::extensions::msn_user_resolver::room_to_msn_user_lazy;
 use crate::p2p::client::session::{SendMsnObjectContent, SessionId, SessionType};
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use anyhow::anyhow;
@@ -15,7 +15,7 @@ use matrix_sdk::ruma::{RoomId, UInt};
 impl TachyonClient {
 
     pub async fn request_msn_object(&self, room: &Room, msn_object: MsnObject) -> Result<(), anyhow::Error> {
-        let requester = room.to_msn_user_lazy().await?;
+        let requester = room_to_msn_user_lazy(room, self.room_hashes()).await?;
         let owner = self.own_user();
 
         let transport = self.get_or_create_transport(room.room_id(), &requester);

@@ -1,6 +1,6 @@
 use futures_util::FutureExt;
 use log::{debug, error, warn};
-use crate::matrix::extensions::message_dedup::SendWithDedup;
+use crate::matrix::extensions::message_dedup::{apply_room_op, RoomOp};
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use matrix_sdk::ruma::events::room::message::{ImageMessageEventContent, RoomMessageEventContent};
@@ -16,7 +16,7 @@ use tokio::sync::mpsc::Sender;
 use msnp::shared::payload::msg::chunked_msg_payload::{ChunkMetadata, ChunkedMsgPayload, MsgChunks};
 use msnp::shared::models::msn_object::MsnObjectType;
 use msnp::shared::payload::msg::datacast_msg::{Datacast, DatacastType};
-use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
+use crate::matrix::extensions::msn_user_resolver::room_to_msn_user_lazy;
 use crate::matrix::nudge_custom_event::{create_buzz_message};
 use crate::p2p::p2p_handler::handle_p2p_packet;
 use crate::switchboard::switchboard_server::SwitchboardSenderMsg;
@@ -76,7 +76,11 @@ async fn handle_msg_payload(tr_id: u128, ack_type: MsgAcknowledgment, payload: M
             MsgPayload::TextPlain(text_plain) => {
 
                 let message = RoomMessageEventContent::text_plain(text_plain.body);
-                room_clone.send_with_dedup(message).await.map(|r| ())
+                // §1.1 site 1 routes through the single RoomOp::SendText
+                // executor (D3) — same owned-dedup semantics as the pre-D3
+                // dedup-send trait. The SB-front shape migration of this
+                // handler itself is D4; this is the call-site adaptation.
+                apply_room_op(&tachyon_client, RoomOp::SendText { room: room_clone, content: message }).await
             }
             MsgPayload::Datacast(datacast) => {
                 debug!("received DATACAST {:?}", &datacast.get_type() );
@@ -118,7 +122,7 @@ async fn handle_msg_payload(tr_id: u128, ack_type: MsgAcknowledgment, payload: M
                 }
             }
             MsgPayload::P2P(p2p) => {
-                let transport = tachyon_client.get_or_create_transport(room_clone.room_id(), &room_clone.to_msn_user_lazy().await.unwrap());
+                let transport = tachyon_client.get_or_create_transport(room_clone.room_id(), &room_to_msn_user_lazy(&room_clone, tachyon_client.room_hashes()).await.unwrap());
 
                 handle_p2p_packet(room_clone.room_id(), transport, p2p.payload, tachyon_client).await;
                 Ok(())
