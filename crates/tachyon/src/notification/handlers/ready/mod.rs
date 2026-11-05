@@ -13,7 +13,7 @@ use url_handler::decide_url;
 use usr_handler::handle_usr;
 use uum_handler::handle_uum;
 use uux_handler::handle_uux;
-use xfr_handler::handle_xfr;
+use xfr_handler::decide_xfr;
 use crate::notification::handlers::ready::uun_handler::decide_uun;
 use crate::notification::models::client_out::ClientOut;
 use crate::notification::models::session_state::SessionState;
@@ -42,7 +42,7 @@ pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command
         NotificationClientCommand::RML(command) => send_client_outs([handle_rml(command, tachyon_client)?], &command_sender).await,
         NotificationClientCommand::UUX(command) => send_client_outs([handle_uux(command, local_store)], &command_sender).await,
         NotificationClientCommand::UUM(command) => send_client_outs(handle_uum(command, matrix_client).await?, &command_sender).await,
-        NotificationClientCommand::XFR(command) => handle_xfr(command, local_store, command_sender, config).await,
+        NotificationClientCommand::XFR(command) => send_client_outs([decide_xfr(command, &local_store.token, config.switchboard_port)?], &command_sender).await,
         NotificationClientCommand::BLP(command) => {
             command_sender.send(NotificationServerCommand::BLP(command)).await?;
             Ok(())
