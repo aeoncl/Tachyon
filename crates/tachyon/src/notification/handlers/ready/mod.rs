@@ -9,7 +9,7 @@ use png_handler::decide_png;
 use prp_handler::handle_prp;
 use put_handler::decide_put;
 use rml_handler::handle_rml;
-use url_handler::handle_url;
+use url_handler::decide_url;
 use usr_handler::handle_usr;
 use uum_handler::handle_uum;
 use uux_handler::handle_uux;
@@ -61,7 +61,7 @@ pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command
         NotificationClientCommand::FQY(command) => {handle_fqy(command, tachyon_client, command_sender).await}
         NotificationClientCommand::SDG(_) => {Ok(())}
         NotificationClientCommand::URL(command) => {
-            handle_url(command, local_store, tachyon_client, command_sender).await
+            send_client_outs([decide_url(command)], &command_sender).await
         }
     }
 }
