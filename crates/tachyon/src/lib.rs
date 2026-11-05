@@ -19,6 +19,9 @@ pub mod tachyon;
 pub mod p2p;
 pub mod audio;
 
+/// Shared NS/SB command-channel bound: bounded memory, and `send().await` backpressures instead of dropping protocol events (§8 D2, sub-decision (b)).
+pub(crate) const COMMAND_CHANNEL_BOUND: usize = 1024;
+
 pub async fn run(config: TachyonConfig, global_shutdown_signal_rcv: Receiver<()>) -> Result<(), anyhow::Error> {
     let tachyon_path = paths::get_tachyon_path();
     create_dirs(&tachyon_path);

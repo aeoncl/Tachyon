@@ -10,7 +10,7 @@ pub async fn handle_url(command: UrlClient, client_data: &mut SessionState, tach
 
     sender.send(NotificationServerCommand::URL(
         UrlServer::new(command.tr_id, "https://hotmail.live.com/tachyon".to_string(), "https://login.live.com/RST2.srf".to_string(),0)
-    )).await;
+    )).await?;
 
     Ok(())
 }

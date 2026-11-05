@@ -8,6 +8,7 @@ use msnp::shared::traits::{IntoBytes, TryFromRawCommand};
 use tokio::{io::{AsyncReadExt, AsyncWriteExt, BufReader}, net::{tcp::OwnedWriteHalf, TcpListener, TcpStream}, sync::{broadcast::{self, Receiver}, mpsc::{self, Sender}}};
 use msnp::msnp::raw_command_parser::RawCommand;
 use crate::notification::handlers::command_handler::handle_command;
+use crate::COMMAND_CHANNEL_BOUND;
 use crate::notification::models::session_state::SessionState;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::global_state::{ClientDropGuard, GlobalState};
@@ -151,7 +152,7 @@ async fn handle_commands(commands: Vec<RawCommand>, command_sender: &Sender<Noti
 
 fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> Sender<NotificationServerCommand> {
     info!("Socket write task started...");
-    let (sender, mut receiver) = mpsc::channel::<NotificationServerCommand>(300);
+    let (sender, mut receiver) = mpsc::channel::<NotificationServerCommand>(COMMAND_CHANNEL_BOUND);
 
     let _result = tokio::spawn(async move {
         loop {

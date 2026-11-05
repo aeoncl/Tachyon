@@ -4,7 +4,7 @@ use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::switchboard::extensions::CustomStyles;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
-use log::info;
+use log::{info, warn};
 use matrix_sdk::ruma::events::room::message::{MessageType, OriginalSyncRoomMessageEvent};
 use matrix_sdk::ruma::events::typing::SyncTypingEvent;
 use matrix_sdk::{Client, Room};
@@ -74,8 +74,16 @@ pub async fn handle_message(
 
                     });
                     
-                    switchboard.receive_command(notice).await.unwrap();
-                    switchboard.receive_command(voice_clip).await.unwrap();
+                    // Err = the switchboard's write task is gone (client
+                    // disconnected): stop handling the event instead of panicking
+                    // the Matrix task (§8 D2, §10).
+                    if let Err(error) = switchboard.receive_command(notice).await {
+                        warn!("MSNP|SB: voice-clip notice dropped, client gone: {}", error);
+                        return;
+                    }
+                    if let Err(error) = switchboard.receive_command(voice_clip).await {
+                        warn!("MSNP|SB: voice clip dropped, client gone: {}", error);
+                    }
                 }
                 Err(e) => {
                     info!("Could not send audio message as a voice clip, falling back to a file transfer: {}", e);
@@ -92,7 +100,10 @@ pub async fn handle_message(
                         })
                     });
 
-                    switchboard.receive_command(notice).await.unwrap();
+                    if let Err(error) = switchboard.receive_command(notice).await {
+                        warn!("MSNP|SB: file-transfer notice dropped, client gone: {}", error);
+                        return;
+                    }
 
                     let size = audio.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
                     let filename = audio.filename.as_ref().unwrap_or(&audio.body).to_owned();
@@ -127,7 +138,9 @@ pub async fn handle_message(
             }
             );
 
-            switchboard.receive_command(msg).await.unwrap();
+            if let Err(error) = switchboard.receive_command(msg).await {
+                warn!("MSNP|SB: notice dropped, client gone: {}", error);
+            }
 
         }
         MessageType::ServerNotice(server) => {
@@ -142,7 +155,9 @@ pub async fn handle_message(
             }
             );
 
-            switchboard.receive_command(msg).await.unwrap();
+            if let Err(error) = switchboard.receive_command(msg).await {
+                warn!("MSNP|SB: message dropped, client gone: {}", error);
+            }
         }
         MessageType::Video(video) => {
             let size = video.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
@@ -163,7 +178,9 @@ pub async fn handle_message(
                     }
                     );
 
-                    switchboard.receive_command(nudge).await.unwrap();
+                    if let Err(error) = switchboard.receive_command(nudge).await {
+                        warn!("MSNP|SB: nudge dropped, client gone: {}", error);
+                    }
                 },
                 &_ => {}
             }
@@ -191,11 +208,15 @@ pub(crate) async fn handle_typing_notice(event: SyncTypingEvent, room: Room, tac
                     }
                 };
 
-                switchboard.receive_command(SwitchboardServerCommand::MSG(MsgServer {
+                // Err = client gone: drop the typing notification, never hang the
+                // Matrix-side task on a full channel (§8 D2, §10).
+                if let Err(error) = switchboard.receive_command(SwitchboardServerCommand::MSG(MsgServer {
                     sender: sender.get_email_address().clone(),
                     display_name: DisplayName::new_from_ref(sender.compute_display_name()),
                     payload: MsgPayload::Control(ControlMessagePayload::new(sender.get_email_address().clone()))
-                })).await;
+                })).await {
+                    warn!("MSNP|SB: typing notification dropped, client gone: {}", error);
+                }
 
             }
         }

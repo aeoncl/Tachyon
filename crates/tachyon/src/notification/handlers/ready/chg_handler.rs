@@ -95,7 +95,12 @@ pub async fn handle_chg(command: ChgClient, local_store: &mut SessionState, clie
             // Decide (pure), then render per dialect into the existing sink.
             for out in decide_chg(gathered) {
                 for server_command in render(out, command.tr_id, dialect) {
-                    let _ = command_sender.send(server_command).await;
+                    // Err = receiver dropped, client gone: stop the fan-out instead
+                    // of producing commands nobody will ever send (§8 D2).
+                    if let Err(error) = command_sender.send(server_command).await {
+                        warn!("MSNP|NS: presence fan-out aborted, client gone: {}", error);
+                        return;
+                    }
                 }
             }
         });

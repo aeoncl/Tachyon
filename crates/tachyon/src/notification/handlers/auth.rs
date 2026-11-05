@@ -152,7 +152,11 @@ pub(crate) async fn send_login_toast(client: &TachyonClient) {
             notification_id,
         )),
     });
-    let _ = client.notification_handle().send(secret_not).await;
+    // Err = receiver dropped, client gone: the toast is undeliverable and
+    // nothing follows in this flow (§8 D2).
+    if let Err(error) = client.notification_handle().send(secret_not).await {
+        warn!("MSNP|NS: login toast dropped, client gone: {}", error);
+    }
 }
 
 pub(crate) fn sync_with_server_task(tachyon_client: TachyonClient, matrix_client: &Client) {
@@ -181,7 +185,12 @@ pub(crate) fn sync_with_server_task(tachyon_client: TachyonClient, matrix_client
             let (alert, receiver) = Alert::new_confirm_device(Duration::from_mins(5));
             tachyon_client.alerts().insert(notification_id, alert);
 
-            notif_sender_clone.send(verif_not).await;
+            // Err = receiver dropped, client gone: stop producing the
+            // login-sequence commands (§8 D2).
+            if let Err(error) = notif_sender_clone.send(verif_not).await {
+                warn!("MSNP|NS: verification alert dropped, client gone: {}", error);
+                return;
+            }
 
             // the login page can set the identity up without ever touching the alert; a recheck tick un-parks this wait
             let (recheck_snd, mut recheck_rcv) = tokio::sync::mpsc::channel::<()>(1);
@@ -227,7 +236,10 @@ pub(crate) fn sync_with_server_task(tachyon_client: TachyonClient, matrix_client
             }
         }
 
-        notif_sender_clone.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await;
+        if let Err(error) = notif_sender_clone.send(NotificationServerCommand::RAW(RawCommand::without_payload("SBS 0 null"))).await {
+            warn!("MSNP|NS: SBS dropped, client gone: {}", error);
+            return;
+        }
 
         //This makes the client login to succeed.
         let initial_profile_msg = NotificationServerCommand::MSG(MsgServer {
@@ -240,16 +252,23 @@ pub(crate) fn sync_with_server_task(tachyon_client: TachyonClient, matrix_client
             )),
         });
 
-        notif_sender_clone.send(initial_profile_msg).await;
+        if let Err(error) = notif_sender_clone.send(initial_profile_msg).await {
+            warn!("MSNP|NS: initial profile MSG dropped, client gone: {}", error);
+            return;
+        }
 
         //Todo fetch endpoint data
         let endpoint_data = b"<Data></Data>";
-        notif_sender_clone
+        if let Err(error) = notif_sender_clone
             .send(NotificationServerCommand::RAW(RawCommand::with_payload(
                 &format!("UBX 1:{}", &msn_user_clone.get_email_address().as_str()),
                 endpoint_data.to_vec(),
             )))
-            .await;
+            .await
+        {
+            warn!("MSNP|NS: initial UBX dropped, client gone: {}", error);
+            return;
+        }
 
         //Todo check the device state before we sync
 
@@ -261,6 +280,10 @@ pub(crate) fn sync_with_server_task(tachyon_client: TachyonClient, matrix_client
             payload: MsgPayload::Raw(RawMsgPayloadFactory::get_initial_mail_data_empty_notification()),
         });
 
-        notif_sender_clone.send(initial_mail_data).await;
+        // Tail of the task: nothing left to produce, so the client-gone case
+        // only needs the log (§8 D2).
+        if let Err(error) = notif_sender_clone.send(initial_mail_data).await {
+            warn!("MSNP|NS: initial mail data MSG dropped, client gone: {}", error);
+        }
     });
 }

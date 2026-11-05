@@ -1,7 +1,7 @@
 use crate::matrix::extensions::msn_user_resolver::{FindRoomFromEmail, ToMsnUser};
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::identifiers::is_sha1::IsSha1;
-use log::debug;
+use log::{debug, warn};
 use matrix_sdk::Client;
 use msnp::msnp::notification::command::adl::AdlClient;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
@@ -68,7 +68,8 @@ pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, matri
             let endpoint_id = EndpointId::from_email_addr(network_id_email.email.clone());
             let endpoint_guid = endpoint_id.endpoint_guid.expect("to be here");
 
-            let _ = command_sender.send(NotificationServerCommand::NLN(NlnServer{
+            // Err = receiver dropped, client gone: stop the fan-out (§8 D2).
+            if let Err(error) = command_sender.send(NotificationServerCommand::NLN(NlnServer{
                 presence_status: PresenceStatus::NLN,
                 target_user: network_id_email.clone(),
                 via: None,
@@ -76,10 +77,14 @@ pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, matri
                 client_capabilities: Default::default(),
                 avatar,
                 badge_url: None,
-            })).await;
+            })).await {
+                warn!("MSNP|NS: presence fan-out aborted, client gone: {}", error);
+                return;
+            }
 
             //If we don't set the EndpointData here, we don't get P2P Transport Requests because the client has no information about the presence of this Endpoint.
-            let _ = command_sender.send(NotificationServerCommand::UBX(UbxServer {
+            // Err = receiver dropped, client gone: stop the fan-out (§8 D2).
+            if let Err(error) = command_sender.send(NotificationServerCommand::UBX(UbxServer {
                 target_user: network_id_email,
                 via: None,
                 payload: UbxPayload::ExtendedPresence(ExtendedPresenceContent {
@@ -88,7 +93,10 @@ pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, matri
                     endpoint_data: EndpointData::new(Some(endpoint_guid), ClientCapabilities::default()),
                     private_endpoint_data: None,
                 }),
-            })).await;
+            })).await {
+                warn!("MSNP|NS: presence fan-out aborted, client gone: {}", error);
+                return;
+            }
         }
     });
     Ok(())

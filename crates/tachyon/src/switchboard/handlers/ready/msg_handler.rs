@@ -1,5 +1,5 @@
 use futures_util::FutureExt;
-use log::{debug, error};
+use log::{debug, error, warn};
 use crate::matrix::extensions::message_dedup::SendWithDedup;
 use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::tachyon::client::tachyon_client::TachyonClient;
@@ -138,14 +138,21 @@ async fn handle_msg_payload(tr_id: u128, ack_type: MsgAcknowledgment, payload: M
             error!("Could not send message {:?}", e);
             match ack_type {
                 MsgAcknowledgment::AckOnFailure | MsgAcknowledgment::AckA | MsgAcknowledgment::AckD => {
-                    command_sender_clone.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::NAK(NakServer::new(tr_id)))).await;
+                    // Err = receiver dropped, client gone: the NAK is undeliverable
+                    // and nothing else is produced here (§8 D2).
+                    if let Err(error) = command_sender_clone.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::NAK(NakServer::new(tr_id)))).await {
+                        warn!("MSNP|SB: NAK dropped, client gone: {}", error);
+                    }
                 }
                 _ => {}
             }
         } else {
             match ack_type {
                 MsgAcknowledgment::AckA | MsgAcknowledgment::AckD => {
-                    command_sender_clone.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::ACK(AckServer::new(tr_id)))).await;
+                    // Same policy as the NAK above (§8 D2).
+                    if let Err(error) = command_sender_clone.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::ACK(AckServer::new(tr_id)))).await {
+                        warn!("MSNP|SB: ACK dropped, client gone: {}", error);
+                    }
                 }
                 _ => {}
             }

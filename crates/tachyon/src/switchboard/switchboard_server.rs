@@ -3,6 +3,7 @@ use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
 use crate::switchboard::models::switchboard_handle::SwitchboardHandle;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::global_state::GlobalState;
+use crate::COMMAND_CHANNEL_BOUND;
 use anyhow::anyhow;
 use log::{debug, error, info, logger, warn};
 use msnp::msnp::notification::command::command::NotificationServerCommand;
@@ -163,7 +164,7 @@ fn start_write_task(
     mut kill_recv: Receiver<()>,
 ) -> Sender<SwitchboardSenderMsg> {
     println!("Socket write task started...");
-    let (sender, mut receiver) = mpsc::channel::<SwitchboardSenderMsg>(10000000);
+    let (sender, mut receiver) = mpsc::channel::<SwitchboardSenderMsg>(COMMAND_CHANNEL_BOUND);
 
     let _result = tokio::spawn(async move {
         'write_loop: loop {

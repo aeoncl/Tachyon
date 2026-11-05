@@ -2,6 +2,7 @@ use crate::switchboard::models::switchboard_handle::{SwitchboardHandle, Switchbo
 use crate::switchboard::models::switchboard_token::SwitchboardToken;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use anyhow::anyhow;
+use log::warn;
 use matrix_sdk::ruma::RoomId;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::rng::RngServer;
@@ -76,7 +77,9 @@ impl SwitchboardService {
 
         let switchboard_port = self.switchboard_port;
         tokio::spawn(async move {
-            let _ = notification_client_clone.send(
+            // Err = receiver dropped, client gone: the ring invite is
+            // undeliverable and there is nothing else to produce (§8 D2).
+            if let Err(error) = notification_client_clone.send(
                 NotificationServerCommand::RNG(
                     RngServer::new(
                         SessionId::random(),
@@ -86,7 +89,9 @@ impl SwitchboardService {
                         inviter_clone.compute_display_name().to_string()
                     )
                 )
-            ).await;
+            ).await {
+                warn!("MSNP|NS: RNG dropped, client gone: {}", error);
+            }
         });
 
         switchboard

@@ -105,7 +105,7 @@ pub(crate) async fn handle_auth(command: SwitchboardClientCommand, command_sende
             local_switchboard_data.session_id = SessionId::random();
             local_switchboard_data.phase = ConnectionPhase::Initializing;
             let email = &local_switchboard_data.email_addr;
-            let _ = command_sender.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::USR(usr_command.get_ok_response_for(email.to_string())))).await;
+            command_sender.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::USR(usr_command.get_ok_response_for(email.to_string())))).await?;
         }
         _ => {
             //TODO: send error when receiving another command
@@ -126,11 +126,11 @@ pub(crate) async fn handle_init(command: SwitchboardClientCommand, command_sende
             let user_id = email.to_owned_user_id();
 
 
-            let _ = command_sender.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::CAL(CalServer {
+            command_sender.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::CAL(CalServer {
                 tr_id: cal_client.tr_id,
                 function: CalServerFunction::RINGING,
                 session_id: local_switchboard_data.session_id.clone()
-            }))).await;
+            }))).await?;
 
 
             if email == local_switchboard_data.email_addr {
@@ -226,7 +226,7 @@ async fn send_initial_joined_member(member: MsnUser, command_sender:  &Sender<Sw
     }))).await?;
 
     if  member.endpoint_id.endpoint_guid.is_some() {
-        let _ = command_sender.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::JOI(JoiServer {
+        command_sender.send(SwitchboardSenderMsg::Single(SwitchboardServerCommand::JOI(JoiServer {
             display_name: member.compute_display_name().to_string(),
             endpoint_id: member.endpoint_id.clone(),
             capabilities: member.capabilities.clone(),
