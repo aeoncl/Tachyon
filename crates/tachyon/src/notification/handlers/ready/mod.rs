@@ -48,7 +48,7 @@ pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command
             Ok(())
         }
         NotificationClientCommand::CHG(command) => handle_chg(command, local_store, tachyon_client, matrix_client, command_sender).await,
-        NotificationClientCommand::PRP(command) => handle_prp(command, local_store, tachyon_client, command_sender).await,
+        NotificationClientCommand::PRP(command) => send_client_outs([handle_prp(command, tachyon_client)], &command_sender).await,
         NotificationClientCommand::UUN(command) => handle_uun(command, tachyon_client, matrix_client, command_sender).await,
         NotificationClientCommand::RAW(command) => {
             warn!("Received RAW command: {:?}", command);
