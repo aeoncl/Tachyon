@@ -4,7 +4,7 @@ use crate::switchboard::models::switchboard_handle::SwitchboardHandle;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::global_state::GlobalState;
 use anyhow::anyhow;
-use log::{debug, error, info, logger};
+use log::{debug, error, info, logger, warn};
 use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::raw_command_parser::RawCommandParser;
 use msnp::msnp::switchboard::command::command::{
@@ -166,7 +166,7 @@ fn start_write_task(
     let (sender, mut receiver) = mpsc::channel::<SwitchboardSenderMsg>(10000000);
 
     let _result = tokio::spawn(async move {
-        loop {
+        'write_loop: loop {
             tokio::select! {
                 sender_msg = receiver.recv() => {
                     if let Some(sender_msg) = sender_msg {
@@ -188,12 +188,22 @@ fn start_write_task(
                                     }
                                 }
 
-                                write.write_all(&bytes).await.unwrap();
+                                // Explicit policy (H2): a dead socket ends the write
+                                // task with a warn, never a panic — teardown continues
+                                // through the existing kill paths.
+                                if let Err(error) = write.write_all(&bytes).await {
+                                    warn!("MSNP|SB: socket write failed, closing write task: {}", error);
+                                    break 'write_loop;
+                                }
                             }
                             SwitchboardSenderMsg::Chunks(chunks) => {
                                 for chunk in chunks {
                                     let bytes = chunk.into_bytes();
-                                    write.write_all(&bytes).await.unwrap();
+                                    // Same policy as Single (H2).
+                                    if let Err(error) = write.write_all(&bytes).await {
+                                        warn!("MSNP|SB: socket write failed, closing write task: {}", error);
+                                        break 'write_loop;
+                                    }
                                 }
 
                             }

@@ -169,7 +169,14 @@ fn start_write_task(mut write: OwnedWriteHalf, mut kill_recv: Receiver<()>) -> S
                             Err(_) => debug!("NS >> | <binary {} bytes>", bytes.len()),
                         }
 
-                        let _result = write.write_all(&bytes).await;
+                        // Explicit policy (H3), identical to the SB write task: a
+                        // dead socket ends the write task with a warn — never
+                        // silently ignore, a silently-dead write task hangs every
+                        // sender once channels are bounded (§8 D2, §10).
+                        if let Err(error) = write.write_all(&bytes).await {
+                            warn!("MSNP|NOT: socket write failed, closing write task: {}", error);
+                            break;
+                        }
                     }
                 },
                 _kill_signal = kill_recv.recv() => {
