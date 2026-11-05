@@ -93,7 +93,7 @@ pub async fn handle_chg(command: ChgClient, local_store: &mut SessionState, clie
             }
 
             // Decide (pure), then render per dialect into the existing sink.
-            for out in decide_chg(gathered, command.tr_id, dialect) {
+            for out in decide_chg(gathered) {
                 for server_command in render(out, command.tr_id, dialect) {
                     let _ = command_sender.send(server_command).await;
                 }
@@ -113,10 +113,9 @@ pub async fn handle_chg(command: ChgClient, local_store: &mut SessionState, clie
 }
 
 /// Pure decision step (§3.1): one `ContactPresence` per gathered contact,
-/// contact order preserved. `_tr_id`/`_dialect` select nothing today — they
-/// keep the decide signature stable for the flows where a second dialect
-/// forks policy; the wire-shape fork itself lives in `render`.
-pub(crate) fn decide_chg(gathered: Vec<GatheredContact>, _tr_id: u128, _dialect: Dialect) -> Vec<ClientOut> {
+/// contact order preserved. The wire-shape fork lives in `render`, which is
+/// the step that actually consumes `tr_id` and `dialect`.
+pub(crate) fn decide_chg(gathered: Vec<GatheredContact>) -> Vec<ClientOut> {
     gathered.into_iter().map(|contact| {
         let endpoint_id = EndpointId::from_email_addr(contact.network_id_email.email.clone());
         let endpoint_guid = endpoint_id.endpoint_guid.expect("to be here");
@@ -217,7 +216,7 @@ mod tests {
             gathered("peer@test.com", None),
         ];
 
-        let outs = decide_chg(gathered, 6, Dialect::Msnp18);
+        let outs = decide_chg(gathered);
 
         assert_eq!(outs.len(), 2);
 
