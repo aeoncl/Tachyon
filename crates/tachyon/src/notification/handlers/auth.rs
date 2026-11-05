@@ -2,6 +2,7 @@ use std::time::Duration;
 use crate::matrix::cross_signing::{self, check_device_is_crossed_signed};
 use crate::matrix::services::login::{domain_user_id_to_owned, persist_session, store_hydration_warning};
 use crate::matrix::sync::sync;
+use crate::notification::models::client_out::ClientOut;
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::session_state::SessionState;
 use crate::notification::notification_server::ConnectionShell;
@@ -15,9 +16,11 @@ use msnp::msnp::notification::command::command::{NotificationClientCommand, Noti
 use msnp::msnp::notification::command::msg::{MsgPayload, MsgServer};
 use msnp::msnp::notification::command::not::factories::NotificationFactory;
 use msnp::msnp::notification::command::not::{NotServer, NotificationPayloadType};
+use msnp::msnp::notification::models::dialect::Dialect;
 use msnp::msnp::notification::command::usr::{AuthOperationTypeClient, AuthPolicy, OperationTypeServer, SsoPhaseClient, SsoPhaseServer, UsrServer};
 use msnp::msnp::raw_command_parser::RawCommand;
 use msnp::shared::models::display_name::DisplayName;
+use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
@@ -72,7 +75,7 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                             notif_sender.send(NotificationServerCommand::USR(usr_response)).await?;
 
                             // off the read loop: its SDK round trips can park for seconds while PNG/ADL must keep flowing
-                            spawn_restore_or_toast(tachyon_state.clone(), token.clone(), client, config.clone());
+                            spawn_restore_or_toast(tachyon_state.clone(), token.clone(), client, config.clone(), session_state.dialect);
                         }
                     }
                 },
@@ -92,17 +95,17 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
     }
 }
 
-fn spawn_restore_or_toast(state: GlobalState, token: String, client: TachyonClient, config: TachyonConfig) {
+fn spawn_restore_or_toast(state: GlobalState, token: String, client: TachyonClient, config: TachyonConfig, dialect: Dialect) {
     task::spawn(async move {
         let credentials = match state.credentials().load(&token) {
             Ok(Some(credentials)) => credentials,
             Ok(None) => {
-                send_login_toast(&client).await;
+                send_login_toast(&client, dialect).await;
                 return;
             }
             Err(error) => {
                 warn!("credentials unreadable for {}, asking for sign-in: {}", token, error);
-                send_login_toast(&client).await;
+                send_login_toast(&client, dialect).await;
                 return;
             }
         };
@@ -123,39 +126,75 @@ fn spawn_restore_or_toast(state: GlobalState, token: String, client: TachyonClie
             }
             outcome => {
                 info!("saved session for {} not restored ({:?}); asking for sign-in", token, outcome);
-                send_login_toast(&client).await;
+                send_login_toast(&client, dialect).await;
             }
         }
     });
 }
 
-// The one startup alert, pointing at the section that is missing
-pub(crate) async fn send_login_toast(client: &TachyonClient) {
+// The one startup alert, pointing at the section that is missing. The shell
+// gathers the url inputs (email split, http port, ticket token), keeps the
+// single random input, and sends whatever the seam renders; the NOT
+// construction itself lives behind render_auth_trigger (§3.7).
+pub(crate) async fn send_login_toast(client: &TachyonClient, dialect: Dialect) {
     let msn_user = client.own_user();
-    let email = msn_user.get_email_address();
+    let email = msn_user.get_email_address().clone();
     let (username, homeserver) = email.as_str().split_once('@').map(|(username, homeserver)| (username.to_string(), homeserver.to_string())).unwrap_or_default();
     let login_url = format!(
         "http://127.0.0.1:{}/tachyon/login?username={}&homeserver={}&t={}",
         client.config().http_port, username, homeserver, client.ticket_token().as_str()
     );
+    // The one random input stays in the shell and is injected into the render,
+    // so the wire bytes stay a deterministic function of it (§9).
     let notification_id: i32 = rand::random();
 
-    let secret_not = NotificationServerCommand::NOT(NotServer {
-        payload: NotificationPayloadType::Normal(NotificationFactory::alert(
-            &MsnUser::new(EndpointId::new(email.clone(), None)).uuid,
-            &email,
-            "Sign in required - click here to continue",
-            login_url.as_str(),
-            "",
-            "",
-            None,
-            notification_id,
-        )),
-    });
-    // Err = receiver dropped, client gone: the toast is undeliverable and
-    // nothing follows in this flow (§8 D2).
-    if let Err(error) = client.notification_handle().send(secret_not).await {
-        warn!("MSNP|NS: login toast dropped, client gone: {}", error);
+    let out = ClientOut::DirectToWebLogin { url: login_url };
+    for secret_not in render_auth_trigger(out, email, notification_id, dialect) {
+        // Err = receiver dropped, client gone: the toast is undeliverable and
+        // nothing follows in this flow (§8 D2).
+        if let Err(error) = client.notification_handle().send(secret_not).await {
+            warn!("MSNP|NS: login toast dropped, client gone: {}", error);
+        }
+    }
+}
+
+/// Render step for the auth web-login trigger (§3.7): the trigger forks on
+/// dialect here and only here, and the seam renders the trigger without owning
+/// the login (§10). The Msnp18 arm produces today's in-protocol NOT alert
+/// verbatim — the exact NotificationFactory::alert bytes the pre-seam
+/// send_login_toast built, so the byte pin passes unchanged. M2 adds a
+/// render-side arm that launches the host browser for pre-MSNP18 clients that
+/// cannot act on the in-protocol alert, opening the same web password page with
+/// Tachyon launching the browser (§3.7, §7 M2) — a render-side arm only, never a
+/// password-flow change, and no stub ships before that dialect lands (§6 D).
+pub(crate) fn render_auth_trigger(out: ClientOut, email: EmailAddress, notification_id: i32, dialect: Dialect) -> Vec<NotificationServerCommand> {
+    match out {
+        ClientOut::DirectToWebLogin { url } => {
+            match dialect {
+                Dialect::Msnp18 => {
+                    vec![NotificationServerCommand::NOT(NotServer {
+                        payload: NotificationPayloadType::Normal(NotificationFactory::alert(
+                            &MsnUser::new(EndpointId::new(email.clone(), None)).uuid,
+                            &email,
+                            "Sign in required - click here to continue",
+                            url.as_str(),
+                            "",
+                            "",
+                            None,
+                            notification_id,
+                        )),
+                    })]
+                },
+            }
+        },
+        ClientOut::Command(command) => vec![command],
+        // Canary precedent (send_client_outs / adl / chg): a defect arm, loud
+        // warn + drop, unreachable by construction — the auth seam only renders
+        // DirectToWebLogin or passes a Command through.
+        ClientOut::ContactPresence { .. } => {
+            warn!("MSNP|NS: the auth seam produced ContactPresence; only chg renders presence — dropped");
+            vec![]
+        },
     }
 }
 
@@ -286,4 +325,103 @@ pub(crate) fn sync_with_server_task(tachyon_client: TachyonClient, matrix_client
             warn!("MSNP|NS: initial mail data MSG dropped, client gone: {}", error);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use msnp::msnp::notification::command::command::NotificationServerCommand;
+    use msnp::msnp::notification::command::not::factories::NotificationFactory;
+    use msnp::msnp::notification::command::not::{NotServer, NotificationPayloadType};
+    use msnp::shared::models::email_address::EmailAddress;
+    use msnp::shared::models::endpoint_id::EndpointId;
+    use msnp::shared::models::msn_user::MsnUser;
+    use msnp::shared::traits::IntoBytes;
+    use msnp::soap::traits::xml::ToXml;
+    use msnp::msnp::notification::models::dialect::Dialect;
+
+    use super::render_auth_trigger;
+    use crate::notification::models::client_out::ClientOut;
+
+    /// Oracle pin (§9, D2c): the login-toast NOT bytes captured from the
+    /// CURRENT construction path — the exact `NotificationFactory::alert`
+    /// arguments `send_login_toast` uses today — with fixed inputs (email,
+    /// http port, ticket token) and the single random input, the
+    /// notification id, injected. The `NOT 385` header number is the payload
+    /// byte length rendered by the codec, so the whole string is a
+    /// deterministic oracle: after the trigger seam rewiring this literal
+    /// must pass UNCHANGED — any drift means the seam changed wire output.
+    #[test]
+    fn the_login_toast_alert_bytes_are_pinned_before_the_seam_moves_them() {
+        let email = EmailAddress::from_str("aeon@test.com").unwrap();
+        let login_url = "http://127.0.0.1:11866/tachyon/login?username=aeon&homeserver=test.com&t=TICKETTOKEN";
+        let notification_id: i32 = 1342902633;
+
+        let payload = NotificationFactory::alert(
+            &MsnUser::new(EndpointId::new(email.clone(), None)).uuid,
+            &email,
+            "Sign in required - click here to continue",
+            login_url,
+            "",
+            "",
+            None,
+            notification_id,
+        );
+
+        // Self-consistency: the header number is exactly the payload byte
+        // length (the codec renders `NOT {payload.len()}`).
+        assert_eq!(payload.to_xml().unwrap().len(), 385);
+
+        let secret_not = NotificationServerCommand::NOT(NotServer {
+            payload: NotificationPayloadType::Normal(payload),
+        });
+        let NotificationServerCommand::NOT(not) = secret_not else {
+            panic!("expected the NOT alert");
+        };
+
+        assert_eq!(
+            String::from_utf8(not.into_bytes()).unwrap(),
+            concat!(
+                "NOT 385\r\n",
+                r#"<NOTIFICATION id="1342902633" ver="2" siteid="199999999" siteurl="http://127.0.0.1:11866/tachyon/login?username=aeon&amp;homeserver=test.com&amp;t=TICKETTOKEN"><TO pid="0x8b447b019c48188a:0x7d58724fbffc8b1f" name="aeon@test.com" /><MSG id="1"><SUBSCR url="" /><ACTION url="" /><BODY lang="3076" icon=""><TEXT>Sign in required - click here to continue</TEXT></BODY></MSG></NOTIFICATION>"#
+            )
+        );
+    }
+
+    /// The seam renders byte-identically (§3.7, §10): feeding the same fixed
+    /// inputs through render_auth_trigger's DirectToWebLogin arm reproduces the
+    /// exact bytes the oracle pin captures — proof the rewiring moved the NOT
+    /// construction behind the seam without changing a single wire byte. The
+    /// notification_id is injected, so this stays deterministic.
+    #[test]
+    fn render_auth_trigger_renders_the_pinned_web_login_not_bytes() {
+        let email = EmailAddress::from_str("aeon@test.com").unwrap();
+        let url = "http://127.0.0.1:11866/tachyon/login?username=aeon&homeserver=test.com&t=TICKETTOKEN".to_string();
+        let notification_id: i32 = 1342902633;
+
+        // The oracle construction the pin asserts against, rebuilt here so the
+        // comparison needs no escaped literal.
+        let expected = NotServer {
+            payload: NotificationPayloadType::Normal(NotificationFactory::alert(
+                &MsnUser::new(EndpointId::new(email.clone(), None)).uuid,
+                &email,
+                "Sign in required - click here to continue",
+                url.as_str(),
+                "",
+                "",
+                None,
+                notification_id,
+            )),
+        }
+        .into_bytes();
+
+        let rendered = render_auth_trigger(ClientOut::DirectToWebLogin { url }, email, notification_id, Dialect::Msnp18);
+        assert_eq!(rendered.len(), 1);
+
+        let NotificationServerCommand::NOT(not) = rendered.into_iter().next().unwrap() else {
+            panic!("the auth seam renders the NOT alert for Msnp18");
+        };
+        assert_eq!(not.into_bytes(), expected);
+    }
 }

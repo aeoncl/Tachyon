@@ -110,6 +110,13 @@ pub async fn handle_adl(command: AdlClient, tachyon_client: TachyonClient, matri
                         warn!("MSNP|NS: the adl fan-out produced ContactPresence; only chg renders presence — dropped");
                         continue;
                     }
+                    // Canary precedent (the ContactPresence arm above): loud
+                    // warn + skip, unreachable by construction — the adl fan-out
+                    // never produces the auth trigger.
+                    ClientOut::DirectToWebLogin { .. } => {
+                        warn!("MSNP|NS: the adl fan-out produced DirectToWebLogin; only the auth seam renders it — dropped");
+                        continue;
+                    }
                 };
 
                 // Err = receiver dropped, client gone: stop the fan-out (§8 D2).

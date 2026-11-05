@@ -81,6 +81,12 @@ async fn send_client_outs(outs: impl IntoIterator<Item = ClientOut>, command_sen
             ClientOut::ContactPresence { .. } => {
                 warn!("MSNP|NS: a dispatch-level verb produced ContactPresence; only chg renders presence — dropped");
             }
+            // Canary precedent (the ContactPresence arm above): loud warn +
+            // skip, unreachable by construction — no dispatch-level verb
+            // produces the auth trigger.
+            ClientOut::DirectToWebLogin { .. } => {
+                warn!("MSNP|NS: a dispatch-level verb produced DirectToWebLogin; only the auth seam renders it — dropped");
+            }
         }
     }
     Ok(())

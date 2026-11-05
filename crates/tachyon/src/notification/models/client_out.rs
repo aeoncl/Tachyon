@@ -23,4 +23,14 @@ pub(crate) enum ClientOut {
     // First producers: the D2 verb migrations (decide_png onward) — every
     // wire command a decide fn emits rides this variant (§3.2).
     Command(NotificationServerCommand),
+    /// The auth web-login trigger (§3.7): the url carries the ticket token so
+    /// the login page finds its session. This is the one place a dialect may
+    /// fork, and only the trigger forks — the v1 (Msnp18) arm renders today's
+    /// in-protocol NOT alert ("Sign in required - click here to continue");
+    /// M2's arm launches the host browser for pre-MSNP18 clients that cannot
+    /// act on the alert, opening the same web password page. Only the auth seam
+    /// renders this variant; no stub ships before that dialect lands (§6 D).
+    DirectToWebLogin {
+        url: String,
+    },
 }

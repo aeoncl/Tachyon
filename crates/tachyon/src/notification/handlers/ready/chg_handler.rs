@@ -140,6 +140,14 @@ pub(crate) fn decide_chg(gathered: Vec<GatheredContact>) -> Vec<ClientOut> {
 pub(crate) fn render(out: ClientOut, tr_id: u128, dialect: Dialect) -> Vec<NotificationServerCommand> {
     match out {
         ClientOut::Command(command) => vec![command],
+        // Canary precedent (send_client_outs's ContactPresence arm): a defect
+        // arm, loud warn + drop, unreachable by construction — chg's render only
+        // ever sees ContactPresence or a passthrough Command; the auth trigger
+        // is rendered at the auth seam, never here.
+        ClientOut::DirectToWebLogin { .. } => {
+            warn!("MSNP|NS: the chg render produced DirectToWebLogin; only the auth seam renders it — dropped");
+            vec![]
+        },
         ClientOut::ContactPresence { user, status, display_name, avatar, endpoint_data } => {
             match dialect {
                 // Seam site (presence render): the MSNP21 presence payload /

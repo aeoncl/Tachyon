@@ -268,6 +268,7 @@ A seventh requires deleting one or stating why the budget moved.
   `render()`, the chg presence-render site: the MSNP21 presence payload /
   UBX endpoint-data shape differs, and MSNP21 has no switchboard (§7 M1).
   This is 1 of the ≤6 budgeted `tachyon` sites.
+- **D2** crates/tachyon/src/notification/handlers/auth.rs — render_auth_trigger(), the auth web-login trigger site (§3.7): v1 renders the in-protocol NOT alert; M2's arm launches the host browser for pre-MSNP18 clients that cannot act on the alert (§7 M2) — the fork is the trigger only, never the login. With negotiation/profile and the chg presence render this is 3 of the ≤6 budgeted sites.
 
 ### 3.4 The switchboard question dissolves instead of being abstracted
 
