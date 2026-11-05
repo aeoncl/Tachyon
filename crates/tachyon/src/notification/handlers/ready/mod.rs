@@ -4,7 +4,7 @@ use tokio::sync::mpsc::Sender;
 use msnp::msnp::notification::command::command::{NotificationClientCommand, NotificationServerCommand};
 use adl_handler::handle_adl;
 use chg_handler::handle_chg;
-use fqy_handler::handle_fqy;
+use fqy_handler::decide_fqy;
 use png_handler::decide_png;
 use prp_handler::handle_prp;
 use put_handler::decide_put;
@@ -58,7 +58,7 @@ pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command
         NotificationClientCommand::OUT => {Ok(())}
         NotificationClientCommand::VER(_) => {Ok(())}
         NotificationClientCommand::CVR(_) => {Ok(())}
-        NotificationClientCommand::FQY(command) => {handle_fqy(command, tachyon_client, command_sender).await}
+        NotificationClientCommand::FQY(command) => {send_client_outs([decide_fqy(command)], &command_sender).await}
         NotificationClientCommand::SDG(_) => {Ok(())}
         NotificationClientCommand::URL(command) => {
             send_client_outs([decide_url(command)], &command_sender).await
