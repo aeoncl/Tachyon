@@ -16,7 +16,7 @@ use std::str::FromStr;
 /// must earn an XFR refusal and SDG/UUM over the NS writer instead. That
 /// fork lands in §7 M1 and is owned by `deliver()` (§3.4: "the fork point
 /// is named, owned by one function"), created in D4 with the classic arm
-/// only — NOT by a `match dialect` here, which would fork one difference
+/// only — NOT by a dialect seam here, which would fork one difference
 /// across two functions and burn a ≤6-budget seam slot ahead of its
 /// consumer (§3.3 tripwire, §6 D). Anticipated, not shipped.
 pub(crate) fn decide_xfr(command: XfrClient, token: &TicketToken, switchboard_port: u32) -> Result<ClientOut, anyhow::Error> {
