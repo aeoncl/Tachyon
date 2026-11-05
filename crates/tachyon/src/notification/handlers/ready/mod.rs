@@ -39,7 +39,7 @@ pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command
         NotificationClientCommand::USR(command) => handle_usr(command, local_store.email_addr.clone(), command_sender).await,
         NotificationClientCommand::PNG => send_client_outs([decide_png()], &command_sender).await,
         NotificationClientCommand::ADL(command) => handle_adl(command, tachyon_client, matrix_client, command_sender).await,
-        NotificationClientCommand::RML(command) => handle_rml(command, tachyon_client, command_sender).await,
+        NotificationClientCommand::RML(command) => send_client_outs([handle_rml(command, tachyon_client)?], &command_sender).await,
         NotificationClientCommand::UUX(command) => handle_uux(command, local_store, command_sender).await,
         NotificationClientCommand::UUM(command) => handle_uum(command, tachyon_client, matrix_client, command_sender).await,
         NotificationClientCommand::XFR(command) => handle_xfr(command, local_store, command_sender, config).await,
