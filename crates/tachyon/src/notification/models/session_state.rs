@@ -1,3 +1,4 @@
+use msnp::msnp::notification::models::dialect::Dialect;
 use msnp::msnp::notification::models::endpoint_data::PrivateEndpointData;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::ticket_token::TicketToken;
@@ -15,6 +16,10 @@ pub(crate) struct SessionState {
     pub(crate) matrix_client: Option<matrix_sdk::Client>,
     pub(crate) private_endpoint_data: PrivateEndpointData,
     pub(crate) needs_initial_presence: bool,
+    /// Negotiated once at VER and stored only here (§3.3). Defaults to the
+    /// single profiled dialect so pre-negotiation flows (a CVR before any
+    /// VER, pinned by the D0 fixture) behave exactly as before.
+    pub(crate) dialect: Dialect,
 }
 
 impl SessionState {
@@ -27,6 +32,7 @@ impl SessionState {
             matrix_client: None,
             private_endpoint_data: Default::default(),
             needs_initial_presence: true,
+            dialect: Dialect::default(),
         }
     }
 }

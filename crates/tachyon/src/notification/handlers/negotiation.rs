@@ -2,26 +2,38 @@ use msnp::msnp::notification::command::command::{NotificationClientCommand, Noti
 use tokio::sync::mpsc::Sender;
 use anyhow::anyhow;
 use msnp::msnp::notification::command::cvr::CvrServer;
-use msnp::msnp::notification::models::msnp_version::MsnpVersion::MSNP18;
+use msnp::msnp::notification::models::dialect::dialect_for;
 use crate::notification::models::connection_phase::ConnectionPhase;
 use crate::notification::models::session_state::SessionState;
 
 pub(crate) async fn handle_negotiation(raw_command: NotificationClientCommand, notif_sender: Sender<NotificationServerCommand>, session_state: &mut SessionState) -> Result<(), anyhow::Error> {
     match raw_command {
         NotificationClientCommand::VER(command) => {
-            if command.first_candidate != MSNP18 && command.second_candidate != MSNP18 {
+            // Pick the first candidate that has a dialect we can serve. With exactly
+            // one profiled dialect the candidate order is moot; "highest mutual
+            // version" becomes a real decision when a second profile lands (§7 M1).
+            let negotiated = [command.first_candidate, command.second_candidate]
+                .into_iter()
+                .find_map(|candidate| dialect_for(candidate).map(|dialect| (candidate, dialect)));
+
+            let Some((agreed_version, dialect)) = negotiated else {
                 //Unsupported protocol version
                 //TODO add error code
                 notif_sender.send(NotificationServerCommand::OUT).await?;
                 return Ok(());
-            }
+            };
 
-            notif_sender.send(NotificationServerCommand::VER(command.get_response_for(MSNP18))).await?;
+            session_state.dialect = dialect;
+            notif_sender.send(NotificationServerCommand::VER(command.get_response_for(agreed_version))).await?;
             Ok(())
         },
         NotificationClientCommand::CVR(command) => {
             session_state.phase = ConnectionPhase::Authenticating;
-            notif_sender.send(NotificationServerCommand::CVR(CvrServer::new(command.tr_id, "14.0.8117.0416".to_string(), "14.0.8117.0416".to_string(), "14.0.8117.0416".to_string(), "localhost".to_string(), "localhost".to_string() ))).await?;
+            // The CVR strings are profile data (§3.3). A CVR that arrives before any
+            // VER (pinned by the D0 fixture) sees the default dialect; the VER arm
+            // overwrites it once a version is negotiated.
+            let profile = session_state.dialect.profile();
+            notif_sender.send(NotificationServerCommand::CVR(CvrServer::new(command.tr_id, profile.cvr_version.to_string(), profile.cvr_version.to_string(), profile.cvr_version.to_string(), profile.cvr_host.to_string(), profile.cvr_host.to_string() ))).await?;
             Ok(())
         },
         _ => {

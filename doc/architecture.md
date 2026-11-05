@@ -257,6 +257,18 @@ maintained in this document (each §8 stage records the sites it adds); budget:
 trigger, §3.7), deliver, presence render, message path, session-lifecycle/XFR.
 A seventh requires deleting one or stating why the budget moved.
 
+**Seam site inventory** (each §8 stage records the sites it adds):
+
+- **D1** `crates/msnp/src/msnp/notification/models/dialect.rs` —
+  `Dialect::profile()`, the negotiation/profile-lookup site (reached from
+  `negotiation.rs` through `dialect_for`; the CVR strings are profile data
+  here): MSNP21 serves SDG/UUM over the NS and has no switchboard (§7 M1);
+  pre-MSNP18 clients need the browser-auth trigger (§7 M2).
+- **D1** `crates/tachyon/src/notification/handlers/ready/chg_handler.rs` —
+  `render()`, the chg presence-render site: the MSNP21 presence payload /
+  UBX endpoint-data shape differs, and MSNP21 has no switchboard (§7 M1).
+  This is 1 of the ≤6 budgeted `tachyon` sites.
+
 ### 3.4 The switchboard question dissolves instead of being abstracted
 
 `deliver(dialect, client, room, out)` is a function, not a trait:

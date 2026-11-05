@@ -1,6 +1,6 @@
 use strum_macros::{Display, EnumString};
 
-#[derive(Debug, EnumString, Display, PartialEq)]
+#[derive(Debug, EnumString, Display, PartialEq, Clone, Copy)]
 pub enum MsnpVersion {
     MSNP17,
     MSNP18,

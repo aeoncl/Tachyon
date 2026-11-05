@@ -1,5 +1,6 @@
 pub mod endpoint_data;
 pub mod msnp_version;
+pub mod dialect;
 pub mod endpoint_guid;
 pub mod ip_address;
 pub mod adl_payload;
