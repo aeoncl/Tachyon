@@ -20,8 +20,7 @@ pub(crate) enum ClientOut {
         endpoint_data: EndpointData,
     },
     /// Escape hatch: an already-built wire command, passed through untouched.
-    // No D1 producer yet: the escape hatch ships as part of the vocabulary
-    // (§3.2) and its first construction site arrives with the D2 migration.
-    #[allow(dead_code)]
+    // First producers: the D2 verb migrations (decide_png onward) — every
+    // wire command a decide fn emits rides this variant (§3.2).
     Command(NotificationServerCommand),
 }
