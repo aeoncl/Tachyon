@@ -1,4 +1,4 @@
-use log::debug;
+use log::{debug, warn};
 use crate::matrix::handlers;
 use crate::matrix::handlers::context::TachyonContext;
 use crate::tachyon::client::tachyon_client::TachyonClient;
@@ -235,11 +235,18 @@ pub(super) fn register_event_handlers(
     register_droppable_event_handler(matrix_client, &mut event_drop_guards, || {
         matrix_client.add_event_handler(
             |ev: ToDeviceKeyVerificationRequestEvent, client: Client| async move {
-                let request = client
+                // §1.4: pre-D3 this was `.expect("Request object wasn't
+                // created")` — a request that vanished between the to-device
+                // event and the lookup panicked the handler task. Now: warn
+                // + skip the event (the D1/D2c failure-path precedent); the
+                // success path is unchanged.
+                let Some(request) = client
                     .encryption()
                     .get_verification_request(&ev.sender, &ev.content.transaction_id)
-                    .await
-                    .expect("Request object wasn't created");
+                    .await else {
+                    warn!("Matrix: verification request from {} wasn't created — skipping", ev.sender);
+                    return;
+                };
 
                 tokio::spawn(request_verification_handler(client, request));
             },

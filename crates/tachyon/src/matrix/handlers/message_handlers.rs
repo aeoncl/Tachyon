@@ -1,21 +1,82 @@
+//! Matrix message family (§8 D3): the closures in `handlers/mod.rs` are thin
+//! shells; this module owns the gather → decide → apply pipeline (§3).
+//! gather reads the SDK (sender resolution, voice-clip transcode) into plain
+//! facts; decide is the pure msgtype → MSN-payload decision table; apply owns
+//! every effect call, with each pre-D3 warn policy preserved verbatim.
 use crate::matrix::extensions::direct::DirectRoom;
 use crate::matrix::extensions::message_dedup::SendWithDedup;
 use crate::matrix::extensions::msn_user_resolver::ToMsnUser;
 use crate::switchboard::extensions::CustomStyles;
+use crate::switchboard::models::switchboard_handle::SwitchboardHandle;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use log::{info, warn};
 use matrix_sdk::ruma::events::room::message::{MessageType, OriginalSyncRoomMessageEvent};
+use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::events::typing::SyncTypingEvent;
+use matrix_sdk::ruma::RoomId;
 use matrix_sdk::{Client, Room};
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
 use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::endpoint_id::EndpointId;
+use msnp::shared::models::msn_object::MsnObject;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::payload::msg::control_msg::ControlMessagePayload;
 use msnp::shared::payload::msg::datacast_msg::DatacastMessagePayload;
 use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
+
+/// The MSN-bound effects a room event can decide (§3). Bottom-up from the
+/// real call sites: `SwitchboardServerCommand` is already plain data, so the
+/// decided command rides along as-is and `label` keeps the pre-D3 per-arm
+/// warn wording verbatim inside apply. This family decides no Matrix-bound
+/// op — the to-room text sends live on the MSN front (§1.1), not here.
+// One or two ops exist per event and die in apply() — boxing the transfer
+// variant would be indirection with no measured benefit (§9 item 5).
+#[allow(clippy::large_enum_variant)]
+pub(crate) enum MessageOp {
+    /// `switchboard.receive_command(command)`; on Err apply warns
+    /// `MSNP|SB: {label} dropped, client gone: {}`.
+    Sb { label: &'static str, command: SwitchboardServerCommand },
+    /// `tachyon_client.receive_file(..)` — the file-transfer invitation for
+    /// File/Image/Video events and the audio-fallback arm.
+    ReceiveFile { inviter: MsnUser, sender: MsnUser, size: usize, filename: String, source: MediaSource },
+}
+
+/// Gathered facts for one room message event — plain data only, every SDK/IO
+/// read already resolved (§10: no `&Room`/`&Client`/async inside decide).
+pub(crate) struct GatheredMessage {
+    pub(crate) content: GatheredContent,
+    /// The resolved message sender: the peer member, the direct-target
+    /// stand-in (the room user) or the own user with endpoint id attached.
+    pub(crate) sender: MsnUser,
+    /// The room itself as an MSN user — the voice-clip MSG sender and the
+    /// receive_file inviter.
+    pub(crate) room_user: MsnUser,
+}
+
+/// The per-msgtype payload facts decide consumes.
+// Per-event facts consumed immediately by decide — the audio variant's
+// MsnObject is not worth a Box of indirection (§9 item 5).
+#[allow(clippy::large_enum_variant)]
+pub(crate) enum GatheredContent {
+    /// Audio goes out as a WLM voice clip when it fits in one, and as a plain
+    /// file otherwise: `voice_clip` is the gather-run transcode result
+    /// (`None` = failed, cause already logged there) — the Ok/Err fork is
+    /// decide's, made from a plain fact instead of mid-decision IO (§10).
+    Audio { voice_clip: Option<MsnObject>, size: usize, filename: String, source: MediaSource },
+    File { size: usize, filename: String, source: MediaSource },
+    Image { size: usize, filename: String, source: MediaSource },
+    Video { size: usize, filename: String, source: MediaSource },
+    Notice(String),
+    Text(String),
+    /// The `chat.tachyon.buzz` custom event.
+    Buzz,
+    /// Emote, Location, ServerNotice, VerificationRequest, unknown custom
+    /// events and any future msgtype: ignored pre-D3, ignored here — an
+    /// honest passthrough, not a decision (§5).
+    Ignored,
+}
 
 pub async fn handle_message(
     event: OriginalSyncRoomMessageEvent,
@@ -28,17 +89,63 @@ pub async fn handle_message(
         return;
     }
 
-    let room_user = room.to_msn_user_lazy().await.unwrap();
+    // §1.4 (D1/D2c precedent): pre-D3 this was `.unwrap()` — a room the
+    // resolver rejects panicked the Matrix handler task. Now: warn + skip
+    // the event; a failure-path-only delta, the success path is unchanged.
+    let room_user = match room.to_msn_user_lazy().await {
+        Ok(room_user) => room_user,
+        Err(error) => {
+            warn!("Matrix: could not resolve room {} to an MSN user: {} — skipping message event", room.room_id(), error);
+            return;
+        }
+    };
     let switchboard = tachyon_client.switchboards().get_or_initialize(room.room_id(), &room_user);
 
+    // Sequential read → decide → apply in the handler task (§3.6) — no spawn
+    // per effect; the switchboard handle is looked up before the gather so
+    // the RNG-invite timing matches pre-D3 exactly.
+    let Some(gathered) = gather_message(event, &room, room_user, &tachyon_client).await else {
+        return;
+    };
 
-    let message_sender = if event.sender != room.own_user_id() {
+    apply_message(decide_message(gathered), &switchboard, &tachyon_client, room.room_id()).await;
+}
 
+/// Gather (§3): the SDK/IO reads this flow needs, into plain facts — per-flow
+/// by design, only what decide_message reads (§10: no mega-context). `None` =
+/// skip the event; the failure warn is logged here, once.
+async fn gather_message(
+    event: OriginalSyncRoomMessageEvent,
+    room: &Room,
+    room_user: MsnUser,
+    tachyon_client: &TachyonClient,
+) -> Option<GatheredMessage> {
+    let sender = if event.sender != room.own_user_id() {
         match room.get_single_direct_target() {
             None => {
-                room.get_member_no_sync(event.sender.as_ref()).await.unwrap().unwrap().to_msn_user_lazy().await.unwrap()
+                // §1.4: pre-D3 this was an `.unwrap().unwrap()...unwrap()`
+                // chain — a missing member or resolver failure panicked the
+                // Matrix handler task. Now: warn + skip the event.
+                let member = match room.get_member_no_sync(event.sender.as_ref()).await {
+                    Ok(Some(member)) => member,
+                    Ok(None) => {
+                        warn!("Matrix: message sender {} is not a member of {} — skipping event", event.sender, room.room_id());
+                        return None;
+                    }
+                    Err(error) => {
+                        warn!("Matrix: member lookup for message sender {} failed: {} — skipping event", event.sender, error);
+                        return None;
+                    }
+                };
+                match member.to_msn_user_lazy().await {
+                    Ok(member_user) => member_user,
+                    Err(error) => {
+                        warn!("Matrix: could not resolve message sender {} to an MSN user: {} — skipping event", event.sender, error);
+                        return None;
+                    }
+                }
             }
-            Some(direct_target) => {
+            Some(_direct_target) => {
                 room_user.clone()
             }
         }
@@ -49,176 +156,530 @@ pub async fn handle_message(
         own_user
     };
 
-
-    match &event.content.msgtype {
+    let content = match &event.content.msgtype {
         MessageType::Audio(audio) => {
-            //Audio goes out as a WLM voice clip when it fits in one, and as a plain file otherwise.
-            match tachyon_client.prepare_voice_clip(&room_user, audio).await {
-                Ok(msn_object) => {
-                    let voice_clip = SwitchboardServerCommand::MSG(MsgServer {
-                        sender: room_user.get_email_address().clone(),
-                        display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
-                        payload: MsgPayload::Datacast(DatacastMessagePayload::new_msn_object(msn_object)),
-                    });
-                    
-                    let notice = SwitchboardServerCommand::MSG(MsgServer {
-                       sender: message_sender.get_email_address().clone(), 
-                        display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
+            // The transcode is IO, so its result is a gathered fact and the
+            // voice-clip/file fork is decide's (§10: no IO inside decide —
+            // pre-D3 this ran inside the msgtype match).
+            let voice_clip = match tachyon_client.prepare_voice_clip(&room_user, audio).await {
+                Ok(msn_object) => Some(msn_object),
+                Err(e) => {
+                    info!("Could not send audio message as a voice clip, falling back to a file transfer: {}", e);
+                    None
+                }
+            };
+            let size = audio.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
+            let filename = audio.filename.as_ref().unwrap_or(&audio.body).to_owned();
+            //TODO fix filename
+            GatheredContent::Audio { voice_clip, size, filename, source: audio.source.clone() }
+        }
+        MessageType::Emote(_) => GatheredContent::Ignored,
+        MessageType::File(file) => {
+            let size = file.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
+            let filename = file.filename.as_ref().unwrap_or(&file.body).to_owned();
+            //TODO fix filename
+            GatheredContent::File { size, filename, source: file.source.clone() }
+        }
+        MessageType::Image(image) => {
+            let size = image.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
+            let filename = image.filename.as_ref().unwrap_or(&image.body).to_owned();
+            //TODO fix filename
+            GatheredContent::Image { size, filename, source: image.source.clone() }
+        }
+        MessageType::Location(_) => GatheredContent::Ignored,
+        MessageType::Notice(message) => GatheredContent::Notice(message.body.clone()),
+        MessageType::ServerNotice(_) => GatheredContent::Ignored,
+        MessageType::Text(message) => GatheredContent::Text(message.body.clone()),
+        MessageType::Video(video) => {
+            let size = video.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
+            let filename = video.filename.as_ref().unwrap_or(&video.body).to_owned();
+            //TODO fix filename
+            GatheredContent::Video { size, filename, source: video.source.clone() }
+        }
+        MessageType::VerificationRequest(_) => GatheredContent::Ignored,
+        MessageType::_Custom(_) => {
+            match event.content.msgtype.msgtype() {
+                "chat.tachyon.buzz" => GatheredContent::Buzz,
+                &_ => GatheredContent::Ignored,
+            }
+        }
+        _ => GatheredContent::Ignored,
+    };
+
+    Some(GatheredMessage { content, sender, room_user })
+}
+
+/// Decide (§3): the pure msgtype → MSN-payload decision table — pre-D3 this
+/// mapping lived inline in the handler, fused with the sends. No IO, no SDK
+/// access: facts in, ops out (§10).
+pub(crate) fn decide_message(gathered: GatheredMessage) -> Vec<MessageOp> {
+    let sender = &gathered.sender;
+    let room_user = &gathered.room_user;
+
+    match gathered.content {
+        GatheredContent::Audio { voice_clip: Some(msn_object), .. } => {
+            // Pre-D3 order preserved exactly: the notice goes FIRST, then the
+            // voice-clip datacast — and apply stops on the first dropped
+            // send, which is the pre-D3 early return on a dead client.
+            vec![
+                MessageOp::Sb {
+                    label: "voice-clip notice",
+                    command: SwitchboardServerCommand::MSG(MsgServer {
+                        sender: sender.get_email_address().clone(),
+                        display_name: DisplayName::new_from_ref(sender.compute_display_name()),
                         payload: MsgPayload::TextPlain(TextPlainMessagePayload {
                             font_family: Default::default(),
                             right_to_left: false,
                             font_styles: Default::default(),
                             font_color: Default::default(),
                             body: "has sent you an audio message".to_string(),
-                        })
-
-                    });
-                    
-                    // Err = the switchboard's write task is gone (client
-                    // disconnected): stop handling the event instead of panicking
-                    // the Matrix task (§8 D2, §10).
-                    if let Err(error) = switchboard.receive_command(notice).await {
-                        warn!("MSNP|SB: voice-clip notice dropped, client gone: {}", error);
-                        return;
-                    }
-                    if let Err(error) = switchboard.receive_command(voice_clip).await {
-                        warn!("MSNP|SB: voice clip dropped, client gone: {}", error);
-                    }
-                }
-                Err(e) => {
-                    info!("Could not send audio message as a voice clip, falling back to a file transfer: {}", e);
-
-                    let notice = SwitchboardServerCommand::MSG(MsgServer {
-                        sender: message_sender.get_email_address().clone(),
-                        display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
+                        }),
+                    }),
+                },
+                MessageOp::Sb {
+                    label: "voice clip",
+                    // Pre-D3 quirk preserved verbatim: the clip MSG's sender
+                    // is the ROOM user's address while the display name is
+                    // the message sender's.
+                    command: SwitchboardServerCommand::MSG(MsgServer {
+                        sender: room_user.get_email_address().clone(),
+                        display_name: DisplayName::new_from_ref(sender.compute_display_name()),
+                        payload: MsgPayload::Datacast(DatacastMessagePayload::new_msn_object(msn_object)),
+                    }),
+                },
+            ]
+        }
+        GatheredContent::Audio { voice_clip: None, size, filename, source } => {
+            vec![
+                MessageOp::Sb {
+                    label: "file-transfer notice",
+                    command: SwitchboardServerCommand::MSG(MsgServer {
+                        sender: sender.get_email_address().clone(),
+                        display_name: DisplayName::new_from_ref(sender.compute_display_name()),
                         payload: MsgPayload::TextPlain(TextPlainMessagePayload {
                             font_family: Default::default(),
                             right_to_left: false,
                             font_styles: Default::default(),
                             font_color: Default::default(),
                             body: "has sent you a file".to_string(),
-                        })
-                    });
+                        }),
+                    }),
+                },
+                MessageOp::ReceiveFile { inviter: room_user.clone(), sender: sender.clone(), size, filename, source },
+            ]
+        }
+        GatheredContent::File { size, filename, source }
+        | GatheredContent::Image { size, filename, source }
+        | GatheredContent::Video { size, filename, source } => {
+            // Pre-D3 these arms sent NO notice — just the file-transfer
+            // invite (only the audio fallback announces itself).
+            vec![
+                MessageOp::ReceiveFile { inviter: room_user.clone(), sender: sender.clone(), size, filename, source },
+            ]
+        }
+        GatheredContent::Notice(body) => {
+            vec![
+                MessageOp::Sb {
+                    label: "notice",
+                    command: SwitchboardServerCommand::MSG(MsgServer {
+                        sender: sender.get_email_address().clone(),
+                        display_name: DisplayName::new_from_ref(sender.compute_display_name()),
+                        payload: MsgPayload::TextPlain(TextPlainMessagePayload::new_with_notice_style(&body)),
+                    }),
+                },
+            ]
+        }
+        GatheredContent::Text(body) => {
+            vec![
+                MessageOp::Sb {
+                    label: "message",
+                    command: SwitchboardServerCommand::MSG(MsgServer {
+                        sender: sender.get_email_address().clone(),
+                        display_name: DisplayName::new_from_ref(sender.compute_display_name()),
+                        payload: MsgPayload::TextPlain(TextPlainMessagePayload::new_with_default_style(&body)),
+                    }),
+                },
+            ]
+        }
+        GatheredContent::Buzz => {
+            vec![
+                MessageOp::Sb {
+                    label: "nudge",
+                    command: SwitchboardServerCommand::MSG(MsgServer {
+                        sender: sender.get_email_address().clone(),
+                        display_name: DisplayName::new_from_ref(sender.compute_display_name()),
+                        payload: MsgPayload::Datacast(DatacastMessagePayload::new_nudge()),
+                    }),
+                },
+            ]
+        }
+        // Honest passthrough (§5): Emote/Location/ServerNotice/
+        // VerificationRequest/unknown customs produced nothing pre-D3 —
+        // the empty vec IS the preserved behavior, not a new decision.
+        GatheredContent::Ignored => vec![],
+    }
+}
 
-                    if let Err(error) = switchboard.receive_command(notice).await {
-                        warn!("MSNP|SB: file-transfer notice dropped, client gone: {}", error);
-                        return;
-                    }
-
-                    let size = audio.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
-                    let filename = audio.filename.as_ref().unwrap_or(&audio.body).to_owned();
-                    //TODO fix filename
-                    tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, audio.source.clone()).await;
+/// Apply (§3): owns every effect call of the message family. Warn policy
+/// preserved verbatim from the pre-D3 arms: a dropped command warns and
+/// STOPS the remaining ops — the multi-op audio arms returned early on a
+/// failed notice, and every later send would have failed the same way
+/// (the client is gone).
+pub(crate) async fn apply_message(
+    ops: Vec<MessageOp>,
+    switchboard: &SwitchboardHandle,
+    tachyon_client: &TachyonClient,
+    room_id: &RoomId,
+) {
+    for op in ops {
+        match op {
+            MessageOp::Sb { label, command } => {
+                // Err = the switchboard's write task is gone (client
+                // disconnected): stop handling the event instead of panicking
+                // the Matrix task (§8 D2, §10).
+                if let Err(error) = switchboard.receive_command(command).await {
+                    warn!("MSNP|SB: {} dropped, client gone: {}", label, error);
+                    return;
                 }
             }
-        }
-        MessageType::Emote(emote) => {
-
-        }
-        MessageType::File(file) => {
-            let size = file.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
-            let filename = file.filename.as_ref().unwrap_or(&file.body).to_owned();
-            //TODO fix filename
-            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, file.source.clone()).await;
-        }
-        MessageType::Image(image) => {
-
-            let size = image.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
-            let filename = image.filename.as_ref().unwrap_or(&image.body).to_owned();
-            //TODO fix filename
-            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, image.source.clone()).await;
-        }
-        MessageType::Location(_) => {}
-        MessageType::Notice(message) => {
-            
-            let msg = SwitchboardServerCommand::MSG(MsgServer {
-                sender: message_sender.get_email_address().clone(),
-                display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
-                payload: MsgPayload::TextPlain(TextPlainMessagePayload::new_with_notice_style(&message.body)),
-            }
-            );
-
-            if let Err(error) = switchboard.receive_command(msg).await {
-                warn!("MSNP|SB: notice dropped, client gone: {}", error);
-            }
-
-        }
-        MessageType::ServerNotice(server) => {
-
-        }
-        MessageType::Text(message) => {
-
-            let msg = SwitchboardServerCommand::MSG(MsgServer {
-                sender: message_sender.get_email_address().clone(),
-                display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
-                payload: MsgPayload::TextPlain(TextPlainMessagePayload::new_with_default_style(&message.body)),
-            }
-            );
-
-            if let Err(error) = switchboard.receive_command(msg).await {
-                warn!("MSNP|SB: message dropped, client gone: {}", error);
+            MessageOp::ReceiveFile { inviter, sender, size, filename, source } => {
+                tachyon_client.receive_file(room_id, &inviter, &sender, size, filename, source).await;
             }
         }
-        MessageType::Video(video) => {
-            let size = video.info.as_ref().map( |i| i.size.map(|u| usize::try_from(u).unwrap_or(0))).flatten().unwrap_or(0);
-            let filename = video.filename.as_ref().unwrap_or(&video.body).to_owned();
-            //TODO fix filename
-            tachyon_client.receive_file(room.room_id(), &room_user, &message_sender, size, filename, video.source.clone()).await;
-        }
-        MessageType::VerificationRequest(_) => {}
-        MessageType::_Custom(_) => {
-
-            match event.content.msgtype.msgtype() {
-                "chat.tachyon.buzz" => {
-
-                    let nudge = SwitchboardServerCommand::MSG(MsgServer {
-                        sender: message_sender.get_email_address().clone(),
-                        display_name: DisplayName::new_from_ref(message_sender.compute_display_name()),
-                        payload: MsgPayload::Datacast(DatacastMessagePayload::new_nudge()),
-                    }
-                    );
-
-                    if let Err(error) = switchboard.receive_command(nudge).await {
-                        warn!("MSNP|SB: nudge dropped, client gone: {}", error);
-                    }
-                },
-                &_ => {}
-            }
-        }
-        _ => {}
     }
-
 }
 
 pub(crate) async fn handle_typing_notice(event: SyncTypingEvent, room: Room, tachyon_client: TachyonClient, client: Client) {
-    if let Some(switchboard) = tachyon_client.switchboards().get(room.room_id()) {
-        for user_id in event.content.user_ids.iter() {
-            if user_id != room.own_user_id() {
+    let Some(switchboard) = tachyon_client.switchboards().get(room.room_id()) else {
+        return;
+    };
 
-                let sender = {
-                    let member = room.get_member_no_sync(&user_id).await;
-                    if let Ok(Some(member)) = member {
-                        if let Ok(member) = member.to_msn_user_lazy().await {
-                            member
-                        } else {
-                            MsnUser::from_user_id(&user_id)
-                        }
-                    } else {
-                        MsnUser::from_user_id(&user_id)
-                    }
-                };
+    let gathered = gather_typing(&event, &room).await;
 
-                // Err = client gone: drop the typing notification, never hang the
-                // Matrix-side task on a full channel (§8 D2, §10).
-                if let Err(error) = switchboard.receive_command(SwitchboardServerCommand::MSG(MsgServer {
-                    sender: sender.get_email_address().clone(),
-                    display_name: DisplayName::new_from_ref(sender.compute_display_name()),
-                    payload: MsgPayload::Control(ControlMessagePayload::new(sender.get_email_address().clone()))
-                })).await {
-                    warn!("MSNP|SB: typing notification dropped, client gone: {}", error);
+    apply_typing(decide_typing(gathered), &switchboard).await;
+}
+
+/// Gathered typing facts: the resolved MSN users behind the typing event,
+/// own user excluded (the pre-D3 filter), event order preserved.
+pub(crate) struct GatheredTyping {
+    pub(crate) senders: Vec<MsnUser>,
+}
+
+/// Gather: member resolution with the pre-D3 graceful fallback — a member the
+/// SDK or the resolver rejects degrades to the bare user-id mapping instead
+/// of failing the event (no hazard here pre-D3, none introduced).
+async fn gather_typing(event: &SyncTypingEvent, room: &Room) -> GatheredTyping {
+    let mut senders = Vec::new();
+
+    for user_id in event.content.user_ids.iter() {
+        if user_id != room.own_user_id() {
+            let member = room.get_member_no_sync(&user_id).await;
+            let sender = if let Ok(Some(member)) = member {
+                if let Ok(member) = member.to_msn_user_lazy().await {
+                    member
+                } else {
+                    MsnUser::from_user_id(&user_id)
                 }
+            } else {
+                MsnUser::from_user_id(&user_id)
+            };
+            senders.push(sender);
+        }
+    }
 
+    GatheredTyping { senders }
+}
+
+/// Decide: one typing Control MSG per gathered sender — a 1:1 mapping (§5:
+/// passthrough, said honestly), but the family's single decision point.
+pub(crate) fn decide_typing(gathered: GatheredTyping) -> Vec<MessageOp> {
+    gathered.senders.into_iter().map(|sender| {
+        MessageOp::Sb {
+            label: "typing notification",
+            command: SwitchboardServerCommand::MSG(MsgServer {
+                sender: sender.get_email_address().clone(),
+                display_name: DisplayName::new_from_ref(sender.compute_display_name()),
+                payload: MsgPayload::Control(ControlMessagePayload::new(sender.get_email_address().clone())),
+            }),
+        }
+    }).collect()
+}
+
+/// Apply: typing keeps its OWN pre-D3 warn policy — warn and CONTINUE with
+/// the remaining users (the message family above stops instead; both
+/// verbatim from the pre-D3 code).
+pub(crate) async fn apply_typing(ops: Vec<MessageOp>, switchboard: &SwitchboardHandle) {
+    for op in ops {
+        match op {
+            MessageOp::Sb { label, command } => {
+                // Err = client gone: drop the typing notification, never hang
+                // the Matrix-side task on a full channel (§8 D2, §10).
+                if let Err(error) = switchboard.receive_command(command).await {
+                    warn!("MSNP|SB: {} dropped, client gone: {}", label, error);
+                }
+            }
+            // Canary precedent (send_client_outs's ContactPresence arm):
+            // decide_typing only ever produces Sb ops, so a file transfer
+            // here is a defect — loud warn + drop, unreachable by
+            // construction, never a panic in a Matrix handler task (§5).
+            MessageOp::ReceiveFile { .. } => {
+                warn!("MSNP|SB: the typing flow produced a file-transfer op; only the message family transfers files — dropped");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use matrix_sdk::ruma::events::room::MediaSource;
+    use matrix_sdk::ruma::mxc_uri;
+    use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
+    use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
+    use msnp::shared::models::email_address::EmailAddress;
+    use msnp::shared::models::endpoint_id::EndpointId;
+    use msnp::shared::models::font_name::{DefaultFont, FontName};
+    use msnp::shared::models::font_style::FontStyle;
+    use msnp::shared::models::msn_object::{FriendlyName, MSNObjectFactory, MsnObject, MsnObjectType};
+    use msnp::shared::models::msn_user::MsnUser;
+    use msnp::shared::payload::msg::datacast_msg::{Datacast, DatacastType};
+
+    use super::{decide_message, decide_typing, GatheredContent, GatheredMessage, GatheredTyping, MessageOp};
+
+    fn msn_user(email: &str, display_name: &str) -> MsnUser {
+        let mut user = MsnUser::new(EndpointId::new(EmailAddress::from_str(email).unwrap(), None));
+        user.display_name = Some(display_name.to_string());
+        user
+    }
+
+    fn sample_object() -> MsnObject {
+        MSNObjectFactory::get_display_picture_no_bytes(
+            1234,
+            &EmailAddress::from_str("peer@test.com").unwrap(),
+            "clip.tmp".to_string(),
+            FriendlyName::default(),
+        )
+    }
+
+    fn media_source() -> MediaSource {
+        MediaSource::Plain(mxc_uri!("mxc://test.local/abc123").to_owned())
+    }
+
+    /// MediaSource carries no PartialEq — assert the gathered mxc survives
+    /// into the decided op instead.
+    fn assert_media_source_preserved(source: &MediaSource) {
+        match source {
+            MediaSource::Plain(uri) => assert_eq!(uri, mxc_uri!("mxc://test.local/abc123")),
+            _ => panic!("expected the plain gathered media source"),
+        }
+    }
+
+    fn gathered(content: GatheredContent) -> GatheredMessage {
+        GatheredMessage {
+            content,
+            sender: msn_user("peer@test.com", "Peer"),
+            room_user: msn_user("roomhash@test.local", "The Room"),
+        }
+    }
+
+    /// Unwrap one decided op into its label + MSG parts, failing the test
+    /// with a prose message otherwise (MessageOp carries no Debug).
+    fn sb_msg(op: &MessageOp) -> (&'static str, &MsgServer) {
+        match op {
+            MessageOp::Sb { label, command: SwitchboardServerCommand::MSG(msg) } => (label, msg),
+            MessageOp::Sb { label, .. } => panic!("op {} decided a non-MSG switchboard command", label),
+            MessageOp::ReceiveFile { .. } => panic!("expected an SB MSG op, got a file transfer"),
+        }
+    }
+
+    fn text_body(msg: &MsgServer) -> &str {
+        match &msg.payload {
+            MsgPayload::TextPlain(text) => &text.body,
+            _ => panic!("expected a TextPlain payload"),
+        }
+    }
+
+    #[test]
+    fn a_text_message_decides_to_a_single_default_style_msg() {
+        let ops = decide_message(gathered(GatheredContent::Text("hello there".to_string())));
+
+        assert_eq!(ops.len(), 1);
+        let (label, msg) = sb_msg(&ops[0]);
+        assert_eq!(label, "message");
+        assert_eq!(msg.sender, EmailAddress::from_str("peer@test.com").unwrap());
+        assert_eq!(msg.display_name.value(), "Peer");
+        match &msg.payload {
+            MsgPayload::TextPlain(text) => {
+                assert_eq!(text.body, "hello there");
+                assert_eq!(text.font_family, FontName::default_font());
+            }
+            _ => panic!("expected a TextPlain payload"),
+        }
+    }
+
+    #[test]
+    fn a_notice_decides_to_a_notice_style_msg() {
+        let ops = decide_message(gathered(GatheredContent::Notice("system notice".to_string())));
+
+        assert_eq!(ops.len(), 1);
+        let (label, msg) = sb_msg(&ops[0]);
+        assert_eq!(label, "notice");
+        match &msg.payload {
+            MsgPayload::TextPlain(text) => {
+                assert_eq!(text.body, "system notice");
+                assert!(text.font_styles.matches(FontStyle::Bold));
+                assert!(text.font_styles.matches(FontStyle::Italic));
+            }
+            _ => panic!("expected a TextPlain payload"),
+        }
+    }
+
+    #[test]
+    fn the_buzz_custom_event_decides_to_a_nudge_datacast() {
+        let ops = decide_message(gathered(GatheredContent::Buzz));
+
+        assert_eq!(ops.len(), 1);
+        let (label, msg) = sb_msg(&ops[0]);
+        assert_eq!(label, "nudge");
+        assert_eq!(msg.sender, EmailAddress::from_str("peer@test.com").unwrap());
+        match &msg.payload {
+            MsgPayload::Datacast(datacast) => assert_eq!(datacast.get_type(), DatacastType::Nudge),
+            _ => panic!("expected a Datacast payload"),
+        }
+    }
+
+    #[test]
+    fn audio_with_a_prepared_clip_decides_the_notice_then_the_voice_clip_in_order() {
+        let clip = sample_object();
+        let expected_sha1d = clip.sha1d.clone();
+
+        let ops = decide_message(gathered(GatheredContent::Audio {
+            voice_clip: Some(clip),
+            size: 999,
+            filename: "unused.wav".to_string(),
+            source: media_source(),
+        }));
+
+        assert_eq!(ops.len(), 2);
+
+        // The notice first — pre-D3 order; a dropped notice stops the clip.
+        let (label, notice) = sb_msg(&ops[0]);
+        assert_eq!(label, "voice-clip notice");
+        assert_eq!(text_body(notice), "has sent you an audio message");
+        assert_eq!(notice.sender, EmailAddress::from_str("peer@test.com").unwrap());
+
+        // Then the clip datacast, sent under the ROOM user's address with the
+        // message sender's display name (pre-D3 quirk, preserved).
+        let (label, clip_msg) = sb_msg(&ops[1]);
+        assert_eq!(label, "voice clip");
+        assert_eq!(clip_msg.sender, EmailAddress::from_str("roomhash@test.local").unwrap());
+        assert_eq!(clip_msg.display_name.value(), "Peer");
+        match &clip_msg.payload {
+            MsgPayload::Datacast(datacast) => {
+                assert_eq!(datacast.get_type(), DatacastType::MsnObject);
+                let Datacast::MsnObject(msn_object) = &datacast.data else {
+                    panic!("expected the voice-clip msn object");
+                };
+                assert_eq!(msn_object.obj_type, MsnObjectType::DisplayPicture);
+                assert_eq!(msn_object.sha1d, expected_sha1d);
+            }
+            _ => panic!("expected a Datacast payload"),
+        }
+    }
+
+    #[test]
+    fn audio_whose_transcode_failed_decides_the_file_notice_then_receive_file() {
+        let ops = decide_message(gathered(GatheredContent::Audio {
+            voice_clip: None,
+            size: 4242,
+            filename: "long_audio.ogg".to_string(),
+            source: media_source(),
+        }));
+
+        assert_eq!(ops.len(), 2);
+
+        let (label, notice) = sb_msg(&ops[0]);
+        assert_eq!(label, "file-transfer notice");
+        assert_eq!(text_body(notice), "has sent you a file");
+
+        match &ops[1] {
+            MessageOp::ReceiveFile { inviter, sender, size, filename, source } => {
+                assert_eq!(inviter.get_email_address().as_str(), "roomhash@test.local");
+                assert_eq!(sender.get_email_address().as_str(), "peer@test.com");
+                assert_eq!(*size, 4242);
+                assert_eq!(filename, "long_audio.ogg");
+                assert_media_source_preserved(source);
+            }
+            MessageOp::Sb { label, .. } => panic!("expected the file transfer after the notice, got another {} send", label),
+        }
+    }
+
+    #[test]
+    fn file_image_and_video_decide_to_a_bare_receive_file_without_a_notice() {
+        // Pre-D3 (and after): only the AUDIO fallback announces itself with a
+        // notice — plain file/image/video events just start the transfer.
+        let table: Vec<(&str, GatheredContent, usize, &str)> = vec![
+            ("file", GatheredContent::File { size: 1, filename: "doc.pdf".to_string(), source: media_source() }, 1, "doc.pdf"),
+            ("image", GatheredContent::Image { size: 2, filename: "pic.png".to_string(), source: media_source() }, 2, "pic.png"),
+            ("video", GatheredContent::Video { size: 3, filename: "clip.mp4".to_string(), source: media_source() }, 3, "clip.mp4"),
+        ];
+
+        for (name, content, expected_size, expected_filename) in table {
+            let ops = decide_message(gathered(content));
+            assert_eq!(ops.len(), 1, "{} must decide exactly one op", name);
+            match &ops[0] {
+                MessageOp::ReceiveFile { inviter, sender, size, filename, source } => {
+                    assert_eq!(inviter.get_email_address().as_str(), "roomhash@test.local");
+                    assert_eq!(sender.get_email_address().as_str(), "peer@test.com");
+                    assert_eq!(*size, expected_size, "{} keeps its gathered size", name);
+                    assert_eq!(filename, expected_filename, "{} keeps its gathered filename", name);
+                    assert_media_source_preserved(source);
+                }
+                MessageOp::Sb { label, .. } => panic!("{} must not decide an SB send, got {}", name, label),
+            }
+        }
+    }
+
+    #[test]
+    fn ignored_msgtypes_decide_to_no_ops_at_all() {
+        // §5 honesty: Emote/Location/ServerNotice/VerificationRequest and
+        // unknown custom events were silently ignored pre-D3 — `Ignored`
+        // documents that passthrough; the empty vec IS the behavior.
+        let ops = decide_message(gathered(GatheredContent::Ignored));
+        assert!(ops.is_empty());
+    }
+
+    #[test]
+    fn every_typing_user_but_us_decides_to_one_control_msg_each() {
+        let gathered = GatheredTyping {
+            senders: vec![
+                msn_user("peer@test.com", "Peer"),
+                msn_user("other@test.com", "Other"),
+            ],
+        };
+
+        let ops = decide_typing(gathered);
+        assert_eq!(ops.len(), 2);
+
+        let expected = [("peer@test.com", "Peer"), ("other@test.com", "Other")];
+        for (op, (email, display)) in ops.iter().zip(expected) {
+            let (label, msg) = sb_msg(op);
+            assert_eq!(label, "typing notification");
+            assert_eq!(msg.sender, EmailAddress::from_str(email).unwrap());
+            assert_eq!(msg.display_name.value(), display);
+            match &msg.payload {
+                MsgPayload::Control(control) => {
+                    assert_eq!(control.typing_user, EmailAddress::from_str(email).unwrap());
+                }
+                _ => panic!("expected a Control payload"),
+            }
+        }
+    }
+
+    #[test]
+    fn typing_with_no_resolved_senders_decides_to_nothing() {
+        let ops = decide_typing(GatheredTyping { senders: vec![] });
+        assert!(ops.is_empty());
     }
 }
