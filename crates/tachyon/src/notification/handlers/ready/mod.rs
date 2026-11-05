@@ -10,7 +10,7 @@ use prp_handler::handle_prp;
 use put_handler::decide_put;
 use rml_handler::handle_rml;
 use url_handler::decide_url;
-use usr_handler::handle_usr;
+use usr_handler::decide_usr;
 use uum_handler::handle_uum;
 use uux_handler::handle_uux;
 use xfr_handler::decide_xfr;
@@ -36,7 +36,7 @@ mod uun_handler;
 
 pub(super) async fn handle_ready(raw_command: NotificationClientCommand, command_sender: Sender<NotificationServerCommand>, tachyon_client: TachyonClient, matrix_client: Client, local_store: &mut SessionState, config: &TachyonConfig) -> Result<(), anyhow::Error> {
     match raw_command {
-        NotificationClientCommand::USR(command) => handle_usr(command, local_store.email_addr.clone(), command_sender).await,
+        NotificationClientCommand::USR(command) => send_client_outs([decide_usr(command, local_store.email_addr.clone())], &command_sender).await,
         NotificationClientCommand::PNG => send_client_outs([decide_png()], &command_sender).await,
         NotificationClientCommand::ADL(command) => handle_adl(command, tachyon_client, matrix_client, command_sender).await,
         NotificationClientCommand::RML(command) => send_client_outs([handle_rml(command, tachyon_client)?], &command_sender).await,

@@ -23,6 +23,7 @@ use msnp::shared::models::display_name::DisplayName;
 use msnp::shared::models::email_address::EmailAddress;
 use msnp::shared::models::endpoint_id::EndpointId;
 use msnp::shared::models::msn_user::MsnUser;
+use msnp::shared::models::ticket_token::TicketToken;
 use msnp::shared::payload::msg::raw_msg_payload::factories::RawMsgPayloadFactory;
 use tachyon_sqlite_store::HomeserverUrl;
 use tokio::sync::mpsc::Sender;
@@ -139,16 +140,14 @@ fn spawn_restore_or_toast(state: GlobalState, token: String, client: TachyonClie
 pub(crate) async fn send_login_toast(client: &TachyonClient, dialect: Dialect) {
     let msn_user = client.own_user();
     let email = msn_user.get_email_address().clone();
-    let (username, homeserver) = email.as_str().split_once('@').map(|(username, homeserver)| (username.to_string(), homeserver.to_string())).unwrap_or_default();
-    let login_url = format!(
-        "http://127.0.0.1:{}/tachyon/login?username={}&homeserver={}&t={}",
-        client.config().http_port, username, homeserver, client.ticket_token().as_str()
-    );
     // The one random input stays in the shell and is injected into the render,
     // so the wire bytes stay a deterministic function of it (§9).
     let notification_id: i32 = rand::random();
 
-    let out = ClientOut::DirectToWebLogin { url: login_url };
+    // Gather plain inputs -> pure decide -> render (§3.1): the url lives in
+    // decide_web_login_trigger, the NOT bytes in render_auth_trigger. The shell
+    // keeps only the send and its warn policy.
+    let out = decide_web_login_trigger(&email, client.config().http_port, &client.ticket_token());
     for secret_not in render_auth_trigger(out, email, notification_id, dialect) {
         // Err = receiver dropped, client gone: the toast is undeliverable and
         // nothing follows in this flow (§8 D2).
@@ -156,6 +155,18 @@ pub(crate) async fn send_login_toast(client: &TachyonClient, dialect: Dialect) {
             warn!("MSNP|NS: login toast dropped, client gone: {}", error);
         }
     }
+}
+
+/// Pure decision (§3.1): the web-login trigger url from plain inputs only — no
+/// client, no channel, no async. The url carries the ticket token so the login
+/// page finds its session (§3.7). Byte-identical to the pre-seam format!.
+pub(crate) fn decide_web_login_trigger(email: &EmailAddress, http_port: u32, ticket_token: &TicketToken) -> ClientOut {
+    let (username, homeserver) = email.as_str().split_once('@').map(|(username, homeserver)| (username.to_string(), homeserver.to_string())).unwrap_or_default();
+    let url = format!(
+        "http://127.0.0.1:{}/tachyon/login?username={}&homeserver={}&t={}",
+        http_port, username, homeserver, ticket_token.as_str()
+    );
+    ClientOut::DirectToWebLogin { url }
 }
 
 /// Render step for the auth web-login trigger (§3.7): the trigger forks on
@@ -337,11 +348,12 @@ mod tests {
     use msnp::shared::models::email_address::EmailAddress;
     use msnp::shared::models::endpoint_id::EndpointId;
     use msnp::shared::models::msn_user::MsnUser;
+    use msnp::shared::models::ticket_token::TicketToken;
     use msnp::shared::traits::IntoBytes;
     use msnp::soap::traits::xml::ToXml;
     use msnp::msnp::notification::models::dialect::Dialect;
 
-    use super::render_auth_trigger;
+    use super::{decide_web_login_trigger, render_auth_trigger};
     use crate::notification::models::client_out::ClientOut;
 
     /// Oracle pin (§9, D2c): the login-toast NOT bytes captured from the
@@ -421,6 +433,55 @@ mod tests {
 
         let NotificationServerCommand::NOT(not) = rendered.into_iter().next().unwrap() else {
             panic!("the auth seam renders the NOT alert for Msnp18");
+        };
+        assert_eq!(not.into_bytes(), expected);
+    }
+
+    /// The decide step is pure and socket-free (§3.1): plain inputs (email,
+    /// http port, ticket token) produce the DirectToWebLogin trigger carrying
+    /// the exact login url, ticket token included. No client, no channel.
+    #[test]
+    fn decide_web_login_trigger_builds_the_login_url_from_plain_inputs() {
+        let email = EmailAddress::from_str("aeon@test.com").unwrap();
+        let ticket_token = TicketToken::from_str("t=TICKETTOKEN").unwrap();
+
+        let out = decide_web_login_trigger(&email, 11866, &ticket_token);
+
+        let ClientOut::DirectToWebLogin { url } = out else {
+            panic!("the web-login trigger decides DirectToWebLogin");
+        };
+        assert_eq!(url, "http://127.0.0.1:11866/tachyon/login?username=aeon&homeserver=test.com&t=TICKETTOKEN");
+    }
+
+    /// The full socket-free path (decide -> render) reproduces the oracle pin
+    /// byte-for-byte: extracting the decide step changed no wire output, so the
+    /// COMMIT 1 pin stays green through it (§9). notification_id is injected.
+    #[test]
+    fn decide_then_render_reproduces_the_pinned_web_login_not_bytes() {
+        let email = EmailAddress::from_str("aeon@test.com").unwrap();
+        let ticket_token = TicketToken::from_str("t=TICKETTOKEN").unwrap();
+        let notification_id: i32 = 1342902633;
+
+        let expected = NotServer {
+            payload: NotificationPayloadType::Normal(NotificationFactory::alert(
+                &MsnUser::new(EndpointId::new(email.clone(), None)).uuid,
+                &email,
+                "Sign in required - click here to continue",
+                "http://127.0.0.1:11866/tachyon/login?username=aeon&homeserver=test.com&t=TICKETTOKEN",
+                "",
+                "",
+                None,
+                notification_id,
+            )),
+        }
+        .into_bytes();
+
+        let out = decide_web_login_trigger(&email, 11866, &ticket_token);
+        let rendered = render_auth_trigger(out, email, notification_id, Dialect::Msnp18);
+        assert_eq!(rendered.len(), 1);
+
+        let NotificationServerCommand::NOT(not) = rendered.into_iter().next().unwrap() else {
+            panic!("the seam renders the NOT alert for Msnp18");
         };
         assert_eq!(not.into_bytes(), expected);
     }
