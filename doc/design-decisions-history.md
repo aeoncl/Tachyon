@@ -1,8 +1,9 @@
 # Tachyon — Design Decisions Record
 
 **Status:** historical record — every entry cites the commit(s) where the decision was
-taken. This is the *companion* of `doc/architecture.md`: that document is a *proposal*
-for an overhaul not yet started; this one records what the code actually grew and why,
+taken. This is the *companion* of `doc/architecture.md`: that document is the current
+bottom-up proposal (IO/logic split + MSNP dialect support; the original top-down
+re-cratification proposal was deleted in `f32ab61`); this one records what the code actually grew and why,
 as visible in 372 commits (2022-04 → 2026-11, single author `aeoncl`, tag `0.1.0`).
 
 ## 0. Eras (context for everything below)
