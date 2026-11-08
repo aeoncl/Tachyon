@@ -55,8 +55,10 @@ silently constructed; a match arm is a compiler error = a work-list item
 failure):
 
 - no `_` wildcard in any `match dialect`;
-- no `#[non_exhaustive]` on `Dialect` (the only mention of the word in the
-  tree is dialect.rs's comment forbidding it);
+- no `#[non_exhaustive]` on `Dialect` (the tree's one live attribute of that
+  name sits on an unrelated, pre-existing msnp p2p TLV type — `p2p/v2/tlv.rs:43`,
+  untouched by D0–D5; within the dialect machinery the only mention is
+  dialect.rs's comment forbidding it);
 - `Dialect` keeps exactly one variant in every commit until a real dialect
   lands;
 - MSNP18 literal confinement: in `crates/msnp/src` the profile record in
