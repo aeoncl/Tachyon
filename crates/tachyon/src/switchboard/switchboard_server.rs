@@ -141,17 +141,36 @@ async fn handle_client(
         }
     }
 
-    client_kill_snd.send(())?;
+    //Cleanup — unconditional (H9, §1.4, D4): pre-D4 this block ran AFTER
+    //`client_kill_snd.send(())?`, so any kill-send error skipped the
+    //remove and leaked a stale SwitchboardHandle in the client's map.
+    //Remove-before-early-return: the cleanup no longer depends on the
+    //kill channel's receiver bookkeeping at all.
+    teardown_switchboard(&local_switchboard_data);
 
-    //Cleanup
-    if let Some(room_id) = local_switchboard_data.room_id {
-        if let Some(client) = local_switchboard_data.tachyon_client {
-            client.switchboards().remove(&room_id);
-        }
+    // Err = no live kill receiver (the write task ended and dropped its
+    // resubscribed receiver): the kill is then a no-op — warn, never skip
+    // the cleanup above (H9). Failure-path-only delta: pre-D4 the `?`
+    // returned early from handle_client with the handle still registered.
+    if let Err(error) = client_kill_snd.send(()) {
+        warn!("MSNP|SB: kill signal undeliverable, write task already gone: {}", error);
     }
 
     info!("SB Client gracefully shutdown...");
     Ok(())
+}
+
+/// H9 (§1.4, D4): the switchboard-handle cleanup, unconditional and in
+/// its own function so the connection tail cannot reorder it behind a
+/// fallible step again — and so the invariant is testable without a
+/// socket.
+fn teardown_switchboard(local_switchboard_data: &LocalSwitchboardData) {
+    //Cleanup
+    if let Some(room_id) = &local_switchboard_data.room_id {
+        if let Some(client) = &local_switchboard_data.tachyon_client {
+            client.switchboards().remove(room_id);
+        }
+    }
 }
 
 pub enum SwitchboardSenderMsg {
@@ -219,4 +238,72 @@ fn start_write_task(
         println!("Socket write task gracefully shutdown...");
     });
     sender
+}
+
+#[cfg(test)]
+mod tests {
+    use matrix_sdk::ruma::{room_id, OwnedRoomId};
+    use msnp::msnp::models::contact_list::ContactList;
+    use msnp::msnp::switchboard::models::session_id::SessionId;
+    use msnp::shared::models::email_address::EmailAddress;
+    use msnp::shared::models::endpoint_id::EndpointId;
+    use msnp::shared::models::msn_user::MsnUser;
+    use msnp::shared::models::ticket_token::TicketToken;
+    use std::str::FromStr;
+
+    use super::teardown_switchboard;
+    use crate::switchboard::models::local_switchboard_data::LocalSwitchboardData;
+    use crate::switchboard::models::switchboard_handle::SwitchboardHandle;
+    use crate::tachyon::client::tachyon_client::TachyonClient;
+    use crate::tachyon::config::tachyon_config::TachyonConfig;
+
+    fn test_client() -> TachyonClient {
+        let (snd, _rcv) = tokio::sync::mpsc::channel(10);
+        let (kill_snd, kill_recv) = tokio::sync::broadcast::channel::<()>(1);
+        let msn_user = MsnUser::new(EndpointId::new(EmailAddress::from_str("aeon@test.com").unwrap(), None));
+        TachyonClient::new(TachyonConfig::default(), msn_user, TicketToken::default(), snd, kill_snd, kill_recv, ContactList::default())
+    }
+
+    fn lsd_with(client: TachyonClient, room_id: OwnedRoomId) -> LocalSwitchboardData {
+        let (_, kill_recv) = tokio::sync::broadcast::channel::<()>(1);
+        let mut lsd = LocalSwitchboardData::new(kill_recv);
+        lsd.room_id = Some(room_id);
+        lsd.tachyon_client = Some(client);
+        lsd
+    }
+
+    /// H9 (§1.4, D4): the cleanup removes the room's registered handle
+    /// from the client's switchboard map — the leak the pre-D4
+    /// `send(())?` skip caused. Socket-free: it calls the extracted
+    /// teardown directly.
+    #[test]
+    fn teardown_removes_the_rooms_switchboard_handle() {
+        let client = test_client();
+        let room_id = room_id!("!sbroom:localhost").to_owned();
+        client.switchboards().insert(SwitchboardHandle::new(SessionId::new(7), room_id.clone())).unwrap();
+        assert!(client.switchboards().contains(&room_id), "precondition: the handle is registered");
+
+        let lsd = lsd_with(client.clone(), room_id.clone());
+        teardown_switchboard(&lsd);
+
+        assert!(!client.switchboards().contains(&room_id), "teardown removed the stale handle");
+    }
+
+    /// H9's "unconditional" half: a connection that never resolved a room
+    /// (killed during bootstrap) leaves nothing to remove and must not
+    /// panic — the pre-D4 `if let` guards are preserved, so the no-room
+    /// and no-client paths are still safe.
+    #[test]
+    fn teardown_without_a_room_or_client_is_a_safe_noop() {
+        let client = test_client();
+        let room_id = room_id!("!sbroom:localhost").to_owned();
+        client.switchboards().insert(SwitchboardHandle::new(SessionId::new(7), room_id.clone())).unwrap();
+
+        // No room_id / no tachyon_client on this connection's data.
+        let (_, kill_recv) = tokio::sync::broadcast::channel::<()>(1);
+        let bare = LocalSwitchboardData::new(kill_recv);
+        teardown_switchboard(&bare);
+
+        assert!(client.switchboards().contains(&room_id), "an unrelated connection's handle is untouched");
+    }
 }
