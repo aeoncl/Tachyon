@@ -66,7 +66,7 @@ impl SwitchboardService {
 
     pub fn initialize(&self, room_id: &RoomId, inviter: &MsnUser) -> SwitchboardHandle {
 
-        let switchboard = SwitchboardHandle::new(SessionId::random(), room_id.to_owned());
+        let switchboard = SwitchboardHandle::new(SessionId::random(), room_id.to_owned(), self.tachyon_client.dialect().profile().max_msg_body_size);
         self.tachyon_client.inner.switchboards.insert(room_id.to_owned(), switchboard.clone());
 
         let notification_client_clone = self.tachyon_client.notification_handle().clone();

@@ -244,6 +244,7 @@ fn start_write_task(
 mod tests {
     use matrix_sdk::ruma::{room_id, OwnedRoomId};
     use msnp::msnp::models::contact_list::ContactList;
+    use msnp::msnp::notification::models::dialect::Dialect;
     use msnp::msnp::switchboard::models::session_id::SessionId;
     use msnp::shared::models::email_address::EmailAddress;
     use msnp::shared::models::endpoint_id::EndpointId;
@@ -280,7 +281,7 @@ mod tests {
     fn teardown_removes_the_rooms_switchboard_handle() {
         let client = test_client();
         let room_id = room_id!("!sbroom:localhost").to_owned();
-        client.switchboards().insert(SwitchboardHandle::new(SessionId::new(7), room_id.clone())).unwrap();
+        client.switchboards().insert(SwitchboardHandle::new(SessionId::new(7), room_id.clone(), Dialect::Msnp18.profile().max_msg_body_size)).unwrap();
         assert!(client.switchboards().contains(&room_id), "precondition: the handle is registered");
 
         let lsd = lsd_with(client.clone(), room_id.clone());
@@ -297,7 +298,7 @@ mod tests {
     fn teardown_without_a_room_or_client_is_a_safe_noop() {
         let client = test_client();
         let room_id = room_id!("!sbroom:localhost").to_owned();
-        client.switchboards().insert(SwitchboardHandle::new(SessionId::new(7), room_id.clone())).unwrap();
+        client.switchboards().insert(SwitchboardHandle::new(SessionId::new(7), room_id.clone(), Dialect::Msnp18.profile().max_msg_body_size)).unwrap();
 
         // No room_id / no tachyon_client on this connection's data.
         let (_, kill_recv) = tokio::sync::broadcast::channel::<()>(1);

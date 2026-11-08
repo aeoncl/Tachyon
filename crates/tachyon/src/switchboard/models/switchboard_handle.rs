@@ -20,11 +20,14 @@ use msnp::shared::payload::msg::p2p_msg_payload::P2PMessagePayload;
 pub struct SwitchboardHandle {
     pub session_id: SessionId,
     pub room_id: OwnedRoomId,
+    /// The chunker's MSG body byte cap, passed in at construction from the
+    /// negotiated dialect's profile record (`DialectProfile::max_msg_body_size`
+    /// — its single source of truth; the pre-D5 file-local `MAX_MSG_BODY_SIZE`
+    /// const here is retired).
+    pub max_msg_body_size: usize,
     pub pending_events: Arc<Mutex<Vec<SwitchboardServerCommand>>>,
     pub switchboard_state: Arc<Mutex<SwitchboardState>>
 }
-
-const MAX_MSG_BODY_SIZE: usize = 1311;
 
 impl SwitchboardHandle {
     pub(crate) async fn send_pending_events(&self) -> Result<(), anyhow::Error>  {
@@ -41,19 +44,21 @@ impl SwitchboardHandle {
 }
 
 impl SwitchboardHandle {
-    pub fn new(session_id: SessionId, room_id: OwnedRoomId) -> Self {
+    pub fn new(session_id: SessionId, room_id: OwnedRoomId, max_msg_body_size: usize) -> Self {
         Self {
             session_id,
             room_id,
+            max_msg_body_size,
             pending_events: Arc::new(Mutex::new(vec![])),
             switchboard_state: Arc::new(Mutex::new(SwitchboardState::default()))
         }
     }
 
-    pub fn new_ready(session_id: SessionId, room_id: OwnedRoomId, msnp_sender: mpsc::Sender<SwitchboardSenderMsg>) -> Self {
+    pub fn new_ready(session_id: SessionId, room_id: OwnedRoomId, msnp_sender: mpsc::Sender<SwitchboardSenderMsg>, max_msg_body_size: usize) -> Self {
         Self {
             session_id,
             room_id,
+            max_msg_body_size,
             pending_events: Arc::new(Mutex::new(vec![])),
             switchboard_state: Arc::new(Mutex::new(SwitchboardState::Ready { msnp_sender }))
         }
@@ -95,9 +100,9 @@ impl SwitchboardHandle {
         let raw = msg.into_raw();
         let allow_chunking = raw.get_content_type().unwrap() != MsgContentType::P2P;
 
-        if raw.body_len() > MAX_MSG_BODY_SIZE && allow_chunking {
+        if raw.body_len() > self.max_msg_body_size && allow_chunking {
             //Send chunked
-            let mut chunks = MsgChunks::split_into_chunks(raw, MAX_MSG_BODY_SIZE);
+            let mut chunks = MsgChunks::split_into_chunks(raw, self.max_msg_body_size);
             for current in chunks.chunks_mut().drain(..) {
                 self.receive_command(
                     SwitchboardServerCommand::MSG(MsgServer {

@@ -738,7 +738,7 @@ mod tests {
         let room = mock_server.sync_joined_room(&matrix_client, room_id!("!deliver:localhost")).await;
 
         let client = test_client();
-        client.switchboards().insert(SwitchboardHandle::new(SessionId::new(7), room.room_id().to_owned())).unwrap();
+        client.switchboards().insert(SwitchboardHandle::new(SessionId::new(7), room.room_id().to_owned(), Dialect::Msnp18.profile().max_msg_body_size)).unwrap();
 
         deliver(client.dialect(), &client, &room, vec![MessageOp::Sb { label: "message", command: SwitchboardServerCommand::OUT }]).await;
 
@@ -760,7 +760,7 @@ mod tests {
 
         let client = test_client();
         let (sb_snd, mut sb_rcv) = tokio::sync::mpsc::channel::<SwitchboardSenderMsg>(10);
-        client.switchboards().insert(SwitchboardHandle::new_ready(SessionId::new(7), room.room_id().to_owned(), sb_snd)).unwrap();
+        client.switchboards().insert(SwitchboardHandle::new_ready(SessionId::new(7), room.room_id().to_owned(), sb_snd, Dialect::Msnp18.profile().max_msg_body_size)).unwrap();
 
         fn decided_msg() -> SwitchboardServerCommand {
             SwitchboardServerCommand::MSG(MsgServer {

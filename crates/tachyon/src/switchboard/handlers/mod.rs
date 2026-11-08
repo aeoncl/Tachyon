@@ -95,7 +95,7 @@ async fn send_bootstrap_outcome(outcome: BootstrapOutcome, command_sender: &Send
                 }).await?;
             }
             ReadyWiring::InsertReadyHandle { session_id, room_id } => {
-                let switchboard_handle = SwitchboardHandle::new_ready(session_id, room_id, command_sender.clone());
+                let switchboard_handle = SwitchboardHandle::new_ready(session_id, room_id, command_sender.clone(), tachyon_client.dialect().profile().max_msg_body_size);
                 tachyon_client.switchboards().insert(switchboard_handle)?;
             }
         }
