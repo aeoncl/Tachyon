@@ -572,15 +572,16 @@ async fn chg_echo(msn: &mut MsnClient) {
         avatar: None,
     }))
     .await;
-    loop {
-        match msn.next().await {
-            Cmd::CHG(chg) => {
-                let ChgServer { presence_status, .. } = chg;
-                assert!(matches!(presence_status, PresenceStatus::NLN));
-                return;
-            }
-            _ => panic!("expected the CHG echo"),
+    // No loop wrapper: every arm exits, so it never looped (clippy::never_loop,
+    // deny-by-default correctness — a pre-existing all-targets clippy error the
+    // workspace gate never compiled). The match IS the behavior; unwrapping it
+    // is identical (the fn ends right after).
+    match msn.next().await {
+        Cmd::CHG(chg) => {
+            let ChgServer { presence_status, .. } = chg;
+            assert!(matches!(presence_status, PresenceStatus::NLN));
         }
+        _ => panic!("expected the CHG echo"),
     }
 }
 
