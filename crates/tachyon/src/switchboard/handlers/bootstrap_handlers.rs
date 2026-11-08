@@ -345,8 +345,13 @@ mod tests {
         Arc::new(SqliteCredentialsStore::open(&dir.join("credentials.db")).expect("store opens"))
     }
 
-    fn test_state() -> GlobalState {
-        GlobalState::new(Default::default(), Box::new(MatrixLoginServiceImpl::new()), test_credentials_store("sb-bootstrap"))
+    fn test_state(name: &str) -> GlobalState {
+        // Every test needs its OWN store name: the path is
+        // temp_dir/tachyon-{name}-test-{pid} and the whole test binary
+        // shares one pid, so `name` is the only isolation axis. Two tests
+        // sharing a name race `remove_dir_all` against each other's open
+        // SQLite handle (flake: error 14, unable to open database file).
+        GlobalState::new(Default::default(), Box::new(MatrixLoginServiceImpl::new()), test_credentials_store(name))
     }
 
     fn test_lsd() -> LocalSwitchboardData {
@@ -474,7 +479,7 @@ mod tests {
     /// data. Socket-free.
     #[tokio::test]
     async fn ans_with_an_unknown_token_produces_nothing_and_stays_authenticating() {
-        let state = test_state();
+        let state = test_state("ans-unknown-token");
         let mut lsd = test_lsd();
 
         let token: TicketToken = SwitchboardToken::new(room_id!("!sbroom:localhost").to_owned(), "unknown-matrix-token".to_string()).into();
@@ -497,7 +502,7 @@ mod tests {
     /// instead of panicking (§1.4-class, fixed in place in D4).
     #[tokio::test]
     async fn usr_with_an_unknown_ticket_produces_nothing_and_a_malformed_ticket_errors() {
-        let state = test_state();
+        let state = test_state("usr-unknown-ticket");
         let mut lsd = test_lsd();
 
         let usr = SwitchboardClientCommand::USR(UsrClient {
