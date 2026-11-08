@@ -1,10 +1,13 @@
 # Tachyon — Design Decisions Record
 
 **Status:** historical record — every entry cites the commit(s) where the decision was
-taken. This is the *companion* of `doc/architecture.md`: that document is the current
+taken. This is the *companion* of `doc/architecture.md`: that document was the
 bottom-up proposal (IO/logic split + MSNP dialect support; the original top-down
-re-cratification proposal was deleted in `f32ab61`); this one records what the code actually grew and why,
-as visible in 372 commits (2022-04 → 2026-11, single author `aeoncl`, tag `0.1.0`).
+re-cratification proposal was deleted in `f32ab61`) — approved in `03d7daf`, executed to
+completion as stages D0–D6, and since D6 it describes the built state. This one records
+what the code actually grew and why, as visible in 412 commits (2022-04 → 2026-11,
+single author `aeoncl`, tag `0.1.0`). §9 records the decisions the executed plan itself
+produced.
 
 ## 0. Eras (context for everything below)
 
@@ -59,7 +62,11 @@ as visible in 372 commits (2022-04 → 2026-11, single author `aeoncl`, tag `0.1
 - **A Matrix room must present as MSN identities.** Room IDs are too long and malformed
   for the email shape MSN expects, so the bridge synthesises room emails from a **SHA-1
   hash of the room ID**, kept in a bidirectional DashMap cache (`04d3112`,
-  `matrix/extensions/msn_user_resolver.rs`).
+  `matrix/extensions/msn_user_resolver.rs`). **Extended, not reversed (D3, `643bd73`):**
+  the same SHA-1 synthesis and the same bidirectional shape, but the cache is now the
+  *owned* `RoomHashCache { by_hash, by_room }` field on `TachyonClientInner`
+  (`tachyon/client/tachyon_client.rs:67`) — the process-global `lazy_static` map is gone,
+  and cache lifetime equals the signed-in account's lifetime (architecture.md §1.4 H7).
 - **Group chats are simulated as one "room user" contact** — `ROOM_USER_PORTAL_MODE =
   true` (`cfde039`): the SB roster at ANS time contains only the room-user, and active
   members arrive as notices. The stated rationale (architecture doc D3): Matrix has no
@@ -109,6 +116,11 @@ The login story went through five designs; the last two define today's behaviour
      the Docker e2e test (`b1109ed`, `tests/e2e_msn_homeserver.rs`).
    - The **client drop guard moved onto `LocalClientData`** (`49d4341` introduced it) so
      dropping the NS socket releases store handles deterministically.
+   - **The one-registered-object pattern was extended, never reversed (D3/D4):** the
+     per-account `DedupState` and `RoomHashCache` (`643bd73`) and the negotiated dialect
+     copy (`dialect: RwLock<Dialect>`, `0015cbe`) all live as `TachyonClientInner` fields
+     — still one registry, still no parallel registries, still `Backend::Pending | Ready`
+     inside the client (architecture.md §3.3/§3.5).
 - **Credential persistence: sled → bundled SQLite.** Multiple clients sharing one sled
   store was a known bug (`d19f870`); the new auth replaced it with `crates/tachyon-sqlite-store`
   (rusqlite, credentials keyed per user, `506eab3`).
@@ -120,9 +132,19 @@ The login story went through five designs; the last two define today's behaviour
 - **Command flow uses tokio mpsc, deliberately *unbounded*** — broadcast channels with
   capacity were replaced (`17991e8`) so a slow socket never drops protocol events. The
   flip side (10,000,000-capacity SB channel, `write_all().await.unwrap()`,
-  `from_utf8_unchecked`, `rayon` in async) is **known and deliberately unfixed** — logged
-  in architecture.md Appendix B and AGENTS.md with the policy "fixing one is a real
-  change, not a drive-by cleanup".
+  `from_utf8_unchecked`, `rayon` in async) was **known and deliberately unfixed** at the
+  time — logged in the then-current hazards appendix of architecture.md and in AGENTS.md
+  with the policy "fixing one is a real change, not a drive-by cleanup".
+  **Extended, not reversed (D2a):** the *rationale* — a slow socket never drops protocol
+  events — is preserved exactly, and the plan's §8 sub-decision (b) satisfied it with
+  **one bounded policy instead**: `COMMAND_CHANNEL_BOUND: usize = 1024` + `send().await`
+  on both servers (`3a62018`) — bounded memory, never drops (await ≠ drop), backpressure
+  propagates to the Matrix-side senders. It was safe only after the write loops stopped
+  panicking/silently ignoring (`2040958`: warn + labeled break on both servers) and the
+  debug logs stopped using `from_utf8_unchecked` (`03383fc`: checked UTF-8 with a
+  `<binary N bytes>` fallback); `rayon` left with the D0 ritual deps (`44e722f`). The
+  "deliberately unfixed" text above and the old Appendix B pointer are stale — the
+  dispositions now live in architecture.md §1.4.
 - **The parser and the handlers must never spin**: malformed input was made to break out
   of the command-parse loop instead of looping forever (`2beaf6b`), and MSG handling
   stopped awaiting Matrix sends inline on the connection task — payloads are dispatched
@@ -130,9 +152,19 @@ The login story went through five designs; the last two define today's behaviour
 - **Outbound Matrix message dedup is per-room with an async send-lock**, because a global
   `DashMap<(event,room)` key under a `std::sync::Mutex` raced (`6ffaaa2`). DashMap
   re-entrancy got its own rule: remove-by-predicate must use `retain`, never iterate-
-  then-remove (deadlock, `550ff20`).
+  then-remove (deadlock, `550ff20`). **Extended (D3, `643bd73`):** the per-room
+  send-lock + dedup now live in the *owned* `DedupState` on `TachyonClientInner`, and
+  one executor — `apply_room_op`'s `RoomOp::SendText`
+  (`matrix/extensions/message_dedup.rs:104`) — covers every §1.1 send path
+  **including the UUM NS-IM path** that previously bypassed dedup entirely; named
+  behavior delta: UUM's plain send gained own-echo suppression and per-room
+  serialization.
 - **Chunked MSG is reassembled at the codec level** (1311-byte chunks, `24d0a1a`),
   failures answer `NAK` (`328aa99`); raw payloads trim stray carriage returns (`13bc537`).
+  **Extended (D4/D5):** the NAK policy is now the pure ack table in the SB msg decide
+  path (`89c9494`), and the 1311 cap is `DialectProfile::max_msg_body_size` (`515edc3`)
+  — the file-local const retired, the chunker byte-identical, one source of truth per
+  dialect.
 
 ## 6. P2P
 
@@ -179,12 +211,94 @@ The login story went through five designs; the last two define today's behaviour
 - **CI was deliberately deleted** (`.github/workflows/rust-clippy.yml`, created `ce9fda8`
   in 2022, removed `45467fa`). The Jest e2e harness (`43a3c79`) died with v1; the only
   integration test today is the Rust Docker e2e, `--ignored` and env-driven
-  (`b1109ed`, AGENTS.md).
+  (`b1109ed`, AGENTS.md). **Extended (D5):** CI stays deleted; the e2e family grew to
+  **four** `--ignored` tests — the three classic flows plus
+  `msnp18_dialect_conformance_script` (`cc5570b`), the per-dialect wire-level template
+  that reads every profile-data expectation from `Dialect::profile()`.
 - **A known-red baseline is tolerated, recorded, not chased**: 4 msnobj URL-encoding
-  fixture failures in `msnp` are the documented status quo (`e738db8`).
+  fixture failures in `msnp` are the documented status quo (`e738db8`). **Extended:**
+  the count is now **217 passed / 4 failed** — the growth is deliberate, attributed
+  fixture additions (+2 `44e722f`, +1 `26a6604`, +2 `515edc3`); the four names live
+  verbatim in `doc/adding-a-dialect.md` §2, are invariant at every step of D0–D6, and
+  were never fixed.
 - **Never `cargo fmt --all`** — the tree is deliberately not rustfmt-clean; match the
   surrounding file (`e738db8`).
 - **`doc/architecture.md` is a proposal with explicit non-decisions**: Phase 0 not
   approved, other MSN versions out of scope, transport hazards deferred to named phases,
   proxy-group and MPOP deferral documented as intentional (§18). Code refactoring toward
-  it is forbidden until approved (AGENTS.md).
+  it is forbidden until approved (AGENTS.md). **Superseded (D6):** the plan was approved
+  by the user (`03d7daf`, 2026-11-05) and executed to completion — stages D0–D6, ledger
+  in architecture.md §8. The refactoring ban was lifted by that approval, not around it:
+  no code moved toward the plan before `03d7daf`. `doc/architecture.md` now describes the
+  built state, and `doc/adding-a-dialect.md` (`6467e32`) is the contributor contract.
+  MSNP21 (M1) and pre-MSNP18 dialects + browser auth (M2) remain deferred exactly as the
+  proposal said (§7) — the seams shipped, the dialects did not.
+
+## 9. The dialect-structure era (D0–D6, 2026-11)
+
+Decisions the executed plan itself produced — each extends an earlier entry above;
+none reverses one. Full per-stage ledger in architecture.md §8.
+
+- **The negotiated dialect is copied once, owned by the client, never flagged in
+  parallel.** `SessionState` negotiates (VER, `dialect_for`); the client carries —
+  `dialect: RwLock<Dialect>` on `TachyonClientInner` with exactly **one** write,
+  `set_dialect` at the NS auth SSO-S registration *before* `insert_clients` makes the
+  client discoverable (`auth.rs:73`), so every reader (the delivery seam) sees it
+  (`0015cbe`; architecture.md §3.3's "one owner, no parallel flags").
+- **`deliver()` is a function, not a trait — classic arm only, constructed *and*
+  called.** `deliver(dialect, client, room, out)` at `message_handlers.rs:350`, one arm
+  at release, two production call sites passing `client.dialect()` (`:119`, `:395`); the
+  v21 arm (SDG/UUM over the NS writer, XFR refusal) is M1's addition, compiler-checked
+  the moment `Dialect::Msnp21` exists (`0015cbe`; architecture.md §3.4).
+- **H9: unconditional teardown by construction — with the reachability honesty kept.**
+  `teardown_switchboard()` hoisted *before* the kill-send and extracted into its own
+  function; the kill-send warns, never `?`-skips cleanup. The recorded finding: post-D2a
+  the leak chain was *structurally latent* (a parked never-read broadcast receiver means
+  tokio's `send` cannot fail at zero-receivers), so the fix is not "bug reproduced" — it
+  makes the invariant structural regardless, and narrows the concurrent-insert eviction
+  window (`9dd3da7`).
+- **H7 retired by ownership, not by compound keys** — extending `68f3a89`'s
+  one-registered-object pattern (§4 above): `DedupState` + `RoomHashCache` as client
+  fields; the 3 process-global mutable maps went to 0 (`643bd73`).
+- **H8: the usertile URL is keyed by client** — the sha256-hex `BridgeLinkToken`
+  (`bridge_link.rs:65`), the pre-existing SOAP repository key, extending `506eab3`'s
+  tickets-are-not-secret localhost trust model rather than inventing an auth mechanism.
+  Coverage honesty: no runtime e2e test exercises the route; the msnp fixture pin
+  (`get_profile.rs:314`) carries the fix (`26a6604`).
+- **The §1.1 echo gap was retired by consolidation, with the delta named** — one
+  `RoomOp::SendText` executor; the UUM path gained own-echo suppression + per-room
+  send-lock serialization it previously bypassed (`643bd73`; §5 above).
+- **Defect canaries are what compiler enumeration looks like when it bites.** Adding
+  `ClientOut::DirectToWebLogin` broke three exhaustive 2-arm matches; wildcards being
+  barred, the ruling was three loud warn+drop canary arms (chg render, adl send loop,
+  `send_client_outs`) — unreachable by construction, documented at each site, no panic
+  arms. The compiler enumerated the affected sites; the canaries make any future
+  misrouting loud instead of silent (`8871758`).
+- **Sender discipline: pattern A default, pattern B sanctioned and named.** `Sender`
+  left handler signatures so decide/render are socket-free (pattern A); where a detached
+  spawn legitimately keeps its `Sender` (`adl`'s avatar fan-out, SB `ready`/`msg`), that
+  is pattern B — recorded in the commit bodies, not hidden in a signature
+  (`4e1767b`…`eccaf83`, `5193cfc`, `89c9494`). `xfr` stayed deliberately dialect-free:
+  the SB-vs-NS fork belongs to `deliver()` (`18ee489`).
+- **The conformance script stays same-file.** `msnp18_dialect_conformance_script` lives
+  in `e2e_msn_homeserver.rs`, reusing `Run`/`Stack`/`MsnClient`; a `tests/common`
+  extraction is deferred until M1's second script needs it — the "fields move in with
+  their consumers" doctrine applied to test harnesses (`cc5570b`).
+- **Fixture isolation is a rule, not a preference.** Two bootstrap tests raced one shared
+  temp-dir credentials store (SQLite error 14, ~40% failure under parallel scheduling);
+  the fix is per-test unique names, codified in `doc/adding-a-dialect.md` §4 (`b951cc7`).
+- **The contributor template gets template hygiene.** A pre-existing `clippy::never_loop`
+  error in the e2e `chg_echo` helper — invisible to the workspace gate, which never
+  compiles test targets, and predating the plan — was fixed because `cc5570b` canonized
+  the harness as the template contributors copy; `--all-targets` clippy is clean for the
+  first time since before D0 (`fea244e`).
+- **Quirks preserved by design, recorded not fixed:** the double `SessionId::random()`
+  in `switchboard_service` initialize (handle vs RNG, `switchboard_service.rs:69,85`),
+  `insert()`'s pending-events merge, the SB-local `ConnectionPhase` enum,
+  `expect("To be here")` + its TODO (`switchboard/handlers/mod.rs:90`),
+  `ROOM_USER_PORTAL_MODE` (`bootstrap_handlers.rs:22`), and the
+  `//TODO SEND ERROR BACK TO Client` pair (`notification_server.rs:146`,
+  `switchboard_server.rs:123`) — plus the four known-red fixtures (§8) and the
+  comment-interior `from_utf8_unchecked` dead text in `msnp/p2p/v2/mod.rs` (a
+  comment-accuracy item; `msnp` frozen by policy). M1 (MSNP21) and M2 (pre-MSNP18 +
+  browser auth) stay deferred with their entry requirements (architecture.md §7).
