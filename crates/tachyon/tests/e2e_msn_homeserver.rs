@@ -8,7 +8,7 @@ use msnp::msnp::notification::command::command::NotificationServerCommand;
 use msnp::msnp::notification::command::command::NotificationServerCommand as Cmd;
 use msnp::msnp::notification::command::adl::AdlClient;
 use msnp::msnp::notification::command::chg::{ChgClient, ChgServer};
-use msnp::msnp::notification::command::cvr::CvrClient;
+use msnp::msnp::notification::command::cvr::{CvrClient, CvrServer};
 use msnp::msnp::notification::command::msg::MsgServer;
 use msnp::msnp::notification::command::not::NotServer;
 use msnp::msnp::notification::command::usr::{
@@ -18,6 +18,7 @@ use msnp::msnp::notification::command::usr::{
 use msnp::msnp::notification::command::ver::VerClient;
 use msnp::msnp::notification::models::adl_payload::ADLPayload;
 use msnp::msnp::notification::models::endpoint_guid::EndpointGuid;
+use msnp::msnp::notification::models::dialect::{dialect_for, Dialect};
 use msnp::msnp::notification::models::msnp_version::MsnpVersion;
 use msnp::msnp::raw_command_parser::ServerCommandParser;
 use msnp::shared::models::capabilities::ClientCapabilities;
@@ -167,6 +168,98 @@ async fn abch_pulls_while_login_is_in_flight_answer_empty() {
     stack.shutdown().await;
 }
 
+// ==================== PER-DIALECT CONFORMANCE SCRIPT (D5) ====================
+//
+// The MSNP18 script below is the shape a contributor copies for a new dialect
+// (doc/adding-a-dialect.md). It is a wire-contract conformance run: a fake MSN
+// client (MsnClient) drives a real Tachyon stack (Stack) over real sockets and
+// asserts, step by step, what the dialect promised — with every expectation
+// that IS profile data read from `Dialect::profile()` itself, so the script
+// pins the record-to-wire mapping instead of a second copy of the record.
+//
+// To write the script for a new dialect, COPY `msnp18_dialect_conformance_script`
+// and change exactly three things:
+//   1. the dialect: `Dialect::Msnp18` -> the new variant. The compiler prints
+//      the work list: every seam in doc/architecture.md §3.3's inventory must
+//      have grown an arm before this line compiles at all;
+//   2. the negotiation offer: `handshake` offers MSNP18/MSNP17 and pins the
+//      MSNP18 SSO shape — a new script offers the versions ITS dialect
+//      negotiates (a v21 script offers MSNP21) and inlines its own exchange
+//      where the handshake shape itself differs;
+//   3. the steps whose contract differs per the inventory's NAMED differences
+//      (e.g. §7 M1: no switchboard — presence and delivery ride SDG/UUM over
+//      the NS; §7 M2: the auth trigger is a host-launched browser, not the
+//      in-protocol NOT alert this script asserts through sign_in_through_web).
+// What does NOT change: the harness (Run/Stack/MsnClient/helpers — reused, never
+// re-invented), the step structure (negotiation -> auth trigger -> ready
+// sequence -> presence echo), and the profile-read discipline.
+//
+// The chunked-MSG contract is deliberately NOT exercised here: this harness
+// has no switchboard client, and inventing one would violate the reuse rule.
+// The chunker is anchored where the machinery already exists — the msg_handler
+// chunk table tests pin the split behavior against the literal cap, and the
+// dialect-profile test in msnp pins the cap value itself (1311).
+// ==============================================================================
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires a reachable Docker daemon (DOCKER_HOST); run with: cargo test -p tachyon --test e2e_msn_homeserver -- --ignored msnp18_dialect_conformance_script"]
+async fn msnp18_dialect_conformance_script() {
+    let _e2e = E2E_LOCK.lock().await;
+    init_logging();
+
+    // The dialect under conformance and its profile record: the single source
+    // of every profile-data expectation below.
+    let dialect = Dialect::Msnp18;
+    let profile = dialect.profile();
+
+    let run = Run::fresh();
+    let stack = Stack::start(&run).await;
+    let ticket = mint_ticket(stack.http_port, run.email.as_str()).await;
+
+    let mut msn = MsnClient::connect(stack.notification_port).await;
+
+    // Step 1 — negotiation (seam: dialect.rs profile()/dialect_for). The
+    // offered wire vocabulary resolves to THIS dialect, the agreed version
+    // maps back to it through the one exhaustive mapping, and the CVR reply
+    // carries exactly the profile's strings — record and wire agree.
+    let negotiated = handshake(&mut msn, &run.email, &ticket).await;
+    assert_eq!(
+        dialect_for(negotiated.agreed_version),
+        Some(dialect),
+        "the agreed wire version must map to the dialect under conformance"
+    );
+    assert_eq!(negotiated.cvr.rec_client_ver, profile.cvr_version);
+    assert_eq!(negotiated.cvr.rec_client_ver2, profile.cvr_version);
+    assert_eq!(negotiated.cvr.min_client_ver, profile.cvr_version);
+    assert_eq!(negotiated.cvr.client_dl_url, profile.cvr_host);
+    assert_eq!(negotiated.cvr.client_info_url, profile.cvr_host);
+
+    // Step 2 — auth trigger (seam: auth.rs render_auth_trigger; §3.7). The
+    // ticket is the boundary: the in-protocol NOT alert this dialect renders
+    // must carry the web-login URL keyed by the ticket (asserted inside), and
+    // the password crosses only the web page — never the MSN wire. USR OK +
+    // the SSO policy shape are asserted inside handshake.
+    sign_in_through_web(
+        &mut msn,
+        stack.http_port,
+        &ticket,
+        &stack.homeserver_url,
+        &run.local_part,
+    )
+    .await;
+
+    // Step 3 — ready sequence: the backend attaches with no repeated auth
+    // trigger (none of the unexpected toasts fired) and the profile MSG
+    // payload — this harness's NS message flow — reaches the client.
+    await_ready_sequence(&mut msn, &ticket, &[]).await;
+
+    // Step 4 — presence render (seam: chg_handler.rs render). CHG NLN echoes
+    // back NLN in this dialect's presence wire shape.
+    chg_echo(&mut msn).await;
+
+    stack.shutdown().await;
+}
+
 struct SoapResponse {
     status: u16,
     body: String,
@@ -269,13 +362,24 @@ fn any_store_file(dir: &std::path::Path) -> bool {
     walk(dir)
 }
 
-async fn handshake(msn: &mut MsnClient, email: &str, ticket: &BridgeLinkToken) {
+/// The negotiation evidence a conformance script asserts on: the agreed
+/// wire version and the full CVR reply. The flow tests above discard the
+/// return value; the D5 conformance script reads it and checks it against
+/// the dialect's own profile record. Behavior is unchanged for every
+/// existing caller.
+struct Negotiated {
+    agreed_version: MsnpVersion,
+    cvr: CvrServer,
+}
+
+async fn handshake(msn: &mut MsnClient, email: &str, ticket: &BridgeLinkToken) -> Negotiated {
     msn.send(NotificationClientCommand::VER(VerClient::new(1, MsnpVersion::MSNP18, MsnpVersion::MSNP17)))
         .await;
     let Cmd::VER(ver) = msn.next().await else {
         panic!("expected the agreed version");
     };
     assert_eq!(ver.agreed_version, MsnpVersion::MSNP18);
+    let agreed_version = ver.agreed_version;
 
     msn.send(NotificationClientCommand::CVR(CvrClient::new(
         2,
@@ -336,6 +440,8 @@ async fn handshake(msn: &mut MsnClient, email: &str, ticket: &BridgeLinkToken) {
         panic!("expected USR OK, got {usr}");
     };
     assert_eq!(email_addr.as_str(), email);
+
+    Negotiated { agreed_version, cvr }
 }
 
 async fn sign_in_through_web(
