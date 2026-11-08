@@ -1,20 +1,20 @@
 //! Matrix message family (§8 D3): the closures in `handlers/mod.rs` are thin
-//! shells; this module owns the gather → decide → apply pipeline (§3).
+//! shells; this module owns the gather → decide → deliver pipeline (§3).
 //! gather reads the SDK (sender resolution, voice-clip transcode) into plain
-//! facts; decide is the pure msgtype → MSN-payload decision table; apply owns
-//! every effect call, with each pre-D3 warn policy preserved verbatim.
+//! facts; decide is the pure msgtype → MSN-payload decision table; the
+//! MSN-bound delivery rides the dialect seam — `deliver()` (§3.4, D4) owns
+//! the transport dispatch, with each pre-D3 warn policy preserved verbatim.
 use crate::matrix::extensions::direct::DirectRoom;
 use crate::matrix::extensions::msn_user_resolver::{member_to_msn_user, room_to_msn_user_lazy};
 use crate::switchboard::extensions::CustomStyles;
-use crate::switchboard::models::switchboard_handle::SwitchboardHandle;
 use crate::tachyon::client::tachyon_client::TachyonClient;
 use crate::tachyon::mappers::user_id::MatrixIdCompatible;
 use log::{info, warn};
 use matrix_sdk::ruma::events::room::message::{MessageType, OriginalSyncRoomMessageEvent};
 use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::events::typing::SyncTypingEvent;
-use matrix_sdk::ruma::RoomId;
 use matrix_sdk::{Client, Room};
+use msnp::msnp::notification::models::dialect::Dialect;
 use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
 use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
 use msnp::shared::models::display_name::DisplayName;
@@ -28,8 +28,9 @@ use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
 /// The MSN-bound effects a room event can decide (§3). Bottom-up from the
 /// real call sites: `SwitchboardServerCommand` is already plain data, so the
 /// decided command rides along as-is and `label` keeps the pre-D3 per-arm
-/// warn wording verbatim inside apply. This family decides no Matrix-bound
-/// op — the to-room text sends live on the MSN front (§1.1), not here.
+/// warn wording verbatim inside the delivery seam. This family decides no
+/// Matrix-bound op — the to-room text sends live on the MSN front (§1.1),
+/// not here.
 // One or two ops exist per event and die in apply() — boxing the transfer
 // variant would be indirection with no measured benefit (§9 item 5).
 #[allow(clippy::large_enum_variant)]
@@ -101,16 +102,21 @@ pub async fn handle_message(
             return;
         }
     };
-    let switchboard = tachyon_client.switchboards().get_or_initialize(room.room_id(), &room_user);
+    // RNG-invite timing anchor (D3 shape, preserved exactly): the handle
+    // is established BEFORE the gather, so the RNG invite fires at the
+    // pre-D3 point even for events the gather later skips. deliver's
+    // classic arm does the transport lookup itself (§3.4: the transport
+    // is the arm's business); this call owns the side effect and its
+    // timing, and the plain lookup below finds exactly this handle.
+    tachyon_client.switchboards().get_or_initialize(room.room_id(), &room_user);
 
-    // Sequential read → decide → apply in the handler task (§3.6) — no spawn
-    // per effect; the switchboard handle is looked up before the gather so
-    // the RNG-invite timing matches pre-D3 exactly.
+    // Sequential read → decide → deliver in the handler task (§3.6) — no
+    // spawn per effect.
     let Some(gathered) = gather_message(event, &room, room_user, &tachyon_client).await else {
         return;
     };
 
-    apply_message(decide_message(gathered), &switchboard, &tachyon_client, room.room_id()).await;
+    deliver(tachyon_client.dialect(), &tachyon_client, &room, decide_message(gathered)).await;
 }
 
 /// Gather (§3): the SDK/IO reads this flow needs, into plain facts — per-flow
@@ -318,43 +324,75 @@ pub(crate) fn decide_message(gathered: GatheredMessage) -> Vec<MessageOp> {
     }
 }
 
-/// Apply (§3): owns every effect call of the message family. Warn policy
-/// preserved verbatim from the pre-D3 arms: a dropped command warns and
-/// STOPS the remaining ops — the multi-op audio arms returned early on a
-/// failed notice, and every later send would have failed the same way
-/// (the client is gone).
-pub(crate) async fn apply_message(
-    ops: Vec<MessageOp>,
-    switchboard: &SwitchboardHandle,
-    tachyon_client: &TachyonClient,
-    room_id: &RoomId,
-) {
-    for op in ops {
-        match op {
-            MessageOp::Sb { label, command } => {
-                // Err = the switchboard's write task is gone (client
-                // disconnected): stop handling the event instead of panicking
-                // the Matrix task (§8 D2, §10).
-                if let Err(error) = switchboard.receive_command(command).await {
-                    warn!("MSNP|SB: {} dropped, client gone: {}", label, error);
-                    return;
+/// The delivery seam (§3.4, D4): a FUNCTION, not a trait — the one place
+/// the MSN-bound output forks on dialect. The shared body (the dedup
+/// check, room resolution, the gather/decide translation) sits above in
+/// the handler shells; deliver owns transport dispatch only and never
+/// duplicates the D3 executor/dedup/resolver.
+///
+/// Seam site (delivery): the anticipated difference here is topology —
+/// MSNP21 has no switchboard, so its arm (§7 M1) delivers the same
+/// decided ops as SDG/UUM over the NS writer and answers XFR with a
+/// refusal instead of the SB referral. That arm is anticipated, NOT
+/// shipped — no stub, no dormant variant (§6 D); the day a second
+/// `Dialect` variant exists, the compiler prints this site as part of
+/// the contributor's work list.
+///
+/// Drop policy: a failed send warns and STOPS the batch — the pre-D4
+/// apply_message policy, whose warn wording is preserved verbatim. The
+/// typing flow's pre-D4 "warn and CONTINUE" converges to the same wire
+/// output here: its ops all ride one handle, and every receive_command
+/// error (a dead write task, a poisoned lock) is sticky, so the remaining
+/// sends would have failed identically — a failure-path log-count delta
+/// only, named in the D4 C2 commit body. The typing defect canary (a
+/// ReceiveFile op in a typing batch) is subsumed: delivery is now shared,
+/// and decide_typing still never produces one.
+pub(crate) async fn deliver(dialect: Dialect, client: &TachyonClient, room: &Room, out: Vec<MessageOp>) {
+    match dialect {
+        // The classic arm: today's SB/XFR flow — SwitchboardServer keeps
+        // listening, classic clients need it.
+        Dialect::Msnp18 => {
+            let Some(switchboard) = client.switchboards().get(room.room_id()) else {
+                // Failure-path-only race (§1.4-class): the SB connection
+                // tore down between the shell's lookup and this one.
+                // Pre-D4 the ops rode the just-removed handle and died on
+                // its dead sender with a warn; nothing reached the wire
+                // then, nothing reaches it now.
+                warn!("MSNP|SB: no switchboard for {} at delivery, client gone — {} ops dropped", room.room_id(), out.len());
+                return;
+            };
+
+            for op in out {
+                match op {
+                    MessageOp::Sb { label, command } => {
+                        // Err = the switchboard's write task is gone (client
+                        // disconnected): stop handling the event instead of
+                        // panicking the Matrix task (§8 D2, §10).
+                        if let Err(error) = switchboard.receive_command(command).await {
+                            warn!("MSNP|SB: {} dropped, client gone: {}", label, error);
+                            return;
+                        }
+                    }
+                    MessageOp::ReceiveFile { inviter, sender, size, filename, source } => {
+                        client.receive_file(room.room_id(), &inviter, &sender, size, filename, source).await;
+                    }
                 }
-            }
-            MessageOp::ReceiveFile { inviter, sender, size, filename, source } => {
-                tachyon_client.receive_file(room_id, &inviter, &sender, size, filename, source).await;
             }
         }
     }
 }
 
 pub(crate) async fn handle_typing_notice(event: SyncTypingEvent, room: Room, tachyon_client: TachyonClient, client: Client) {
-    let Some(switchboard) = tachyon_client.switchboards().get(room.room_id()) else {
+    // Pre-gather gate (D3 shape, preserved): no switchboard for the room =
+    // nowhere to deliver typing — skip before gathering members. The
+    // handle itself is deliver's classic-arm lookup.
+    if !tachyon_client.switchboards().contains(room.room_id()) {
         return;
-    };
+    }
 
     let gathered = gather_typing(&event, &room).await;
 
-    apply_typing(decide_typing(gathered), &switchboard).await;
+    deliver(tachyon_client.dialect(), &tachyon_client, &room, decide_typing(gathered)).await;
 }
 
 /// Gathered typing facts: the resolved MSN users behind the typing event,
@@ -401,47 +439,35 @@ pub(crate) fn decide_typing(gathered: GatheredTyping) -> Vec<MessageOp> {
     }).collect()
 }
 
-/// Apply: typing keeps its OWN pre-D3 warn policy — warn and CONTINUE with
-/// the remaining users (the message family above stops instead; both
-/// verbatim from the pre-D3 code).
-pub(crate) async fn apply_typing(ops: Vec<MessageOp>, switchboard: &SwitchboardHandle) {
-    for op in ops {
-        match op {
-            MessageOp::Sb { label, command } => {
-                // Err = client gone: drop the typing notification, never hang
-                // the Matrix-side task on a full channel (§8 D2, §10).
-                if let Err(error) = switchboard.receive_command(command).await {
-                    warn!("MSNP|SB: {} dropped, client gone: {}", label, error);
-                }
-            }
-            // Canary precedent (send_client_outs's ContactPresence arm):
-            // decide_typing only ever produces Sb ops, so a file transfer
-            // here is a defect — loud warn + drop, unreachable by
-            // construction, never a panic in a Matrix handler task (§5).
-            MessageOp::ReceiveFile { .. } => {
-                warn!("MSNP|SB: the typing flow produced a file-transfer op; only the message family transfers files — dropped");
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
 
     use matrix_sdk::ruma::events::room::MediaSource;
-    use matrix_sdk::ruma::mxc_uri;
+    use matrix_sdk::ruma::{mxc_uri, room_id};
+    use matrix_sdk::test_utils::mocks::MatrixMockServer;
+    use msnp::msnp::models::contact_list::ContactList;
+    use msnp::msnp::notification::models::dialect::Dialect;
     use msnp::msnp::switchboard::command::command::SwitchboardServerCommand;
     use msnp::msnp::switchboard::command::msg::{MsgPayload, MsgServer};
+    use msnp::msnp::switchboard::models::session_id::SessionId;
+    use msnp::shared::models::display_name::DisplayName;
     use msnp::shared::models::email_address::EmailAddress;
     use msnp::shared::models::endpoint_id::EndpointId;
     use msnp::shared::models::font_name::{DefaultFont, FontName};
     use msnp::shared::models::font_style::FontStyle;
     use msnp::shared::models::msn_object::{FriendlyName, MSNObjectFactory, MsnObject, MsnObjectType};
     use msnp::shared::models::msn_user::MsnUser;
+    use msnp::shared::models::ticket_token::TicketToken;
     use msnp::shared::payload::msg::datacast_msg::{Datacast, DatacastType};
+    use msnp::shared::payload::msg::text_plain_msg::TextPlainMessagePayload;
+    use msnp::shared::traits::IntoBytes;
 
-    use super::{decide_message, decide_typing, GatheredContent, GatheredMessage, GatheredTyping, MessageOp};
+    use super::{decide_message, decide_typing, deliver, GatheredContent, GatheredMessage, GatheredTyping, MessageOp};
+    use crate::switchboard::models::switchboard_handle::SwitchboardHandle;
+    use crate::switchboard::switchboard_server::SwitchboardSenderMsg;
+    use crate::tachyon::client::tachyon_client::TachyonClient;
+    use crate::tachyon::config::tachyon_config::TachyonConfig;
 
     fn msn_user(email: &str, display_name: &str) -> MsnUser {
         let mut user = MsnUser::new(EndpointId::new(EmailAddress::from_str(email).unwrap(), None));
@@ -677,5 +703,96 @@ mod tests {
     fn typing_with_no_resolved_senders_decides_to_nothing() {
         let ops = decide_typing(GatheredTyping { senders: vec![] });
         assert!(ops.is_empty());
+    }
+
+    // ---- the delivery seam (D4 C2) ----
+
+    fn test_client() -> TachyonClient {
+        let (snd, _rcv) = tokio::sync::mpsc::channel(10);
+        let (kill_snd, kill_recv) = tokio::sync::broadcast::channel::<()>(1);
+        let msn_user = MsnUser::new(EndpointId::new(EmailAddress::from_str("aeon@test.com").unwrap(), None));
+        TachyonClient::new(TachyonConfig::default(), msn_user, TicketToken::default(), snd, kill_snd, kill_recv, ContactList::default())
+    }
+
+    /// §3.3's copy mechanics: the client's dialect defaults to the only
+    /// profiled dialect, and set_dialect — the single auth-registration
+    /// write — is what the accessor reads back. One owner, one copy, no
+    /// parallel flags.
+    #[test]
+    fn the_dialect_copy_defaults_to_the_profiled_dialect_and_reads_back_what_auth_wrote() {
+        let client = test_client();
+        assert_eq!(client.dialect(), Dialect::Msnp18);
+        client.set_dialect(Dialect::Msnp18);
+        assert_eq!(client.dialect(), Dialect::Msnp18);
+    }
+
+    /// The classic arm: a room whose switchboard is still Initializing
+    /// (RNG invited, the client has not ANSed yet) queues the decided ops
+    /// into the handle's pending_events — the pre-D4 receive_command
+    /// behavior, now behind the seam. The mock-server room keeps this
+    /// socket-free (§9).
+    #[tokio::test]
+    async fn deliver_queues_decided_ops_into_an_initializing_switchboard() {
+        let mock_server = MatrixMockServer::new().await;
+        let matrix_client = mock_server.client_builder().build().await;
+        let room = mock_server.sync_joined_room(&matrix_client, room_id!("!deliver:localhost")).await;
+
+        let client = test_client();
+        client.switchboards().insert(SwitchboardHandle::new(SessionId::new(7), room.room_id().to_owned())).unwrap();
+
+        deliver(client.dialect(), &client, &room, vec![MessageOp::Sb { label: "message", command: SwitchboardServerCommand::OUT }]).await;
+
+        let handle = client.switchboards().get(room.room_id()).expect("the handle survives delivery");
+        let pending = handle.pending_events.lock().unwrap();
+        assert_eq!(pending.len(), 1);
+        assert!(matches!(pending[0], SwitchboardServerCommand::OUT));
+    }
+
+    /// The classic arm wire pin: a Ready switchboard gets each decided
+    /// command delivered to the write channel in the Single envelope —
+    /// the exact bytes the pre-D4 apply put on the wire (the oracle is
+    /// the same registered MSG construction, §2's one-object rule).
+    #[tokio::test]
+    async fn deliver_sends_ready_switchboard_ops_to_the_write_channel_byte_identical() {
+        let mock_server = MatrixMockServer::new().await;
+        let matrix_client = mock_server.client_builder().build().await;
+        let room = mock_server.sync_joined_room(&matrix_client, room_id!("!deliver:localhost")).await;
+
+        let client = test_client();
+        let (sb_snd, mut sb_rcv) = tokio::sync::mpsc::channel::<SwitchboardSenderMsg>(10);
+        client.switchboards().insert(SwitchboardHandle::new_ready(SessionId::new(7), room.room_id().to_owned(), sb_snd)).unwrap();
+
+        fn decided_msg() -> SwitchboardServerCommand {
+            SwitchboardServerCommand::MSG(MsgServer {
+                sender: EmailAddress::from_str("peer@test.com").unwrap(),
+                display_name: DisplayName::new_from_ref("Peer"),
+                payload: MsgPayload::TextPlain(TextPlainMessagePayload::new_with_default_style("hello")),
+            })
+        }
+        let expected = decided_msg().into_bytes();
+
+        deliver(client.dialect(), &client, &room, vec![MessageOp::Sb { label: "message", command: decided_msg() }]).await;
+
+        let received = sb_rcv.recv().await.expect("the write channel receives the delivered command");
+        let SwitchboardSenderMsg::Single(command) = received else {
+            panic!("the classic arm delivers Single envelopes, the pre-D4 shape");
+        };
+        assert_eq!(command.into_bytes(), expected);
+    }
+
+    /// The classic arm's failure path: no switchboard for the room (the
+    /// teardown race) warns and drops the ops — no panic in the Matrix
+    /// task, nothing on the wire, exactly what the pre-D4 ops-on-a-
+    /// removed-handle path amounted to.
+    #[tokio::test]
+    async fn deliver_without_a_switchboard_drops_the_ops_without_panicking() {
+        let mock_server = MatrixMockServer::new().await;
+        let matrix_client = mock_server.client_builder().build().await;
+        let room = mock_server.sync_joined_room(&matrix_client, room_id!("!deliver:localhost")).await;
+
+        let client = test_client();
+        deliver(client.dialect(), &client, &room, vec![MessageOp::Sb { label: "message", command: SwitchboardServerCommand::OUT }]).await;
+
+        assert!(client.switchboards().get(room.room_id()).is_none());
     }
 }

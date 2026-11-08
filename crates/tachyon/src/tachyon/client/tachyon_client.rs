@@ -17,6 +17,7 @@ use matrix_sdk::locks::RwLock;
 use matrix_sdk::ruma::OwnedRoomId;
 use msnp::msnp::models::contact_list::ContactList;
 use msnp::msnp::notification::command::command::NotificationServerCommand;
+use msnp::msnp::notification::models::dialect::Dialect;
 use msnp::p2p::v2::raw_p2p_payload::RawP2PPayload;
 use msnp::shared::models::msn_user::MsnUser;
 use msnp::shared::models::ticket_token::TicketToken;
@@ -64,6 +65,15 @@ pub struct TachyonClientInner {
     pub dedup: DedupState,
     /// Owned room-id hash cache (§3.5, H7) — the same lifetime story.
     pub room_hashes: RoomHashCache,
+    /// §3.3's copy (D4): the dialect the NS connection negotiated at VER.
+    /// `SessionState` stays the one owner/negotiator; this is the single
+    /// copy into the client, written once at auth registration and read by
+    /// the delivery seam — no parallel "is-sb-enabled"-style flags. The
+    /// RwLock is the file's existing idiom (backend, own_user); the value
+    /// is immutable in practice (one write, at registration). Defaults to
+    /// the only profiled dialect, so pre-registration reads behave exactly
+    /// as before the copy existed.
+    pub dialect: RwLock<Dialect>,
 }
 
 #[derive(Clone)]
@@ -103,6 +113,7 @@ impl TachyonClient {
                 voice_clips: Default::default(),
                 dedup: Default::default(),
                 room_hashes: Default::default(),
+                dialect: RwLock::new(Dialect::default()),
             })
         }
     }
@@ -209,5 +220,19 @@ impl TachyonClient {
     /// The account's owned room-id hash cache (§3.5).
     pub fn room_hashes(&self) -> &RoomHashCache {
         &self.inner.room_hashes
+    }
+
+    /// The §3.3 dialect copy — negotiated once on the NS connection,
+    /// written once at auth registration (`set_dialect`), read by the
+    /// delivery seam (§3.4).
+    pub fn dialect(&self) -> Dialect {
+        *self.inner.dialect.read()
+    }
+
+    /// The auth-time copy of the negotiated dialect (§3.3). Called exactly
+    /// once, at the SSO registration point, before the client becomes
+    /// discoverable to any reader.
+    pub fn set_dialect(&self, dialect: Dialect) {
+        *self.inner.dialect.write() = dialect;
     }
 }

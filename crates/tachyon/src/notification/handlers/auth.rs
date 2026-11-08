@@ -64,6 +64,13 @@ pub(crate) async fn handle_auth(command: NotificationClientCommand, notif_sender
                                 shell.client_shutdown_recv.resubscribe(),
                                 Default::default(),
                             );
+                            // §3.3's copy (D4): the dialect this connection
+                            // negotiated at VER, written once here at the
+                            // registration point — before the insert below
+                            // makes the client discoverable, so every reader
+                            // (the delivery seam, §3.4) sees it. One owner:
+                            // SessionState negotiates, the client carries.
+                            client.set_dialect(session_state.dialect);
                             shell.client_drop_guard = Some(tachyon_state.insert_clients(token.clone(), client.clone()));
                             session_state.tachyon_client = Some(client.clone());
                             session_state.phase = ConnectionPhase::Ready;

@@ -269,6 +269,7 @@ A seventh requires deleting one or stating why the budget moved.
   UBX endpoint-data shape differs, and MSNP21 has no switchboard (§7 M1).
   This is 1 of the ≤6 budgeted `tachyon` sites.
 - **D2** crates/tachyon/src/notification/handlers/auth.rs — render_auth_trigger(), the auth web-login trigger site (§3.7): v1 renders the in-protocol NOT alert; M2's arm launches the host browser for pre-MSNP18 clients that cannot act on the alert (§7 M2) — the fork is the trigger only, never the login. With negotiation/profile and the chg presence render this is 3 of the ≤6 budgeted sites.
+- **D4** crates/tachyon/src/matrix/handlers/message_handlers.rs — deliver(), the SB-vs-NS delivery site (§3.4): the classic arm dispatches the decided ops through the room's switchboard handle (today's SB/XFR flow); MSNP21 has no switchboard — the M1 arm delivers the same ops as SDG/UUM over the NS writer and refuses XFR instead (§7 M1) — the fork is the transport only, never the translation/dedup/room resolution shared above the arms. With negotiation/profile, the chg presence render and the auth web-login trigger this is 4 of the ≤6 budgeted sites.
 
 ### 3.4 The switchboard question dissolves instead of being abstracted
 
